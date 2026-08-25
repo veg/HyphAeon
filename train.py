@@ -2,7 +2,7 @@
 """
 train.py
 --------
-Clean training pipeline for AxoMEME (PhyloAxialTransformer).
+Clean training pipeline for HyphAeon (PhyloAxialTransformer).
 Supports mixed precision, cosine annealing learning rate scheduling, per-gene NPZ
 loading, and within-gene site batching.
 """
@@ -15,8 +15,8 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from axomeme.model import PhyloAxialTransformer, decode_soft_ordinal_lrt
-from axomeme.training_data import GeneTensorsDataset
+from hyphaeon.model import PhyloAxialTransformer, decode_soft_ordinal_lrt
+from hyphaeon.training_data import GeneTensorsDataset
 
 
 def load_initial_checkpoint(model, checkpoint_path):
@@ -166,7 +166,7 @@ def main():
         
         if loss < best_loss:
             best_loss = loss
-            ckpt_path = os.path.join(args.output_dir, "axomeme_best.pt")
+            ckpt_path = os.path.join(args.output_dir, "hyphaeon_best.pt")
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),

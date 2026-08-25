@@ -6,8 +6,8 @@ import numpy as np
 import pytest
 import torch
 
-from axomeme.model import PhyloAxialTransformer, decode_soft_ordinal_lrt
-from axomeme.training_data import TRAINING_SCHEMA_VERSION
+from hyphaeon.model import PhyloAxialTransformer, decode_soft_ordinal_lrt
+from hyphaeon.training_data import TRAINING_SCHEMA_VERSION
 from train import iter_site_indices, load_initial_checkpoint, train_epoch
 
 
@@ -222,4 +222,4 @@ def test_training_cli_runs_two_epochs_from_checkpoint(tmp_path):
 
     assert "Epoch [ 1/ 2]" in result.stdout
     assert "Epoch [ 2/ 2]" in result.stdout
-    assert (output_dir / "axomeme_best.pt").exists()
+    assert (output_dir / "hyphaeon_best.pt").exists()

@@ -20,18 +20,18 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from axomeme.model import PhyloAxialTransformer
-from axomeme import dataset as ds
+from hyphaeon.model import PhyloAxialTransformer
+from hyphaeon import dataset as ds
 
 EXAMPLES_DIR = REPO_ROOT / "examples"
 ARTIFACTS_DIR = Path(__file__).resolve().parent / "_artifacts"
 ARTIFACTS_DIR.mkdir(exist_ok=True)
 
-# Weight resolution: use axomeme.weights module (Hugging Face download by
-# default, AXOMEME_WEIGHTS env var for local .pt/.safetensors files).
+# Weight resolution: use hyphaeon.weights module (Hugging Face download by
+# default, HYPHAEON_WEIGHTS env var for local .pt/.safetensors files).
 # This mirrors the CLI's behavior: CI downloads from HF; local devs can
 # point at a working checkpoint while iterating before pushing to HF.
-from axomeme.weights import resolve_weights_path, load_weights, load_arch_config
+from hyphaeon.weights import resolve_weights_path, load_weights, load_arch_config
 
 
 # ---------------------------------------------------------------------------
@@ -42,18 +42,18 @@ def _resolve_weights():
     """Return (path, source_label) or None if weights are unavailable.
 
     Resolution order (matches CLI):
-    1. AXOMEME_WEIGHTS env var → local file (if it exists)
+    1. HYPHAEON_WEIGHTS env var → local file (if it exists)
     2. Default variant from Hugging Face (downloads + caches on first use)
     """
-    explicit = os.environ.get("AXOMEME_WEIGHTS")
+    explicit = os.environ.get("HYPHAEON_WEIGHTS")
     if explicit and os.path.exists(explicit):
-        return explicit, f"AXOMEME_WEIGHTS={explicit}"
+        return explicit, f"HYPHAEON_WEIGHTS={explicit}"
     try:
         path = resolve_weights_path(weights=None)
         return path, f"Hugging Face (cached at {path})"
     except Exception as e:
         return None, (
-            f"weights unavailable: {e}. Set AXOMEME_WEIGHTS to a local "
+            f"weights unavailable: {e}. Set HYPHAEON_WEIGHTS to a local "
             f".pt/.safetensors checkpoint, or set HF_TOKEN for Hugging Face download."
         )
 
@@ -87,7 +87,7 @@ def weights_info():
     """Return (path, source_label); skip if weights unavailable."""
     if not WEIGHTS_AVAILABLE:
         pytest.skip(f"AxoMEME weights not available ({_WEIGHTS_SOURCE}). "
-                    f"Set AXOMEME_WEIGHTS or HF_TOKEN to run model_eval tests.")
+                    f"Set HYPHAEON_WEIGHTS or HF_TOKEN to run model_eval tests.")
     return _WEIGHTS_PATH, _WEIGHTS_SOURCE
 
 

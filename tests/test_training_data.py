@@ -5,8 +5,8 @@ import warnings
 import numpy as np
 import pytest
 
-from axomeme.dataset import load_alignment_and_tree
-from axomeme.training_data import (
+from hyphaeon.dataset import load_alignment_and_tree
+from hyphaeon.training_data import (
     GeneTensorsDataset,
     TRAINING_SCHEMA_VERSION,
     build_gene_npz,

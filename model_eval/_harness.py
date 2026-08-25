@@ -24,7 +24,7 @@ import scipy.stats as stats
 from Bio import Phylo
 from Bio.Phylo.BaseTree import Clade
 
-from axomeme import dataset as ds
+from hyphaeon import dataset as ds
 
 
 # ---------------------------------------------------------------------------

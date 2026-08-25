@@ -6,13 +6,13 @@ on:
     branches: [main]
     paths:
       - 'model_eval/**'
-      - 'axomeme/model.py'
-      - 'axomeme/dataset.py'
+      - 'hyphaeon/model.py'
+      - 'hyphaeon/dataset.py'
   pull_request:
     paths:
       - 'model_eval/**'
-      - 'axomeme/model.py'
-      - 'axomeme/dataset.py'
+      - 'hyphaeon/model.py'
+      - 'hyphaeon/dataset.py'
 
 jobs:
   model_eval:

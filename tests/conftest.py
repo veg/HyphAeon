@@ -3,7 +3,7 @@ import tempfile
 import pytest
 import torch
 
-from axomeme.model import PhyloAxialTransformer
+from hyphaeon.model import PhyloAxialTransformer
 
 EXAMPLES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "examples")
 EXPECTED_DIR = os.path.join(EXAMPLES_DIR, "expected_results")
