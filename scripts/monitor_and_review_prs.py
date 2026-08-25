@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-PR Monitoring & Automated Review Engine for veg/axomeme
+PR Monitoring & Automated Review Engine for veg/hyphaeon
 -------------------------------------------------------
-Monitors GitHub repository pull requests on veg/axomeme:
+Monitors GitHub repository pull requests on veg/hyphaeon:
 1. Polls GitHub API for open Pull Requests.
 2. Checks state in .pr_monitor_state.json to prevent duplicate reviews on the same commit SHA.
 3. Retrieves diffs, file patches, commit logs, and PR descriptions.
@@ -26,7 +26,7 @@ import subprocess
 import tempfile
 import ast
 
-REPO = "veg/axomeme"
+REPO = "veg/hyphaeon"
 STATE_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".pr_monitor_state.json")
 
 def get_github_token():
@@ -50,7 +50,7 @@ def github_api_request(endpoint, token, method="GET", data=None, headers_extra=N
     headers = {
         "Authorization": f"token {token}",
         "Accept": "application/vnd.github.v3+json",
-        "User-Agent": "AxoMEME-Review-Bot/1.0"
+        "User-Agent": "HyphAeon-Review-Bot/1.0"
     }
     if headers_extra:
         headers.update(headers_extra)
@@ -184,7 +184,7 @@ def generate_review_comment(pr, analysis_points, is_genuine, verdict, issues_fou
     else:
         header = "### Automated Code Review & Assessment: **Technical Feedback** ℹ️"
         conclusion = (
-            "**Conclusion:** Please review the technical assessment above. We appreciate your contribution to AxoMEME."
+            "**Conclusion:** Please review the technical assessment above. We appreciate your contribution to HyphAeon."
         )
 
     points_md = "\n".join([f"- {p}" for p in analysis_points])

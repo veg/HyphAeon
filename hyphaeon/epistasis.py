@@ -1,5 +1,5 @@
 """
-axomeme/epistasis.py
+hyphaeon/epistasis.py
 --------------------
 Phylogenetic Epistatic Co-Selection Networks, Sector Mining, and
 In Silico Selection Deep Mutational Scanning (ESSM / Digital DMS).

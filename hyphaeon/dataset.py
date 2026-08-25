@@ -1,5 +1,5 @@
 """
-axomeme/dataset.py
+hyphaeon/dataset.py
 ------------------
 Data preprocessing, tokenization, tree patristic distance calculation,
 classical 4D MDS embedding, alignment & tree parsing, embedded tree extraction,

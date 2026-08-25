@@ -1,5 +1,5 @@
 """
-AxoMEME: Ultra-Fast Neural Inference of Episodic Selection,
+HyphAeon: Ultra-Fast Neural Inference of Episodic Selection,
 Phenotype-Genotype Association Mapping, and Epistatic Sector Mining.
 """
 

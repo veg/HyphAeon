@@ -1,8 +1,8 @@
 """
-axomeme/cli.py
+hyphaeon/cli.py
 --------------
-Command-line interface for AxoMEME:
-1. 'predict': Ultra-Fast Neural Inference of Episodic Positive Selection (AxoMEME Transformer)
+Command-line interface for HyphAeon:
+1. 'predict': Ultra-Fast Neural Inference of Episodic Positive Selection (HyphAeon Transformer)
 2. 'phenotype' (phylowas): Directional Phenotype-Genotype Association & PARS Signature Extraction
 3. 'epistasis' (essm): Multi-Scale Epistatic Sector Mining (Two-Stage Seed-and-Extend TSE)
 """
@@ -33,10 +33,10 @@ from .weights import (
 from .phenotype import run_phenotype_association, PRESETS
 from .epistasis import run_epistasis_analysis, run_epistatic_sector_mining
 
-DEFAULT_VARIANT_ENV = os.environ.get("AXOMEME_VARIANT", DEFAULT_VARIANT)
-# If set, AXOMEME_WEIGHTS points to a local weights file and bypasses HF download.
+DEFAULT_VARIANT_ENV = os.environ.get("HYPHAEON_VARIANT", DEFAULT_VARIANT)
+# If set, HYPHAEON_WEIGHTS points to a local weights file and bypasses HF download.
 _local_repo_weights = Path(__file__).resolve().parent.parent / "weights" / "axomeme_v1.pt"
-DEFAULT_WEIGHTS_ENV = os.environ.get("AXOMEME_WEIGHTS", str(_local_repo_weights) if _local_repo_weights.exists() else None)
+DEFAULT_WEIGHTS_ENV = os.environ.get("HYPHAEON_WEIGHTS", str(_local_repo_weights) if _local_repo_weights.exists() else None)
 
 def ensure_parent_directory(path):
     if path:
@@ -86,7 +86,7 @@ def cmd_predict(args):
     except RuntimeError as e:
         print(f"[!] {e}")
         sys.exit(1)
-    print(f"[*] Loading AxoMEME model from: {weights_path}")
+    print(f"[*] Loading HyphAeon model from: {weights_path}")
 
     config = load_arch_config(weights=args.weights, variant=args.model_variant)
     model = PhyloAxialTransformer(
@@ -171,7 +171,7 @@ def cmd_predict(args):
     fdr_10 = (qvals <= 0.10).sum()
     
     print("\n" + "=" * 78)
-    print(f"🎉 AxoMEME Selection Inference Complete in {elapsed:.3f} seconds!")
+    print(f"🎉 HyphAeon Selection Inference Complete in {elapsed:.3f} seconds!")
     print(f"   Taxa: {len(taxa)} | Codon Sites: {L} | Total Invariable: {inv.sum()}")
     print(f"   Nominal Significance: (p <= 0.05): {sig_05} | (p <= 0.10): {sig_10}")
     print(f"   FDR Significance:     (q <= 0.05): {fdr_05} | (q <= 0.10): {fdr_10}")
@@ -191,7 +191,7 @@ def cmd_predict(args):
     results_list = [
         {
             "site": i + 1,
-            "axomeme_lrt": float(lrts[i]),
+            "hyphaeon_lrt": float(lrts[i]),
             "p_value": float(pvals[i]),
             "q_value": float(qvals[i]),
             "is_invariable": bool(inv[i])
@@ -482,13 +482,13 @@ def list_models():
         print("No model variants found on Hugging Face.")
         return
 
-    print(f"Available AxoMEME model variants ({HF_REPO_ID}):")
+    print(f"Available HyphAeon model variants ({HF_REPO_ID}):")
     print()
     for v in variants:
         default = " (default)" if v["variant"] == DEFAULT_VARIANT else ""
         print(f"  {v['variant']:15s}  {v['description']}{default}")
     print()
-    print("Use with:  axomeme predict -a alignment.fa --model-variant <variant>")
+    print("Use with:  hyphaeon predict -a alignment.fa --model-variant <variant>")
     print(f"Default variant: {DEFAULT_VARIANT}")
 
 def cmd_phenotype(args):
@@ -544,7 +544,7 @@ def cmd_phenotype(args):
         for s in top_sites:
             q_str = f"{s.get('q_value', 1.0):.2e}" if s.get('q_value', 1.0) < 0.01 else f"{s.get('q_value', 1.0):.3f}"
             p_str = f"{s.get('p_value', 1.0):.2e}" if s.get('p_value', 1.0) < 0.01 else f"{s.get('p_value', 1.0):.3f}"
-            print(f"{s['site']:<6d} {s['ref_aa']:<5s} {s['derived_aa']:<9s} {s['axomeme_lrt']:<7.2f} {s['association_rho']:<12.4f} {s.get('score', 0.0):<8.3f} {p_str:<12s} {q_str:<12s} {s['foreground_freq_pct']:<7.1f} {s['background_freq_pct']:<7.1f}")
+            print(f"{s['site']:<6d} {s['ref_aa']:<5s} {s['derived_aa']:<9s} {s['hyphaeon_lrt']:<7.2f} {s['association_rho']:<12.4f} {s.get('score', 0.0):<8.3f} {p_str:<12s} {q_str:<12s} {s['foreground_freq_pct']:<7.1f} {s['background_freq_pct']:<7.1f}")
 
     if args.output:
         ensure_parent_directory(args.output)
@@ -676,17 +676,17 @@ def cmd_epistasis(args):
 
 def main():
     parser = argparse.ArgumentParser(
-        prog="axomeme",
-        description="AxoMEME: Ultra-Fast Neural Selection Inference, Phenotype-Genotype Mapping, and Epistatic Sector Mining",
+        prog="hyphaeon",
+        description="HyphAeon: Ultra-Fast Neural Selection Inference, Phenotype-Genotype Mapping, and Epistatic Sector Mining",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     subparsers = parser.add_subparsers(dest="command", help="Available subcommands")
 
     # 1. Predict Subcommand
-    pred_parser = subparsers.add_parser("predict", help="Run episodic positive selection inference (AxoMEME Transformer)")
+    pred_parser = subparsers.add_parser("predict", help="Run episodic positive selection inference (HyphAeon Transformer)")
     pred_parser.add_argument("-a", "--alignment", required=True, help="Path to in-frame codon FASTA or NEXUS alignment")
     pred_parser.add_argument("-t", "--tree", required=False, default=None, help="Path to Newick/NEXUS phylogenetic tree (optional if embedded)")
-    pred_parser.add_argument("-w", "--weights", default=DEFAULT_WEIGHTS_ENV, help="Path to local model weights file (overrides HF download). Can also be set via AXOMEME_WEIGHTS env var.")
+    pred_parser.add_argument("-w", "--weights", default=DEFAULT_WEIGHTS_ENV, help="Path to local model weights file (overrides HF download). Can also be set via HYPHAEON_WEIGHTS env var.")
     pred_parser.add_argument("--model-variant", default=DEFAULT_VARIANT_ENV, help=f"Model variant to download from Hugging Face (default: {DEFAULT_VARIANT})")
     pred_parser.add_argument("-b", "--batch-size", type=int, default=None, help="Site batch size (default: auto-selected)")
     pred_parser.add_argument("-s", "--max-species", type=int, default=None, help="Maximum number of species to include (PD downsampling)")

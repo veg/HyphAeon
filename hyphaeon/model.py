@@ -1,5 +1,5 @@
 """
-axomeme/model.py
+hyphaeon/model.py
 ----------------
 Core Neural Architecture: PhyloAxialTransformer with Multi-Scale 4D Tree-RoPE
 for ultra-fast episodic positive selection inference.

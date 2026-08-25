@@ -1,5 +1,5 @@
 """
-axomeme/phenotype.py
+hyphaeon/phenotype.py
 --------------------
 Directional Phenotype-Genotype Association Mapping (PhyloWAS) and
 Phenotype-Associated Residue Signature (PARS) extraction.
@@ -398,7 +398,7 @@ def run_phenotype_association(
                 "site": s + 1,
                 "ref_aa": ref_aa,
                 "derived_aa": derived_aa,
-                "axomeme_lrt": lrt_val,
+                "hyphaeon_lrt": lrt_val,
                 "p_lrt": p_lrt,
                 "attribution_norm": norm_a,
                 "fg_mean_attn": fg_mean_attn,
