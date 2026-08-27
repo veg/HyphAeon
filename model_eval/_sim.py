@@ -201,7 +201,7 @@ def inject_selection(fa_path, nwk_path, n_taxa, n_codons,
     selected site, producing a phylogenetically correlated signal.
 
     Returns (modified_fasta_path, set_of_selected_site_indices,
-             n_selected_taxa_actual).
+             n_selected_taxa_actual, list_of_selected_taxa_names).
     """
     from Bio import SeqIO
     from Bio import Phylo
@@ -257,4 +257,4 @@ def inject_selection(fa_path, nwk_path, n_taxa, n_codons,
         for taxon in taxa:
             f.write(f">{taxon}\n{''.join(seqs[taxon])}\n")
 
-    return mod_path, selected_sites, len(selected_taxa)
+    return mod_path, selected_sites, len(selected_taxa), selected_taxa

@@ -8,11 +8,27 @@ on:
       - 'model_eval/**'
       - 'axomeme/model.py'
       - 'axomeme/dataset.py'
+      - 'axomeme/phenotype.py'
+      - 'axomeme/epistasis.py'
+      - 'axomeme/cli.py'
+      - 'hyphaeon/model.py'
+      - 'hyphaeon/dataset.py'
+      - 'hyphaeon/phenotype.py'
+      - 'hyphaeon/epistasis.py'
+      - 'hyphaeon/cli.py'
   pull_request:
     paths:
       - 'model_eval/**'
       - 'axomeme/model.py'
       - 'axomeme/dataset.py'
+      - 'axomeme/phenotype.py'
+      - 'axomeme/epistasis.py'
+      - 'axomeme/cli.py'
+      - 'hyphaeon/model.py'
+      - 'hyphaeon/dataset.py'
+      - 'hyphaeon/phenotype.py'
+      - 'hyphaeon/epistasis.py'
+      - 'hyphaeon/cli.py'
 
 jobs:
   model_eval:

@@ -25,7 +25,14 @@ import subprocess
 import tempfile
 
 import numpy as np
+import pytest
 from scipy.stats import spearmanr
+
+try:
+    from sklearn.metrics import cohen_kappa_score, f1_score
+except ImportError:
+    cohen_kappa_score = None
+    f1_score = None
 
 _CACHE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "_cache"))
 
@@ -120,6 +127,58 @@ def run_hyphy_meme(fasta_path, tree_path, timeout=600):
     return sites
 
 
+def run_hyphy_busted(fasta_path, tree_path, timeout=1200):
+    """Run HyPhy BUSTED and return a dict: {lrt, p_value} (gene-level, not per-site).
+
+    Results are cached in model_eval/_cache/ keyed on
+    (fasta hash, tree hash, hyphy version). Returns None if hyphy is
+    unavailable or the run fails.
+    """
+    version = _hyphy_version()
+    if version is None:
+        return None
+
+    os.makedirs(_CACHE_DIR, exist_ok=True)
+
+    fa_hash = _file_hash(fasta_path)
+    nwk_hash = _file_hash(tree_path)
+    cache_key = f"busted_{fa_hash}_{nwk_hash}_hyphy{version}.json"
+    cache_path = os.path.join(_CACHE_DIR, cache_key)
+
+    if os.path.exists(cache_path):
+        with open(cache_path) as f:
+            result = json.load(f)
+        print(f"  [cache hit] {cache_key}")
+        return result if result else None
+
+    tmp = tempfile.mkdtemp(prefix="hyphy_busted_")
+    json_out = os.path.join(tmp, "busted_results.json")
+
+    print(f"  [cache miss] running HyPhy BUSTED...")
+    result = subprocess.run(
+        ["hyphy", "busted", "--alignment", fasta_path, "--tree", tree_path,
+         "--output", json_out],
+        capture_output=True, text=True, timeout=timeout
+    )
+    if result.returncode != 0 or not os.path.exists(json_out):
+        return None
+
+    with open(json_out) as f:
+        data = json.load(f)
+
+    test_results = data.get("test results", {})
+    lrt = float(test_results.get("LRT", 0.0))
+    pval = float(test_results.get("p-value", 1.0))
+
+    result_dict = {"lrt": lrt, "p_value": pval}
+
+    with open(cache_path, "w") as f:
+        json.dump(result_dict, f, indent=2)
+    print(f"  [cache write] {cache_key}")
+
+    return result_dict
+
+
 def meme_dict_to_arrays(meme_sites, n_sites):
     """Convert a {site_index: {lrt, p_value}} dict into arrays aligned with
     AxoMEME's per-site LRT/p-value arrays (length n_sites).
@@ -154,7 +213,8 @@ def concordance_metrics(axo_lrts, axo_pvals, meme_lrts, meme_pvals, tested,
 
     Returns a dict suitable for direct inclusion in a JSON report.
     """
-    from sklearn.metrics import cohen_kappa_score, f1_score
+    if cohen_kappa_score is None:
+        pytest.skip("scikit-learn not available")
 
     if meme_tested is not None:
         concordance_tested = tested & meme_tested
