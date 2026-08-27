@@ -10,38 +10,23 @@ to discover convergent and directional trait-associated molecular adaptations.
 """
 
 import os
-import re
-import sys
-import json
-import math
 import fnmatch
 from typing import Dict, List, Tuple, Optional, Union, Any
 
 import numpy as np
 import pandas as pd
 import scipy.stats as stats
-import torch
 from Bio import Phylo
 
 from .dataset import (
     AA_MAP,
-    CODON_TO_AA,
     load_alignment_and_tree,
-    parse_alignment_sequences,
     extract_tree_from_string_or_file
 )
-from .model import PhyloAxialTransformer
-from .weights import (
-    load_weights,
-    load_arch_config,
-    resolve_weights_path,
-    DEFAULT_VARIANT
-)
+from .inference import compute_transformer_attributions, load_model
+from .utils import REV_AA_MAP, benjamini_hochberg
 
 DEFAULT_WEIGHTS = "weights/axomeme_v1.pt"
-from .epistasis import compute_transformer_attributions
-
-REV_AA_MAP = {v: k for k, v in AA_MAP.items()}
 
 PRESETS = {
     "echolocation": {
@@ -281,15 +266,8 @@ def run_phenotype_association(
     using continuous Transformer Attribution Vectors (multi-head phylogenetic attention
     attributions and branch projections) rather than binary string substitution counts.
     """
-    # 1. Device Selection
-    if cpu:
-        device = torch.device('cpu')
-    elif torch.cuda.is_available():
-        device = torch.device('cuda')
-    elif torch.backends.mps.is_available():
-        device = torch.device('mps')
-    else:
-        device = torch.device('cpu')
+    # 1. Device & Model
+    model, device = load_model(weights=weights_path, variant=variant, cpu=cpu)
 
     # 2. Load Alignment, Tree, and Extract Tree Cache
     c_tensor, a_tensor, d_mat, z_coords, inv_mask, taxa, L = load_alignment_and_tree(
@@ -317,18 +295,6 @@ def run_phenotype_association(
     fg_count = int(np.sum(is_fg))
     if fg_count < 2 and not continuous:
         raise ValueError(f"Insufficient foreground taxa ({fg_count}) matching criteria among {N} taxa.")
-
-    # 4. Load Neural Architecture and Pretrained Weights
-    config = load_arch_config(weights=weights_path, variant=variant)
-    model = PhyloAxialTransformer(
-        embed_dim=config['embed_dim'],
-        num_layers=config['num_layers'],
-        num_heads=config['num_heads'],
-        window_size=config['window_size'],
-    ).to(device)
-    state_dict = load_weights(weights=weights_path, variant=variant, map_location=device)
-    model.load_state_dict(state_dict, strict=False)
-    model.eval()
 
     d_dev = d_mat.to(device)
     z_dev = z_coords.to(device)
@@ -416,14 +382,10 @@ def run_phenotype_association(
     # 8. Benjamini-Hochberg FDR
     m = len(site_results)
     if m > 0:
-        p_sorted_idx = np.argsort([x["p_value"] for x in site_results])
-        min_q = 1.0
-        for rank, idx in reversed(list(enumerate(p_sorted_idx))):
-            p_val = site_results[idx]["p_value"]
-            q_val = (p_val * m) / (rank + 1)
-            if q_val < min_q:
-                min_q = q_val
-            site_results[idx]["q_value"] = min(min_q, 1.0)
+        p_arr = np.array([x["p_value"] for x in site_results], dtype=np.float32)
+        q_arr = benjamini_hochberg(p_arr)
+        for idx, q_val in enumerate(q_arr):
+            site_results[idx]["q_value"] = float(q_val)
     
     # 9. Dual-Track Extreme-Value Statistics
     max_assoc = float(site_results[0]["association_rho"]) if site_results else 0.0

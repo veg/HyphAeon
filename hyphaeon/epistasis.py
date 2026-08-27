@@ -10,31 +10,21 @@ with ZERO character mapping, ZERO ancestral parsimony heuristics, and ZERO
 discrete substitution counting.
 """
 
-import os
-import sys
 import math
-import json
-import time
-from typing import Dict, List, Tuple, Optional, Union, Any
+from typing import Dict, List, Tuple, Optional, Any
 
 import numpy as np
-import pandas as pd
 import scipy.stats as stats
 import torch
 import networkx as nx
-from Bio import Phylo
 
 from .dataset import (
-    AA_MAP,
-    CODON_TO_AA,
     load_alignment_and_tree,
     get_codon_token,
     get_aa_token
 )
-from .model import PhyloAxialTransformer
-from .weights import load_weights, load_arch_config
-
-REV_AA_MAP = {v: k for k, v in AA_MAP.items()}
+from .inference import compute_transformer_attributions, load_model
+from .utils import REV_AA_MAP, lrt_to_pvals, benjamini_hochberg, find_taxon_index
 
 # Canonical sense codons for all 20 standard amino acids
 CANONICAL_AA_TO_CODON = {
@@ -43,71 +33,6 @@ CANONICAL_AA_TO_CODON = {
     'M': 'ATG', 'N': 'AAC', 'P': 'CCC', 'Q': 'CAG', 'R': 'CGC',
     'S': 'AGC', 'T': 'ACC', 'V': 'GTG', 'W': 'TGG', 'Y': 'TAC'
 }
-
-def compute_transformer_attributions(
-    model: PhyloAxialTransformer,
-    c_tensor: torch.Tensor,
-    a_tensor: torch.Tensor,
-    tree_cache: Dict[str, Any],
-    taxa: List[str],
-    device: torch.device,
-    batch_size: int = 64
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, List[str]]:
-    """
-    Computes continuous Transformer Attribution Vectors directly from axial attention maps:
-      a_{s, n} = alpha_{root->n, s} * delta_{s, n}
-    where alpha is the multi-head root-to-leaf attention weight and delta is the non-consensus mutational indicator.
-    Returns: (leaf_attributions [L, N], lrts [L], pvals [L], consensus_aas [L]).
-    """
-    L, n_taxa, _ = c_tensor.shape
-    a_np = a_tensor.squeeze(-1).numpy() # [L, N]
-    
-    # 1. Determine consensus amino acid per site
-    consensus_aas = []
-    for s in range(L):
-        valid = a_np[s][a_np[s] < 20]
-        if len(valid) > 0:
-            major_aa = int(np.argmax(np.bincount(valid)))
-            consensus_aas.append(REV_AA_MAP.get(major_aa, '-'))
-        else:
-            consensus_aas.append('-')
-            
-    # 2. Mutational indicator matrix delta [L, N]
-    delta = np.zeros((L, n_taxa), dtype=np.float32)
-    for s in range(L):
-        cons_tok = AA_MAP.get(consensus_aas[s], 20)
-        if cons_tok < 20:
-            for n in range(n_taxa):
-                aa_val = a_np[s, n]
-                if aa_val < 20 and aa_val != cons_tok:
-                    delta[s, n] = 1.0
-                    
-    # 3. Batched neural inference with root attention extraction
-    lrts = np.zeros(L, dtype=np.float32)
-    mean_attns = np.zeros((L, n_taxa), dtype=np.float32)
-    
-    model.eval()
-    with torch.no_grad():
-        for start_idx in range(0, L, batch_size):
-            end_idx = min(start_idx + batch_size, L)
-            c_chunk = c_tensor[start_idx:end_idx].to(device)
-            a_chunk = a_tensor[start_idx:end_idx].to(device)
-            
-            y_soft, _, root_attns = model.forward_cached(
-                c_chunk, a_chunk, tree_cache, return_attentions=True
-            )
-            lrts[start_idx:end_idx] = torch.clamp(y_soft, min=0.0).cpu().numpy().flatten()
-            mean_attns[start_idx:end_idx] = root_attns.cpu().numpy()
-            
-    # 4. Asymptotic p-values
-    pvals = np.ones(L, dtype=np.float32)
-    pos_mask = lrts > 0.0
-    pvals[pos_mask] = 0.5 * stats.chi2.sf(lrts[pos_mask], df=1)
-    
-    # 5. Continuous Leaf attributions: A = alpha * delta [L, N]
-    leaf_attributions = mean_attns * delta
-    
-    return leaf_attributions, lrts, pvals, consensus_aas
 
 # Backward-compatibility alias
 compute_phylogenetic_branch_attributions = lambda model, c_tensor, a_tensor, tree_cache, tree_obj, taxa, device, batch_size=64: (
@@ -199,13 +124,11 @@ def compute_branch_coselection_network(
     candidate_pairs.sort(key=lambda x: x["p_val"])
     m_tests = len(candidate_pairs)
     sig_pairs = []
-    min_q = 1.0
     
-    for rank, p in reversed(list(enumerate(candidate_pairs))):
-        q = (p["p_val"] * m_tests) / (rank + 1)
-        if q < min_q:
-            min_q = q
-        p["fdr_q"] = min(min_q, 1.0)
+    p_arr = np.array([p["p_val"] for p in candidate_pairs], dtype=np.float32)
+    q_arr = benjamini_hochberg(p_arr)
+    for i, q_val in enumerate(q_arr):
+        candidate_pairs[i]["fdr_q"] = float(q_val)
         
     for p in candidate_pairs:
         if p["fdr_q"] <= max_fdr:
@@ -278,13 +201,9 @@ def extract_epistatic_sectors_tse(
         focal_sig = None
         focal_diffs = []
         if focal_taxon and taxa is not None and a_np is not None:
-            focal_idx = 0
-            for t_i, t_name in enumerate(taxa):
-                if focal_taxon.lower() in t_name.lower():
-                    focal_idx = t_i
-                    focal_name = t_name
-                    break
-            if focal_name:
+            focal_idx = find_taxon_index(taxa, focal_taxon)
+            if focal_idx is not None:
+                focal_name = taxa[focal_idx]
                 focal_tokens = []
                 for s in sorted_sites:
                     c_aa = consensus_aas[s]
@@ -320,7 +239,7 @@ def extract_epistatic_sectors_tse(
     return sectors
 
 def run_insilico_selection_dms(
-    model: PhyloAxialTransformer,
+    model: "PhyloAxialTransformer",
     c_tensor: torch.Tensor,
     a_tensor: torch.Tensor,
     tree_cache: Dict[str, Any],
@@ -337,10 +256,9 @@ def run_insilico_selection_dms(
     
     focal_idx = 0
     if focal_taxon:
-        for idx, t in enumerate(taxa):
-            if focal_taxon.lower() in t.lower():
-                focal_idx = idx
-                break
+        idx = find_taxon_index(taxa, focal_taxon)
+        if idx is not None:
+            focal_idx = idx
                 
     a_np = a_tensor.squeeze(-1).numpy() # [L, N]
     model.eval()
@@ -384,7 +302,7 @@ def run_insilico_selection_dms(
             
         delta_lrts = mut_lrts - baseline_lrts[s]
         plasticity = float(np.mean(np.abs(delta_lrts)))
-        p_val = float(0.5 * stats.chi2.sf(max(0.0, baseline_lrts[s]), df=1))
+        p_val = float(lrt_to_pvals(np.array([max(0.0, baseline_lrts[s])], dtype=np.float32))[0])
         
         plasticity_results.append({
             "site": s + 1,
@@ -420,32 +338,14 @@ def run_epistatic_analysis(
     Executes pure Transformer Attribution Co-Selection Networks, Epistatic Sector Mining,
     and Selection Deep Mutational Scanning (Digital DMS).
     """
-    # 1. Device Selection
-    if cpu:
-        device = torch.device('cpu')
-    elif torch.cuda.is_available():
-        device = torch.device('cuda')
-    elif torch.backends.mps.is_available():
-        device = torch.device('mps')
-    else:
-        device = torch.device('cpu')
+    # 1. Device & Model
+    model, device = load_model(weights=weights_path, variant=variant, cpu=cpu)
 
     # 2. Load Alignment and Tree
     c_tensor, a_tensor, d_mat, z_coords, inv_mask, taxa, L = load_alignment_and_tree(
         alignment_path, tree_path, prune_duplicates=True
     )
     N = len(taxa)
-
-    # 3. Load Model
-    config = load_arch_config(weights=weights_path, variant=variant)
-    model = PhyloAxialTransformer(
-        embed_dim=config['embed_dim'],
-        num_layers=config['num_layers'],
-        num_heads=config['num_heads'],
-        window_size=config['window_size']
-    ).to(device)
-    model.load_state_dict(load_weights(weights=weights_path, variant=variant, map_location=device), strict=False)
-    model.eval()
 
     tree_cache = model.precompute_tree_cache(d_mat.to(device), z_coords.to(device))
 

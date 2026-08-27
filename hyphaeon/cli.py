@@ -16,7 +16,6 @@ import argparse
 from pathlib import Path
 import numpy as np
 import pandas as pd
-import scipy.stats as stats
 import torch
 import networkx as nx
 
@@ -30,6 +29,8 @@ from .weights import (
     DEFAULT_VARIANT,
     HF_REPO_ID,
 )
+from .inference import load_model
+from .utils import select_device, lrt_to_pvals, benjamini_hochberg
 from .phenotype import run_phenotype_association, PRESETS
 from .epistasis import run_epistasis_analysis, run_epistatic_sector_mining
 
@@ -69,12 +70,7 @@ def determine_adaptive_batch_size(num_species: int, total_sites: int, device: to
     return min(total_sites, int(calculated_batch))
 
 def cmd_predict(args):
-    if torch.cuda.is_available() and not args.cpu:
-        device = torch.device('cuda')
-    elif torch.backends.mps.is_available() and not args.cpu:
-        device = torch.device('mps')
-    else:
-        device = torch.device('cpu')
+    device = select_device(cpu=args.cpu)
     print(f"[*] Hardware device selected: {device.type.upper()}")
 
     # Resolve weights: explicit --weights path > --model-variant (download from HF) > default variant
@@ -88,17 +84,7 @@ def cmd_predict(args):
         sys.exit(1)
     print(f"[*] Loading AxoMEME model from: {weights_path}")
 
-    config = load_arch_config(weights=args.weights, variant=args.model_variant)
-    model = PhyloAxialTransformer(
-        embed_dim=config['embed_dim'],
-        num_layers=config['num_layers'],
-        num_heads=config['num_heads'],
-        window_size=config['window_size'],
-    ).to(device)
-
-    state_dict = load_weights(weights=weights_path, variant=args.model_variant, map_location=device)
-    model.load_state_dict(state_dict, strict=False)
-    model.eval()
+    model, device = load_model(weights=args.weights, variant=args.model_variant, device=device)
     
     print(f"[*] Parsing Alignment: {args.alignment}")
     if args.tree:
@@ -149,21 +135,8 @@ def cmd_predict(args):
 
     elapsed = time.time() - t0
     
-    # 0.5 * chi2.sf(LRT, df=1) under Self & Liang (1987) mixture null: 0.5 * delta(0) + 0.5 * chi2(1)
-    pvals = np.ones(L, dtype=np.float32)
-    pos_mask = lrts > 0.0
-    pvals[pos_mask] = 0.5 * stats.chi2.sf(lrts[pos_mask], df=1)
-    
-    # Compute Benjamini-Hochberg False Discovery Rate (FDR) q-values
-    order = np.argsort(pvals)
-    ranks = np.empty(L, dtype=int)
-    ranks[order] = np.arange(1, L + 1)
-    raw_q = pvals * (L / ranks)
-    sorted_q = raw_q[order]
-    for i in range(L - 2, -1, -1):
-        sorted_q[i] = min(sorted_q[i], sorted_q[i + 1])
-    raw_q[order] = sorted_q
-    qvals = np.clip(raw_q, 0.0, 1.0).astype(np.float32)
+    pvals = lrt_to_pvals(lrts)
+    qvals = benjamini_hochberg(pvals)
     
     sig_10 = (pvals <= 0.10).sum()
     sig_05 = (pvals <= 0.05).sum()
@@ -227,22 +200,22 @@ def cmd_busted(args):
     evaluates CORAL rank-consistent ordinal heads for exact calibrated selection calls.
     Supports single alignments (-a) or high-throughput batch directories (-d).
     """
-    device = torch.device("cpu") if args.cpu else torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
+    device = select_device(cpu=args.cpu)
     print(f"[*] Running HyphAeon BUSTED Omnibus Selection Inference on {device}...")
     t_global_start = time.time()
     
     # 1. Weights
     resolved_path = resolve_weights_path(args.weights, variant=args.variant)
-    state_dict = load_weights(weights=resolved_path, variant=args.variant)
-    arch_config = load_arch_config(resolved_path, variant=args.variant)
+    state_dict = load_weights(weights=resolved_path, variant=args.variant, map_location=device)
+    arch_config = load_arch_config(weights=resolved_path, variant=args.variant)
     
     model = PhyloAxialTransformer(
         embed_dim=arch_config["embed_dim"],
         num_layers=arch_config["num_layers"],
         num_heads=arch_config["num_heads"],
-    )
+        window_size=arch_config["window_size"],
+    ).to(device)
     model.load_state_dict(state_dict, strict=False)
-    model.to(device)
     model.eval()
 
     busted_head = BustedMultiTaskHead(embed_dim=arch_config["embed_dim"]).to(device)
@@ -354,10 +327,7 @@ def cmd_busted(args):
         elapsed = time.time() - t0
         
         # 4. Asymptotic mixture p-values
-        pvals = np.ones(L, dtype=np.float64)
-        pos_mask = lrts > 0.0
-        if np.any(pos_mask):
-            pvals[pos_mask] = 0.5 * stats.chi2.sf(lrts[pos_mask], df=1)
+        pvals = lrt_to_pvals(lrts.astype(np.float64))
 
         # 5. ACAT & Simes Combination
         var_p = pvals[variable_indices] if num_variable > 0 else pvals
