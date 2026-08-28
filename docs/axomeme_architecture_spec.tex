@@ -3,117 +3,194 @@
 \usepackage[margin=1in]{geometry}
 \usepackage{amsmath,amssymb,amsfonts}
 \usepackage{booktabs}
-\usepackage{hyperref}
 \usepackage{xcolor}
-\usepackage{graphicx}
-\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{microtype}
+\usepackage{array}
 
 \definecolor{primary}{RGB}{31, 78, 121}
 \definecolor{secondary}{RGB}{84, 130, 53}
-\definecolor{lightgrey}{RGB}{245, 247, 250}
 
 \hypersetup{
     colorlinks=true,
     linkcolor=primary,
-    citecolor=secondary,
     urlcolor=primary
 }
 
-\title{\textbf{\Huge Axomeme 2.0: Deep Axial Transformer for Ultra-Fast Selection Inference}\\ \Large Architecture \& Mathematical Specification}
-\author{\textbf{Sergei L. Kosakovsky Pond \& Team}\\ \textit{Department of Biology, Temple University}}
-\date{\today}
+\title{\textbf{\Large Axomeme Architecture Specification}\\[0.5em]
+\large A Self-Contained Mathematical and Algorithmic Specification for Neural Detection of Natural Selection in Molecular Sequences}
+\author{\textbf{Axomeme Deep Learning Engineering Team}}
+\date{August 10, 2026}
 
 \begin{document}
-
 \maketitle
 
 \begin{abstract}
-\noindent \textbf{Axomeme 2.0} is a specialized axial attention transformer neural network designed for rapid, site-level evolutionary selection inference on multiple sequence alignments (MSAs) of protein-coding sequences. By replacing traditional Maximum Likelihood (ML) numerical optimization (such as HyPhy MEME or PAML CODEML) with a high-capacity axial transformer backbone and a rank-consistent ordinal CORAL head, Axomeme 2.0 infers Likelihood Ratio Test (LRT) selection statistics and evolutionary parameters in under \textbf{10 milliseconds per alignment} (a \textbf{4,000$\times$ speedup} over classical ML). This specification details the mathematical formulations, network components, attention mechanisms, and decoding algorithms.
+This document provides the authoritative mathematical and algorithmic specification of the \textbf{Axomeme} neural network architecture. Axomeme is an end-to-end deep learning framework designed to predict site-level natural selection (Likelihood Ratio Test statistics) directly from multi-species codon sequence alignments and phylogenetic tree matrices. The architecture combines a 4-layer dual-axial transformer engine with an evolutionarily grounded \textbf{Markov Exponential Decay Kernel} ($P(t) = e^{-\lambda t}$), 4D metric tree Multidimensional Scaling (MDS), block-diagonal track disentanglement between synonymous and non-synonymous features, a \textbf{12-Expert Mixture-of-Pooling Streams (MoPS)} gating network, and a rank-consistent CORAL ordinal prediction head.
 \end{abstract}
 
-\vspace{1em}\hrule\vspace{1em}
+\tableofcontents
+\newpage
 
-\section{System Overview}
+\section{Introduction \& Problem Formulation}
 
-Given an input alignment matrix $\mathbf{X} \in \mathcal{C}^{N \times L}$ of $N$ species (taxa) and $L$ codon sites, Axomeme 2.0 maps sequence variation and phylogenetic distances directly to continuous site-level selection statistics $\hat{y}_{\text{LRT}} \in \mathbb{R}_{\ge 0}$ and selection classifications (Tier 1, Tier 2, or Neutral).
+\subsection{The Statistical Framework of Natural Selection}
+In evolutionary biology, protein-coding gene sequences evolve under varying selective pressures:
+\begin{enumerate}
+    \item \textbf{Synonymous Substitutions ($\alpha$ or $dS$):} Nucleotide changes that do not alter the translated amino acid.
+    \item \textbf{Non-Synonymous Substitutions ($\beta$ or $dN$):} Nucleotide changes that alter the translated amino acid.
+\end{enumerate}
 
-\begin{equation}
-f_{\mathbf{\Theta}}(\mathbf{X}, \mathbf{D}) \longrightarrow \left( \hat{y}_{\text{LRT}}, \hat{\alpha}, \hat{\beta}^+, \hat{p}^+ \right)
-\end{equation}
-
-\section{Input Representation \& Dual Tokenization}
-
-\subsection{Dual Codon-AA Tokenization}
-Each alignment entry $(i, j)$ at species $i$ and codon site $j$ is tokenized across two parallel feature channels:
-\begin{itemize}
-    \item \textbf{Codon Vocabulary ($|\mathcal{C}| = 64$)}: Sense codons $0 \dots 63$. Stop codons, gaps, and unknown nucleotides are assigned index $64$.
-    \item \textbf{Amino Acid Vocabulary ($|\mathcal{A}| = 20$)}: Standard amino acids $0 \dots 19$. Unknowns / gaps are assigned index $20$.
-\end{itemize}
-
-\subsection{Embedding Layer}
+Site-level selection is formulated as a hypothesis test:
 \begin{align}
-\mathbf{e}_{\text{codon}} &= \mathbf{E}_{\text{codon}}[c_{i,j}] \in \mathbb{R}^{64} \\
-\mathbf{e}_{\text{aa}} &= \mathbf{E}_{\text{aa}}[a_{i,j}] \in \mathbb{R}^{64} \\
-\mathbf{x}_{i,j}^0 &= \text{Concat}(\mathbf{e}_{\text{codon}}, \mathbf{e}_{\text{aa}}) + \mathbf{P}_{\text{pos}}[j] + \mathbf{W}_{\text{mds}} \mathbf{m}_i \in \mathbb{R}^{128}
-\end{align}
-where $\mathbf{P}_{\text{pos}} \in \mathbb{R}^{L \times 128}$ is a 1D positional embedding and $\mathbf{m}_i \in \mathbb{R}^4$ represents Multidimensional Scaling (MDS) coordinates derived from the phylogenetic tree distance matrix.
-
-\section{Axial Transformer Backbone}
-
-Axomeme 2.0 incorporates 4 interleaved axial attention blocks to achieve $O(N \cdot L)$ scaling:
-
-\subsection{Column-Attention Layer (Codon Spatial Context)}
-Captures local sequence context along the codon dimension $L$:
-\begin{equation}
-\mathbf{H}_{\text{col}} = \text{MultiHeadAttention}\left(\mathbf{X}, \mathbf{X}, \mathbf{X}\right) \in \mathbb{R}^{(B \cdot N) \times L \times 128}
-\end{equation}
-
-\subsection{Phylo-Row-Attention Layer (Taxa Context)}
-Captures phylogenetic variation across species $N$ with distance normalization:
-\begin{equation}
-\mathbf{D}_{\text{norm}} = \frac{\mathbf{D}}{\bar{D} + 10^{-4}}
-\end{equation}
-Pairwise synonymous ($\mathbf{M}_{\text{syn}}$) and non-synonymous ($\mathbf{M}_{\text{nonsyn}}$) transition masks derived from the genetic code are injected directly into the attention logits.
-
-\section{Multi-Stream Species Representation Pooling}
-
-To aggregate representations across $N$ species into a single site vector $\mathbf{h}_j \in \mathbb{R}^{128}$:
-\begin{align}
-\mathbf{h}_{\text{mean}} &= \frac{1}{N} \sum_{i=1}^N \mathbf{x}_{i,j}, \quad \mathbf{h}_{\text{max}} = \max_{i=1}^N (\mathbf{x}_{i,j}) \\
-\mathbf{h}_{\text{attn}} &= \sum_{i=1}^N \text{Softmax}\left(\mathbf{w}_a^\top \mathbf{x}_{i,j}\right) \mathbf{x}_{i,j}, \quad \mathbf{h}_{\text{diff}} = \text{ReLU}\left(\mathbf{h}_{\text{max}} - \mathbf{h}_{\text{mean}}\right) \\
-\mathbf{h}_j &= \text{Linear}\left(\text{Concat}\left(\mathbf{h}_{\text{mean}}, \mathbf{h}_{\text{max}}, \mathbf{h}_{\text{attn}}, \mathbf{h}_{\text{diff}}\right)\right)
+H_0 \text{ (Null Hypothesis)}&: \beta \le \alpha \quad (\text{Neutral or Purifying Selection}) \\
+H_1 \text{ (Alternative Hypothesis)}&: \beta^+ > \alpha \quad (\text{Episodic Positive Selection on a subset of branches})
 \end{align}
 
-\section{Rank-Consistent CORAL Head \& Expected Value Decoder}
-
-To guarantee strict rank consistency ($b_0 > b_1 > \dots > b_{11}$):
+The Likelihood Ratio Test (LRT) statistic is defined as:
 \begin{equation}
-b_k = b_0 - \sum_{j=1}^k \text{Softplus}(\theta_j), \quad z_k = \mathbf{w}^\top \mathbf{h}_j + b_k
-\end{equation}
-where $p_k = \sigma(z_k) = P(\text{LRT} > E_{k+1})$.
-
-Continuous predictions are decoded via the \textbf{Smooth Expected Value Decoder}:
-\begin{equation}
-P(\text{Bin } 0) = 1.0 - p_0, \quad P(\text{Bin } m) = p_{m-1} - p_m, \quad P(\text{Bin } 12) = p_{11}
-\end{equation}
-\begin{equation}
-\hat{y}_{\text{LRT}} = \mathbb{E}[\text{LRT}] = \sum_{m=0}^{12} P(\text{Bin } m) \cdot \mu_m
+\text{LRT} = 2 \cdot \Big(\log \mathcal{L}(H_1) - \log \mathcal{L}(H_0)\Big)
 \end{equation}
 
-\section{Performance Summary}
+Axomeme models the mapping from raw multi-species sequence alignments and tree matrices directly to LRT statistics, replacing numerical likelihood optimization with a direct neural operator.
 
-\begin{table}[h!]
+---
+
+\section{Input Representation \& Encoding}
+
+Consider an alignment matrix $X$ containing $N$ species sequences across $S$ codon sites.
+
+\subsection{Discrete Sequence Tokenization}
+The alignment is tokenized into two discrete integer matrices:
+\begin{enumerate}
+    \item \textbf{Codon Tokens ($X_{\text{codon}} \in \{0, \dots, 65\}^{N \times S}$):} 64 sense codons + 2 termination/gap tokens.
+    \item \textbf{Amino Acid Tokens ($X_{\text{aa}} \in \{0, \dots, 22\}^{N \times S}$):} 20 standard amino acids (indices 0--19) + 1 stop codon (20) + 1 gap token (21) + 1 unknown token (22).
+\end{enumerate}
+
+\subsection{Phylogenetic Distance \& Coordinates}
+\begin{enumerate}
+    \item \textbf{Pairwise Patristic Distance Matrix ($\mathbf{T}_{\text{phylo}} \in \mathbb{R}^{N \times N}$):} Patristic branch distances are computed from the unrooted phylogenetic tree:
+    \begin{equation}
+    \tau_{ij} = \sum_{b \in \text{Path}(i, j)} \text{Length}(b)
+    \end{equation}
+    \item \textbf{Pairwise Jukes-Cantor Distance Fallback:} If branch lengths are absent, pairwise distances are calculated directly from sequence identity:
+    \begin{equation}
+    d(s_i, s_j) = -\frac{3}{4} \ln\left(1 - \frac{4}{3} p_{ij}\right)
+    \end{equation}
+    \item \textbf{4D Multidimensional Scaling (MDS) Coordinates ($M \in \mathbb{R}^{N \times 4}$):} The distance matrix $\mathbf{T}_{\text{phylo}}$ is projected into 4-dimensional Euclidean spatial coordinates via classical metric MDS.
+\end{enumerate}
+
+---
+
+\section{Block-Diagonal Track Disentanglement}
+
+To isolate non-synonymous amino acid selection signals from synonymous nucleotide noise, Axomeme enforces \textbf{Track Disentanglement} throughout the embedding and transformation layers.
+
+\subsection{Vector Partitioning}
+Embedding vectors $\mathbf{x} \in \mathbb{R}^{256}$ are partitioned into two independent 128-dimensional sub-vectors:
+\begin{equation}
+\mathbf{x} = \begin{bmatrix} \mathbf{x}_{\text{codon}} \\ \mathbf{x}_{\text{aa}} \end{bmatrix} \in \mathbb{R}^{256}, \quad \mathbf{x}_{\text{codon}} \in \mathbb{R}^{128}, \quad \mathbf{x}_{\text{aa}} \in \mathbb{R}^{128}
+\end{equation}
+
+\subsection{The BlockLinear Operator}
+All linear projection layers use a block-diagonal weight matrix \texttt{BlockLinear}:
+\begin{equation}
+\mathbf{W}_{\text{block}} = \begin{pmatrix} \mathbf{W}_{\text{codon}} & \mathbf{0} \\ \mathbf{0} & \mathbf{W}_{\text{aa}} \end{pmatrix} \in \mathbb{R}^{256 \times 256}
+\end{equation}
+
+\begin{equation}
+\mathbf{W}_{\text{block}} \mathbf{x} = \begin{bmatrix} \mathbf{W}_{\text{codon}} \mathbf{x}_{\text{codon}} \\ \mathbf{W}_{\text{aa}} \mathbf{x}_{\text{aa}} \end{bmatrix}
+\end{equation}
+
+---
+
+\section{The Dual-Axial Attention Engine \& Markov Exponential Decay Kernel}
+
+\subsection{Species Row Attention \& Markov Distance Kernel}
+For each attention head $h \in \{1, \dots, 8\}$:
+\begin{enumerate}
+    \item \textbf{Raw Query-Key Similarity Score:}
+    \begin{equation}
+    S_{ij}^{(h)} = \frac{(\mathbf{q}_i^{(h)})^\top \mathbf{k}_j^{(h)}}{\sqrt{32}}
+    \end{equation}
+    \item \textbf{Markov Continuous-Time Decay Kernel ($\tilde{S}_{ij}^{(h)} \in \mathbb{R}$):}
+    Under continuous-time Markov substitution models ($P(t) = e^{\mathbf{Q}t}$), evolutionary influence between species separated by patristic distance $\tau_{ij}$ decays exponentially: $K(\tau_{ij}) \propto e^{-\lambda_h \cdot \tau_{ij}}$. In attention score logit space, this corresponds to subtracting a learnable positive distance penalty:
+    \begin{equation}
+    \tilde{S}_{ij}^{(h)} = \frac{(\mathbf{q}_i^{(h)})^\top \mathbf{k}_j^{(h)}}{\sqrt{32}} - \lambda_h \cdot \tau_{ij}, \quad \text{where } \lambda_h = \text{Softplus}(w_{\text{phylo}, h}) > 0
+    \end{equation}
+    \item \textbf{Softmax Normalization:}
+    \begin{equation}
+    A_{ij}^{(h)} = \frac{\exp(\tilde{S}_{ij}^{(h)})}{\sum_{m=1}^N \exp(\tilde{S}_{im}^{(h)})}
+    \end{equation}
+\end{enumerate}
+
+---
+
+\section{Mixture-of-Pooling Streams (MoPS) Gating Architecture}
+
+Following 4 layers of phylogenetic species attention, each species $i$ at site $s$ has a 256-dimensional embedding vector $\mathbf{h}_i \in \mathbb{R}^{256}$. Axomeme pools species representations across $K=12$ specialist experts:
+
+\begin{table}[h]
 \centering
-\begin{tabular}{lcccc}
+\caption{The 12 MoPS Specialist Pooling Experts}
+\vspace{0.5em}
+\begin{tabular}{l c l p{5.5cm}}
 \toprule
-\textbf{Model / Benchmark} & \textbf{Mean AUC-ROC} & \textbf{Mean AUC-PR} & \textbf{False Positive Rate} & \textbf{Inference Speed} \\
+\textbf{Expert Stream} & \textbf{Dims} & \textbf{Mathematical Definition} & \textbf{Primary Biological Function} \\
 \midrule
-HyPhy MEME (Likelihood) & 0.8100 & 0.3500 & 5.0\% & ~45 seconds / gene \\
-PAML CODEML (Likelihood) & 0.7800 & 0.3000 & 6.2\% & ~180 seconds / gene \\
-\textbf{Axomeme 2.0 (Epoch 8 Rebalanced)} & \textbf{0.7772} & \textbf{0.2197} & \textbf{0.46\%} & \textbf{< 10 milliseconds} \\
+1. \texttt{mean\_pooled} & 256 & $\boldsymbol{\mu} = \frac{1}{N} \sum_{i=1}^N \mathbf{h}_i$ & Equilibrium Consensus Background \\
+2. \texttt{max\_pooled} & 256 & $\mathbf{m} = \max_{i} \mathbf{h}_i$ & Deep Mutant Outlier Burst \\
+3. \texttt{min\_pooled} & 256 & $\mathbf{n} = \min_{i} \mathbf{h}_i$ & Purifying Constraint Floor \\
+4. \texttt{cat\_pooled} & 256 & $\text{MLP}_{\text{fusion}}\Big( \Big[ \text{MLP}_{\text{stream}}\Big( \mathbf{e}_a \,||\, p_a \Big) \Big]_{a=0}^{19} \Big)$ & Clean 20-Class Allele Matrix \\
+5. \texttt{diff\_pooled} & 256 & $\text{ReLU}(\mathbf{m} - \boldsymbol{\mu}) \in \mathbb{R}^{256}$ & Full 256D Codon + AA Disentangled Range \\
+6. \texttt{var\_pooled} & 256 & $\frac{1}{N} \sum_{i=1}^N (\mathbf{h}_i - \boldsymbol{\mu})^2 \in \mathbb{R}^{256}$ & 2nd Moment (Feature Variance) \\
+7. \texttt{skew\_pooled} & 256 & $\frac{1}{N} \sum_{i=1}^N (\mathbf{h}_i - \boldsymbol{\mu})^3 \in \mathbb{R}^{256}$ & 3rd Moment (Asymmetric Lineage Acceleration) \\
+8. \texttt{kurt\_pooled} & 256 & $\frac{1}{N} \sum_{i=1}^N (\mathbf{h}_i - \boldsymbol{\mu})^4 \in \mathbb{R}^{256}$ & 4th Moment (Rare Outlier Tailness) \\
+9. \texttt{lse\_pooled} & 256 & $\log \big( \frac{1}{N} \sum_{i=1}^N \exp(\mathbf{h}_i) \big)$ & Smooth Log-Sum-Exp Max/Mean Interpolation \\
+10. \texttt{phylo\_mean\_pooled} & 256 & $\frac{\sum_{i=1}^N w_i \mathbf{h}_i}{\sum_{i=1}^N w_i}, \quad w_i = \frac{1}{d_i + 1.0}$ & Tree-Weighted Consensus \\
+11. \texttt{dnds\_contrast} & 256 & $\frac{1}{N} \sum_{i=1}^N \left( \frac{\|\mathbf{h}_{i, \text{aa}}\|}{\|\mathbf{h}_{i, \text{codon}}\| + \epsilon} \right) \mathbf{h}_i$ & Non-synonymous vs Synonymous Channel Norm Ratio \\
+12. \texttt{phylo\_var\_pooled} & 256 & $\frac{\sum_{i=1}^N w_i (\mathbf{h}_i - \boldsymbol{\mu}_{\text{phylo}})^2}{\sum_{i=1}^N w_i}$ & Tree-Weighted Lineage Variance \\
 \bottomrule
 \end{tabular}
-\caption{Overall benchmark metrics for Axomeme 2.0 (Epoch 8) evaluated across 17 empirical alignments from HyPhy test data.}
 \end{table}
+
+\subsection{Dynamic Neural Routing}
+The gating network computes Softmax routing weights over the 12 expert streams based on site consensus:
+\begin{equation}
+\mathbf{g} = \text{Softmax}\left( \mathbf{W}_g \boldsymbol{\mu} + \mathbf{b}_g \right) \in [0, 1]^{12}, \quad \sum_{k=1}^{12} g_k = 1.0
+\end{equation}
+
+\begin{equation}
+\mathbf{h}_{\text{pooled}} = \text{stream\_fusion}\left( \sum_{k=1}^{12} g_k \cdot \mathbf{S}_k \right) \in \mathbb{R}^{256}
+\end{equation}
+
+---
+
+\section{Rank-Consistent CORAL Ordinal Head}
+
+The pooled site vector $\mathbf{h}_{\text{pooled}} \in \mathbb{R}^{256}$ is passed to the Consistent Rank Logits (CORAL) ordinal prediction head.
+
+\subsection{Non-Linear Projection \& Strict Logit Monotonicity}
+To prevent 1D feature collapse, features are projected through a 2-layer MLP projection $\text{proj}(\mathbf{h}_{\text{pooled}})$ before adding monotonic threshold cutoffs $b_k$:
+\begin{equation}
+\text{proj}(\mathbf{h}_{\text{pooled}}) = \mathbf{W}_2 \cdot \text{ReLU}(\mathbf{W}_1 \mathbf{h}_{\text{pooled}}), \quad \mathbf{W}_1 \in \mathbb{R}^{64 \times 256}, \quad \mathbf{W}_2 \in \mathbb{R}^{1 \times 64}
+\end{equation}
+
+Threshold cutoffs $b_k$ enforce strict probability monotonicity ($P(y > b_0) \ge P(y > b_1) \ge \dots$):
+\begin{equation}
+b_0 = \text{Learnable Parameter}, \quad b_k = b_0 - \sum_{j=1}^k \text{Softplus}(\theta_j)
+\end{equation}
+
+The cumulative logits for ordinal threshold $k \in \{0, \dots, 11\}$ are:
+\begin{equation}
+z_k(\mathbf{h}_{\text{pooled}}) = \text{proj}(\mathbf{h}_{\text{pooled}}) + b_k
+\end{equation}
+
+\subsection{Expected Value Decoding}
+Continuous LRT predictions are decoded directly via Smooth Expected Value Interpolation over the empirical MEME $\chi^2$ mixture threshold midpoints:
+\begin{equation}
+\hat{\text{LRT}} = \sum_{m=0}^{12} P(\text{Bin } m) \cdot \text{Midpoint}_m
+\end{equation}
+where $\text{Midpoint}_m$ represents the raw LRT midpoint of bin $m$, providing continuous, un-biased selection strength estimates.
 
 \end{document}

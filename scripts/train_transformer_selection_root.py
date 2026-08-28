@@ -1620,26 +1620,13 @@ class RankConsistentCoralHead(nn.Module):
 LOG_CORAL_THRESHOLDS_8 = torch.tensor([0.0000, 0.6931, 1.4170, 1.6963, 2.0327, 2.4704, 3.0445, 3.9318, 4.6151])
 LOG_CORAL_DELTAS_8 = torch.tensor([0.6931, 0.7239, 0.2793, 0.3364, 0.4377, 0.5741, 0.8873, 0.6833])
 
-LOG_CORAL_THRESHOLDS_16 = torch.tensor([0.0000, 0.2420, 0.5596, 0.8109, 1.0393, 1.2384, 1.4170, 1.6963, 1.9168, 2.1507, 2.5750, 2.8734, 3.1355, 3.4965, 3.9318, 4.3307, 4.6151])
-LOG_CORAL_DELTAS_16 = torch.tensor([0.2420, 0.3176, 0.2513, 0.2284, 0.1991, 0.1786, 0.2793, 0.2205, 0.2339, 0.4243, 0.2984, 0.2621, 0.3610, 0.4353, 0.3989, 0.2844])
+LOG_CORAL_THRESHOLDS_FULL = torch.tensor([0.0000, 0.2420, 0.5596, 0.8109, 1.0393, 1.2384, 1.4170, 1.6963, 1.9168, 2.1507, 2.5750, 2.8734, 3.1355, 3.4965, 3.9318, 4.3307, 4.6151])
+LOG_CORAL_DELTAS_TENSOR = torch.tensor([0.2420, 0.3176, 0.2513, 0.2284, 0.1991, 0.1786, 0.2793, 0.2205, 0.2339, 0.4243, 0.2984, 0.2621, 0.3610, 0.4353, 0.3989, 0.2844])
+LOG_CORAL_DELTAS_12 = LOG_CORAL_DELTAS_TENSOR[:12]
 
-LOG_CORAL_THRESHOLDS_24 = torch.tensor([
-    0.0000, 0.2420, 0.4055, 0.5596, 0.6931, 0.8544, 1.0393, 1.2384, 1.4170,
-    1.5772, 1.6963, 1.8582, 2.0327, 2.2246, 2.4704, 2.7081, 2.9444, 3.2189,
-    3.4965, 3.7612, 4.0073, 4.2341, 4.4188, 4.6151, 4.7958
-])
-LOG_CORAL_DELTAS_24 = torch.tensor([
-    0.2420, 0.1635, 0.1542, 0.1335, 0.1613, 0.1849, 0.1991, 0.1786, 0.1602,
-    0.1191, 0.1619, 0.1746, 0.1919, 0.2458, 0.2376, 0.2364, 0.2744, 0.2776,
-    0.2647, 0.2461, 0.2268, 0.1847, 0.1963, 0.1807
-])
-
-# Backward compatibility aliases
-LOG_CORAL_THRESHOLDS_FULL = LOG_CORAL_THRESHOLDS_16
-LOG_CORAL_DELTAS_TENSOR = LOG_CORAL_DELTAS_16
-LOG_CORAL_DELTAS_12 = LOG_CORAL_DELTAS_16[:12]
-CORAL_THRESHOLDS_FULL = LOG_CORAL_THRESHOLDS_16
-CORAL_DELTAS_TENSOR = LOG_CORAL_DELTAS_16
+# Backward compatibility alias
+CORAL_THRESHOLDS_FULL = LOG_CORAL_THRESHOLDS_FULL
+CORAL_DELTAS_TENSOR = LOG_CORAL_DELTAS_TENSOR
 PURE_CORAL_DELTAS_12 = LOG_CORAL_DELTAS_12
 
 def decode_soft_ordinal_lrt(logits_lrt_ordinal):
@@ -1648,21 +1635,17 @@ def decode_soft_ordinal_lrt(logits_lrt_ordinal):
     E[log(1+LRT)] = sum_{k=0}^{K-1} P(log(1+LRT) > Z_k) * delta_Z_k
     E[LRT] = exp(E[log(1+LRT)]) - 1
     """
-    if logits_lrt_ordinal.dim() == 1 or logits_lrt_ordinal.shape[-1] not in (8, 12, 16, 24):
+    if logits_lrt_ordinal.dim() == 1 or logits_lrt_ordinal.shape[-1] not in (8, 12, 16):
         return logits_lrt_ordinal, logits_lrt_ordinal
         
     probs = torch.sigmoid(logits_lrt_ordinal)
     K = probs.shape[-1]
     if K == 8:
         deltas = LOG_CORAL_DELTAS_8.to(device=logits_lrt_ordinal.device, dtype=logits_lrt_ordinal.dtype)
-    elif K == 16:
-        deltas = LOG_CORAL_DELTAS_16.to(device=logits_lrt_ordinal.device, dtype=logits_lrt_ordinal.dtype)
-    elif K == 24:
-        deltas = LOG_CORAL_DELTAS_24.to(device=logits_lrt_ordinal.device, dtype=logits_lrt_ordinal.dtype)
     elif K == 12:
         deltas = LOG_CORAL_DELTAS_12.to(device=logits_lrt_ordinal.device, dtype=logits_lrt_ordinal.dtype)
     else:
-        deltas = LOG_CORAL_DELTAS_16[:K].to(device=logits_lrt_ordinal.device, dtype=logits_lrt_ordinal.dtype)
+        deltas = LOG_CORAL_DELTAS_TENSOR[:K].to(device=logits_lrt_ordinal.device, dtype=logits_lrt_ordinal.dtype)
     
     # Expected log(1 + LRT) via continuous survival integration
     log_lrt_expected = (probs * deltas.view(1, -1)).sum(dim=1)
@@ -1889,23 +1872,25 @@ class FocalCoralOrdinalLoss(nn.Module):
             t6 = (y_log_lrt_true > 3.9318).to(y_log_lrt_true.dtype)    # LRT > 50.0000 (Max Burst)
             t7 = (y_log_lrt_true >= 4.6151).to(y_log_lrt_true.dtype)   # LRT >= 100.0000 (Ceiling)
             return torch.stack([t0, t1, t2, t3, t4, t5, t6, t7], dim=-1)
-        elif self.num_thresholds == 24:
-            # 24 Canonical Biological Milestones
-            thresh_vals = [
-                0.2420, 0.4055, 0.5596, 0.6931, 0.8544, 1.0393, 1.2384, 1.4170,
-                1.5772, 1.6963, 1.8582, 2.0327, 2.2246, 2.4704, 2.7081, 2.9444,
-                3.2189, 3.4965, 3.7612, 4.0073, 4.2341, 4.4188, 4.6151, 4.7958
-            ]
-            targets = [(y_log_lrt_true > tv).to(y_log_lrt_true.dtype) for tv in thresh_vals]
-            return torch.stack(targets, dim=-1)
         else:
-            # 16-Threshold High-Resolution Partition (Cao et al. 2020)
-            thresh_vals = [
-                0.2420, 0.5596, 0.8109, 1.0393, 1.2384, 1.4170, 1.6963, 1.9168,
-                2.1507, 2.5750, 2.8734, 3.1355, 3.4965, 3.9318, 4.3307, 4.6151
-            ]
-            targets = [(y_log_lrt_true > tv).to(y_log_lrt_true.dtype) for tv in thresh_vals]
-            return torch.stack(targets, dim=-1)
+            t0  = (y_log_lrt_true > 0.2420).to(y_log_lrt_true.dtype)    # LRT > 0.2738 (p <= 0.50)
+            t1  = (y_log_lrt_true > 0.5596).to(y_log_lrt_true.dtype)    # LRT > 0.7500 (p <= 0.38)
+            t2  = (y_log_lrt_true > 0.8109).to(y_log_lrt_true.dtype)    # LRT > 1.2500 (p <= 0.28)
+            t3  = (y_log_lrt_true > 1.0393).to(y_log_lrt_true.dtype)    # LRT > 1.8272 (p <= 0.20)
+            t4  = (y_log_lrt_true > 1.2384).to(y_log_lrt_true.dtype)    # LRT > 2.4500 (p <= 0.14)
+            t5  = (y_log_lrt_true > 1.4170).to(y_log_lrt_true.dtype)    # LRT > 3.1248 (p <= 0.10 Tier 2)
+            t6  = (y_log_lrt_true > 1.6963).to(y_log_lrt_true.dtype)    # LRT > 4.4537 (p <= 0.05 Nominal)
+            t7  = (y_log_lrt_true > 1.9168).to(y_log_lrt_true.dtype)    # LRT > 5.7987 (p <= 0.025 Tier 1)
+            t8  = (y_log_lrt_true > 2.1507).to(y_log_lrt_true.dtype)    # LRT > 7.5909 (p <= 0.01)
+            t9  = (y_log_lrt_true > 2.5750).to(y_log_lrt_true.dtype)    # LRT > 12.1310 (p <= 0.001)
+            t10 = (y_log_lrt_true > 2.8734).to(y_log_lrt_true.dtype)    # LRT > 16.6963 (p <= 0.0001)
+            t11 = (y_log_lrt_true > 3.1355).to(y_log_lrt_true.dtype)    # LRT > 22.0
+            t12 = (y_log_lrt_true > 3.4965).to(y_log_lrt_true.dtype)    # LRT > 32.0
+            t13 = (y_log_lrt_true > 3.9318).to(y_log_lrt_true.dtype)    # LRT > 50.0
+            t14 = (y_log_lrt_true > 4.3307).to(y_log_lrt_true.dtype)    # LRT > 75.0
+            t15 = (y_log_lrt_true >= 4.6151).to(y_log_lrt_true.dtype)   # LRT >= 100.0
+            targets_full = torch.stack([t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15], dim=-1)
+            return targets_full[:, :self.num_thresholds]
 
     def forward(self, logits_and_rates, y_true):
         logits_lrt_ordinal = logits_and_rates if torch.is_tensor(logits_and_rates) else logits_and_rates[0]
@@ -2580,14 +2565,10 @@ def train_full_model(
             
             if K == 8:
                 deltas = LOG_CORAL_DELTAS_8.cpu()
-            elif K == 16:
-                deltas = LOG_CORAL_DELTAS_16.cpu()
-            elif K == 24:
-                deltas = LOG_CORAL_DELTAS_24.cpu()
             elif K == 12:
                 deltas = LOG_CORAL_DELTAS_12.cpu()
             else:
-                deltas = LOG_CORAL_DELTAS_16[:K].cpu()
+                deltas = LOG_CORAL_DELTAS_TENSOR[:K].cpu()
             max_theoretical_lrt = np.expm1(deltas.sum().item())
             
             if val_logits_tensor.ndim == 2 and val_logits_tensor.shape[1] == K:
@@ -2698,7 +2679,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_layers", type=int, default=4, help="Number of axial transformer layers (default: 4)")
     parser.add_argument("--num_heads", type=int, default=8, help="Number of attention heads (default: 8)")
     parser.add_argument("--profile", type=lambda x: (str(x).lower() == 'true'), default=False, help="Enable high-resolution per-step performance profiling (default: False)")
-    parser.add_argument("--num_thresholds", type=int, default=8, choices=[8, 12, 16, 24], help="Number of ordinal thresholds for CORAL head (8, 16, or 24, default: 8)")
+    parser.add_argument("--num_thresholds", type=int, default=8, help="Number of ordinal thresholds for CORAL head (8 or 16, default: 8)")
     args = parser.parse_args()
     
     train_full_model(

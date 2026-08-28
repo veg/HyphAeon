@@ -1013,17 +1013,20 @@ def train_full_model(db_path="meme_results.db", msa_dir="msa", epochs=5, batch_s
     print("\n" + "=" * 80)
     print("🚀 STEP 2: EXTRACTING AND SPLITTING DATASET (PREVENTING DATA LEAKAGE)")
     print("=" * 80)
-    print(" -> Querying SQLite database for all labeled site-level results...")
+    print(" -> Querying SQLite database for all labeled site-level results (excluding synthetic nulls)...")
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
     c.execute("""
         SELECT gene_name, site_index, lrt 
         FROM site_results 
         WHERE lrt IS NOT NULL
+          AND gene_name NOT LIKE 'null_%'
+          AND gene_name NOT LIKE '%replicate%'
+          AND gene_name NOT LIKE '%sim%'
     """)
     raw_sites = c.fetchall()
     conn.close()
-    print(f" -> Successfully fetched {len(raw_sites):,} sites from the database.")
+    print(f" -> Successfully fetched {len(raw_sites):,} genuine biological sites (filtered out synthetic nulls).")
     
     # Shuffle and split by gene to avoid homology data leakage
     all_genes = sorted(list(set(row[0] for row in raw_sites)))

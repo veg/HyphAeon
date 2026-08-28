@@ -1,10 +1,15 @@
-\BOOKMARK [1][-]{section.1}{System Overview}{}% 1
-\BOOKMARK [1][-]{section.2}{Input Representation \046 Dual Tokenization}{}% 2
-\BOOKMARK [2][-]{subsection.2.1}{Dual Codon-AA Tokenization}{section.2}% 3
-\BOOKMARK [2][-]{subsection.2.2}{Embedding Layer}{section.2}% 4
-\BOOKMARK [1][-]{section.3}{Axial Transformer Backbone}{}% 5
-\BOOKMARK [2][-]{subsection.3.1}{Column-Attention Layer \(Codon Spatial Context\)}{section.3}% 6
-\BOOKMARK [2][-]{subsection.3.2}{Phylo-Row-Attention Layer \(Taxa Context\)}{section.3}% 7
-\BOOKMARK [1][-]{section.4}{Multi-Stream Species Representation Pooling}{}% 8
-\BOOKMARK [1][-]{section.5}{Rank-Consistent CORAL Head \046 Expected Value Decoder}{}% 9
-\BOOKMARK [1][-]{section.6}{Performance Summary}{}% 10
+\BOOKMARK [1][-]{section.1}{Introduction \046 Problem Formulation}{}% 1
+\BOOKMARK [2][-]{subsection.1.1}{The Statistical Framework of Natural Selection}{section.1}% 2
+\BOOKMARK [1][-]{section.2}{Input Representation \046 Encoding}{}% 3
+\BOOKMARK [2][-]{subsection.2.1}{Discrete Sequence Tokenization}{section.2}% 4
+\BOOKMARK [2][-]{subsection.2.2}{Phylogenetic Distance \046 Coordinates}{section.2}% 5
+\BOOKMARK [1][-]{section.3}{Block-Diagonal Track Disentanglement}{}% 6
+\BOOKMARK [2][-]{subsection.3.1}{Vector Partitioning}{section.3}% 7
+\BOOKMARK [2][-]{subsection.3.2}{The BlockLinear Operator}{section.3}% 8
+\BOOKMARK [1][-]{section.4}{The Dual-Axial Attention Engine \046 Markov Exponential Decay Kernel}{}% 9
+\BOOKMARK [2][-]{subsection.4.1}{Species Row Attention \046 Markov Distance Kernel}{section.4}% 10
+\BOOKMARK [1][-]{section.5}{Mixture-of-Pooling Streams \(MoPS\) Gating Architecture}{}% 11
+\BOOKMARK [2][-]{subsection.5.1}{Dynamic Neural Routing}{section.5}% 12
+\BOOKMARK [1][-]{section.6}{Rank-Consistent CORAL Ordinal Head}{}% 13
+\BOOKMARK [2][-]{subsection.6.1}{Non-Linear Projection \046 Strict Logit Monotonicity}{section.6}% 14
+\BOOKMARK [2][-]{subsection.6.2}{Expected Value Decoding}{section.6}% 15

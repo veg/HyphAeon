@@ -25,7 +25,7 @@ import re
 from io import StringIO
 from Bio import Phylo
 from collections import Counter
-from train_transformer_selection import PhyloAxialTransformer, compute_mds_coordinates, decode_soft_ordinal_lrt
+from train_transformer_selection import PhyloAxialTransformer, compute_mds_coordinates
 
 GENETIC_CODE = {
     'ATA':'I', 'ATC':'I', 'ATT':'I', 'ATG':'M',
@@ -46,50 +46,93 @@ GENETIC_CODE = {
     'TGC':'C', 'TGT':'C', 'TGA':'_', 'TGG':'W',
 }
 
-CODON_LIST = [
-    'AAA', 'AAC', 'AAG', 'AAT', 'ACA', 'ACC', 'ACG', 'ACT', 'AGA', 'AGC', 'AGG', 'AGT', 'ATA', 'ATC', 'ATG', 'ATT',
-    'CAA', 'CAC', 'CAG', 'CAT', 'CCA', 'CCC', 'CCG', 'CCT', 'CGA', 'CGC', 'CGG', 'CGT', 'CTA', 'CTC', 'CTG', 'CTT',
-    'GAA', 'GAC', 'GAG', 'GAT', 'GCA', 'GCC', 'GCG', 'GCT', 'GGA', 'GGC', 'GGG', 'GGT', 'GTA', 'GTC', 'GTG', 'GTT',
-    'TAC', 'TAT', 'TCA', 'TCC', 'TCG', 'TCT', 'TGC', 'TGG', 'TGT', 'TTC', 'TTG', 'TTT'
-]
-CODON_TO_IDX = {c: i for i, c in enumerate(CODON_LIST)}
-
-AA_LIST = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y']
-AA_TO_IDX = {a: i for i, a in enumerate(AA_LIST)}
-
-def get_codon_token(codon):
-    return CODON_TO_IDX.get(codon.upper(), 64)
-
-def get_aa_token(codon):
-    aa = GENETIC_CODE.get(codon.upper(), '?')
-    return AA_TO_IDX.get(aa, 20) if aa != '?' else 21
-
+from train_transformer_selection import (
+    CODON_TO_IDX,
+    CODON_TO_AA_DICT,
+    AA_TO_IDX,
+    GENETIC_CODE,
+    CODON_LOOKUP,
+    AA_LOOKUP
+)
 
 def translate_codon(codon):
     codon = codon.upper()
-    if len(codon) != 3 or '-' in codon or 'N' in codon or '?' in codon:
+    if len(codon) != 3:
         return '?'
-    return GENETIC_CODE.get(codon, '?')
+    b_encoded = codon.encode('ascii')
+    idx = b_encoded[0] * 65536 + b_encoded[1] * 256 + b_encoded[2]
+    if idx < len(AA_LOOKUP):
+        aa_idx = AA_LOOKUP[idx]
+        for aa, a_idx in AA_TO_IDX.items():
+            if a_idx == aa_idx:
+                return aa
+    return '?'
+
+IUPAC_EXPAND = {
+    'A': ['A'], 'C': ['C'], 'G': ['G'], 'T': ['T'],
+    'R': ['A', 'G'], 'Y': ['C', 'T'], 'M': ['A', 'C'], 'K': ['G', 'T'],
+    'S': ['C', 'G'], 'W': ['A', 'T'], 'H': ['A', 'C', 'T'], 'B': ['C', 'G', 'T'],
+    'V': ['A', 'C', 'G'], 'D': ['A', 'G', 'T'], 'N': ['A', 'C', 'G', 'T']
+}
 
 def get_codon_token(codon):
     codon = codon.upper()
-    if '-' in codon:
-        return 64
-    if len(codon) != 3 or 'N' in codon or '?' in codon:
-        return 65
-    return CODON_TO_IDX.get(codon, 65)
-
-AA_LIST = "ACDEFGHIKLMNPQRSTVWY*-?"
-AA_TO_IDX = {aa: i for i, aa in enumerate(AA_LIST)}
+    if len(codon) != 3 or '-' in codon:
+        return 64 if '-' in codon else 65
+    b_encoded = codon.encode('ascii')
+    idx = b_encoded[0] * 65536 + b_encoded[1] * 256 + b_encoded[2]
+    if idx < len(CODON_LOOKUP):
+        tok = CODON_LOOKUP[idx]
+        if tok < 64:
+            return tok
+            
+    # Resolve ambiguous IUPAC codon to first standard canonical constituent
+    b0_opts = IUPAC_EXPAND.get(codon[0], [codon[0]])
+    b1_opts = IUPAC_EXPAND.get(codon[1], [codon[1]])
+    b2_opts = IUPAC_EXPAND.get(codon[2], [codon[2]])
+    for b0 in b0_opts:
+        for b1 in b1_opts:
+            for b2 in b2_opts:
+                c_try = b0 + b1 + b2
+                b_enc = c_try.encode('ascii')
+                i_try = b_enc[0] * 65536 + b_enc[1] * 256 + b_enc[2]
+                if i_try < len(CODON_LOOKUP) and CODON_LOOKUP[i_try] < 64:
+                    return CODON_LOOKUP[i_try]
+    return 65
 
 def get_aa_token(codon):
     codon = codon.upper()
-    if '-' in codon:
-        return 21  # AA_TO_IDX['-']
-    if len(codon) != 3 or 'N' in codon or '?' in codon:
-        return 22  # AA_TO_IDX['?']
-    aa = GENETIC_CODE.get(codon, '?')
-    return AA_TO_IDX.get(aa, 22)
+    if len(codon) != 3 or '-' in codon:
+        return 21 if '-' in codon else 22
+    b_encoded = codon.encode('ascii')
+    idx = b_encoded[0] * 65536 + b_encoded[1] * 256 + b_encoded[2]
+    if idx < len(AA_LOOKUP):
+        tok = AA_LOOKUP[idx]
+        if tok < 21:
+            return tok
+            
+    # Resolve amino acid for ambiguous IUPAC codon
+    b0_opts = IUPAC_EXPAND.get(codon[0], [codon[0]])
+    b1_opts = IUPAC_EXPAND.get(codon[1], [codon[1]])
+    b2_opts = IUPAC_EXPAND.get(codon[2], [codon[2]])
+    
+    possible_aas = set()
+    for b0 in b0_opts:
+        for b1 in b1_opts:
+            for b2 in b2_opts:
+                aa = GENETIC_CODE.get(b0 + b1 + b2, '?')
+                if aa != '?':
+                    possible_aas.add(aa)
+                    
+    if len(possible_aas) >= 1:
+        sorted_aas = sorted(list(possible_aas))
+        chosen = sorted_aas[0]
+        for aa in sorted_aas:
+            if aa != 'M' and aa in AA_TO_IDX:
+                chosen = aa
+                break
+        return AA_TO_IDX.get(chosen, 22)
+    return 22
 
 # --- BLOSUM62 & Grantham Scoring Matrices ---
 _blosum_raw = """
@@ -205,690 +248,118 @@ def is_site_variable(site_codons, site_aas):
             
     return False
 
-# =====================================================================
-# 2. MODEL ARCHITECTURE (PhyloAxialTransformer)
-# =====================================================================
-
-class StableAttention(nn.Module):
-    def __init__(self, embed_dim, num_heads=4, dropout=0.1):
-        super().__init__()
-        self.embed_dim = embed_dim
-        self.num_heads = num_heads
-        self.head_dim = embed_dim // num_heads
-        
-        self.in_proj_weight = nn.Parameter(torch.empty(3 * embed_dim, embed_dim))
-        self.in_proj_bias = nn.Parameter(torch.empty(3 * embed_dim))
-        self.out_proj = nn.Linear(embed_dim, embed_dim)
-        self.dropout = nn.Dropout(dropout)
-        
-        nn.init.xavier_uniform_(self.in_proj_weight)
-        nn.init.zeros_(self.in_proj_bias)
-        
-    def forward(self, query, key, value, key_padding_mask=None):
-        batch_size, q_seq_len, _ = query.shape
-        k_seq_len = key.shape[1]
-        
-        w_q, w_k, w_v = torch.chunk(self.in_proj_weight, 3, dim=0)
-        b_q, b_k, b_v = torch.chunk(self.in_proj_bias, 3, dim=0)
-        
-        w_q, w_k, w_v = w_q.contiguous(), w_k.contiguous(), w_v.contiguous()
-        b_q, b_k, b_v = b_q.contiguous(), b_k.contiguous(), b_v.contiguous()
-        
-        q_proj = F.linear(query, w_q, b_q)
-        k_proj = F.linear(key, w_k, b_k)
-        v_proj = F.linear(value, w_v, b_v)
-        
-        q_h = q_proj.view(batch_size, q_seq_len, self.num_heads, self.head_dim).transpose(1, 2)
-        k_h = k_proj.view(batch_size, k_seq_len, self.num_heads, self.head_dim).transpose(1, 2)
-        v_h = v_proj.view(batch_size, k_seq_len, self.num_heads, self.head_dim).transpose(1, 2)
-        
-        scores = torch.matmul(q_h, k_h.transpose(-2, -1)) / math.sqrt(self.head_dim)
-        
-        if key_padding_mask is not None:
-            mask = key_padding_mask.unsqueeze(1).unsqueeze(2)
-            scores = scores.masked_fill(mask, -1e4)
-            
-        attn_weights = torch.softmax(scores, dim=-1)
-        attn_weights = self.dropout(attn_weights)
-        
-        out = torch.matmul(attn_weights, v_h)
-        out = out.transpose(1, 2).contiguous().view(batch_size, q_seq_len, self.embed_dim)
-        return self.out_proj(out)
-
-
-# --- Custom Row Attention with Learnable Phylogenetic Bias & Genetic Code Biases ---
-class PhyloRowAttention(nn.Module):
-    def __init__(self, embed_dim, num_heads, dropout=0.1):
-        super().__init__()
-        self.embed_dim = embed_dim
-        self.num_heads = num_heads
-        self.head_dim = embed_dim // num_heads
-        
-        self.q_proj = nn.Linear(embed_dim, embed_dim)
-        self.k_proj = nn.Linear(embed_dim, embed_dim)
-        self.v_proj = nn.Linear(embed_dim, embed_dim)
-        
-        # 3-Channel Unrooted Tree Topological Attention Projection:
-        # Channel 0: Patristic Path Distance D_ij
-        # Channel 1: Topological Node Count N_ij
-        # Channel 2: Off-Path Subtree Density S_ij
-        self.tree_w1 = nn.Parameter(torch.randn(num_heads, 3) * 0.02)
-        self.tree_b1 = nn.Parameter(torch.zeros(num_heads, 1, 1))
-        self.tree_w2 = nn.Parameter(torch.randn(num_heads, 1, 1) * 0.02)
-        
-        # Legacy fallback support for 1D distance inputs
-        self.phylo_w1 = nn.Parameter(torch.randn(num_heads, 1, 1) * 0.02)
-        self.phylo_b1 = nn.Parameter(torch.zeros(num_heads, 1, 1))
-        self.phylo_w2 = nn.Parameter(torch.randn(num_heads, 1, 1) * 0.02)
-        
-        # Explicit Genetic Code Pairwise Attention Biases
-        self.nonsyn_head_bias = nn.Parameter(torch.tensor(2.0))
-        self.syn_head_bias = nn.Parameter(torch.tensor(-1.0))
-        
-        self.out_proj = nn.Linear(embed_dim, embed_dim)
-        self.dropout = nn.Dropout(dropout)
-        
-    def forward(self, x, dist_matrix, padding_mask=None, nonsyn_mask=None, syn_mask=None):
-        batch_size, num_species, _ = x.shape
-        
-        q = self.q_proj(x).view(batch_size, num_species, self.num_heads, self.head_dim).transpose(1, 2)
-        k = self.k_proj(x).view(batch_size, num_species, self.num_heads, self.head_dim).transpose(1, 2)
-        v = self.v_proj(x).view(batch_size, num_species, self.num_heads, self.head_dim).transpose(1, 2)
-        
-        scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(self.head_dim)
-        
-        # Sequence Density Invariant Softmax Normalization
-        if padding_mask is not None:
-            active_counts = (~padding_mask).sum(dim=-1, keepdim=True).clamp(min=1.0).float()
-            density_scale = torch.log(active_counts / 256.0).unsqueeze(-1).unsqueeze(-1)
-            scores = scores + density_scale
-            
-        # Unrooted 3-Channel Tree Feature Projection
-        if dist_matrix.dim() == 4: # [batch_size, num_species, num_species, 3]
-            tree_proj = torch.matmul(dist_matrix, self.tree_w1.t()).permute(0, 3, 1, 2)
-            tree_bias = F.softplus(tree_proj + self.tree_b1) * F.softplus(self.tree_w2)
-        elif dist_matrix.dim() == 3 and dist_matrix.shape[-1] == 3: # [num_species, num_species, 3]
-            tree_proj = torch.matmul(dist_matrix, self.tree_w1.t()).permute(2, 0, 1).unsqueeze(0)
-            tree_bias = F.softplus(tree_proj + self.tree_b1) * F.softplus(self.tree_w2)
-        else: # Legacy 1D Distance Fallback [batch_size, N, N] or [N, N]
-            bias = dist_matrix.unsqueeze(1) if dist_matrix.dim() == 3 else dist_matrix.unsqueeze(0).unsqueeze(1)
-            tree_bias = F.softplus(self.phylo_w1 * bias + self.phylo_b1) * F.softplus(self.phylo_w2)
-            
-        scores = scores - tree_bias
-        
-        if nonsyn_mask is not None:
-            scores = scores + self.nonsyn_head_bias * nonsyn_mask.unsqueeze(1)
-        if syn_mask is not None:
-            scores = scores + self.syn_head_bias * syn_mask.unsqueeze(1)
-            
-        if padding_mask is not None:
-            mask = padding_mask.unsqueeze(1).unsqueeze(2)
-            scores = scores.masked_fill(mask, -1e4)
-            
-        attn_weights = torch.softmax(scores, dim=-1)
-        attn_weights = self.dropout(attn_weights)
-        
-        out = torch.matmul(attn_weights, v)
-        out = out.transpose(1, 2).contiguous().view(batch_size, num_species, self.embed_dim)
-        return self.out_proj(out)
-
-
-class StableTransformerEncoderLayer(nn.Module):
-    def __init__(self, d_model, nhead, dim_feedforward, dropout=0.1):
-        super().__init__()
-        self.self_attn = StableAttention(d_model, nhead, dropout)
-        
-        self.linear1 = nn.Linear(d_model, dim_feedforward)
-        self.dropout = nn.Dropout(dropout)
-        self.linear2 = nn.Linear(dim_feedforward, d_model)
-        
-        self.norm1 = nn.LayerNorm(d_model)
-        self.norm2 = nn.LayerNorm(d_model)
-        self.dropout1 = nn.Dropout(dropout)
-        self.dropout2 = nn.Dropout(dropout)
-        
-    def forward(self, src):
-        attn_out = self.self_attn(src, src, src)
-        src = self.norm1(src + self.dropout1(attn_out))
-        
-        ff_out = self.linear2(self.dropout(F.relu(self.linear1(src))))
-        src = self.norm2(src + self.dropout2(ff_out))
-        return src
-
-
-# --- Fitch Codon Parsimony and Tree Topology Utilities ---
-CODON_TO_AA_DICT = {
-    'TTT': 0, 'TTC': 0, 'TTA': 1, 'TTG': 1, 'TCT': 2, 'TCC': 2, 'TCA': 2, 'TCG': 2,
-    'TAT': 3, 'TAC': 3, 'TAA': 20, 'TAG': 20, 'TGT': 4, 'TGC': 4, 'TGA': 20, 'TGG': 5,
-    'CTT': 1, 'CTC': 1, 'CTA': 1, 'CTG': 1, 'CCT': 6, 'CCC': 6, 'CCA': 6, 'CCG': 6,
-    'CAT': 7, 'CAC': 7, 'CAA': 8, 'CAG': 8, 'CGT': 9, 'CGC': 9, 'CGA': 9, 'CGG': 9,
-    'ATT': 10, 'ATC': 10, 'ATA': 10, 'ATG': 11, 'ACT': 12, 'ACC': 12, 'ACA': 12, 'ACG': 12,
-    'AAT': 13, 'AAC': 13, 'AAA': 14, 'AAG': 14, 'AGT': 2, 'AGC': 2, 'AGA': 9, 'AGG': 9,
-    'GTT': 15, 'GTC': 15, 'GTA': 15, 'GTG': 15, 'GCT': 16, 'GCC': 16, 'GCA': 16, 'GCG': 16,
-    'GAT': 17, 'GAC': 17, 'GAA': 18, 'GAG': 18, 'GGT': 19, 'GGC': 19, 'GGA': 19, 'GGG': 19
-}
-
-NUC_LIST = ['T', 'C', 'A', 'G']
-SENSE_CODONS = [n1+n2+n3 for n1 in NUC_LIST for n2 in NUC_LIST for n3 in NUC_LIST if CODON_TO_AA_DICT[n1+n2+n3] < 20]
-SENSE_CODON_TO_IDX = {c: i for i, c in enumerate(SENSE_CODONS)}
-SERINE_TCT_SET = {SENSE_CODON_TO_IDX[c] for c in ['TCT', 'TCC', 'TCA', 'TCG']}
-SERINE_AGC_SET = {SENSE_CODON_TO_IDX[c] for c in ['AGT', 'AGC']}
-
-def build_tree_topology(newick_str, selected_species):
-    clean_newick = newick_str.split(";")[0].strip() + ";" if newick_str else ""
-    if not clean_newick:
-        N = len(selected_species)
-        num_nodes = 2 * N - 1
-        parent_array = np.full(num_nodes, -1, dtype=np.int32)
-        for i in range(N):
-            parent_array[i] = N + (i // 2) if (N + (i // 2)) < num_nodes else num_nodes - 1
-        branch_lengths = np.ones(num_nodes, dtype=np.float32) * 0.05
-        return parent_array, branch_lengths
-        
-    try:
-        root = parse_newick(clean_newick)
-    except Exception:
-        N = len(selected_species)
-        num_nodes = 2 * N - 1
-        parent_array = np.full(num_nodes, -1, dtype=np.int32)
-        for i in range(N):
-            parent_array[i] = N + (i // 2) if (N + (i // 2)) < num_nodes else num_nodes - 1
-        branch_lengths = np.ones(num_nodes, dtype=np.float32) * 0.05
-        return parent_array, branch_lengths
-        
-    species_to_idx = {}
-    norm_selected = [s.replace("'", "").replace('"', '').strip() for s in selected_species]
-    for idx, s in enumerate(norm_selected):
-        species_to_idx[s] = idx
-        
-    N = len(selected_species)
-    num_nodes = 2 * N - 1
-    node_to_id = {}
-    
-    all_nodes = []
-    stack = [root]
-    while stack:
-        curr = stack.pop()
-        all_nodes.append(curr)
-        for c in reversed(curr.children):
-            stack.append(c)
-            
-    leaves = [n for n in all_nodes if not n.children]
-    internals = [n for n in all_nodes if n.children]
-    
-    leaves_found = 0
-    for term in leaves:
-        term_name = term.name.replace("'", "").replace('"', '').strip() if term.name else ""
-        if term_name in species_to_idx:
-            idx = species_to_idx[term_name]
-            node_to_id[term] = idx
-            leaves_found += 1
-            
-    if leaves_found < N:
-        for idx, term in enumerate(leaves):
-            if idx < N and term not in node_to_id:
-                node_to_id[term] = idx
-                
-    next_int_id = N
-    for n in internals:
-        node_to_id[n] = next_int_id
-        next_int_id += 1
-        if next_int_id >= num_nodes:
-            break
-            
-    parent_array = np.full(num_nodes, -1, dtype=np.int32)
-    branch_lengths = np.ones(num_nodes, dtype=np.float32) * 1e-3
-    
-    for n, n_id in node_to_id.items():
-        branch_lengths[n_id] = max(float(n.length), 1e-4)
-        if n.parent and n.parent in node_to_id:
-            parent_array[n_id] = node_to_id[n.parent]
-            
-    return parent_array, branch_lengths
-
-def build_sankoff_cost_matrix():
-    cost_matrix = np.zeros((61, 61), dtype=np.float32)
-    for i, c1 in enumerate(SENSE_CODONS):
-        aa1 = CODON_TO_AA_DICT[c1]
-        for j, c2 in enumerate(SENSE_CODONS):
-            if i == j:
-                cost_matrix[i, j] = 0.0
-                continue
-            aa2 = CODON_TO_AA_DICT[c2]
-            nuc_diff = sum(1 for k in range(3) if c1[k] != c2[k])
-            
-            if aa1 == aa2:
-                cost_matrix[i, j] = 1.0 * nuc_diff
-            else:
-                cost_matrix[i, j] = 2.5 * nuc_diff
-    return cost_matrix
-
-SANKOFF_COST_MATRIX = build_sankoff_cost_matrix()
-
-def fitch_codon_parsimony(site_codon_ids, parent_array, branch_lengths, max_k=32):
-    num_nodes = len(parent_array)
-    num_taxa = (num_nodes + 1) // 2
-    
-    S = np.zeros((num_nodes, 61), dtype=np.float32)
-    
-    for i in range(min(num_taxa, len(site_codon_ids))):
-        c_tok = site_codon_ids[i]
-        if c_tok < 64:
-            c_str = codons_list[c_tok] if c_tok < 64 else '???'
-            s_idx = SENSE_CODON_TO_IDX.get(c_str, 61)
-            if s_idx < 61:
-                S[i, :] = 1e6
-                S[i, s_idx] = 0.0
-            else:
-                S[i, :] = 0.0
-        else:
-            S[i, :] = 0.0
-            
-    children = [[] for _ in range(num_nodes)]
-    for v in range(num_nodes):
-        p = parent_array[v]
-        if p >= 0:
-            children[p].append(v)
-            
-    root = -1
-    for v in range(num_nodes):
-        if parent_array[v] < 0 and len(children[v]) > 0:
-            root = v
-            break
-    if root < 0:
-        root = num_nodes - 1
-        
-    # Dynamic Post-Order Bottom-Up DP (children before parent)
-    post_order = []
-    def get_post_order(u):
-        for ch in children[u]:
-            get_post_order(ch)
-        post_order.append(u)
-    get_post_order(root)
-    
-    for u in post_order:
-        ch = children[u]
-        if len(ch) > 0:
-            node_cost = np.zeros(61, dtype=np.float32)
-            for child in ch:
-                ch_cost_matrix = S[child, :][np.newaxis, :] + SANKOFF_COST_MATRIX
-                node_cost += np.min(ch_cost_matrix, axis=1)
-            S[u, :] = node_cost
-            
-    # Dynamic Pre-Order Top-Down Backtracking (parent before children)
-    pre_order = post_order[::-1]
-    reconstructed = np.zeros(num_nodes, dtype=np.int32)
-    reconstructed[root] = np.argmin(S[root, :])
-    
-    for u in pre_order[1:]:
-        p = parent_array[u]
-        p_state = reconstructed[p]
-        costs = S[u, :] + SANKOFF_COST_MATRIX[p_state, :]
-        reconstructed[u] = np.argmin(costs)
-
-        
-    active_edges = []
-    total_syn_count = 0.0
-    total_nonsyn_count = 0.0
-    
-    for v in range(num_nodes - 1):
-        p = parent_array[v]
-        if p < 0:
-            continue
-        c_u = reconstructed[p]
-        c_v = reconstructed[v]
-        
-        if c_u != c_v and c_u < 61 and c_v < 61:
-            b_len = max(float(branch_lengths[v]), 1e-4)
-            sub_id = c_u * 61 + c_v
-            
-            aa_u = CODON_TO_AA_DICT[SENSE_CODONS[c_u]]
-            aa_v = CODON_TO_AA_DICT[SENSE_CODONS[c_v]]
-            
-            str_u, str_v = SENSE_CODONS[c_u], SENSE_CODONS[c_v]
-            nuc_diff = sum(1 for i in range(3) if str_u[i] != str_v[i])
-            
-            is_syn = 1.0 if aa_u == aa_v else 0.0
-            is_nonsyn_single = 1.0 if (aa_u != aa_v and nuc_diff == 1) else 0.0
-            is_nonsyn_multi = 1.0 if (aa_u != aa_v and nuc_diff > 1) else 0.0
-            is_serine = 1.0 if (aa_u == aa_v and ((c_u in SERINE_TCT_SET and c_v in SERINE_AGC_SET) or (c_u in SERINE_AGC_SET and c_v in SERINE_TCT_SET))) else 0.0
-            
-            if is_syn == 1.0:
-                total_syn_count += 1.0
-            else:
-                total_nonsyn_count += 1.0
-                
-            rate = 1.0 / b_len
-            active_edges.append((is_syn, rate, sub_id, [is_syn, is_nonsyn_single, is_nonsyn_multi, is_serine], b_len))
-            
-    dNdS_ratio = total_nonsyn_count / (total_syn_count + 0.1)
-    rates = [e[1] for e in active_edges]
-    mean_rate = float(np.mean(rates)) if len(rates) > 0 else 1.0
-    
-    nonsyn_edges = [e for e in active_edges if e[0] == 0.0]
-    syn_edges = [e for e in active_edges if e[0] == 1.0]
-    
-    nonsyn_edges.sort(key=lambda x: x[1], reverse=True)
-    syn_edges.sort(key=lambda x: x[1], reverse=True)
-    
-    # Dynamic dual allocation ratio: 75% non-synonymous, 25% synonymous
-    target_nonsyn = int(max_k * 0.75)
-    target_syn = max_k - target_nonsyn
-    
-    k_nonsyn = min(target_nonsyn, len(nonsyn_edges))
-    k_syn = min(target_syn, len(syn_edges))
-    
-    selected = nonsyn_edges[:k_nonsyn] + syn_edges[:k_syn]
-    rem = nonsyn_edges[k_nonsyn:] + syn_edges[k_syn:]
-    rem.sort(key=lambda x: x[1], reverse=True)
-    
-    if len(selected) < max_k:
-        selected += rem[:(max_k - len(selected))]
-        
-    sub_ids = np.zeros(max_k, dtype=np.int64)
-    flags = np.zeros((max_k, 8), dtype=np.float32)
-    lengths = np.ones(max_k, dtype=np.float32) * 1e-4
-    mask = np.zeros(max_k, dtype=np.float32)
-    
-    for i, (_, rate, sub_id, fl, b_len) in enumerate(selected):
-        sub_ids[i] = sub_id
-        # Pure Transformer: Zero out all precomputed summary heuristics (dNdS_ratio, total_nonsyn, total_syn, burst_ratio)
-        flags[i] = fl + [0.0, 0.0, 0.0, 0.0]
-        lengths[i] = b_len
-        mask[i] = 1.0
-        
-    return sub_ids, flags, lengths, mask
-
-
-def _build_path_ns_tensor():
-    # 61x61x2 precomputed lookup table of expected (N, S) steps
-    sense_codons = ['AAA', 'AAC', 'AAG', 'AAT', 'ACA', 'ACC', 'ACG', 'ACT', 'AGA', 'AGC', 'AGG', 'AGT', 'ATA', 'ATC', 'ATG', 'ATT', 'CAA', 'CAC', 'CAG', 'CAT', 'CCA', 'CCC', 'CCG', 'CCT', 'CGA', 'CGC', 'CGG', 'CGT', 'CTA', 'CTC', 'CTG', 'CTT', 'GAA', 'GAC', 'GAG', 'GAT', 'GCA', 'GCC', 'GCG', 'GCT', 'GGA', 'GGC', 'GGG', 'GGT', 'GTA', 'GTC', 'GTG', 'GTT', 'TAC', 'TAT', 'TCA', 'TCC', 'TCG', 'TCT', 'TGC', 'TGG', 'TGT', 'TTA', 'TTC', 'TTG', 'TTT']
-    code = {'ATA':'I', 'ATC':'I', 'ATT':'I', 'ATG':'M', 'ACA':'T', 'ACC':'T', 'ACG':'T', 'ACT':'T', 'AAC':'N', 'AAT':'N', 'AAA':'K', 'AAG':'K', 'AGC':'S', 'AGT':'S', 'AGA':'R', 'AGG':'R', 'CTA':'L', 'CTC':'L', 'CTG':'L', 'CTT':'L', 'CCA':'P', 'CCC':'P', 'CCG':'P', 'CCT':'P', 'CAC':'H', 'CAT':'H', 'CAA':'Q', 'CAG':'Q', 'CGA':'R', 'CGC':'R', 'CGG':'R', 'CGT':'R', 'GTA':'V', 'GTC':'V', 'GTG':'V', 'GTT':'V', 'GCA':'A', 'GCC':'A', 'GCG':'A', 'GCT':'A', 'GAC':'D', 'GAT':'D', 'GAA':'E', 'GAG':'E', 'GGA':'G', 'GGC':'G', 'GGG':'G', 'GGT':'G', 'TCA':'S', 'TCC':'S', 'TCG':'S', 'TCT':'S', 'TTC':'F', 'TTT':'F', 'TTA':'L', 'TTG':'L', 'TAC':'Y', 'TAT':'Y', 'TGC':'C', 'TGT':'C', 'TGG':'W'}
-    stops = {'TAA', 'TAG', 'TGA'}
-    
-    import itertools
-    matrix = np.zeros((61, 61, 2), dtype=np.float32)
-    for i, c1 in enumerate(sense_codons):
-        for j, c2 in enumerate(sense_codons):
-            if c1 == c2:
-                continue
-            diffs = [k for k in range(3) if c1[k] != c2[k]]
-            perms = list(itertools.permutations(diffs))
-            valid_paths = []
-            for perm in perms:
-                path = [c1]
-                curr = list(c1)
-                valid = True
-                for pos in perm:
-                    curr[pos] = c2[pos]
-                    nc = "".join(curr)
-                    if nc in stops:
-                        valid = False
-                        break
-                    path.append(nc)
-                if valid:
-                    valid_paths.append(path)
-            if not valid_paths:
-                for perm in perms:
-                    path = [c1]
-                    curr = list(c1)
-                    for pos in perm:
-                        curr[pos] = c2[pos]
-                        path.append("".join(curr))
-                    valid_paths.append(path)
-            tn, ts = 0.0, 0.0
-            for p in valid_paths:
-                pn, ps = 0, 0
-                for step in range(len(p) - 1):
-                    if code.get(p[step]) == code.get(p[step+1]):
-                        ps += 1
-                    else:
-                        pn += 1
-                tn += pn
-                ts += ps
-            matrix[i, j, 0] = tn / len(valid_paths)
-            matrix[i, j, 1] = ts / len(valid_paths)
-    return torch.tensor(matrix, dtype=torch.float32)
-
-
-# --- Sparse Codon Edge Token Encoder ---
-class SparseCodonEdgeEncoder(nn.Module):
-    def __init__(self, embed_dim=128, max_k=64, num_categories=8):
-        super().__init__()
-        self.max_k = max_k
-        self.embed_dim = embed_dim
-        
-        self.register_buffer('path_ns_matrix', _build_path_ns_tensor())
-        self.codon_sub_embed = nn.Embedding(3721, 64)
-        self.category_proj = nn.Linear(num_categories, 32)
-        
-        self.b_mlp = nn.Sequential(
-            nn.Linear(2, 16),
-            nn.GELU(),
-            nn.Linear(16, 32)
-        )
-        
-        # Additional path projection layer for (exp_N, exp_S, nonsyn_ratio, nonsyn_flux, syn_flux, diff_flux)
-        self.path_proj = nn.Sequential(
-            nn.Linear(6, 16),
-            nn.GELU(),
-            nn.Linear(16, 16)
-        )
-        
-        self.edge_proj = nn.Sequential(
-            nn.Linear(64 + 32 + 32 + 16, embed_dim),
-            nn.GELU(),
-            nn.Linear(embed_dim, embed_dim)
-        )
-        
-        self.pool_combine = nn.Sequential(
-            nn.Linear(5 * embed_dim, embed_dim),
-            nn.GELU(),
-            nn.Linear(embed_dim, embed_dim)
-        )
-
-    def forward(self, active_sub_ids, active_flags, active_lengths, active_mask):
-        if self.category_proj.in_features == 4 and active_flags.shape[-1] >= 4:
-            cat_flags = active_flags[..., :4]
-        elif self.category_proj.in_features == 7 and active_flags.shape[-1] >= 7:
-            cat_flags = active_flags[..., :7]
-        elif self.category_proj.in_features == 8 and active_flags.shape[-1] < 8:
-            pad_size = 8 - active_flags.shape[-1]
-            pad_tensor = torch.zeros((*active_flags.shape[:-1], pad_size), device=active_flags.device, dtype=active_flags.dtype)
-            cat_flags = torch.cat([active_flags, pad_tensor], dim=-1)
-        else:
-            cat_flags = active_flags
-            
-        sub_emb = self.codon_sub_embed(active_sub_ids)
-        cat_emb = self.category_proj(cat_flags)
-        
-        log_b = torch.log(torch.clamp(active_lengths, min=1e-4))
-        b_feat = torch.stack([active_lengths, log_b], dim=-1)
-        b_emb = self.b_mlp(b_feat)
-        
-        # Extract path-averaged (N, S) metrics from lookup matrix
-        c_u = torch.clamp(active_sub_ids // 61, min=0, max=60)
-        c_v = torch.clamp(active_sub_ids % 61, min=0, max=60)
-        ns_vals = self.path_ns_matrix[c_u, c_v] # [B, K, 2]
-        exp_N = ns_vals[..., 0] # [B, K]
-        exp_S = ns_vals[..., 1] # [B, K]
-        
-        b_len_clamp = torch.clamp(active_lengths, min=1e-4)
-        
-        # Solution 1: Composition-Aware Path-Averaged Features
-        nonsyn_ratio = exp_N / (exp_N + exp_S + 1e-6)
-        nonsyn_flux = exp_N / b_len_clamp
-        syn_flux = exp_S / b_len_clamp
-        diff_flux = (exp_N - exp_S) / b_len_clamp
-        
-        path_feats = torch.stack([exp_N, exp_S, nonsyn_ratio, nonsyn_flux, syn_flux, diff_flux], dim=-1)
-        path_emb = self.path_proj(path_feats)
-        
-        concat_feat = torch.cat([sub_emb, cat_emb, b_emb, path_emb], dim=-1)
-        edge_vec = self.edge_proj(concat_feat)
-        
-        intensity = 1.0 / (torch.clamp(active_lengths, min=1e-4) + 1e-3)
-        intensity_log = torch.log1p(torch.clamp(intensity, max=100.0))
-        
-        weighted_edge_vec = edge_vec * intensity_log.unsqueeze(-1) * active_mask.unsqueeze(-1)
-        
-        # 1. Max Pooling across active edges (isolates 1st highest burst)
-        masked_for_max = weighted_edge_vec.masked_fill((active_mask == 0).unsqueeze(-1), -1e4)
-        max_pooled = torch.relu(torch.max(masked_for_max, dim=1)[0])
-        
-        # 2. Mean Pooling across active edges (tree-size invariant rate average)
-        active_counts = active_mask.sum(dim=1, keepdim=True).clamp(min=1.0)
-        mean_pooled = weighted_edge_vec.sum(dim=1) / active_counts
-        
-        # 3. L2 Norm Pooling (overall mutational energy normalized by active counts)
-        l2_pooled = torch.sqrt((weighted_edge_vec ** 2).sum(dim=1) / active_counts + 1e-6)
-        
-        # 4. Softmax Attention Pooling (weighted by edge intensity)
-        attn_logits = (weighted_edge_vec.sum(dim=-1) / math.sqrt(self.embed_dim)).masked_fill(active_mask == 0, -1e4)
-        attn_weights = F.softmax(attn_logits, dim=-1).unsqueeze(-1)
-        attn_pooled = (weighted_edge_vec * attn_weights).sum(dim=1)
-        
-        # 5. Top-2 Edge Pooling (isolates 2nd highest burst, zeroed if < 2 active edges)
-        has_at_least_two_edges = (active_counts >= 2.0).float()
-        top2_val, _ = torch.topk(masked_for_max, k=min(2, masked_for_max.shape[1]), dim=1)
-        if top2_val.shape[1] >= 2:
-            top2_pooled = torch.relu(top2_val[:, 1, :]) * has_at_least_two_edges
-        else:
-            top2_pooled = max_pooled * has_at_least_two_edges
-            
-        has_edges = (active_counts > 0.0).float()
-        combined = torch.cat([max_pooled, mean_pooled, l2_pooled, attn_pooled, top2_pooled], dim=-1)
-        return F.layer_norm(self.pool_combine(combined), (self.embed_dim,)) * has_edges
-
-
-
-# Use imported PhyloAxialTransformer from train_transformer_selection.py
+# --- Differentiable Ranking Loss & Alignment Helpers ---
 # --- Differentiable Ranking Loss via ListNet ---
 
 def parse_nexus_alignment_and_embedded_tree(filepath):
-    # Try fasta parsing first if file starts with >
+    from Bio import AlignIO, SeqIO
     open_func = gzip.open if filepath.endswith('.gz') else open
     with open_func(filepath, 'rt') as f:
-        first_char = f.read(1)
-        if first_char == '>':
-            f.seek(0)
-            from Bio import SeqIO
-            seq_dict = {}
-            taxlabels = []
-            for record in SeqIO.parse(f, 'fasta'):
+        full_text = f.read()
+
+    # Strip bracket comments [ ... ] first to avoid matching comment parens
+    text_no_comments = re.sub(r'\[.*?\]', '', full_text, flags=re.DOTALL)
+
+    seq_dict = {}
+    taxlabels = []
+
+    # Check for TAXLABELS in BEGIN TAXA block
+    tax_match = re.search(r'TAXLABELS\s+([^;]+);', text_no_comments, re.IGNORECASE)
+    parsed_taxlabels = []
+    if tax_match:
+        raw_labels = tax_match.group(1)
+        parsed_taxlabels = [lbl.strip("'\" ") for lbl in re.findall(r'\'[^\']+\'|\"[^\"]+\"|\S+', raw_labels) if lbl.strip("'\" ")]
+
+    # Check if NOLABELS is specified in FORMAT
+    has_nolabels = bool(re.search(r'FORMAT\s+[^;]*NOLABELS', text_no_comments, re.IGNORECASE))
+
+    # Check for MATRIX block
+    matrix_match = re.search(r'MATRIX\s+([^;]+);', text_no_comments, re.IGNORECASE)
+    
+    # 1. If NOLABELS and TAXLABELS exist, parse sequence per line
+    if has_nolabels and parsed_taxlabels and matrix_match:
+        raw_matrix = matrix_match.group(1).strip()
+        matrix_lines = [re.sub(r'\s+', '', l) for l in raw_matrix.splitlines() if re.sub(r'\s+', '', l)]
+        if len(matrix_lines) == len(parsed_taxlabels):
+            for i, label in enumerate(parsed_taxlabels):
+                seq_dict[label] = matrix_lines[i].upper()
+                taxlabels.append(label)
+
+    # 2. Try FASTA format
+    if not seq_dict and full_text.strip().startswith('>'):
+        for record in SeqIO.parse(StringIO(full_text), 'fasta'):
+            seq_dict[record.id] = str(record.seq).upper()
+            taxlabels.append(record.id)
+
+    # 3. Try Bio.AlignIO nexus parser
+    if not seq_dict:
+        try:
+            alignment = AlignIO.read(StringIO(full_text), 'nexus')
+            for record in alignment:
                 seq_dict[record.id] = str(record.seq).upper()
                 taxlabels.append(record.id)
-            return seq_dict, taxlabels, None
-    taxlabels = []
-    matrix_lines = []
+        except Exception:
+            pass
+
+    # 4. Fallback: Parse standard labeled NEXUS matrix lines
+    if not seq_dict and matrix_match:
+        raw_matrix = matrix_match.group(1).strip()
+        for line in raw_matrix.splitlines():
+            line_clean = line.strip()
+            if not line_clean:
+                continue
+            parts = line_clean.split(None, 1)
+            if len(parts) == 2:
+                sp_name = parts[0].strip("'\" ")
+                seq_val = re.sub(r'\s+', '', parts[1]).upper()
+                if len(seq_val) > 10:
+                    if sp_name in seq_dict:
+                        seq_dict[sp_name] += seq_val
+                    else:
+                        seq_dict[sp_name] = seq_val
+                        taxlabels.append(sp_name)
+
+    # 5. Extract embedded tree string from comment-stripped text
     tree_str = None
-    in_taxlabels = False
-    in_matrix = False
-    in_trees = False
-    
-    open_func = gzip.open if filepath.endswith('.gz') else open
-    with open_func(filepath, 'rt') as f:
-        for line in f:
-            line_strip = line.strip()
-            if not line_strip:
-                continue
-            
-            line_strip = re.sub(r'\[.*?\]', '', line_strip).strip()
-            if not line_strip:
-                continue
-            
-            if line_strip.upper().startswith('TAXLABELS'):
-                in_taxlabels = True
-                content = line_strip[len('TAXLABELS'):].strip()
-                tokens = content.replace("'", "").replace('"', '').replace(';', '').split()
-                taxlabels.extend(tokens)
-                if line_strip.endswith(';'):
-                    in_taxlabels = False
-                continue
-            if in_taxlabels:
-                tokens = line_strip.replace("'", "").replace('"', '').replace(';', '').split()
-                taxlabels.extend(tokens)
-                if line_strip.endswith(';'):
-                    in_taxlabels = False
-                continue
-                
-            if line_strip.upper().startswith('MATRIX'):
-                in_matrix = True
-                continue
-            if in_matrix:
-                if line_strip == ';':
-                    in_matrix = False
-                    continue
-                if line_strip.endswith(';'):
-                    matrix_lines.append(line_strip[:-1].strip())
-                    in_matrix = False
-                    continue
-                matrix_lines.append(line_strip)
-                continue
-                
-            if line_strip.upper().startswith('BEGIN TREES') or line_strip.upper().startswith('BEGIN TREE'):
-                in_trees = True
-                continue
-            if in_trees:
-                if line_strip.upper().startswith('TREE '):
-                    parts = line_strip.split('=', 1)
-                    if len(parts) > 1:
-                        tree_str = parts[1].strip()
-                if line_strip.upper().startswith('END;'):
-                    in_trees = False
-                    continue
-                    
-    seq_dict = {}
-    for i, seq_line in enumerate(matrix_lines):
-        if not seq_line:
-            continue
-        parts = seq_line.split(None, 1)
-        if len(parts) == 2 and (parts[0] in taxlabels or parts[0].replace("'", "").replace('"', '') in taxlabels):
-            label = parts[0].replace("'", "").replace('"', '')
-            seq = parts[1].replace(' ', '').replace('\t', '')
-            seq_dict[label] = seq
-        else:
-            if i < len(taxlabels):
-                label = taxlabels[i]
-                seq = seq_line.replace(' ', '').replace('\t', '')
-                seq_dict[label] = seq
-                
+    first_p = text_no_comments.find('(')
+    if first_p != -1:
+        last_s = text_no_comments.find(';', first_p)
+        if last_s != -1:
+            tree_str = text_no_comments[first_p:last_s+1].strip()
+
     return seq_dict, taxlabels, tree_str
 
 
 def parse_nexus_tree_file(filepath):
     tree_str = None
-    in_trees = False
-    
     open_func = gzip.open if filepath.endswith('.gz') else open
     with open_func(filepath, 'rt') as f:
-        first_line = f.readline()
-        f.seek(0)
-        
-        if '#NEXUS' in first_line.upper():
-            for line in f:
-                line_strip = line.strip()
-                if not line_strip:
-                    continue
-                line_strip = re.sub(r'\[.*?\]', '', line_strip).strip()
-                if line_strip.upper().startswith('BEGIN TREES') or line_strip.upper().startswith('BEGIN TREE'):
-                    in_trees = True
-                    continue
-                if in_trees:
-                    if line_strip.upper().startswith('TREE '):
-                        parts = line_strip.split('=', 1)
-                        if len(parts) > 1:
-                            tree_str = parts[1].strip()
-                    if line_strip.upper().startswith('END;'):
-                        in_trees = False
-        else:
-            content = f.read().strip()
-            match = re.search(r'\(.*\);?', content)
-            if match:
-                tree_str = match.group(0)
-                
-    if tree_str and tree_str.endswith(';'):
-        tree_str = tree_str[:-1]
+        full_text = f.read()
+
+    # Strip multiline NEXUS comments [ ... ] first
+    clean_text = re.sub(r'\[.*?\]', '', full_text, flags=re.DOTALL)
+
+    # 1. First check if a raw Newick tree string exists (starts with '(' and ends with ';')
+    first_p = clean_text.find('(')
+    if first_p != -1:
+        last_s = clean_text.find(';', first_p)
+        if last_s != -1:
+            candidate = clean_text[first_p:last_s+1].strip()
+            if candidate.endswith(';') and candidate.count('(') > 5:
+                tree_str = candidate[:-1]
+
+    # 2. Fallback: Parse explicit TREE statement if needed
+    if tree_str is None:
+        for line in full_text.splitlines():
+            line_strip = re.sub(r'\[.*?\]', '', line).strip()
+            if line_strip.upper().startswith('TREE '):
+                parts = line_strip.split('=', 1)
+                if len(parts) > 1:
+                    tree_str = parts[1].strip()
+                    if tree_str.endswith(';'):
+                        tree_str = tree_str[:-1]
+                    break
+
     return tree_str
 
 
@@ -975,7 +446,7 @@ def main():
     )
     parser.add_argument("--alignment", required=True, help="Path to NEXUS alignment file (.gz or uncompressed)")
     parser.add_argument("--tree", help="Path to NEXUS or Newick tree file. If omitted, will try to read from the alignment.")
-    parser.add_argument("--model", default="/Users/sergei/Projects/TOGA_MEME/selection_transformer_edge_best-28.pt", help="Path to trained model weights (.pt)")
+    parser.add_argument("--model", default="selection_transformer_best.pt", help="Path to trained model weights (.pt)")
     parser.add_argument("--output", help="Path to output predictions CSV. Defaults to [alignment_prefix]_regression_predictions.csv")
     parser.add_argument("--reference_seq", help="Name of reference sequence (e.g. hg, hg38). Defaults to first sequence.")
     parser.add_argument("--window_size", type=int, default=1, help="Alignment sliding window size centered at site (default: 1)")
@@ -987,9 +458,8 @@ def main():
     parser.add_argument("--tier2_percentile", type=float, default=95.0, help="Percentile threshold for Tier 2 Medium-Confidence calls (default: 95.0)")
     parser.add_argument("--tier1_zscore", type=float, default=2.5, help="Z-score threshold for Tier 1 High-Confidence calls (default: 2.5)")
     parser.add_argument("--tier2_zscore", type=float, default=2.0, help="Z-score threshold for Tier 2 Medium-Confidence calls (default: 2.0)")
-    parser.add_argument("--tier1_lrt_gate", type=float, default=4.45, help="Absolute predicted LRT gate for Tier 1 calls (p <= 0.05, default: 4.45)")
-    parser.add_argument("--tier2_lrt_gate", type=float, default=3.12, help="Absolute predicted LRT gate for Tier 2 calls (p <= 0.10, default: 3.12)")
-    parser.add_argument("--prior_shift", type=float, default=0.0, help="Bayesian prior logit shift (e.g. 2.20 for 10%% prior, 3.89 for 2%% prior) to calibrate 50:50 training loader bias")
+    parser.add_argument("--tier1_lrt_gate", type=float, default=5.14, help="Absolute predicted LRT gate for Tier 1 calls (p <= 0.05, default: 5.14)")
+    parser.add_argument("--tier2_lrt_gate", type=float, default=3.81, help="Absolute predicted LRT gate for Tier 2 calls (p <= 0.10, default: 3.81)")
     
     args = parser.parse_args()
     if args.use_zscore:
@@ -1000,8 +470,10 @@ def main():
         device = torch.device(args.device)
     elif torch.cuda.is_available():
         device = torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
     else:
-        device = torch.device("cpu") # Default to CPU on macOS to prevent PyTorch MPS float precision bugs
+        device = torch.device("cpu")
     print(f"[*] Running inference on device: {device}")
     
     # 2. Parse NEXUS alignment
@@ -1039,9 +511,11 @@ def main():
             clean_tree_str = re.sub(r'\{[^}]*\}', '', tree_str)
             clean_tree_str = re.sub(r'\[.*?\]', '', clean_tree_str)
             clean_tree_str = clean_tree_str.strip().rstrip(';') + ';'
-            tree_obj = Phylo.read(StringIO(clean_tree_str), 'newick')
-            species_names = [leaf.name for leaf in tree_obj.get_terminals() if leaf.name]
-            print(f"[*] Successfully parsed tree topology with {len(species_names)} leaves.")
+            trees = list(Phylo.parse(StringIO(clean_tree_str), 'newick'))
+            if trees:
+                tree_obj = trees[0]
+                species_names = [leaf.name for leaf in tree_obj.get_terminals() if leaf.name]
+                print(f"[*] Successfully parsed tree topology with {len(species_names)} leaves.")
         except Exception as e:
             print(f"[!] Warning: Tree parsing failed: {e}")
             
@@ -1122,7 +596,7 @@ UseModel(HKY85Model);
 Tree T = "{clean_pruned_tree_str}";
 LikelihoodFunction lf = (df, T);
 Optimize(res, lf);
-fprintf(stdout, Format(T, 1, 1));
+fprintf(stdout, Format(T, 0, 1));
 """
                 with open(temp_bf, "w") as f:
                     f.write(bf_content)
@@ -1137,23 +611,37 @@ fprintf(stdout, Format(T, 1, 1));
                     os.remove(temp_bf)
                 
                 if res.returncode == 0 and res.stdout.strip():
-                    estimated_tree_str = res.stdout.strip()
-                    tree_obj = Phylo.read(StringIO(estimated_tree_str), 'newick')
-                    print("[*] HyPhy branch length estimation succeeded.")
-                    
-                    out_file = args.output
-                    if not out_file:
-                        basename = os.path.basename(args.alignment)
-                        if basename.endswith('.gz'):
-                            basename = basename[:-3]
-                        if basename.endswith('.nex') or basename.endswith('.nexus'):
-                            basename = basename.rsplit('.', 1)[0]
-                        out_file = f"{basename}_regression_predictions.csv"
-                    
-                    tree_out_path = out_file.rsplit('.', 1)[0] + "_estimated_tree.nwk"
-                    with open(tree_out_path, "w") as f:
-                        f.write(estimated_tree_str + ";\n")
-                    print(f"[*] Saved estimated tree to '{tree_out_path}'")
+                    start_idx = res.stdout.find('(')
+                    end_idx = res.stdout.rfind(')')
+                    if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                        estimated_tree_str = res.stdout[start_idx:end_idx+1]
+                        tree_obj = Phylo.read(StringIO(estimated_tree_str), 'newick')
+                        
+                        # Mandatory Safeguard Assertion: Verify tree contains real estimated branch lengths
+                        non_zero_branches = [c.branch_length for c in tree_obj.find_clades() if c.branch_length is not None and c.branch_length > 0]
+                        if len(non_zero_branches) == 0:
+                            raise RuntimeError(
+                                "[❌ FATAL INFERENCE ERROR] Parsed HyPhy tree string contains 0 non-zero branch lengths! "
+                                "Branch length formatting failed."
+                            )
+                        print(f"[*] HyPhy branch length estimation succeeded ({len(non_zero_branches)} non-zero branch lengths parsed).")
+                        
+                        out_file = args.output
+                        if not out_file:
+                            basename = os.path.basename(args.alignment)
+                            if basename.endswith('.gz'):
+                                basename = basename[:-3]
+                            if basename.endswith('.nex') or basename.endswith('.nexus'):
+                                basename = basename.rsplit('.', 1)[0]
+                            out_file = f"{basename}_regression_predictions.csv"
+                        
+                        tree_out_path = out_file.rsplit('.', 1)[0] + "_estimated_tree.nwk"
+                        with open(tree_out_path, "w") as f:
+                            f.write(estimated_tree_str + "\n")
+                        print(f"[*] Saved estimated tree to '{tree_out_path}'")
+                    else:
+                        print(f"[!] HyPhy tree string match failed. HyPhy stdout snippet: {res.stdout[:200]}")
+                        print("[*] Falling back to flat evolutionary distance structure.")
                 else:
                     print(f"[!] HyPhy estimation failed (code {res.returncode}). Stderr: {res.stderr}")
                     print("[*] Falling back to flat evolutionary distance structure.")
@@ -1200,8 +688,24 @@ fprintf(stdout, Format(T, 1, 1));
             tree_tensor_dict = {}
             
     if not dist_matrix:
+        print("[!] Warning: Tree distances unavailable. Computing pairwise Jukes-Cantor sequence distances directly from MSA...")
         dist_matrix = {s1: {s2: 0.0 for s2 in selected_species} for s1 in selected_species}
         tree_tensor_dict = {s1: {s2: [0.0, 0.0, 0.0] for s2 in selected_species} for s1 in selected_species}
+        n_sp = len(selected_species)
+        for i in range(n_sp):
+            sp1 = selected_species[i]
+            seq1 = seq_dict[sp1]
+            for j in range(i + 1, n_sp):
+                sp2 = selected_species[j]
+                seq2 = seq_dict[sp2]
+                diffs = sum(1 for a, b in zip(seq1, seq2) if a != b and a != '-' and b != '-')
+                total = sum(1 for a, b in zip(seq1, seq2) if a != '-' and b != '-')
+                p = diffs / max(1, total)
+                jc = -0.75 * math.log(max(1e-4, 1.0 - (4.0/3.0)*p)) if p < 0.75 else 2.0
+                dist_matrix[sp1][sp2] = jc
+                dist_matrix[sp2][sp1] = jc
+                tree_tensor_dict[sp1][sp2] = [jc, 0.0, 0.0]
+                tree_tensor_dict[sp2][sp1] = [jc, 0.0, 0.0]
         
     # 5. Build input tensors for model
     ref_seq = seq_dict[ref_key]
@@ -1215,19 +719,48 @@ fprintf(stdout, Format(T, 1, 1));
     dist_tensor = torch.zeros(args.max_species, args.max_species, dtype=torch.float32)
     padding_mask = torch.ones(args.max_species, dtype=torch.bool) # True means padded
     
+    dist_matrix_norm = {}
+    for s1, targets in dist_matrix.items():
+        s1_clean = str(s1).replace("'", "").replace('"', '').strip().lower()
+        dist_matrix_norm[s1_clean] = {}
+        for s2, val in targets.items():
+            s2_clean = str(s2).replace("'", "").replace('"', '').strip().lower()
+            dist_matrix_norm[s1_clean][s2_clean] = val
+            
     for i, spec1 in enumerate(selected_species):
         padding_mask[i] = False
+        norm1 = str(spec1).replace("'", "").replace('"', '').strip().lower()
         for j, spec2 in enumerate(selected_species):
-            norm1 = spec1.replace("'", "").replace('"', '').strip()
-            norm2 = spec2.replace("'", "").replace('"', '').strip()
-            dist_val = dist_matrix.get(norm1, {}).get(norm2, 0.0)
+            norm2 = str(spec2).replace("'", "").replace('"', '').strip().lower()
+            dist_val = dist_matrix_norm.get(norm1, {}).get(norm2, 0.0)
             dist_tensor[i, j] = float(dist_val)
             
-    # Compute MDS coordinates on the 2D distance matrix
-    dist_np = dist_tensor.numpy()
-    mds_coords_np = compute_mds_coordinates(dist_np, n_components=4)
+    # Strict Tree Distance Verification Assertion (Zero Silent Zero Distance Failures)
+    valid_spec_count = len(selected_species)
+    if valid_spec_count > 1:
+        valid_sub_matrix = dist_tensor[:valid_spec_count, :valid_spec_count]
+        off_diag_mask = ~torch.eye(valid_spec_count, dtype=torch.bool)
+        off_diag_dists = valid_sub_matrix[off_diag_mask]
+        max_d = off_diag_dists.max().item()
+        mean_d = off_diag_dists.mean().item()
+        min_d = off_diag_dists.min().item()
+        
+        if max_d <= 0.0:
+            raise ValueError(
+                f"\n[❌ FATAL INFERENCE ERROR] Distance matrix dist_tensor for {valid_spec_count} species is ALL ZEROS (max off-diagonal dist = 0.0)!\n"
+                f"HyPhy or Jukes-Cantor patristic tree distance extraction failed. Model inference requires non-zero tree distances."
+            )
+        print(f"[*] Verified Patristic Tree Distance Tensor ({valid_spec_count} species): min={min_d:.6f}, mean={mean_d:.6f}, max={max_d:.6f}")
+
+    # Compute MDS coordinates on active species matrix (matching training MSADataset)
+    dist_sub_np = dist_tensor[:num_selected, :num_selected].numpy()
+    mds_sub_np = compute_mds_coordinates(dist_sub_np, n_components=4)
+    
+    mds_coords_np = np.zeros((args.max_species, 4), dtype=np.float32)
+    mds_coords_np[:num_selected] = mds_sub_np
     mds_coords_tensor = torch.from_numpy(mds_coords_np) # [max_species, 4]
             
+    padding_mask_tensor = torch.ones(total_codons, args.max_species, dtype=torch.bool) # True means padded / gap
     variable_sites_flags = []
     
     half_win = args.window_size // 2
@@ -1240,11 +773,18 @@ fprintf(stdout, Format(T, 1, 1));
             seq = seq_dict.get(spec, "")
             seq_len_codons = len(seq) // 3
             
+            # Check central site gap status
+            if 1 <= site_idx <= seq_len_codons:
+                nuc_idx = (site_idx - 1) * 3
+                codon_cent = seq[nuc_idx:nuc_idx+3].upper()
+                if get_aa_token(codon_cent) < 21 and '-' not in codon_cent and 'N' not in codon_cent and '?' not in codon_cent:
+                    padding_mask_tensor[site_idx - 1, s_idx] = False
+            
             for w_idx in range(args.window_size):
                 codon_pos_1based = site_idx - half_win + w_idx
                 if 1 <= codon_pos_1based <= seq_len_codons:
                     nuc_idx = (codon_pos_1based - 1) * 3
-                    codon = seq[nuc_idx:nuc_idx+3]
+                    codon = seq[nuc_idx:nuc_idx+3].upper()
                     msa_tokens[site_idx - 1, s_idx, w_idx] = get_codon_token(codon)
                     aa_tokens[site_idx - 1, s_idx, w_idx] = get_aa_token(codon)
                     
@@ -1252,14 +792,11 @@ fprintf(stdout, Format(T, 1, 1));
             if 1 <= site_idx <= seq_len_codons:
                 nuc_idx = (site_idx - 1) * 3
                 codon = seq[nuc_idx:nuc_idx+3].upper()
-                if '-' not in codon and 'N' not in codon and '?' not in codon and len(codon) == 3:
+                if get_aa_token(codon) < 21 and '-' not in codon and 'N' not in codon and '?' not in codon:
                     site_codons.append(codon)
-                    aa = GENETIC_CODE.get(codon, '?')
-                    if aa != '?':
-                        site_aas.append(aa)
-                        spec_aas.append(aa)
-                    else:
-                        spec_aas.append('?')
+                    aa = translate_codon(codon)
+                    site_aas.append(aa)
+                    spec_aas.append(aa)
                 else:
                     spec_aas.append('?')
             else:
@@ -1271,7 +808,7 @@ fprintf(stdout, Format(T, 1, 1));
     aa_tokens = aa_tokens.to(device)
     dist_tensor = dist_tensor.unsqueeze(0).expand(total_codons, -1, -1).to(device)
     mds_coords_tensor = mds_coords_tensor.unsqueeze(0).expand(total_codons, -1, -1).to(device)
-    padding_mask_tensor = padding_mask.unsqueeze(0).expand(total_codons, -1).to(device)
+    padding_mask_tensor = padding_mask_tensor.to(device)
     
     # 6. Load trained model weights
     print(f"[*] Loading model checkpoint: {args.model}")
@@ -1285,29 +822,27 @@ fprintf(stdout, Format(T, 1, 1));
     ckpt_embed_dim = checkpoint.get('embed_dim', 256) if isinstance(checkpoint, dict) else 256
     ckpt_num_layers = checkpoint.get('num_layers', 6) if isinstance(checkpoint, dict) else 6
     ckpt_num_heads = checkpoint.get('num_heads', 8) if isinstance(checkpoint, dict) else 8
-    ckpt_loss_type = checkpoint.get('loss_type', 'coral') if isinstance(checkpoint, dict) else 'coral'
-    ckpt_pure_coral = checkpoint.get('pure_coral', (ckpt_loss_type == 'coral')) if isinstance(checkpoint, dict) else True
     
     ckpt_window_size = args.window_size
     if 'pos_embedding' in state_dict:
         ckpt_window_size = state_dict['pos_embedding'].shape[1]
         ckpt_embed_dim = state_dict['pos_embedding'].shape[-1]
         
-    layer_indices = [int(k.split('.')[1]) for k in state_dict.keys() if k.startswith('col_layers.')]
+    layer_indices = [int(k.split('.')[1]) for k in state_dict.keys() if k.startswith('row_layers.') or k.startswith('col_layers.')]
     if layer_indices:
         ckpt_num_layers = max(layer_indices) + 1
         
-    ckpt_num_streams = 5
-    if 'stream_fusion.0.block_codon.weight' in state_dict:
-        ckpt_num_streams = state_dict['stream_fusion.0.block_codon.weight'].shape[1] // (ckpt_embed_dim // 2)
+    ckpt_num_streams = checkpoint.get('num_streams', 1) if isinstance(checkpoint, dict) else 1
+    if 'pooling_gate.weight' in state_dict:
+        ckpt_num_streams = 1
+    elif 'stream_fusion.0.block_codon.weight' in state_dict:
+        in_w = state_dict['stream_fusion.0.block_codon.weight'].shape[1]
+        ckpt_num_streams = max(1, in_w // (ckpt_embed_dim // 2))
     elif 'stream_fusion.0.weight' in state_dict:
-        ckpt_num_streams = state_dict['stream_fusion.0.weight'].shape[1] // ckpt_embed_dim
+        in_w = state_dict['stream_fusion.0.weight'].shape[1]
+        ckpt_num_streams = max(1, in_w // ckpt_embed_dim)
         
-    ckpt_num_thresholds = 12
-    if 'lrt_ordinal_head.theta_steps' in state_dict:
-        ckpt_num_thresholds = state_dict['lrt_ordinal_head.theta_steps'].shape[0] + 1
-        
-    print(f'[*] Auto-detected checkpoint architecture: embed_dim={ckpt_embed_dim}, num_layers={ckpt_num_layers}, num_heads={ckpt_num_heads}, window_size={ckpt_window_size}, num_streams={ckpt_num_streams}, pure_coral={ckpt_pure_coral}, num_thresholds={ckpt_num_thresholds}')
+    print(f'[*] Auto-detected checkpoint architecture: embed_dim={ckpt_embed_dim}, num_layers={ckpt_num_layers}, num_heads={ckpt_num_heads}, window_size={ckpt_window_size}, num_streams={ckpt_num_streams}')
     
     # Check if checkpoint is legacy 1-head (reg_head) vs 5-head multi-task (alpha_head)
     has_5_heads = ('alpha_head.0.weight' in state_dict)
@@ -1317,6 +852,24 @@ fprintf(stdout, Format(T, 1, 1));
         state_dict['lrt_head.3.weight'] = state_dict['reg_head.3.weight']
         state_dict['lrt_head.3.bias'] = state_dict['reg_head.3.bias']
     
+    # Legacy checkpoint adaptation for static b_cutoffs buffer -> learnable b0 and theta_steps
+    if 'lrt_ordinal_head.b_cutoffs' in state_dict and 'lrt_ordinal_head.b0' not in state_dict:
+        b_cut = state_dict.pop('lrt_ordinal_head.b_cutoffs')
+        state_dict['lrt_ordinal_head.b0'] = b_cut[0]
+        steps_target = (b_cut[:-1] - b_cut[1:]).clamp(min=1e-4)
+        inv_sp = torch.log(torch.expm1(steps_target))
+        state_dict['lrt_ordinal_head.theta_steps'] = inv_sp
+        
+    # Legacy checkpoint adaptation for gain parameter -> absorb into unconstrained fc2.weight
+    if 'lrt_ordinal_head.gain' in state_dict:
+        gain_val = state_dict.pop('lrt_ordinal_head.gain')
+        if 'lrt_ordinal_head.fc2.weight' in state_dict:
+            w2 = state_dict['lrt_ordinal_head.fc2.weight']
+            state_dict['lrt_ordinal_head.fc2.weight'] = F.normalize(w2, dim=1) * gain_val
+    ckpt_num_thresholds = 16
+    if 'lrt_ordinal_head.theta_steps' in state_dict:
+        ckpt_num_thresholds = state_dict['lrt_ordinal_head.theta_steps'].shape[0] + 1
+        
     model = PhyloAxialTransformer(
         num_tokens=66,
         embed_dim=ckpt_embed_dim,
@@ -1324,70 +877,60 @@ fprintf(stdout, Format(T, 1, 1));
         num_layers=ckpt_num_layers,
         window_size=ckpt_window_size,
         max_species=args.max_species,
-        num_streams=ckpt_num_streams,
-        pure_coral=ckpt_pure_coral,
         num_thresholds=ckpt_num_thresholds
     ).to(device)
     
     model_dict = model.state_dict()
-    filtered_state_dict = {k: v for k, v in state_dict.items() if k in model_dict and model_dict[k].shape == v.shape}
-    head_mismatch = any(k.startswith('lrt_') for k in state_dict.keys() if k not in filtered_state_dict)
-    if head_mismatch:
-        print(f"[!] Warning: Loaded {len(filtered_state_dict)}/{len(state_dict)} checkpoint weights. Output head shape mismatch detected!")
-    else:
-        print(f"[*] Successfully loaded all {len(filtered_state_dict)}/{len(state_dict)} checkpoint tensor weights into model!")
-    model.load_state_dict(filtered_state_dict, strict=False)
+    missing_keys = [k for k in model_dict if k not in state_dict or model_dict[k].shape != state_dict[k].shape]
+    if missing_keys:
+        raise RuntimeError(
+            f"\n[❌ CRITICAL ARCHITECTURE MISMATCH] The checkpoint '{args.model}' cannot be loaded into current model definition!\n"
+            f"Missing or shape-mismatched keys ({len(missing_keys)} tensors):\n"
+            f"  " + "\n  ".join(missing_keys[:10]) + "\n"
+            f"Please run inference with matching architecture parameters."
+        )
+
+    model.load_state_dict(state_dict, strict=True)
     model.eval()
     
-    print("[*] Running model predictions across all sites in 1-codon sliding windows...")
-    pred_raw_lrts_list = []
+    print("[*] Running model predictions in safe micro-batched passes (micro_batch_size=64)...")
+    micro_b_size = 64
+    pred_log_lrts_list = []
     pred_alphas_list = []
+    pred_beta_negs_list = []
     pred_beta_poses_list = []
     pred_p_negs_list = []
-    has_5_heads = False
-
-    model.eval()
+    
     with torch.no_grad():
-        for site_i in range(total_codons):
-            msa_win = msa_tokens[site_i:site_i+1] # [1, max_species, 1]
-            aa_win = aa_tokens[site_i:site_i+1]   # [1, max_species, 1]
-            dist_win = dist_tensor[site_i:site_i+1] # [1, max_species, max_species]
-            mds_win = mds_coords_tensor[site_i:site_i+1] # [1, max_species, 4]
-            pad_win = padding_mask_tensor[site_i:site_i+1] # [1, max_species]
+        for start_i in range(0, total_codons, micro_b_size):
+            end_i = min(total_codons, start_i + micro_b_size)
+            b_c = msa_tokens[start_i:end_i].to(device)
+            b_a = aa_tokens[start_i:end_i].to(device)
+            b_d = dist_tensor[start_i:end_i].to(device)
+            b_m = mds_coords_tensor[start_i:end_i].to(device)
+            b_p = padding_mask_tensor[start_i:end_i].to(device)
             
-            out_eval = model(msa_win, aa_win, dist_win, mds_win, pad_win)
-            
-            if isinstance(out_eval, tuple) and len(out_eval) == 5:
-                y_lrt_val, y_alpha, y_beta_neg, y_beta_pos, y_p_neg = out_eval
-                
-                # Apply optional Bayesian prior shift if specified
-                if args.prior_shift != 0.0:
-                    # Re-extract raw logits to apply prior shift
-                    model.train()
-                    raw_out = model(msa_win, aa_win, dist_win, mds_win, pad_win)
-                    model.eval()
-                    head0 = raw_out[0][0] if isinstance(raw_out[0], tuple) else raw_out[0]
-                    logits_calibrated = head0 - args.prior_shift
-                    y_lrt_soft, _ = decode_soft_ordinal_lrt(logits_calibrated)
-                    lrt_final = y_lrt_soft.item()
-                else:
-                    lrt_final = y_lrt_val.item() if hasattr(y_lrt_val, 'item') else float(y_lrt_val)
-                    
-                pred_raw_lrts_list.append(lrt_final)
-                pred_alphas_list.append(np.expm1(y_alpha.item()))
-                pred_beta_poses_list.append(np.expm1(y_beta_pos.item()))
-                pred_p_negs_list.append(y_p_neg.item())
-                has_5_heads = True
-            else:
-                lrt_final = out_eval[0].item() if hasattr(out_eval[0], 'item') else float(out_eval[0])
-                pred_raw_lrts_list.append(lrt_final)
+            out = model(b_c, b_a, b_d, b_m, b_p)
+            if isinstance(out, tuple) and len(out) == 5 and has_5_heads:
+                y_lrt, y_alpha, y_beta_neg, y_beta_pos, y_p_neg = out
+                pred_log_lrts_list.append(y_lrt.cpu().numpy())
+                pred_alphas_list.append(y_alpha.cpu().numpy())
+                pred_beta_negs_list.append(y_beta_neg.cpu().numpy())
+                pred_beta_poses_list.append(y_beta_pos.cpu().numpy())
+                pred_p_negs_list.append(y_p_neg.cpu().numpy())
+            elif isinstance(out, tuple):
+                pred_log_lrts_list.append(out[0].cpu().numpy())
                 has_5_heads = False
-
-    pred_raw_lrts = np.array(pred_raw_lrts_list)
+            else:
+                pred_log_lrts_list.append(out.cpu().numpy())
+                has_5_heads = False
+                
+    pred_log_lrts = np.concatenate(pred_log_lrts_list, axis=0) if pred_log_lrts_list else np.array([])
     if has_5_heads:
-        pred_alphas = np.array(pred_alphas_list)
-        pred_beta_poses = np.array(pred_beta_poses_list)
-        pred_p_negs = np.array(pred_p_negs_list)
+        pred_alphas = np.concatenate(pred_alphas_list, axis=0)
+        pred_beta_negs = np.concatenate(pred_beta_negs_list, axis=0)
+        pred_beta_poses = np.concatenate(pred_beta_poses_list, axis=0)
+        pred_p_negs = np.concatenate(pred_p_negs_list, axis=0)
         
     # 8. Build Predictions Table
     predictions = []
@@ -1398,18 +941,20 @@ fprintf(stdout, Format(T, 1, 1));
         
         is_var = variable_sites_flags[site_idx - 1] if site_idx - 1 < len(variable_sites_flags) else 1
         
-        if not is_var:
+        gap_frac = float(padding_mask_tensor[site_idx - 1, :num_selected].float().mean().cpu())
+        
+        if not is_var or ref_aa == '-' or gap_frac >= 0.50:
             pred_log_lrt = 0.0
             pred_lrt = 0.0
             pred_alpha = 0.0
             pred_beta_pos = 0.0
             pred_p_pos = 0.0
         else:
-            pred_lrt = max(0.0, float(pred_raw_lrts[site_idx - 1]))
+            pred_lrt = max(0.0, float(pred_log_lrts[site_idx - 1]))
             pred_log_lrt = math.log1p(pred_lrt)
             if has_5_heads:
-                pred_alpha = max(0.0, float(pred_alphas[site_idx - 1]))
-                pred_beta_pos = max(0.0, float(pred_beta_poses[site_idx - 1]))
+                pred_alpha = max(0.0, math.expm1(float(pred_alphas[site_idx - 1])))
+                pred_beta_pos = max(0.0, math.expm1(float(pred_beta_poses[site_idx - 1])))
                 pred_p_pos = round(1.0 - float(pred_p_negs[site_idx - 1]), 4)
             else:
                 pred_alpha = 0.0
@@ -1420,6 +965,7 @@ fprintf(stdout, Format(T, 1, 1));
             "codon_site": site_idx,
             "ref_codon": ref_codon,
             "ref_aa": ref_aa,
+            "gap_fraction": round(float(padding_mask_tensor[site_idx - 1, :num_selected].float().mean().cpu()), 4),
             "is_variable": int(is_var),
             "predicted_log_lrt": round(pred_log_lrt, 5),
             "predicted_lrt": round(pred_lrt, 5)
@@ -1433,12 +979,12 @@ fprintf(stdout, Format(T, 1, 1));
         
     df_preds = pd.DataFrame(predictions)
     
-    # Calculate local relative metrics for variable sites
+    # Calculate local relative metrics for all variable sites
     df_preds["local_z_score"] = 0.0
     df_preds["local_percentile"] = 0.0
     df_preds["selection_call"] = "Neutral"
     
-    var_mask = df_preds["is_variable"] == 1
+    var_mask = (df_preds["is_variable"] == 1) & (df_preds["gap_fraction"] < 0.50)
     if var_mask.sum() > 0:
         var_lrts = df_preds.loc[var_mask, "predicted_lrt"].values
         mean_lrt = np.mean(var_lrts)
@@ -1460,17 +1006,14 @@ fprintf(stdout, Format(T, 1, 1));
         elif args.call_mode == "percentile":
             t1_cond = df_preds["local_percentile"] >= args.tier1_percentile
             t2_cond = (df_preds["local_percentile"] >= args.tier2_percentile) & ~t1_cond
-            t1_label, t2_label = f"Tier 1 (Top {100-args.tier1_percentile:.1f}%)", f"Tier 2 (Top {100-args.tier2_percentile:.1f}%)"
+            t1_label, t2_label = f"Tier 1 (Percentile >= {args.tier1_percentile}%)", f"Tier 2 (Percentile >= {args.tier2_percentile}%)"
         else: # "pvalue" (default)
             t1_cond = df_preds["predicted_lrt"] >= args.tier1_lrt_gate
             t2_cond = (df_preds["predicted_lrt"] >= args.tier2_lrt_gate) & ~t1_cond
-            t1_label, t2_label = "Tier 1 (p <= 0.05)", "Tier 2 (p <= 0.10)"
+            t1_label, t2_label = f"Tier 1 (p <= 0.05, LRT >= {args.tier1_lrt_gate:.2f})", f"Tier 2 (p <= 0.10, LRT >= {args.tier2_lrt_gate:.2f})"
         
-        t1_mask = var_mask & t1_cond
-        t2_mask = var_mask & t2_cond & ~t1_mask
-        
-        df_preds.loc[t2_mask, "selection_call"] = t2_label
-        df_preds.loc[t1_mask, "selection_call"] = t1_label
+        df_preds.loc[t1_cond, "selection_call"] = t1_label
+        df_preds.loc[t2_cond, "selection_call"] = t2_label
         
     # 9. Output predictions
     out_file = args.output
@@ -1485,10 +1028,10 @@ fprintf(stdout, Format(T, 1, 1));
     df_preds.to_csv(out_file, index=False)
     
     # 10. Print Summary
-    print("\n" + "=" * 50)
+    print(f"\n==================================================")
     print("✨ Regression Prediction Summary")
-    print("=" * 50)
-    print(f"Total codon sites predicted: {len(df_preds)}")
+    print(f"==================================================")
+    print(f"Total codon sites predicted: {total_codons}")
     print(f"Mean predicted log(LRT+1):   {df_preds['predicted_log_lrt'].mean():.4f}")
     print(f"Mean predicted raw LRT:      {df_preds['predicted_lrt'].mean():.4f}")
     print(f"Max predicted raw LRT:       {df_preds['predicted_lrt'].max():.4f}")
@@ -1504,13 +1047,20 @@ fprintf(stdout, Format(T, 1, 1));
         print(f"  - Tier 1 (Percentile >= {args.tier1_percentile}%): {len(t1_sites)} sites")
         print(f"  - Tier 2 (Percentile >= {args.tier2_percentile}%): {len(t2_sites)} sites")
     else:
-        print(f"  - Tier 1 (p <= 0.05, predicted_lrt >= {args.tier1_lrt_gate}): {len(t1_sites)} sites")
-        print(f"  - Tier 2 (p <= 0.10, predicted_lrt >= {args.tier2_lrt_gate}): {len(t2_sites)} sites")
-        
-    called_sites = df_preds[df_preds["selection_call"] != "Neutral"]
+        print(f"  - Tier 1 (p <= 0.05, predicted_lrt >= {args.tier1_lrt_gate:.2f}): {len(t1_sites)} sites")
+        print(f"  - Tier 2 (p <= 0.10, predicted_lrt >= {args.tier2_lrt_gate:.2f}): {len(t2_sites)} sites")
+    called_sites = df_preds[(df_preds["selection_call"] != "Neutral") & (df_preds["gap_fraction"] < 0.50)]
     if len(called_sites) > 0:
         print(f"\nPredicted positive selection sites:")
-        print(called_sites.sort_values(by="local_percentile", ascending=False).to_string(index=False))
+        cols_show = ["codon_site", "ref_aa", "gap_fraction", "predicted_lrt", "local_z_score", "local_percentile", "selection_call"]
+        print(called_sites.sort_values(by="predicted_lrt", ascending=False)[cols_show].to_string(index=False))
+    else:
+        print("\n[!] Note: No sites passed absolute pvalue gate (Tier 2 cutoff).")
+        print("Top 10 relative candidate sites by Z-score / Percentile:")
+        valid_candidates = df_preds[(df_preds["is_variable"] == 1) & (df_preds["gap_fraction"] < 0.50)]
+        df_top10 = valid_candidates.sort_values(by="local_z_score", ascending=False).head(10)
+        cols_top = ["codon_site", "ref_aa", "gap_fraction", "is_variable", "predicted_lrt", "local_z_score", "local_percentile"]
+        print(df_top10[cols_top].to_string(index=False))
         
     print(f"\n🎉 Predictions complete! Results saved to '{out_file}'")
 
