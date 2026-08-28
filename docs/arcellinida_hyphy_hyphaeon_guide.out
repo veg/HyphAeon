@@ -5,14 +5,13 @@
 \BOOKMARK [2][-]{subsection.1.4}{Why RELAX Answered a Different Question}{section.1}% 5
 \BOOKMARK [2][-]{subsection.1.5}{The Alignment Trimming Dilemma}{section.1}% 6
 \BOOKMARK [1][-]{section.2}{How HyphAeon Works: The Core Concepts}{}% 7
-\BOOKMARK [2][-]{subsection.2.1}{Seeing the Whole Tree Continuously}{section.2}% 8
-\BOOKMARK [2][-]{subsection.2.2}{Looking Across Species and Along the Gene at the Same Time}{section.2}% 9
-\BOOKMARK [1][-]{section.3}{The Four-Stage HyphAeon Pipeline Explained}{}% 10
-\BOOKMARK [2][-]{subsection.3.1}{Step 1: Automated Error Filtering}{section.3}% 11
-\BOOKMARK [2][-]{subsection.3.2}{Step 2: Sitewise Selection Scoring}{section.3}% 12
-\BOOKMARK [2][-]{subsection.3.3}{Step 3: Ranking Whole Genes with the Cauchy Combination Test}{section.3}% 13
-\BOOKMARK [2][-]{subsection.3.4}{Step 4: Identifying the Driving Cryptic Lineage}{section.3}% 14
-\BOOKMARK [1][-]{section.4}{Practical Workflow \046 Code for Your Dataset}{}% 15
-\BOOKMARK [2][-]{subsection.4.1}{Command-Line Usage}{section.4}% 16
-\BOOKMARK [2][-]{subsection.4.2}{Python Script for Transcriptome-Wide Batch Processing}{section.4}% 17
-\BOOKMARK [1][-]{section.5}{Direct Answers to Your Methodological Questions}{}% 18
+\BOOKMARK [2][-]{subsection.2.1}{Seeing the Whole Tree Continuously \(Tree-RoPE \046 Root Token Compression\)}{section.2}% 8
+\BOOKMARK [1][-]{section.3}{The Four-Stage HyphAeon Pipeline Explained}{}% 9
+\BOOKMARK [2][-]{subsection.3.1}{Step 1: Automated Error Filtering}{section.3}% 10
+\BOOKMARK [2][-]{subsection.3.2}{Step 2: Sitewise Selection Scoring}{section.3}% 11
+\BOOKMARK [2][-]{subsection.3.3}{Step 3: Ranking Whole Genes with the Cauchy Combination Test}{section.3}% 12
+\BOOKMARK [2][-]{subsection.3.4}{Step 4: Identifying the Driving Cryptic Lineage}{section.3}% 13
+\BOOKMARK [1][-]{section.4}{Practical Workflow \046 Code for Your Dataset}{}% 14
+\BOOKMARK [2][-]{subsection.4.1}{Command-Line Usage}{section.4}% 15
+\BOOKMARK [2][-]{subsection.4.2}{Python Script for Transcriptome-Wide Batch Processing}{section.4}% 16
+\BOOKMARK [1][-]{section.5}{Direct Answers to Your Methodological Questions}{}% 17

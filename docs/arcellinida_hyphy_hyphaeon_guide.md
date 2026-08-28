@@ -55,17 +55,15 @@ In *de novo* transcriptomes of non-model organisms, uncurated assemblies frequen
 
 HyphAeon is a phylogenetic foundation model. Instead of optimizing complex equations from scratch for each gene in isolation, HyphAeon was pre-trained over millions of coding sequences across macroevolutionary time. It has already learned the universal rules of molecular evolution—which amino acid substitutions are chemically conservative, which are radical, and how evolutionary time scales with divergence.
 
-### Seeing the Whole Tree Continuously
-Classical tools treat trees as rigid graphs, traversing branch by branch. HyphAeon maps the entire phylogenetic tree into a continuous geometric coordinate space. 
+### Seeing the Whole Tree Continuously (Tree-RoPE & Root Token Compression)
+Classical tools treat trees as rigid graphs, traversing branch by branch with Felsenstein's pruning algorithm. HyphAeon maps the entire phylogenetic tree into a continuous 4-dimensional geometric coordinate space. 
 
-When evaluating a site, the model uses geometric self-attention to understand the evolutionary relationships among all species simultaneously. It knows how closely related any two amoebae are without needing you to chop the alignment or manually partition branches.
+For every codon column, HyphAeon's **Species Transformer** processes all $M$ species simultaneously:
+* **Continuous Tree Embeddings:** It rotates queries and keys using Tree-RoPE based on each species' coordinates in tree space and scales attention weights with continuous-time Markov transition decay. It knows how closely related any two amoebae are without needing you to chop the alignment or manually partition branches.
+* **Dual-Track Codon Disentanglement:** Block-diagonal linear projections strictly isolate neutral synonymous codon changes ($dS$) from non-synonymous property selection ($dN$), preventing baseline mutation rate differences from masquerading as positive selection.
+* **Root Token Pooling:** Rather than simple arithmetic averaging across taxa—which would dilute a rare adaptive burst occurring in only one lineage—evolutionary transitions are channeled through bidirectional attention into a dedicated learnable `[ROOT]` token anchored at $(0,0,0,0)$ in tree space. This compresses the entire multi-species column into a rich 384-dimensional site representation.
 
-### Looking Across Species and Along the Gene at the Same Time
-HyphAeon uses dual-track attention:
-* **Across Species (Columns):** Compares all individuals at a codon position, weighing changes against the tree to detect genuine substitutions.
-* **Along the Sequence (Rows):** Looks at neighboring codons within the same gene to understand structural context, functional domains, and spatial clustering.
-
-Because HyphAeon evaluates substitutions against its learned macroevolutionary prior, it never divides by zero and never collapses on shallow branches. Every site receives a smooth, continuous selection score and a well-calibrated $p$-value.
+Because each column is evaluated independently and in parallel, HyphAeon achieves linear $O(L)$ complexity in sequence length and evaluates thousands of codons per second. Evaluated against its learned macroevolutionary prior, the model never divides by zero and never collapses on shallow branches. Every site receives a smooth, continuous selection score and a well-calibrated $p$-value.
 
 ---
 
