@@ -1,11 +1,18 @@
-\BOOKMARK [1][-]{section.1}{Diagnostic Analysis: What Occurred in Classical HyPhy?}{}% 1
-\BOOKMARK [2][-]{subsection.1.1}{Pervasive NA Values in FEL}{section.1}% 2
-\BOOKMARK [2][-]{subsection.1.2}{The Subsetting Trap: Splitting Alignments by Population}{section.1}% 3
-\BOOKMARK [2][-]{subsection.1.3}{Contrast-FEL \046 Lineage \040Ambiguity}{section.1}% 4
-\BOOKMARK [2][-]{subsection.1.4}{RELAX: Testing a Distinct Evolutionary Hypothesis}{section.1}% 5
-\BOOKMARK [2][-]{subsection.1.5}{The Alignment Trimming Dilemma}{section.1}% 6
-\BOOKMARK [1][-]{section.2}{The HyphAeon Framework: Preserving the Tree and Attributing Selection}{}% 7
-\BOOKMARK [1][-]{section.3}{Computational Protocols for the Arcellinida Dataset}{}% 8
-\BOOKMARK [2][-]{subsection.3.1}{Command-Line Execution}{section.3}% 9
-\BOOKMARK [2][-]{subsection.3.2}{Python Script for Transcriptome-Wide Batch Processing}{section.3}% 10
-\BOOKMARK [1][-]{section.4}{Direct Answers to Methodological Inquiries}{}% 11
+\BOOKMARK [1][-]{section.1}{Deconstructing the Classical HyPhy Bottlenecks}{}% 1
+\BOOKMARK [2][-]{subsection.1.1}{Why Did FEL Return Pervasive NA Values? \(Slides 10\20513\)}{section.1}% 2
+\BOOKMARK [2][-]{subsection.1.2}{Why Did Splitting Alignments by Species Destroy Statistical Power? \(Slides 15\20518\)}{section.1}% 3
+\BOOKMARK [2][-]{subsection.1.3}{What Was Happening with Contrast-FEL? \(Slides 19\20523\)}{section.1}% 4
+\BOOKMARK [2][-]{subsection.1.4}{Why Did RELAX Feel Mismatched to Your Question? \(Slides 24\20526\)}{section.1}% 5
+\BOOKMARK [2][-]{subsection.1.5}{Should Alignments Be Trimmed? Nucleotides or Amino Acids? \(Slides 4\2055\)}{section.1}% 6
+\BOOKMARK [1][-]{section.2}{What is HyphAeon? Foundation Model Architecture Explained}{}% 7
+\BOOKMARK [2][-]{subsection.2.1}{How HyphAeon Represents a Phylogenetic Tree \(Tree-RoPE\)}{section.2}% 8
+\BOOKMARK [2][-]{subsection.2.2}{2D Axial Attention across Species and Codons}{section.2}% 9
+\BOOKMARK [1][-]{section.3}{Rationale Behind Each Analytical Step in the HyphAeon Pipeline}{}% 10
+\BOOKMARK [2][-]{subsection.3.1}{Step 1: Automated Dual-Stage Error Filtering \(\205filter\)}{section.3}% 11
+\BOOKMARK [2][-]{subsection.3.2}{Step 2: Continuous Sitewise Selection Inference}{section.3}% 12
+\BOOKMARK [2][-]{subsection.3.3}{Step 3: Omnibus Gene-Level Ranking via Cauchy Combination Test \(CCT\)}{section.3}% 13
+\BOOKMARK [2][-]{subsection.3.4}{Step 4: Cryptic Lineage Attribution \(\205attribute\)}{section.3}% 14
+\BOOKMARK [1][-]{section.4}{Step-by-Step Practical Playbook for Your Dataset}{}% 15
+\BOOKMARK [2][-]{subsection.4.1}{Command-Line Execution}{section.4}% 16
+\BOOKMARK [2][-]{subsection.4.2}{Python Script for Transcriptome-Wide Batch Processing}{section.4}% 17
+\BOOKMARK [1][-]{section.5}{Summary: Direct Answers to Your Methodological Questions}{}% 18
