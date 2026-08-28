@@ -1,0 +1,180 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{microtype}
+\usepackage{listings}
+\usepackage{setspace}
+\setstretch{1.15}
+
+\definecolor{hyphablue}{RGB}{14, 116, 144}
+\definecolor{hyphapurple}{RGB}{124, 58, 237}
+\definecolor{codebg}{RGB}{248, 249, 250}
+\definecolor{codeframe}{RGB}{229, 231, 235}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=hyphablue,
+    citecolor=hyphablue,
+    urlcolor=hyphapurple
+}
+
+\lstset{
+    backgroundcolor=\color{codebg},
+    basicstyle=\small\ttfamily,
+    breaklines=true,
+    frame=single,
+    rulecolor=\color{codeframe},
+    numbers=none,
+    keywordstyle=\color{hyphablue},
+    commentstyle=\color{gray},
+    stringstyle=\color{hyphapurple}
+}
+
+\title{\Large \textcolor{hyphablue}{Deconstructing Selection in Cryptic Lineages:}\\What Went Wrong in Classical HyPhy and How HyphAeon Fixes It}
+\author{Sergei L. Kosakovsky Pond \\ \small Institute for Genomics and Evolutionary Medicine, Temple University}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\section*{Overview \& Context}
+Investigating cryptic speciation in microbial eukaryotes—such as the \textit{Arcellinida} testate amoebae—represents a fundamental evolutionary problem. When distinct ecological or physiological trajectories emerge under subtle morphological divergence, researchers seek to identify: \textit{which evolutionary forces drove these lineages apart, and which specific genes underwent diversifying selection in each cryptic population?}
+
+Running classical HyPhy tools (FEL, Contrast-FEL, RELAX) across such datasets frequently results in confusing outputs: pervasive \texttt{NA} estimates, uninformative outputs across split populations, conflicting $\omega$ summaries, and ambiguity surrounding alignment trimming. These issues do not stem from user error, but rather from the inherent mathematical and statistical boundaries of asymptotic maximum likelihood estimation on shallow divergence trees. 
+
+Here, we provide a forensic analysis of why classical methods struggled on these data, followed by a concrete protocol for resolving these challenges using \textit{HyphAeon}.
+
+\section{Diagnostic Analysis: What Occurred in Classical HyPhy?}
+
+\subsection{Pervasive \texttt{NA} Values in FEL}
+In Fixed Effects Likelihood (FEL), an independent codon substitution model is fitted separately to every alignment column, estimating a sitewise synonymous rate ($\alpha$) and non-synonymous rate ($\beta$). When sequence divergence within or between closely related cryptic populations is low, many codons exhibit zero synonymous substitutions ($\alpha \to 0$).
+
+Consequently, the estimated selection ratio $\omega = \beta / \alpha$ encounters division by zero ($\beta / 0 \to \infty$ or undefined \texttt{NA}). Furthermore, asymptotic likelihood ratio tests ($\chi^2_1$) collapse when mutational events are scarce ($< 3\text{--}5$ substitutions per site). Classical maximum likelihood cannot regularize these boundaries without an external prior.
+
+\subsection{The Subsetting Trap: Splitting Alignments by Population}
+Attempting to compare cryptic populations (e.g., \texttt{POP1} versus \texttt{POP7}) by slicing the master alignment into individual per-population FASTA files destroys the ancestral mutational baseline. Slicing an alignment of 35 taxa into small sub-alignments of 4 to 8 sequences leaves trees with minimal mutational depth, resulting in near-zero statistical power. As a consequence, all sub-populations return virtually identical, empty, or uninformative results.
+
+\subsection{Contrast-FEL \& Lineage $\omega$ Ambiguity}
+Contrast-FEL tests the explicit hypothesis: \textit{does the non-synonymous to synonymous rate ratio differ significantly between branch group A and branch group B at a specific site?} It is not designed to provide a clean, continuous gene-wide ranking of which species is adapting. Constructing simple point ratios from site-level $\alpha$ and $\beta$ across small branch partitions introduces high estimator variance.
+
+\subsection{RELAX: Testing a Distinct Evolutionary Hypothesis}
+RELAX tests whether the distribution of selection across an entire gene is intensified ($K > 1$) or relaxed ($K < 1$) in a test set of branches relative to a reference set. It does not pinpoint the exact functional domains or codons adapting to unique ecological niches. If a gene undergoes intense positive selection at two binding residues while the remainder evolves under strong purifying constraint, gene-wide omnibus averaging can dilute the localized signal into an uninformative result ($K \approx 1$).
+
+\subsection{The Alignment Trimming Dilemma}
+Selection analyses require in-frame nucleotide (codon) alignments, as synonymous substitutions provide the neutral clock baseline. However, uncurated \textit{de novo} transcriptomes in non-model eukaryotes frequently contain sequencing errors and isolated indel frameshifts. Untrimmed alignments cause classical tools to mistake single-taxon frameshift runs for massive positive selection. Conversely, aggressive heuristic trimming (e.g., Gblocks) discards the most variable, biologically informative surface loops.
+
+\section{The HyphAeon Framework: Preserving the Tree and Attributing Selection}
+
+HyphAeon fundamentally transforms this workflow by operating on the complete multi-population tree simultaneously:
+
+\begin{enumerate}
+    \item \textit{Automated Dual-Stage Error Filtering (\texttt{--filter})}: An exact upper-tail hypergeometric scan ($p_{\text{local}} \le 0.01$) detects spatial clustering of candidate sites, and the Outlier Contamination Index ($\text{OCI} \ge 0.25$) identifies single-species frameshifts ($\ge 3$ consecutive radical mutations in an isolated leaf against conserved relatives). Only the guilty taxon chunk is surgically masked with \texttt{NNN}, and the locus is re-evaluated in milliseconds.
+    
+    \item \textit{Learned Macroevolutionary Prior}: Embeds codon alignments and tree topologies into a continuous 384-dimensional geometric space (Tree-RoPE) trained over deep evolutionary time. Even in shallow divergence regimes, the model evaluates subtle transitions against its learned prior, eliminating division-by-zero instabilities and providing continuous LRTs and calibrated $p$-values across all codons.
+    
+    \item \textit{Directional Feature Attribution (\texttt{--attribute})}: Rather than subsetting trees, counterfactual single-taxon and clade-level sensitivity ($\Delta\text{LRT}$) determines which cryptic population drove positive selection at every codon, classifying events into \textit{Recent Tip Sweeps} versus \textit{Ancestral Divergence}.
+    
+    \item \textit{Omnibus Gene-Level Aggregation ($p_{\text{Cauchy}}$)}: The Cauchy Combination Test aggregates site-level evidence into a gene-wide significance metric ($p_{\text{Cauchy}}$), enabling unbiased GO/KEGG pathway enrichment on top candidates.
+\end{enumerate}
+
+\section{Computational Protocols for the Arcellinida Dataset}
+
+\subsection{Command-Line Execution}
+To run full selection inference with automated error filtering across an ortholog:
+\begin{lstlisting}[language=bash]
+hyphaeon predict \
+  -a alignments/gene_OG0001.fasta \
+  -t trees/gene_OG0001.nwk \
+  --filter \
+  --out results/gene_OG0001_selection.csv
+\end{lstlisting}
+
+To attribute selection across specific cryptic populations:
+\begin{lstlisting}[language=bash]
+hyphaeon predict \
+  -a alignments/gene_OG0001.fasta \
+  -t trees/gene_OG0001.nwk \
+  --filter \
+  --attribute \
+  --taxon POP1_ind1,POP1_ind2,POP2_ind1,POP7_ind1 \
+  --out results/gene_OG0001_attribution.csv
+\end{lstlisting}
+
+\subsection{Python Script for Transcriptome-Wide Batch Processing}
+The following script processes all orthologs, applies surgical error masking, computes Cauchy gene-level significance, and identifies the driving cryptic population:
+
+\begin{lstlisting}[language=Python]
+import os, glob
+import pandas as pd
+import numpy as np
+from axomeme.model import PhyloAxialTransformer
+from axomeme.weights import load_weights, load_arch_config
+from axomeme.attribution import attribute_selection
+
+# 1. Initialize HyphAeon Foundation Model
+config = load_arch_config('axomeme_5_dim384_nonull.pt')
+model = PhyloAxialTransformer(
+    embed_dim=config['embed_dim'],
+    num_layers=config['num_layers'],
+    num_heads=config['num_heads'],
+    window_size=config['window_size']
+)
+model.load_state_dict(load_weights('axomeme_5_dim384_nonull.pt'))
+model.eval()
+
+# 2. Process all Arcellinida orthologs
+results = []
+for fasta in glob.glob("alignments/*.fasta"):
+    nwk = fasta.replace(".fasta", ".nwk")
+    if not os.path.exists(nwk): 
+        continue
+    
+    # Run full selection scan + error filter + attribution
+    attr_df = attribute_selection(
+        model=model,
+        alignment_path=fasta,
+        tree_path=nwk,
+        filter_artifacts=True
+    )
+    
+    # Cauchy Combination Test for Gene-Wide Significance
+    pvals = np.clip(attr_df['p_value'].values, 1e-15, 1.0 - 1e-15)
+    t_stat = np.mean(np.tan((0.5 - pvals) * np.pi))
+    p_cauchy = float(np.clip(0.5 - (np.arctan(t_stat) / np.pi), 1e-15, 1.0))
+    
+    # Top driving lineage
+    top_driver = attr_df.loc[attr_df['delta_lrt'].idxmax(), 'driving_species'] if len(attr_df) > 0 else 'None'
+    
+    results.append({
+        'gene': os.path.basename(fasta),
+        'p_cauchy': p_cauchy,
+        'neglog10_p_cauchy': -np.log10(p_cauchy),
+        'selected_sites_p05': int((pvals <= 0.05).sum()),
+        'top_driving_population': top_driver
+    })
+
+df_summary = pd.DataFrame(results).sort_values(by='p_cauchy')
+df_summary.to_csv("arcellinida_selection_ranking.csv", index=False)
+\end{lstlisting}
+
+\section{Direct Answers to Methodological Inquiries}
+
+\begin{enumerate}
+    \item \textit{Was the classical analysis executed correctly?} \\
+    The syntax was standard, but slicing alignments into tiny sub-trees starved maximum likelihood estimators of the mutational depth required for statistical power. Maintaining the complete tree and applying feature attribution resolves this limitation.
+    
+    \item \textit{How should these results be interpreted and utilized?} \\
+    Genes should be ranked by $p_{\text{Cauchy}}$ to perform unbiased functional pathway enrichment (e.g., testate shell biomineralization, membrane transport, pseudopod motility). Feature attribution (\texttt{--attribute}) isolates which specific loci exhibit selective sweeps unique to \texttt{POP1} versus \texttt{POP7}.
+    
+    \item \textit{Why did different methods yield discordant $\omega$ profiles?} \\
+    FEL estimates sitewise point ratios ($\beta/\alpha$), Contrast-FEL evaluates branch-specific rate differentials, and RELAX models tree-wide rate distribution parameters. They test distinct hypotheses under divergent constraints. HyphAeon integrates these objectives within a unified, regularized foundation framework.
+\end{enumerate}
+
+\end{document}
