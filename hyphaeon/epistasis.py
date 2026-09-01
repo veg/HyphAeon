@@ -469,6 +469,7 @@ def run_insilico_selection_dms(
     
     # Baseline inference with safe chunking
     base_eval_chunk = max(1, min(64, safe_batch_size))
+    pb_base = ChunkProgress(L, 'DMS baseline', 'codon', enabled=progress and L > 0)
     with torch.no_grad():
         for start_idx in range(0, L, base_eval_chunk):
             end_idx = min(start_idx + base_eval_chunk, L)
@@ -476,7 +477,9 @@ def run_insilico_selection_dms(
             a_chunk = a_tensor[start_idx:end_idx].to(device)
             y_soft, _ = model.forward_cached(c_chunk, a_chunk, tree_cache)
             baseline_lrts[start_idx:end_idx] = torch.clamp(y_soft, min=0.0).cpu().numpy().flatten()
-            
+            pb_base.update(end_idx)
+    pb_base.finish()
+
     if device.type == 'mps':
         torch.mps.empty_cache()
         

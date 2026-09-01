@@ -75,8 +75,6 @@ def attribute_selection(
     _attr_done = 0
     with torch.no_grad():
         for site in focal_sites:
-            _attr_done += 1
-            _pb_attr.update(_attr_done)
             if base_lrts is not None:
                 site_lrt = float(base_lrts[site])
             else:
@@ -84,8 +82,12 @@ def attribute_selection(
                 a_site = a[site:site+1].to(device)
                 y_base, _ = model.forward_cached(c_site, a_site, cache)
                 site_lrt = float(torch.clamp(y_base, min=0.0).cpu().numpy().ravel()[0])
-                
+
             if site_lrt < min_lrt:
+                # Count the skipped site so the bar still reaches 100%, but
+                # report it as completed (after its work) rather than started.
+                _attr_done += 1
+                _pb_attr.update(_attr_done)
                 continue
                 
             site_codons = c[site, :, 0].cpu().numpy()
@@ -170,6 +172,10 @@ def attribute_selection(
                     'tree_depth_ratio': float(depth_ratio)
                 }
             }
+
+            # Report this site done (after its per-taxon counterfactual work).
+            _attr_done += 1
+            _pb_attr.update(_attr_done)
 
     _pb_attr.finish()
     return attributions
