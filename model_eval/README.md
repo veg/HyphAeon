@@ -6,7 +6,7 @@ different purposes, different prerequisites, and different CI triggers.
 ## What this is
 
 `model_eval/` evaluates the **trained HyphAeon neural model** (the weights
-hosted on Hugging Face at `datamonkey/axomeme`, or a local checkpoint passed
+hosted on Hugging Face at `datamonkey/hyphaeon`, or a local checkpoint passed
 via `HYPHAEON_WEIGHTS`). It asks: *does this model, as shipped, behave correctly
 with respect to its phylogenetic inputs?*
 
@@ -63,7 +63,7 @@ per-branch output — output that the current model cannot produce reliably
 
 - Real HyphAeon weights, resolved in this order:
   1. `HYPHAEON_WEIGHTS` env var pointing to a local `.pt` or `.safetensors` checkpoint.
-  2. Hugging Face download (`datamonkey/axomeme`, default variant). Requires
+  2. Hugging Face download (`datamonkey/hyphaeon`, default variant). Requires
      `HF_TOKEN` while the repo is gated. Cached locally after first download.
 - Python deps: `pip install -e .[model_eval]` (installs `pytest` and
   `scikit-learn`, on top of the base package's torch/biopython/numpy/scipy).

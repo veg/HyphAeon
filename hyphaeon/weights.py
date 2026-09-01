@@ -3,7 +3,7 @@ hyphaeon/weights.py
 ------------------
 Handles discovery, download, and caching of HyphAeon model weights from Hugging Face.
 
-Weights are hosted at https://huggingface.co/datamonkey/axomeme and that repo is
+Weights are hosted at https://huggingface.co/datamonkey/hyphaeon and that repo is
 the source of truth. On first use, weights are downloaded and cached locally
 in the Hugging Face cache directory (~/.cache/huggingface/ by default).
 Subsequent runs use the cached copy.
@@ -30,7 +30,7 @@ except Exception:
 
 from huggingface_hub import list_repo_files, hf_hub_download
 
-HF_REPO_ID = "datamonkey/axomeme"
+HF_REPO_ID = "datamonkey/hyphaeon"
 DEFAULT_VARIANT = "general"
 DEFAULT_CONFIG_FILENAME = "config.json"
 
