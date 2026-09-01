@@ -174,11 +174,20 @@ def main():
             total_codons_evaluated += L
             tree_cache = model.precompute_tree_cache(d_mat.to(device), z.to(device))
             
-            # 1. Raw Baseline Inference
+            # 1. Raw Baseline Inference (Batched for Memory Safety)
+            var_idx = np.where(~inv)[0]
+            n_var = len(var_idx)
+            b_size = 64
+            lrts_raw = np.zeros(L, dtype=np.float32)
             with torch.no_grad():
-                y_soft, _ = model.forward_cached(c.to(device), a.to(device), tree_cache)
-                lrts_raw = torch.clamp(y_soft.squeeze(-1), min=0.0).cpu().numpy().flatten()
-                lrts_raw[inv] = 0.0
+                for b_start in range(0, n_var, b_size):
+                    b_end = min(b_start + b_size, n_var)
+                    b_sub = var_idx[b_start:b_end]
+                    c_ch = c[b_sub].to(device)
+                    a_ch = a[b_sub].to(device)
+                    y_soft, _ = model.forward_cached(c_ch, a_ch, tree_cache)
+                    lrts_raw[b_sub] = torch.clamp(y_soft.squeeze(-1), min=0.0).cpu().numpy().flatten()
+                    del c_ch, a_ch, y_soft
                 
             pvals_raw = calc_pvals(lrts_raw)
             qvals_raw = calc_fdr_qvals(pvals_raw)
@@ -258,10 +267,19 @@ def main():
                     tmp_clean_fasta = tmp_clean_f.name
                     
                 c_cl, a_cl, d_cl, z_cl, inv_cl, taxa_cl, L_cl = load_alignment_and_tree(tmp_clean_fasta, tree_path, max_species=64, prune_duplicates=True)
+                tree_cache_cl = model.precompute_tree_cache(d_cl.to(device), z_cl.to(device))
+                var_idx_cl = np.where(~inv_cl)[0]
+                n_var_cl = len(var_idx_cl)
+                lrts_clean = np.zeros(L_cl, dtype=np.float32)
                 with torch.no_grad():
-                    y_soft_cl, _ = model.forward_cached(c_cl.to(device), a_cl.to(device), tree_cache)
-                    lrts_clean = torch.clamp(y_soft_cl.squeeze(-1), min=0.0).cpu().numpy().flatten()
-                    lrts_clean[inv_cl] = 0.0
+                    for b_start in range(0, n_var_cl, b_size):
+                        b_end = min(b_start + b_size, n_var_cl)
+                        b_sub = var_idx_cl[b_start:b_end]
+                        c_ch = c_cl[b_sub].to(device)
+                        a_ch = a_cl[b_sub].to(device)
+                        y_soft_cl, _ = model.forward_cached(c_ch, a_ch, tree_cache_cl)
+                        lrts_clean[b_sub] = torch.clamp(y_soft_cl.squeeze(-1), min=0.0).cpu().numpy().flatten()
+                        del c_ch, a_ch, y_soft_cl
                 pvals_clean = calc_pvals(lrts_clean)
                 qvals_clean = calc_fdr_qvals(pvals_clean)
                 cct_p_clean = calc_cauchy_p(pvals_clean)
@@ -272,6 +290,7 @@ def main():
                 mean_lrt_clean = float(np.mean(lrts_clean))
                 max_lrt_clean = float(np.max(lrts_clean))
                 os.remove(tmp_clean_fasta)
+                del tree_cache_cl, d_cl, z_cl, c_cl, a_cl
             else:
                 pvals_clean = pvals_raw
                 qvals_clean = qvals_raw
@@ -282,6 +301,13 @@ def main():
                 density_p05_clean = density_p05_raw
                 mean_lrt_clean = float(np.mean(lrts_raw))
                 max_lrt_clean = float(np.max(lrts_raw))
+
+            del tree_cache, d_mat, z, c, a
+            if device.type == 'mps':
+                torch.mps.empty_cache()
+            elif device.type == 'cuda':
+                torch.cuda.empty_cache()
+            gc.collect()
                 
             results.append({
                 'hog': row['hog'],
