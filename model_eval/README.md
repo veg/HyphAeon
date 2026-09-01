@@ -1,13 +1,13 @@
-# model_eval — AxoMEME neural model behavior evaluation
+# model_eval — HyphAeon neural model behavior evaluation
 
 This directory is **intentionally separate** from `tests/`. The two suites have
 different purposes, different prerequisites, and different CI triggers.
 
 ## What this is
 
-`model_eval/` evaluates the **trained AxoMEME neural model** (the weights
+`model_eval/` evaluates the **trained HyphAeon neural model** (the weights
 hosted on Hugging Face at `datamonkey/axomeme`, or a local checkpoint passed
-via `AXOMEME_WEIGHTS`). It asks: *does this model, as shipped, behave correctly
+via `HYPHAEON_WEIGHTS`). It asks: *does this model, as shipped, behave correctly
 with respect to its phylogenetic inputs?*
 
 It is black-box with respect to training: it does not import `train.py`, does
@@ -17,20 +17,20 @@ tests re-run against them automatically.
 
 ## Scope: neural model only
 
-This suite covers **only `axomeme predict`** — the neural model for episodic
+This suite covers **only `hyphaeon meme`** — the neural model for episodic
 positive selection. The other two applications in the package have their tests
 in `tests/methods/`:
 
-- **`axomeme phenotype`** — raw binary substitution counter with a Poisson
+- **`hyphaeon phenotype`** — raw binary substitution counter with a Poisson
   test. No neural model, no weights. Tests in `tests/methods/`.
-- **`axomeme epistasis`** — pairwise cosine similarity on binary substitution
+- **`hyphaeon epistasis`** — pairwise cosine similarity on binary substitution
   profiles with clique finding. No neural model, no weights. Tests in
   `tests/methods/`.
 
 ### Paper vs. code gap
 
 The draft paper (phylowas_mammalian_screens.pdf) describes "PhyloWAS" and an
-"Inter-Gene Co-Selection Kernel" that operate on the AxoMEME selection-
+"Inter-Gene Co-Selection Kernel" that operate on the HyphAeon selection-
 attribution tensor `A_θ ∈ [0,1]^{L×M}` — per-branch, per-site selection
 posteriors from the neural model. The paper calls this "Mode II:
 Selection-Informed" and contrasts it with "Mode I: Raw Mutation Baseline"
@@ -51,7 +51,7 @@ per-branch output — output that the current model cannot produce reliably
   random-weight checkpoint for CLI tests, and does not need network access.
   `model_eval/` is the opposite: it requires real weights and tests model
   behavior, not code plumbing.
-- **Not a release gate for `pip install axomeme`.** A failure here means "the
+- **Not a release gate for `pip install hyphaeon`.** A failure here means "the
   model has a behavior problem worth investigating," not "the package is
   broken." The package can ship with a model that fails these gates.
 - **Not a training test suite.** It does not check whether gradients reach the
@@ -61,8 +61,8 @@ per-branch output — output that the current model cannot produce reliably
 
 ## Prerequisites
 
-- Real AxoMEME weights, resolved in this order:
-  1. `AXOMEME_WEIGHTS` env var pointing to a local `.pt` or `.safetensors` checkpoint.
+- Real HyphAeon weights, resolved in this order:
+  1. `HYPHAEON_WEIGHTS` env var pointing to a local `.pt` or `.safetensors` checkpoint.
   2. Hugging Face download (`datamonkey/axomeme`, default variant). Requires
      `HF_TOKEN` while the repo is gated. Cached locally after first download.
 - Python deps: `pip install -e .[model_eval]` (installs `pytest` and
@@ -83,7 +83,7 @@ per-branch output — output that the current model cannot produce reliably
     hyphy=2.5.101 seq-gen=1.3.5`. If you bump the pin, delete the affected
     cache files so they regenerate.
 
-If weights cannot be resolved, AxoMEME tests are **skipped** with a clear
+If weights cannot be resolved, HyphAeon tests are **skipped** with a clear
 message. Use `pytest model_eval/ -rs` to see skip reasons.
 
 ## Layout
@@ -101,14 +101,14 @@ model_eval/
 │   └── test_input_diagnostics.py        ← U→T, frameshift, unknown tokens
 │
 ├── calibration/           ← null calibration: are p-values honest?
-│   ├── test_axomeme_null.py             ← neutral sims → p-value uniformity
-│   ├── test_axomeme_power.py            ← injected selection → TPR
+│   ├── test_hyphaeon_null.py             ← neutral sims → p-value uniformity
+│   ├── test_hyphaeon_power.py            ← injected selection → TPR
 │   ├── test_composition_bias.py         ← AT/GC-rich composition → FPR
 │   └── test_alignment_length.py         ← short/medium/long → FPR + LRT scale
 │
-├── concordance/           ← does AxoMEME match its prediction target?
+├── concordance/           ← does HyphAeon match its prediction target?
 │   ├── _common.py                       ← HyPhy MEME runner + cache + metrics
-│   └── test_axomeme_vs_meme.py          ← rank corr, κ, F1 vs real HyPhy MEME
+│   └── test_hyphaeon_vs_meme.py          ← rank corr, κ, F1 vs real HyPhy MEME
 │                                          (real datasets + typical-case sims)
 │
 ├── stability/             ← determinism, scale, numerical edge cases
@@ -129,7 +129,7 @@ to deep trees, 18 to 212 taxa, and 26% to 100% variable sites. This prevents
 "boundary case" dismissals — a result that holds across the full grid cannot
 be attributed to a single dataset's properties.
 
-**Current state (axomeme_v1):**
+**Current state (hyphaeon_v1):**
 
 | gate                          | result   | details                                    |
 |-------------------------------|----------|--------------------------------------------|
@@ -156,7 +156,7 @@ Tests run across a grid of (n_taxa, tree_depth) combinations:
 - 50 taxa, moderate (0.2) — moderate N, moderate divergence
 - 100 taxa, deep (0.5) — large N, high divergence
 
-**Current state (axomeme_v1):**
+**Current state (hyphaeon_v1):**
 
 | config          | FPR at alpha=0.05 | threshold | result   |
 |-----------------|-------------------|-----------|----------|
@@ -179,7 +179,7 @@ Real genomes have biased nucleotide composition (Plasmodium ~80% AT,
 Mycobacterium ~65% GC). All other sims use uniform ATCG. Does the model
 stay calibrated under realistic composition?
 
-**Current state (axomeme_v1): PASSED**
+**Current state (hyphaeon_v1): PASSED**
 
 | composition | target AT | FPR at alpha=0.05 | result   |
 |-------------|-----------|-------------------|----------|
@@ -197,7 +197,7 @@ Real alignments range from ~30 codons (short domains) to ~500+ (long genes).
 All other tests use 100 codons. Does the model behave consistently across
 lengths?
 
-**Current state (axomeme_v1): PASSED**
+**Current state (hyphaeon_v1): PASSED**
 
 | length   | codons | FPR at alpha=0.05 | median LRT | result   |
 |----------|--------|-------------------|------------|----------|
@@ -209,15 +209,15 @@ Cross-length LRT ratio: 1.15x (threshold: 3x). The model's output scale is
 stable across alignment lengths — p-values from different-length alignments
 are directly comparable.
 
-### concordance/ — does AxoMEME match MEME?
+### concordance/ — does HyphAeon match MEME?
 
-AxoMEME is trained to predict episodic positive selection. These tests measure
+HyphAeon is trained to predict episodic positive selection. These tests measure
 rank correlation (Spearman rho) on variable sites, Cohen's kappa on significant-
 call agreement, and F1 at matched thresholds. Requires `hyphy >=2.5.40` on PATH.
 MEME results are cached in `model_eval/_cache/` to avoid re-running on
 every test invocation.
 
-**Current state (axomeme_v1):**
+**Current state (hyphaeon_v1):**
 
 | dataset    | Spearman rho | Cohen's kappa | F1    | result   |
 |------------|--------------|---------------|-------|----------|
@@ -226,6 +226,20 @@ every test invocation.
 | camelid    | 0.31         | 0.05          | 0.30  | PASSED   |
 
 *Note on rank correlation:* In long real genes (e.g. Smc6 with 1,097 sites), >90% of sites are under neutral/purifying evolution where LRT ~ 0. Spearman correlation across the entire variable background measures near-zero baseline noise, but concordance on actual top positive selection sites remains robust.
+
+#### Dataset-level concordance reports
+
+The concordance tests above validate expected model behavior on the repository's
+fixtures. For an ad hoc dataset or a single matched gene, use
+`hyphaeon evaluate` instead. That command consumes existing `hyphaeon meme`
+CSV and HyPhy MEME JSON files without rerunning either inference tool, pools
+sites across matched genes, and reports ROC-AUC, Pearson and Spearman
+correlations, PPV, FPR, confusion matrices, and per-gene site counts.
+
+See [Evaluate predictions against HyPhy MEME](../README.md#example-5-evaluate-predictions-against-hyphy-meme)
+for input naming, direct-file mode, exact metric definitions, and output
+options. This reporting command is separate from the `model_eval/` pytest
+acceptance thresholds and does not produce a pass/fail verdict.
 
 ### stability/ — determinism and edge cases
 
@@ -246,8 +260,8 @@ numbers; CI uploads them as workflow artifacts.
 # Everything (skips tests whose prerequisites aren't met)
 pytest model_eval/ -v -rs
 
-# Local weights for AxoMEME tests
-AXOMEME_WEIGHTS=/path/to/axomeme_v1.pt pytest model_eval/ -v
+# Local weights for HyphAeon tests
+HYPHAEON_WEIGHTS=/path/to/hyphaeon_v1.pt pytest model_eval/ -v
 
 # Only invariance gates
 pytest model_eval/invariance/ -v
@@ -266,6 +280,6 @@ does not collect `model_eval/`.
 ## CI
 
 A separate workflow, `.github/workflows/model_eval.yml`, runs this suite on
-`workflow_dispatch` and on changes to `model_eval/`, `axomeme/model.py`, or
-`axomeme/dataset.py`. It does not run on every push. It requires the
+`workflow_dispatch` and on changes to `model_eval/`, `hyphaeon/model.py`, or
+`hyphaeon/dataset.py`. It does not run on every push. It requires the
 `HF_TOKEN` secret (for weight download) and uploads report artifacts.

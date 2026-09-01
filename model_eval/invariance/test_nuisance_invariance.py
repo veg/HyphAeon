@@ -88,7 +88,7 @@ class TestDuplicateTaxaInvariance:
     evolutionary information. The model's predictions should not change
     meaningfully.
 
-    AxoMEME enforces this invariant by default via automated identical
+    HyphAeon enforces this invariant by default via automated identical
     haplotype and tree pruning (prune_duplicates=True).
 
     Threshold: r >= 0.999 on a majority of datasets.

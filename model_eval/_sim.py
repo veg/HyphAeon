@@ -8,7 +8,7 @@ simulation tool — we don't need to validate the simulated data ourselves.
 For null calibration, what matters is that the data has NO positive selection
 signal. Neutral nucleotide evolution satisfies this by construction. The
 simulated DNA is treated as codons (length always divisible by 3) by the
-AxoMEME pipeline.
+HyphAeon pipeline.
 
 Trees are generated as random coalescent trees with controlled depth.
 """
@@ -59,7 +59,7 @@ def simulate_neutral_alignment(n_taxa, n_codons, tree_depth=0.1,
             test_composition_bias.py.
         seed: random seed (used for both tree generation and seq-gen -z)
         out_dir: directory for output files (default:
-            /tmp/axomeme_sim_<n_taxa>_<n_codons>_<depth>_<seed>_<freqs>)
+            /tmp/hyphaeon_sim_<n_taxa>_<n_codons>_<depth>_<seed>_<freqs>)
 
     Returns:
         (fasta_path, newick_path)
@@ -72,11 +72,11 @@ def simulate_neutral_alignment(n_taxa, n_codons, tree_depth=0.1,
     if out_dir is None:
         # Include key parameters in the directory name to avoid collisions
         # when different tests use the same seed with different params
-        # (e.g. test_axomeme_null seed=0 n_taxa=20 vs test_composition_bias
+        # (e.g. test_hyphaeon_null seed=0 n_taxa=20 vs test_composition_bias
         # seed=0 n_taxa=50 freqs=at_rich).
         freq_tag = "".join(f"{int(f*10)}" for f in freqs)
         out_dir = os.path.join(
-            "/tmp", f"axomeme_sim_{n_taxa}_{n_codons}_{tree_depth}_{seed}_{freq_tag}")
+            "/tmp", f"hyphaeon_sim_{n_taxa}_{n_codons}_{tree_depth}_{seed}_{freq_tag}")
     os.makedirs(out_dir, exist_ok=True)
 
     # Build random tree
@@ -145,7 +145,7 @@ def purge_stop_codons(fa_path, seed=0):
 
     seq-gen simulates raw nucleotide substitution with no codon-level
     constraints, so in-frame stop codons appear at the rate expected under
-    neutral nucleotide evolution. AxoMEME tolerates this (it just notes the
+    neutral nucleotide evolution. HyphAeon tolerates this (it just notes the
     count), but real biological coding sequences never have in-frame stops
     (purifying selection removes them), and HyPhy MEME hard-rejects any
     alignment containing one. This purges stops so a simulated alignment can

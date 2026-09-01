@@ -1,15 +1,15 @@
 """
-concordance/_common.py — shared helpers for AxoMEME-vs-MEME concordance
-tests (test_axomeme_vs_meme.py: TestAxoMEMEvsMEME and
-TestAxoMEMEvsMEMETypicalCase).
+concordance/_common.py — shared helpers for HyphAeon-vs-MEME concordance
+tests (test_hyphaeon_vs_meme.py: TestHyphAeonvsMEME and
+TestHyphAeonvsMEMETypicalCase).
 
 Not collected by pytest (module name doesn't match test_*.py). Provides:
   - run_hyphy_meme: run (or fetch cached) HyPhy MEME on an alignment+tree,
     returning per-site {lrt, p_value}.
   - meme_dict_to_arrays: convert that dict into arrays aligned with
-    AxoMEME's per-site LRT/p-value arrays.
+    HyphAeon's per-site LRT/p-value arrays.
   - concordance_metrics: compute Spearman rho, Cohen's kappa, and F1
-    between AxoMEME and MEME on the tested sites.
+    between HyphAeon and MEME on the tested sites.
 
 CACHING: MEME results are cached in model_eval/_cache/ keyed on
 (fasta hash, tree hash, hyphy version). MEME is deterministic for a given
@@ -181,13 +181,13 @@ def run_hyphy_busted(fasta_path, tree_path, timeout=1200):
 
 def meme_dict_to_arrays(meme_sites, n_sites):
     """Convert a {site_index: {lrt, p_value}} dict into arrays aligned with
-    AxoMEME's per-site LRT/p-value arrays (length n_sites).
+    HyphAeon's per-site LRT/p-value arrays (length n_sites).
 
     Sites with no MEME entry default to lrt=0, p_value=1 (non-significant).
 
     Returns (meme_lrts, meme_pvals, meme_tested) where meme_tested is a
     boolean mask of sites where MEME actually produced a result. Use this
-    mask to avoid penalizing AxoMEME for sites MEME skipped.
+    mask to avoid penalizing HyphAeon for sites MEME skipped.
     """
     meme_lrts = np.zeros(n_sites)
     meme_pvals = np.ones(n_sites)
@@ -202,12 +202,12 @@ def meme_dict_to_arrays(meme_sites, n_sites):
 
 def concordance_metrics(axo_lrts, axo_pvals, meme_lrts, meme_pvals, tested,
                         meme_tested=None, alpha=0.05):
-    """Compute Spearman rho, Cohen's kappa, and F1 between AxoMEME and MEME
+    """Compute Spearman rho, Cohen's kappa, and F1 between HyphAeon and MEME
     on the tested (variable) sites.
 
-    If meme_tested is provided, only sites where both AxoMEME has a
+    If meme_tested is provided, only sites where both HyphAeon has a
     variable site AND MEME produced a result are included in the metrics.
-    This avoids penalizing AxoMEME for sites that MEME skipped (e.g.,
+    This avoids penalizing HyphAeon for sites that MEME skipped (e.g.,
     insufficient substitutions), which would default to p=1 in the MEME
     arrays and count as discordances.
 
@@ -243,6 +243,6 @@ def concordance_metrics(axo_lrts, axo_pvals, meme_lrts, meme_pvals, tested,
         "spearman_p": float(p_rho),
         f"cohen_kappa_{alpha_tag}": float(kappa),
         f"f1_{alpha_tag}": float(f1),
-        f"axomeme_significant_{alpha_tag}": int(axo_sig.sum()),
+        f"hyphaeon_significant_{alpha_tag}": int(axo_sig.sum()),
         f"meme_significant_{alpha_tag}": int(meme_sig.sum()),
     }

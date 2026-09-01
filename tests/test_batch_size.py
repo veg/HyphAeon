@@ -1,8 +1,8 @@
-"""Unit tests for determine_adaptive_batch_size in axomeme.cli."""
+"""Unit tests for determine_adaptive_batch_size in hyphaeon.cli."""
 import torch
 import pytest
 
-from axomeme.cli import determine_adaptive_batch_size
+from hyphaeon.cli import determine_adaptive_batch_size
 
 
 class TestDetermineAdaptiveBatchSize:

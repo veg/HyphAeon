@@ -7,7 +7,7 @@ the 23 MB weights file being present. Real weights will eventually move to
 Hugging Face / GitHub releases and new model versions will ship different
 weights; package tests should not be coupled to any of that.
 
-`axomeme_lrt` and `p_value` are model predictions that fluctuate across
+`hyphaeon_lrt` and `p_value` are model predictions that fluctuate across
 torch versions, hardware, and model weights, so we only check that the
 pipeline runs end-to-end and produces well-formed, finite, non-trivial
 output. The deterministic columns (`site`, `is_invariable`) are checked
@@ -28,13 +28,13 @@ import pytest
 EXAMPLES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "examples")
 EXPECTED_DIR = os.path.join(EXAMPLES_DIR, "expected_results")
 
-EXPECTED_COLUMNS = ["site", "axomeme_lrt", "p_value", "q_value", "is_invariable"]
+EXPECTED_COLUMNS = ["site", "hyphaeon_lrt", "p_value", "q_value", "is_invariable"]
 
 
 def run_cli(fasta, tree, weights, csv_out, cpu=True):
     cmd = [
-        sys.executable, "-m", "axomeme.cli",
-        "predict",
+        sys.executable, "-m", "hyphaeon.cli",
+        "meme",
         "-a", fasta,
         "-t", tree,
         "-w", weights,
@@ -74,11 +74,11 @@ class TestExampleDatasets:
 
         # Model output columns: finite (no NaN/inf), in valid range, and not
         # all-zero (smoke check that the model actually produced predictions).
-        for col in ("axomeme_lrt", "p_value"):
+        for col in ("hyphaeon_lrt", "p_value"):
             assert np.isfinite(actual[col]).all(), f"{col} contains non-finite values"
-        assert (actual["axomeme_lrt"] >= 0).all(), "axomeme_lrt should be non-negative"
+        assert (actual["hyphaeon_lrt"] >= 0).all(), "hyphaeon_lrt should be non-negative"
         assert ((actual["p_value"] >= 0) & (actual["p_value"] <= 1)).all(), "p_value out of [0, 1]"
-        assert (actual["axomeme_lrt"] > 0).any(), "axomeme_lrt is all zero — model did not produce predictions"
+        assert (actual["hyphaeon_lrt"] > 0).any(), "hyphaeon_lrt is all zero — model did not produce predictions"
 
     def test_json_output(self, name, fasta, tree, csv, examples_dir, dummy_weights, tmp_path):
         fa = os.path.join(examples_dir, fasta)
@@ -86,8 +86,8 @@ class TestExampleDatasets:
         out_json = str(tmp_path / "output.json")
         out_csv = str(tmp_path / "output.csv")
         cmd = [
-            sys.executable, "-m", "axomeme.cli",
-            "predict",
+            sys.executable, "-m", "hyphaeon.cli",
+            "meme",
             "-a", fa,
             "-t", nwk,
             "-w", dummy_weights,
@@ -118,7 +118,7 @@ def test_batch_size_one_produces_same_structure(examples_dir, dummy_weights, tmp
     out = str(tmp_path / "batched.csv")
 
     cmd = [
-        sys.executable, "-m", "axomeme.cli", "predict",
+        sys.executable, "-m", "hyphaeon.cli", "meme",
         "-a", fa, "-t", nwk, "-w", dummy_weights, "-c", out,
         "--cpu", "--batch-size", "1",
     ]
@@ -131,12 +131,12 @@ def test_batch_size_one_produces_same_structure(examples_dir, dummy_weights, tmp
     assert len(actual) == len(expected_df)
     assert (actual["site"] == expected_df["site"]).all()
     assert (actual["is_invariable"] == expected_df["is_invariable"]).all()
-    for col in ("axomeme_lrt", "p_value"):
+    for col in ("hyphaeon_lrt", "p_value"):
         assert np.isfinite(actual[col]).all(), f"{col} contains non-finite values"
 
 
 def test_busted_cli_runs_and_produces_valid_output(examples_dir, dummy_weights, tmp_path):
-    """Test that hyphaeon/axomeme busted subcommand runs end-to-end and creates JSON/CSV."""
+    """Test that hyphaeon/hyphaeon busted subcommand runs end-to-end and creates JSON/CSV."""
     fa = os.path.join(examples_dir, "Smc6.fasta")
     nwk = os.path.join(examples_dir, "Smc6.nwk")
     out_json = str(tmp_path / "busted.json")

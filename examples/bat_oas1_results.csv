@@ -1,4 +1,4 @@
-site,axomeme_lrt,p_value,q_value,is_invariable
+site,hyphaeon_lrt,p_value,q_value,is_invariable
 1,0.0,1.0,1.0,True
 2,1.5262149572372437,0.10834070295095444,0.6815269589424133,False
 3,0.0,1.0,1.0,True

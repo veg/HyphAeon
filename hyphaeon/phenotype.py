@@ -1,5 +1,5 @@
 """
-axomeme/phenotype.py
+hyphaeon/phenotype.py
 --------------------
 Directional Phenotype-Genotype Association Mapping (PhyloWAS) and
 Phenotype-Associated Residue Signature (PARS) extraction.
@@ -31,6 +31,8 @@ from .dataset import (
     extract_tree_from_string_or_file
 )
 from .model import PhyloAxialTransformer
+from .stats import cauchy_combination_p, benjamini_hochberg
+from .inference import get_device, load_model
 from .weights import (
     load_weights,
     load_arch_config,
@@ -38,7 +40,7 @@ from .weights import (
     DEFAULT_VARIANT
 )
 
-DEFAULT_WEIGHTS = "weights/axomeme_v1.pt"
+DEFAULT_WEIGHTS = "weights/hyphaeon_v1.pt"
 from .epistasis import compute_transformer_attributions
 
 REV_AA_MAP = {v: k for k, v in AA_MAP.items()}
@@ -241,13 +243,23 @@ def resolve_phenotype_vector(
     # 3. Inline Foreground / Background Patterns
     if foreground:
         if isinstance(foreground, str):
-            fg_list = [p.strip() for p in foreground.split(",") if p.strip()]
+            if "|" in foreground and "," not in foreground:
+                fg_list = [p.strip() for p in foreground.split("|") if p.strip()]
+            else:
+                fg_list = [p.strip() for p in foreground.split(",") if p.strip()]
         else:
-            fg_list = foreground
+            fg_list = list(foreground)
 
         for i, t in enumerate(taxa):
             for pat in fg_list:
-                if fnmatch.fnmatch(t.lower(), pat.lower()) or (pat.lower() in t.lower()):
+                clean_pat = pat.rstrip(".*").lstrip(".*") if pat.startswith(".*") or pat.endswith(".*") else pat
+                try:
+                    if re.search(pat, t, re.IGNORECASE):
+                        y[i] = 1.0
+                        break
+                except Exception:
+                    pass
+                if fnmatch.fnmatch(t.lower(), pat.lower()) or (clean_pat.lower() in t.lower()):
                     y[i] = 1.0
                     break
 
@@ -258,6 +270,79 @@ def resolve_phenotype_vector(
         return y, meta
 
     raise ValueError("Must provide one of --preset, --phenotype-file, or --foreground.")
+
+
+def compute_phylogenetic_covariance(tree: Phylo.BaseTree.Tree, taxa: List[str]) -> np.ndarray:
+    """
+    Computes the phylogenetic variance-covariance matrix V (Saputra et al. 2021):
+    V[i, j] = shared patristic distance from root to MRCA(taxon_i, taxon_j).
+    """
+    M = len(taxa)
+    V = np.zeros((M, M), dtype=np.float64)
+    root = tree.root
+    root_dists = {t.name: tree.distance(root, t) for t in tree.get_terminals()}
+
+    for i in range(M):
+        t1 = tree.find_any(name=taxa[i])
+        for j in range(i, M):
+            t2 = tree.find_any(name=taxa[j])
+            if i == j:
+                V[i, i] = root_dists.get(taxa[i], 1.0)
+            elif t1 is not None and t2 is not None:
+                mrca = tree.common_ancestor(t1, t2)
+                shared_d = tree.distance(root, mrca)
+                V[i, j] = shared_d
+                V[j, i] = shared_d
+    return V
+
+
+def generate_permulations(
+    original_y: np.ndarray,
+    tree: Phylo.BaseTree.Tree,
+    taxa: List[str],
+    n_perm: int = 1000,
+    seed: int = 42
+) -> np.ndarray:
+    """
+    Generates n_perm phylogenetic permulations preserving the tree covariance structure
+    under Brownian motion (Saputra et al. 2021 / RERconverge null model).
+
+    - For binary phenotypes: Uses the threshold liability model, setting the top-K
+      largest simulated liability scores to 1.0 (matching exact foreground count K).
+    - For continuous phenotypes: Uses rank-matching transformation, sorting the simulated
+      Brownian motion vector and mapping back to the exact empirical values.
+
+    Returns:
+        np.ndarray of shape (n_perm, len(taxa))
+    """
+    np.random.seed(seed)
+    M = len(taxa)
+    V = compute_phylogenetic_covariance(tree, taxa)
+
+    # Cholesky factorization with tiny ridge for numerical stability
+    L_chol = np.linalg.cholesky(V + 1e-7 * np.eye(M))
+
+    # Simulate Brownian motion paths: shape (M, n_perm)
+    Z = np.dot(L_chol, np.random.randn(M, n_perm))
+
+    unique_vals = np.unique(original_y)
+    is_binary = len(unique_vals) == 2 and set(unique_vals).issubset({0, 1, 0.0, 1.0})
+
+    perm_matrix = np.zeros((n_perm, M), dtype=float)
+
+    if is_binary:
+        k_foreground = int(np.sum(original_y > 0))
+        for p in range(n_perm):
+            top_k_idx = np.argsort(Z[:, p])[-k_foreground:]
+            perm_matrix[p, top_k_idx] = 1.0
+    else:
+        sorted_orig = np.sort(original_y)
+        for p in range(n_perm):
+            ranks = np.argsort(np.argsort(Z[:, p]))
+            perm_matrix[p] = sorted_orig[ranks]
+
+    return perm_matrix
+
 
 def run_phenotype_association(
     alignment_path: str,
@@ -271,10 +356,12 @@ def run_phenotype_association(
     trait_col: Optional[str] = None,
     species_col: Optional[str] = None,
     continuous: bool = False,
+    permulations: int = 0,
     min_taxa_per_site: int = 4,
     alpha: float = 0.05,
     cpu: bool = False,
-    batch_size: int = 64
+    batch_size: int = 64,
+    progress: bool = True
 ) -> Dict[str, Any]:
     """
     Executes directional Phenotype-Genotype association (PhyloWAS) on a codon alignment
@@ -282,14 +369,7 @@ def run_phenotype_association(
     attributions and branch projections) rather than binary string substitution counts.
     """
     # 1. Device Selection
-    if cpu:
-        device = torch.device('cpu')
-    elif torch.cuda.is_available():
-        device = torch.device('cuda')
-    elif torch.backends.mps.is_available():
-        device = torch.device('mps')
-    else:
-        device = torch.device('cpu')
+    device = get_device(cpu=cpu)
 
     # 2. Load Alignment, Tree, and Extract Tree Cache
     c_tensor, a_tensor, d_mat, z_coords, inv_mask, taxa, L = load_alignment_and_tree(
@@ -319,24 +399,14 @@ def run_phenotype_association(
         raise ValueError(f"Insufficient foreground taxa ({fg_count}) matching criteria among {N} taxa.")
 
     # 4. Load Neural Architecture and Pretrained Weights
-    config = load_arch_config(weights=weights_path, variant=variant)
-    model = PhyloAxialTransformer(
-        embed_dim=config['embed_dim'],
-        num_layers=config['num_layers'],
-        num_heads=config['num_heads'],
-        window_size=config['window_size'],
-    ).to(device)
-    state_dict = load_weights(weights=weights_path, variant=variant, map_location=device)
-    model.load_state_dict(state_dict, strict=False)
-    model.eval()
-
-    d_dev = d_mat.to(device)
-    z_dev = z_coords.to(device)
-    tree_cache = model.precompute_tree_cache(d_dev, z_dev)
+    model = load_model(weights=weights_path, variant=variant, device=device)
+    tree_cache = model.precompute_tree_cache(d_mat.to(device), z_coords.to(device))
 
     # 5. Extract Transformer Phylogenetic Attributions
+    if progress:
+        print(f"[*] Computing Transformer Attributions across {L} codons...", flush=True)
     leaf_attr, lrts, pvals, cons_aas = compute_transformer_attributions(
-        model, c_tensor, a_tensor, tree_cache, taxa, device, batch_size=batch_size
+        model, c_tensor, a_tensor, tree_cache, taxa, device, batch_size=batch_size, progress=progress
     )
 
     # 6. Directional Unit-Hypersphere Attribution Projection
@@ -347,6 +417,26 @@ def run_phenotype_association(
     norm_spectral_ratio = float(spectral_energy / frob_norm) if frob_norm > 0 else 0.0
 
     a_np = a_tensor.squeeze(-1).numpy() # [L, N] amino acid token matrix
+
+    # 6b. Vectorized Phylogenetic Permulations (Saputra et al. 2021 / RERconverge null model)
+    null_rhos = None
+    gene_p_perm = None
+    if permulations > 0 and tree_obj is not None:
+        try:
+            Y_perms = generate_permulations(y, tree_obj, taxa, n_perm=permulations) # [P, N]
+            norm_y_perms = np.linalg.norm(Y_perms, axis=1) # [P]
+            
+            # Site-level null correlations: [L, P]
+            norm_leaf_mat = np.linalg.norm(leaf_attr, axis=1, keepdims=True) # [L, 1]
+            null_rhos = (leaf_attr @ Y_perms.T) / (norm_leaf_mat @ norm_y_perms[None, :] + 1e-15)
+            
+            # Gene-level null spectral energies: [P]
+            null_projs = (leaf_attr @ Y_perms.T) / (norm_y_perms[None, :] + 1e-15)
+            null_spectral_energies = np.linalg.norm(null_projs, axis=0)
+            gene_p_perm = float((1.0 + np.sum(null_spectral_energies >= spectral_energy)) / (1.0 + permulations))
+        except Exception as e:
+            null_rhos = None
+            gene_p_perm = None
 
     # 7. Site-Level Transformer Attribution Associations
     site_results = []
@@ -360,19 +450,25 @@ def run_phenotype_association(
         if norm_a > 0 and N_valid >= min_taxa_per_site:
             rho = float(np.dot(a_s, y) / (norm_a * np.linalg.norm(y) + 1e-15))
             
-            # Continuous Attribution Student's t-statistic
+            # Continuous Attribution Student's t-statistic (Parametric Null)
             df = max(1, N_valid - 2)
             t_stat = rho * np.sqrt(df / max(1e-15, 1.0 - rho**2))
-            p_assoc = float(stats.t.sf(t_stat, df=df))
+            p_assoc_parametric = float(stats.t.sf(t_stat, df=df))
+            
+            # Empirical Phylogenetic Permulation p-value
+            if null_rhos is not None:
+                p_assoc_perm = float((1.0 + np.sum(null_rhos[s] >= rho)) / (1.0 + permulations))
+                p_assoc = p_assoc_perm
+            else:
+                p_assoc_perm = None
+                p_assoc = p_assoc_parametric
             
             lrt_val = float(lrts[s])
             p_lrt = float(pvals[s])
             score = float(np.sqrt(max(0.0, lrt_val)) * max(0.0, rho))
             
             # ACAT Cauchy combination: combines omnibus selection LRT + directional trait attribution
-            c_p = 0.5 * (np.tan((0.5 - p_lrt) * np.pi) + np.tan((0.5 - p_assoc) * np.pi))
-            p_combined = float(0.5 - np.arctan(c_p) / np.pi)
-            p_combined = max(1e-15, min(1.0, p_combined))
+            p_combined = cauchy_combination_p(np.array([p_lrt, p_assoc]))
 
             ref_aa = cons_aas[s]
             fg_valid_aa = a_np[s, is_fg][a_np[s, is_fg] < 20]
@@ -398,7 +494,7 @@ def run_phenotype_association(
                 "site": s + 1,
                 "ref_aa": ref_aa,
                 "derived_aa": derived_aa,
-                "axomeme_lrt": lrt_val,
+                "hyphaeon_lrt": lrt_val,
                 "p_lrt": p_lrt,
                 "attribution_norm": norm_a,
                 "fg_mean_attn": fg_mean_attn,
@@ -406,6 +502,8 @@ def run_phenotype_association(
                 "association_rho": rho,
                 "p_value": p_combined,
                 "p_assoc": p_assoc,
+                "p_assoc_parametric": p_assoc_parametric,
+                "p_assoc_perm": p_assoc_perm,
                 "score": score,
                 "foreground_freq_pct": fg_freq,
                 "background_freq_pct": bg_freq
@@ -414,16 +512,11 @@ def run_phenotype_association(
     site_results.sort(key=lambda x: x["score"], reverse=True)
 
     # 8. Benjamini-Hochberg FDR
-    m = len(site_results)
-    if m > 0:
-        p_sorted_idx = np.argsort([x["p_value"] for x in site_results])
-        min_q = 1.0
-        for rank, idx in reversed(list(enumerate(p_sorted_idx))):
-            p_val = site_results[idx]["p_value"]
-            q_val = (p_val * m) / (rank + 1)
-            if q_val < min_q:
-                min_q = q_val
-            site_results[idx]["q_value"] = min(min_q, 1.0)
+    if site_results:
+        p_arr = np.array([x["p_value"] for x in site_results])
+        q_arr = benjamini_hochberg(p_arr)
+        for i, s in enumerate(site_results):
+            s["q_value"] = float(q_arr[i])
     
     # 9. Dual-Track Extreme-Value Statistics
     max_assoc = float(site_results[0]["association_rho"]) if site_results else 0.0
@@ -443,6 +536,82 @@ def run_phenotype_association(
     top_pars_sites = [f"{x['ref_aa']}{x['site']}{x['derived_aa']}" for x in site_results if x["association_rho"] >= 0.40 and x["score"] >= 0.50][:15]
     compact_pars = f"[ {' - '.join(top_pars_sites)} ]" if top_pars_sites else "[]"
 
+    # 11. Directional Epistatic Co-Selection & Sector Mining Across Trait-Associated Sites
+    sig_trait_sites = [x for x in site_results if x.get("q_value", 1.0) <= alpha and x["association_rho"] > 0]
+    trait_site_indices = [x["site"] - 1 for x in sig_trait_sites]
+    
+    coselection_pairs = []
+    trait_sectors = []
+    
+    if len(trait_site_indices) >= 2:
+        sub_indices = np.array(trait_site_indices, dtype=np.int64)
+        sub_A = leaf_attr[sub_indices, :]
+        norms = np.linalg.norm(sub_A, axis=1, keepdims=True)
+        valid_n = (norms > 1e-12).squeeze()
+        
+        if np.sum(valid_n) >= 2:
+            norm_sub_A = np.zeros_like(sub_A)
+            norm_sub_A[valid_n] = sub_A[valid_n] / norms[valid_n]
+            C_trait = norm_sub_A @ norm_sub_A.T
+            
+            K_t = len(sub_indices)
+            import networkx as nx
+            G_trait = nx.Graph()
+            pair_list = []
+            
+            for i in range(K_t):
+                s1 = sub_indices[i]
+                for j in range(i + 1, K_t):
+                    s2 = sub_indices[j]
+                    sim = float(C_trait[i, j])
+                    if sim > 0.15:
+                        lrt_1 = float(lrts[s1])
+                        lrt_2 = float(lrts[s2])
+                        cesi = float(sim * np.sqrt(max(0.1, lrt_1) * max(0.1, lrt_2)))
+                        
+                        df_pair = max(1, N - 2)
+                        t_pair = sim * np.sqrt(df_pair / max(1e-15, 1.0 - sim**2))
+                        p_pair = float(stats.t.sf(t_pair, df=df_pair))
+                        
+                        a1_mut = (a_np[s1] < 20) & (a_np[s1] != AA_MAP.get(cons_aas[s1], 20))
+                        a2_mut = (a_np[s2] < 20) & (a_np[s2] != AA_MAP.get(cons_aas[s2], 20))
+                        shared_branches = int(np.sum(a1_mut & a2_mut))
+                        
+                        pair_dict = {
+                            "site_u": int(s1 + 1),
+                            "site_v": int(s2 + 1),
+                            "ref_u": cons_aas[s1],
+                            "ref_v": cons_aas[s2],
+                            "lrt_u": lrt_1,
+                            "lrt_v": lrt_2,
+                            "similarity": sim,
+                            "cesi": cesi,
+                            "p_value": p_pair,
+                            "shared_branches": shared_branches
+                        }
+                        pair_list.append(pair_dict)
+                        if sim >= 0.25 and cesi >= 1.0:
+                            G_trait.add_edge(int(s1 + 1), int(s2 + 1), weight=sim, cesi=cesi)
+            
+            if pair_list:
+                p_arr = np.array([x["p_value"] for x in pair_list])
+                q_arr = benjamini_hochberg(p_arr)
+                for i, pair in enumerate(pair_list):
+                    pair["q_value"] = float(q_arr[i])
+                
+                pair_list.sort(key=lambda x: x["cesi"], reverse=True)
+                coselection_pairs = pair_list
+                
+            if G_trait.number_of_edges() > 0:
+                from .epistasis import extract_epistatic_sectors_tse
+                trait_sectors = extract_epistatic_sectors_tse(
+                    G_trait, leaf_attr, lrts, cons_aas,
+                    min_clique_size=2,
+                    min_coherence=0.45,
+                    a_np=a_np,
+                    taxa=taxa
+                )
+
     return {
         "alignment": alignment_path,
         "tree": tree_path,
@@ -457,6 +626,12 @@ def run_phenotype_association(
         "score_track_b": score_track_b,
         "dual_track_composite": dual_track_composite,
         "compact_pars_signature": compact_pars,
-        "significant_sites_count": len([x for x in site_results if x.get("q_value", 1.0) <= alpha]),
+        "permulations_count": permulations if null_rhos is not None else 0,
+        "gene_p_value_perm": gene_p_perm,
+        "significant_sites_count": len(sig_trait_sites),
+        "coselection_pairs_count": len(coselection_pairs),
+        "trait_sectors_count": len(trait_sectors),
+        "coselection_pairs": coselection_pairs,
+        "trait_sectors": trait_sectors,
         "sites": site_results
     }

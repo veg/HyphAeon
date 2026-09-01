@@ -84,3 +84,7 @@ model_eval/_artifacts/
 scripts/prepare_drosophila_finetuning.py
 scripts/slurm/
 tests/test_drosophila_preparation.py
+weights/
+*.pt
+*.safetensors
+REVIEW.md

@@ -1,9 +1,15 @@
 import os
+import sys
+from pathlib import Path
 import tempfile
 import pytest
 import torch
 
-from axomeme.model import PhyloAxialTransformer
+REPO_ROOT = str(Path(__file__).resolve().parent.parent)
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
+
+from hyphaeon.model import PhyloAxialTransformer
 
 EXAMPLES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "examples")
 EXPECTED_DIR = os.path.join(EXAMPLES_DIR, "expected_results")

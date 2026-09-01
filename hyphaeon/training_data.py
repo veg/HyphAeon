@@ -14,7 +14,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from axomeme.dataset import load_alignment_and_tree
+from hyphaeon.dataset import load_alignment_and_tree
 
 
 TRAINING_SCHEMA_VERSION = 1

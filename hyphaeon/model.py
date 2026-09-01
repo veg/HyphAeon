@@ -1,5 +1,5 @@
 """
-axomeme/model.py
+hyphaeon/model.py
 ----------------
 Core Neural Architecture: PhyloAxialTransformer with Multi-Scale 4D Tree-RoPE
 for ultra-fast episodic positive selection inference.
@@ -56,7 +56,7 @@ class PhyloRowAttention(nn.Module):
         # They are remnants of earlier architecture iterations (3-channel tree
         # projection, 2-layer phylo MLP, per-site rate scaler) that were
         # simplified to the current 1-channel Markov kernel. They remain here
-        # because they are present in the pretrained checkpoint (axomeme_v1.pt)
+        # because they are present in the pretrained checkpoint (hyphaeon_v1.pt)
         # and removing them from __init__ would cause load_state_dict to fail
         # with unexpected-key errors. Removing them requires either a checkpoint
         # migration or a compatibility shim in the CLI. See REVIEW.md item #29.
@@ -345,9 +345,41 @@ class PhyloAxialTransformer(nn.Module):
         """
         Fast forward pass using pre-cached static tree kernels.
         Eliminates repeated matrix exponentials and trigonometric rotations.
+        Automatically decomposes large codon batches into memory-safe micro-batches
+        when sequence depth N > 1000 to prevent O(B * H * N^2) accelerator buffer overflow.
         """
         batch_size, num_species, window_size = msa_codons.shape
         central_idx = window_size // 2
+
+        # Automatic memory-safe micro-batching for large alignments
+        max_attention_elements = 4_000_000 # ~16 MB per attention tensor
+        if batch_size > 1 and (batch_size * (num_species ** 2)) > max_attention_elements:
+            micro_b = max(1, int(max_attention_elements / max(1, num_species ** 2)))
+            all_lrt_soft = []
+            all_logits = []
+            all_extra = []
+            for b_start in range(0, batch_size, micro_b):
+                b_end = min(b_start + micro_b, batch_size)
+                p_sub = padding_mask[b_start:b_end] if padding_mask is not None else None
+                out = self.forward_cached(
+                    msa_codons[b_start:b_end],
+                    msa_aas[b_start:b_end],
+                    tree_cache,
+                    padding_mask=p_sub,
+                    return_attentions=return_attentions,
+                    return_hidden=return_hidden
+                )
+                all_lrt_soft.append(out[0])
+                all_logits.append(out[1])
+                if return_hidden or return_attentions:
+                    all_extra.append(out[2])
+                    
+            cat_lrt_soft = torch.cat(all_lrt_soft, dim=0)
+            cat_logits = torch.cat(all_logits, dim=0)
+            if return_hidden or return_attentions:
+                cat_extra = torch.cat(all_extra, dim=0)
+                return cat_lrt_soft, cat_logits, cat_extra
+            return cat_lrt_soft, cat_logits
 
         # 1. Embeddings
         codon_emb = self.codon_embedding(msa_codons)
@@ -452,6 +484,38 @@ class PhyloAxialTransformer(nn.Module):
 
         batch_size, num_species, window_size = msa_codons.shape
         central_idx = window_size // 2
+
+        # Automatic memory-safe micro-batching for large alignments
+        max_attention_elements = 4_000_000
+        if batch_size > 1 and (batch_size * (num_species ** 2)) > max_attention_elements:
+            micro_b = max(1, int(max_attention_elements / max(1, num_species ** 2)))
+            all_lrt_soft = []
+            all_logits = []
+            all_extra = []
+            for b_start in range(0, batch_size, micro_b):
+                b_end = min(b_start + micro_b, batch_size)
+                p_sub = padding_mask[b_start:b_end] if padding_mask is not None else None
+                out = self.forward(
+                    msa_codons[b_start:b_end],
+                    msa_aas[b_start:b_end],
+                    dist_matrix=dist_matrix,
+                    mds_coords=mds_coords,
+                    padding_mask=p_sub,
+                    tree_cache=None,
+                    return_attentions=return_attentions,
+                    return_hidden=return_hidden
+                )
+                all_lrt_soft.append(out[0])
+                all_logits.append(out[1])
+                if return_hidden or return_attentions:
+                    all_extra.append(out[2])
+                    
+            cat_lrt_soft = torch.cat(all_lrt_soft, dim=0)
+            cat_logits = torch.cat(all_logits, dim=0)
+            if return_hidden or return_attentions:
+                cat_extra = torch.cat(all_extra, dim=0)
+                return cat_lrt_soft, cat_logits, cat_extra
+            return cat_lrt_soft, cat_logits
         
         # Ensure padding_mask is always a canonical boolean tensor to keep XLA graph topology static
         if padding_mask is None:

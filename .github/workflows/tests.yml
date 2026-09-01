@@ -33,4 +33,4 @@ jobs:
       # Tests use a tiny dummy checkpoint (random weights) created at runtime,
       # so no pretrained weights download is needed.
       - name: Run tests
-        run: pytest tests/ -v
+        run: python -m pytest tests/ -v

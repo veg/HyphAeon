@@ -1,8 +1,8 @@
-"""Unit tests for load_alignment_and_tree in axomeme.dataset."""
+"""Unit tests for load_alignment_and_tree in hyphaeon.dataset."""
 import numpy as np
 import pytest
 import torch
-from axomeme.dataset import load_alignment_and_tree
+from hyphaeon.dataset import load_alignment_and_tree
 
 
 class TestLoadAlignmentAndTreeFasta:

@@ -7,7 +7,7 @@ conftest.py.
 Provides:
   - load_tensors: parse an alignment+tree into the model's input tensors.
   - predict: run the model on in-memory tensors and return LRT array.
-  - pvals_from_lrt: convert LRTs to p-values (matches the CLI's formula).
+  - pvals_from_lrt: convert LRTs to p-values (MEME asymptotic mixture).
   - evaluate_alignment: load + predict + p-values in one call, with the
     skip-if-too-few-variable-sites check shared by calibration tests.
   - fpr_at: false positive rate among tested sites at a given alpha.
@@ -25,6 +25,9 @@ from Bio import Phylo
 from Bio.Phylo.BaseTree import Clade
 
 from hyphaeon import dataset as ds
+from hyphaeon.stats import pvals_from_lrt_meme as pvals_from_lrt
+from hyphaeon.attribution import attribute_selection
+from hyphaeon.inference import predict_site_lrts
 
 
 # ---------------------------------------------------------------------------
@@ -45,32 +48,22 @@ def load_tensors(fa_path, nwk_path, **kw):
     return ds.load_alignment_and_tree(fa_path, nwk_path, **kw)
 
 
-def predict(model, c, a, d, z, inv, batch=64):
+def predict(model, c, a, d, z, inv, batch=64, attribute=False, taxa=None, focal_sites=None, min_lrt=3.84):
     """Run model.forward_cached on variable sites only; return LRT array [L].
 
-    Invariable sites get LRT=0 (the model would skip them too).
+    If attribute=True, returns (lrts, attribution_dict) where attribution_dict
+    details which species drive the selection signal and when selection occurred.
     """
-    L = c.shape[0]
-    lrts = np.zeros(L, dtype=np.float32)
-    var_idx = np.where(~inv)[0]
-    if len(var_idx) == 0:
+    lrts = predict_site_lrts(model, c, a, d, z, inv, batch_size=batch)
+    if not attribute:
         return lrts
+
     cache = model.precompute_tree_cache(d, z)
-    with torch.no_grad():
-        for s in range(0, len(var_idx), batch):
-            idx = var_idx[s:s + batch]
-            y, _ = model.forward_cached(c[idx], a[idx], cache)
-            lrts[idx] = torch.clamp(y.squeeze(-1), min=0.0).numpy().flatten()
-    return lrts
-
-
-def pvals_from_lrt(lrts):
-    """Convert LRT to p-value using the CLI's Self & Liang (1987) mixture
-    formula: 0.5 * chi2.sf(LRT, df=1) under 0.5·δ₀ + 0.5·χ²₁."""
-    p = np.ones(len(lrts), dtype=np.float64)
-    m = lrts > 0
-    p[m] = 0.5 * stats.chi2.sf(lrts[m], df=1)
-    return p
+    attr_dict = attribute_selection(
+        model=model, c=c, a=a, d=d, z=z, inv=inv, taxa=taxa,
+        focal_sites=focal_sites, min_lrt=min_lrt, base_lrts=lrts, cache=cache
+    )
+    return lrts, attr_dict
 
 
 def evaluate_alignment(model, fa_path, nwk_path, min_tested=10, **load_kw):

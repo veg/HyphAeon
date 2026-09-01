@@ -1,7 +1,7 @@
 """
 Determinism tests: same input + same weights → same output.
 
-These tests verify that AxoMEME's predictions don't change with batch size
+These tests verify that HyphAeon's predictions don't change with batch size
 (floating-point summation order) or repeated runs. A model dev who retrains
 and pushes new weights needs to know whether observed differences are real
 model changes or floating-point noise.

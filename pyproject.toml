@@ -35,14 +35,13 @@ model_eval = ["pytest>=7.0", "scikit-learn>=1.0"]
 
 [project.scripts]
 hyphaeon = "hyphaeon.cli:main"
-axomeme = "hyphaeon.cli:main"
 
 [tool.setuptools]
-packages = ["hyphaeon", "axomeme"]
+packages = ["hyphaeon"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
 [project.urls]
-"Homepage" = "https://github.com/veg/hyphaeon"
-"Bug Tracker" = "https://github.com/veg/hyphaeon/issues"
+"Homepage" = "https://github.com/veg/HyphAeon"
+"Bug Tracker" = "https://github.com/veg/HyphAeon/issues"

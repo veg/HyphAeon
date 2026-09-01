@@ -1,5 +1,5 @@
 """
-Power/sensitivity test: does AxoMEME detect simulated positive selection?
+Power/sensitivity test: does HyphAeon detect simulated positive selection?
 
 The calibration tests check the false positive rate (FPR) on neutral data.
 This test checks the true positive rate (TPR) — does the model detect
@@ -26,30 +26,17 @@ from _harness import evaluate_alignment
 from _sim import simulate_neutral_alignment, inject_selection as _inject_selection
 
 
-_POWER_CONFIGS = [
-    pytest.param(20, 0.1, "small_shallow", id="small_shallow"),
-    pytest.param(50, 0.2, "moderate", id="moderate"),
-    pytest.param(100, 0.5, "large_deep",
-                 marks=pytest.mark.xfail(reason="Model cannot distinguish selection from noise "
-                                           "on deep trees — median p at selected sites not lower "
-                                           "than neutral sites"),
-                 id="large_deep"),
-]
-
-
-@pytest.mark.parametrize("n_taxa,depth,label", _POWER_CONFIGS)
-@pytest.mark.parametrize("sim_seed", [
-    42,
-    pytest.param(43, marks=pytest.mark.xfail(reason="Seed 43 produces alignments where TPR "
-                                               "< 20% — power is seed-dependent and the model "
-                                               "has marginal sensitivity even on shallow trees"),
-                 id="43"),
+@pytest.mark.parametrize("n_taxa,depth,label", [
+    (20, 0.1, "small_shallow"),
+    (50, 0.2, "moderate"),
+    (100, 0.5, "large_deep"),
 ])
-class TestAxoMEMEPower:
-    """Does AxoMEME detect injected positive selection?
+@pytest.mark.parametrize("sim_seed", [42, 43])
+class TestHyphAeonPower:
+    """Does HyphAeon detect injected positive selection?
 
     We inject selection at 10% of sites (radical AA changes on 20% of taxa)
-    and check whether AxoMEME's p-values at those sites are lower than at
+    and check whether HyphAeon's p-values at those sites are lower than at
     neutral sites.
 
     Parametrized over 2 simulation seeds to assess variance in power
@@ -75,10 +62,10 @@ class TestAxoMEMEPower:
             seed=sim_seed, scale=1.0)
 
         # Inject selection
-        fa_sel, selected_sites, n_selected_taxa_actual, _ = _inject_selection(
+        fa_sel, selected_sites, n_selected_taxa_actual = _inject_selection(
             fa, nwk, n_taxa, n_codons, n_selected, n_branches, seed=99)
 
-        # Run AxoMEME on the modified alignment
+        # Run HyphAeon on the modified alignment
         res = evaluate_alignment(model, fa_sel, nwk)
         pvals, tested = res["pval"], res["tested"]
 
@@ -113,12 +100,13 @@ class TestAxoMEMEPower:
             "median_p_neutral": median_p_neut,
             "tpr_005": tpr_05,
             "fpr_005": fpr_05,
+            "power_ratio": tpr_05 / max(fpr_05, 0.001),
         }
         print(f"\n[{label} seed={sim_seed}] {json.dumps(report, indent=2)}")
 
         # The model should at least have lower p-values at selected sites
         assert median_p_sel < median_p_neut, (
-            f"AxoMEME does not distinguish injected selection from neutral "
+            f"HyphAeon does not distinguish injected selection from neutral "
             f"sites ({label}, seed={sim_seed}). median p at selected="
             f"{median_p_sel:.3f} vs neutral={median_p_neut:.3f}. The model "
             f"has no power to detect even radical AA changes on multiple "
@@ -127,7 +115,7 @@ class TestAxoMEMEPower:
 
         # And should flag at least 20% of selected sites at alpha=0.05
         assert tpr_05 >= 0.20, (
-            f"AxoMEME TPR at alpha=0.05 is {tpr_05:.1%} on injected selection "
+            f"HyphAeon TPR at alpha=0.05 is {tpr_05:.1%} on injected selection "
             f"({label}, seed={sim_seed}). Threshold: >=20%. The model misses "
             f"the majority of sites with clear selection signal."
         )
@@ -135,7 +123,7 @@ class TestAxoMEMEPower:
         # TPR must exceed FPR — otherwise the model is just calling everything
         # significant, not detecting selection specifically.
         assert tpr_05 > fpr_05, (
-            f"AxoMEME TPR ({tpr_05:.1%}) does not exceed FPR ({fpr_05:.1%}) "
+            f"HyphAeon TPR ({tpr_05:.1%}) does not exceed FPR ({fpr_05:.1%}) "
             f"on {label} (seed={sim_seed}). The model flags selected and "
             f"neutral sites at similar rates — it is not distinguishing "
             f"selection from noise."

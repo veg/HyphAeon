@@ -1,5 +1,5 @@
 """
-Tests for axomeme/weights.py — HF weights discovery, download, and loading.
+Tests for hyphaeon/weights.py — HF weights discovery, download, and loading.
 
 These tests mock the huggingface_hub API calls so they don't require network
 access or a valid HF token. Tests that do require HF access are skipped if
@@ -14,7 +14,7 @@ from unittest.mock import patch
 import pytest
 import torch
 
-from axomeme.weights import (
+from hyphaeon.weights import (
     HF_REPO_ID,
     DEFAULT_VARIANT,
     get_variant_filename,
@@ -49,8 +49,8 @@ class TestResolveWeightsPath:
     def test_nonexistent_explicit_path_falls_through(self, tmp_path):
         """If --weights points to a nonexistent file, fall through to variant resolution."""
         nonexistent = str(tmp_path / "does_not_exist.pt")
-        with patch("axomeme.weights.hf_hub_download") as mock_dl, \
-             patch("axomeme.weights.CACHE_DIR", tmp_path):
+        with patch("hyphaeon.weights.hf_hub_download") as mock_dl, \
+             patch("hyphaeon.weights.CACHE_DIR", tmp_path):
             mock_dl.return_value = "/fake/cache/model.safetensors"
             result = resolve_weights_path(weights=nonexistent, variant="general")
             mock_dl.assert_called_once()
@@ -59,17 +59,17 @@ class TestResolveWeightsPath:
         """If the variant is already in the HF cache, don't download."""
         cache_file = str(tmp_path / "model.safetensors")
         Path(cache_file).write_text("cached")
-        with patch("axomeme.weights.CACHE_DIR", tmp_path), \
+        with patch("hyphaeon.weights.CACHE_DIR", tmp_path), \
              patch("huggingface_hub.try_to_load_from_cache", return_value=cache_file), \
-             patch("axomeme.weights.hf_hub_download") as mock_dl:
+             patch("hyphaeon.weights.hf_hub_download") as mock_dl:
             result = resolve_weights_path(weights=None, variant="general")
             assert result == cache_file
             mock_dl.assert_not_called()
 
     def test_download_failure_raises_error(self, tmp_path):
         """If HF download fails and no local weights exist, raise RuntimeError."""
-        with patch("axomeme.weights.CACHE_DIR", tmp_path), \
-             patch("axomeme.weights.hf_hub_download", side_effect=Exception("401 Unauthorized")):
+        with patch("hyphaeon.weights.CACHE_DIR", tmp_path), \
+             patch("hyphaeon.weights.hf_hub_download", side_effect=Exception("401 Unauthorized")):
             with pytest.raises(RuntimeError, match="Could not download weights"):
                 resolve_weights_path(weights=None, variant="general")
 
@@ -86,7 +86,7 @@ class TestListAvailableVariants:
             "model.viral.pt",
             "model.viral.onnx",
         ]
-        with patch("axomeme.weights.list_repo_files", return_value=mock_files):
+        with patch("hyphaeon.weights.list_repo_files", return_value=mock_files):
             variants = list_available_variants()
         names = [v["variant"] for v in variants]
         assert "general" in names
@@ -96,13 +96,13 @@ class TestListAvailableVariants:
     def test_general_listed_first(self):
         """General variant should be listed first."""
         mock_files = ["model.viral.safetensors", "model.safetensors", "config.json"]
-        with patch("axomeme.weights.list_repo_files", return_value=mock_files):
+        with patch("hyphaeon.weights.list_repo_files", return_value=mock_files):
             variants = list_available_variants()
         assert variants[0]["variant"] == "general"
 
     def test_no_safetensors_returns_empty(self):
         mock_files = ["config.json", "README.md"]
-        with patch("axomeme.weights.list_repo_files", return_value=mock_files):
+        with patch("hyphaeon.weights.list_repo_files", return_value=mock_files):
             variants = list_available_variants()
         assert len(variants) == 0
 
@@ -115,8 +115,8 @@ class TestLoadModelConfig:
         config_path.write_text(json.dumps(config))
 
         mock_files = ["config.json", "model.safetensors"]
-        with patch("axomeme.weights.list_repo_files", return_value=mock_files), \
-             patch("axomeme.weights.hf_hub_download", return_value=str(config_path)):
+        with patch("hyphaeon.weights.list_repo_files", return_value=mock_files), \
+             patch("hyphaeon.weights.hf_hub_download", return_value=str(config_path)):
             result = load_model_config(variant="general")
         assert result["embed_dim"] == 384
         assert result["num_layers"] == 6
@@ -136,8 +136,8 @@ class TestLoadModelConfig:
         def fake_download(repo_id, filename, **kwargs):
             return str(tmp_path / filename)
 
-        with patch("axomeme.weights.list_repo_files", return_value=mock_files), \
-             patch("axomeme.weights.hf_hub_download", side_effect=fake_download):
+        with patch("hyphaeon.weights.list_repo_files", return_value=mock_files), \
+             patch("hyphaeon.weights.hf_hub_download", side_effect=fake_download):
             result = load_model_config(variant="viral")
         assert result["embed_dim"] == 512
         assert result["num_layers"] == 8
@@ -145,7 +145,7 @@ class TestLoadModelConfig:
     def test_no_config_returns_empty(self):
         """If no config files exist on HF, return empty dict (CLI uses defaults)."""
         mock_files = ["model.safetensors"]
-        with patch("axomeme.weights.list_repo_files", return_value=mock_files):
+        with patch("hyphaeon.weights.list_repo_files", return_value=mock_files):
             result = load_model_config(variant="general")
         assert result == {}
 

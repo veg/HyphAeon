@@ -1,5 +1,5 @@
 """
-Alignment length diversity: does AxoMEME behave consistently across
+Alignment length diversity: does HyphAeon behave consistently across
 different alignment lengths?
 
 All other calibration tests use 100 codons. Real alignments span a wide
@@ -43,7 +43,7 @@ _SEEDS = [0, 1]
 
 
 @pytest.mark.parametrize("n_codons,label", _LENGTH_GRID)
-class TestAxoMEMEAlignmentLength:
+class TestHyphAeonAlignmentLength:
     """FPR should be stable across alignment lengths.
 
     Pools p-values across multiple seeds per length before asserting, so
@@ -104,20 +104,20 @@ class TestAxoMEMEAlignmentLength:
         print(f"  pooled FPR@0.05: {fpr_05:.1%} (ideal: 5%)")
 
         assert fpr_05 <= 0.15, (
-            f"AxoMEME pooled FPR at alpha=0.05 is {fpr_05:.1%} for {label} "
+            f"HyphAeon pooled FPR at alpha=0.05 is {fpr_05:.1%} for {label} "
             f"alignment ({n_codons} codons, {len(pooled)} sites). "
             f"Threshold: <=15%. The model's calibration shifts with "
             f"alignment length."
         )
 
 
-class TestAxoMEMEAlignmentLengthConsistency:
+class TestHyphAeonAlignmentLengthConsistency:
     """Cross-length consistency: LRT distribution should not shift with length.
 
     Compares the median LRT across all lengths tested above. A per-site
     model should produce similar LRT distributions regardless of how many
     sites are in the alignment. This test reads the cached per-config JSON
-    files written by TestAxoMEMEAlignmentLength above, so it does not
+    files written by TestHyphAeonAlignmentLength above, so it does not
     re-run the simulations.
     """
 
@@ -139,7 +139,7 @@ class TestAxoMEMEAlignmentLengthConsistency:
 
         if len(results) < 2:
             pytest.skip("Not enough configs with cached results "
-                        "(run TestAxoMEMEAlignmentLength first)")
+                        "(run TestHyphAeonAlignmentLength first)")
 
         print(f"\nMedian LRT by length: {json.dumps(results, indent=2)}")
 

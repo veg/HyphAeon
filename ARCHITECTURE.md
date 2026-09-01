@@ -1,6 +1,6 @@
-# AxoMEME: Technical & Architectural Specification
+# HyphAeon: Technical & Architectural Specification
 
-**AxoMEME** is a deep geometric axial transformer architecture designed for rapid, scalable inference of site-level episodic diversifying positive selection from multiple sequence alignments (MSAs) and phylogenetic trees.
+**HyphAeon** is a deep geometric axial transformer architecture designed for rapid, scalable inference of site-level episodic diversifying positive selection from multiple sequence alignments (MSAs) and phylogenetic trees.
 
 ---
 
@@ -30,7 +30,7 @@ Classical numerical inference requires solving non-linear, multi-dimensional num
 
 ## 2. Model Architecture: PhyloAxialTransformer
 
-AxoMEME reformulates site-level likelihood inference as a direct tensor-to-tensor geometric neural mapping $\mathcal{F}_\theta: (\mathbf{C}, \mathbf{A}, \mathbf{D}, \mathbf{Z}) \to \widehat{\mathrm{LRT}} \in \mathbb{R}_{\ge 0}^L$.
+HyphAeon reformulates site-level likelihood inference as a direct tensor-to-tensor geometric neural mapping $\mathcal{F}_\theta: (\mathbf{C}, \mathbf{A}, \mathbf{D}, \mathbf{Z}) \to \widehat{\mathrm{LRT}} \in \mathbb{R}_{\ge 0}^L$.
 
 ```
 Input MSA (L × N × 64)       Phylogenetic Tree (N × N)
@@ -73,7 +73,7 @@ Input MSA (L × N × 64)       Phylogenetic Tree (N × N)
 ## 3. Multi-Scale Geometric 4D Tree-RoPE
 
 ### 3.1 Continuous Phylogenetic Embedding ($\mathbf{Z} \in \mathbb{R}^{N \times 4}$)
-Rather than treating taxa as an unordered set or forcing discrete tree traversals, AxoMEME extracts the full $N \times N$ patristic distance matrix $\mathbf{D} = [d(i, j)]$ from the Newick tree (where $d(i, j)$ is the sum of branch lengths along the unique path connecting taxon $i$ and taxon $j$).
+Rather than treating taxa as an unordered set or forcing discrete tree traversals, HyphAeon extracts the full $N \times N$ patristic distance matrix $\mathbf{D} = [d(i, j)]$ from the Newick tree (where $d(i, j)$ is the sum of branch lengths along the unique path connecting taxon $i$ and taxon $j$).
 
 The distance matrix is centered via the centering matrix $\mathbf{H} = \mathbf{I}_N - \frac{1}{N} \mathbf{1}\mathbf{1}^\top$ to form the Gram matrix $\mathbf{B}$:
 
@@ -100,7 +100,7 @@ This guarantees that the inner product $\langle \mathbf{q}_i^{\text{rot}}, \math
 
 Standard all-to-all attention across an alignment tensor of $L$ codons and $N$ taxa incurs prohibitive memory and computation scaling as $O(L^2 N^2)$. 
 
-AxoMEME factorizes the attention tensor into alternating orthogonal axes:
+HyphAeon factorizes the attention tensor into alternating orthogonal axes:
 1. **Site-Axis Self-Attention**: Operates over the sequence length dimension ($L$) independently for each of the $N$ taxa ($O(N \cdot L^2)$ complexity). Captures structural context, flanking codon dependencies, and regional selection constraints.
 2. **Phylo-Axis Self-Attention**: Operates across the taxon dimension ($N$) independently for each codon position $L$ ($O(L \cdot N^2)$ complexity). Evaluates substitution patterns and lineage-specific mutational shifts modulated by 4D Tree-RoPE.
 
@@ -112,7 +112,7 @@ AxoMEME factorizes the attention tensor into alternating orthogonal axes:
 
 In molecular alignments, completely invariable sites ($\forall i, j: a_{s, i} = a_{s, j}$) cannot contain non-synonymous variations and thus cannot possess positive selection signal ($\mathrm{LRT} \equiv 0$). 
 
-AxoMEME enforces this biological invariant through an explicit post-transformer masking gate:
+HyphAeon enforces this biological invariant through an explicit post-transformer masking gate:
 
 $$\widehat{\mathrm{LRT}}_s = \begin{cases} y_{\text{soft}, s} & \text{if } |\text{UniqueAA}(s)| > 1 \\ 0.0 & \text{if } |\text{UniqueAA}(s)| \le 1 \end{cases}$$
 
@@ -139,7 +139,7 @@ $$\mathcal{L}(\widehat{\mathrm{LRT}}, \mathrm{LRT}) = \begin{cases} 0.5 (\wideha
 
 ## 7. Complexity, Throughput & Memory Profiling
 
-| Metric | HyPhy MEME (Numerical MLE) | AxoMEME (Neural Transformer) | Advantage |
+| Metric | HyPhy MEME (Numerical MLE) | HyphAeon (Neural Transformer) | Advantage |
 | :--- | :---: | :---: | :---: |
 | **Algorithmic Complexity** | $O(L \cdot N \cdot \text{Iter}_{\text{MLE}} \cdot 61^2)$ | $O(L \cdot N^2 + N \cdot L^2)$ | Analytical forward pass |
 | **Optimization Traps** | Prone to boundary zero traps ($\beta^+ \le \alpha$) | Smooth monotonic continuous output | High episodic sensitivity |
