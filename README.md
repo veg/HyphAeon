@@ -32,9 +32,6 @@ projection engines, plus a pooled MEME concordance workflow:
    Multi-query cross-attention pooling head that evaluates whole-gene episodic selection and filters Synonymous Rate Variation (SRV) false positives in milliseconds.
 5. **`hyphaeon phenotype` (PhyloWAS)**:
    Directional phenotype-genotype association mapping on the unit hypersphere $\mathbb{S}^{M-1}$. Computes spectral trait energies ($\Psi_{\text{Spectral}}$), exact sequenced-taxa null scaling $p$-values, Benjamini-Hochberg FDR $q$-values, and **Phenotype-Associated Residue Signatures (PARS)**.
-6. **`hyphaeon evaluate` (HyPhy MEME Concordance)**:
-   Dataset-level evaluation of HyphAeon site predictions against matched HyPhy
-   MEME results, with site pooling across genes and machine-readable metrics.
 
 ---
 
@@ -121,91 +118,6 @@ hyphaeon meme -a examples/Smc6.fasta -t examples/Smc6.nwk --filter --filter-out-
 
 ---
 
-### Example 5: Evaluate predictions against HyPhy MEME
-
-`hyphaeon evaluate` compares the site-level output of `hyphaeon meme` with
-HyPhy MEME used as the reference. Here, "true" means concordant with MEME; it
-does not imply independently established biological ground truth.
-
-#### Evaluate folders of genes
-
-Prediction and MEME files are paired by their exact gene-name stem:
-`Gene1.csv` matches `Gene1.MEME.json`. All matched sites from all genes are
-pooled before calculating metrics—metrics are not calculated per gene and then
-averaged.
-
-```bash
-hyphaeon evaluate \
-  --predictions-dir /path/to/hyphaeon_predictions/ \
-  --meme-dir /path/to/meme_results/ \
-  --output pooled_metrics.json
-```
-
-#### Evaluate one gene
-
-Pass a matched pair directly with `--prediction` and `--meme-result`:
-
-```bash
-hyphaeon evaluate \
-  --prediction /path/to/Gene1.csv \
-  --meme-result /path/to/Gene1.MEME.json \
-  --output Gene1_metrics.json
-```
-
-The filename stems must match. Directory flags and direct-file flags cannot be
-mixed in the same invocation.
-
-#### Metrics and classification rules
-
-| Output | Definition |
-| :--- | :--- |
-| Total sites | Number of site IDs shared by the matched prediction/MEME pairs. |
-| Pearson $r$ | Pearson correlation between HyphAeon `hyphaeon_lrt` and MEME LRT over all pooled evaluated sites. |
-| Spearman $\rho$ | Spearman rank correlation between the same pooled LRT values. |
-| ROC-AUC at $\alpha$ | MEME `p-value <= alpha` supplies the binary reference label; continuous HyphAeon `hyphaeon_lrt` supplies the ranking score. |
-| PPV at $\alpha$ | $TP/(TP+FP)$, where MEME and HyphAeon calls both use `p_value <= alpha`. |
-| FPR at $\alpha$ | $FP/(FP+TN)$, where MEME and HyphAeon calls both use `p_value <= alpha`. |
-
-A true positive is a site called significant by both MEME and HyphAeon. A true
-negative is a site called non-significant by both. The JSON report includes the
-full TP, FP, TN, and FN counts used for PPV and FPR.
-
-All matched sites are evaluated by default. Use `--variable-only` to exclude
-HyphAeon rows marked `is_invariable`; total-site counts still include those
-rows. Negative MEME LRT numerical artifacts are clamped to zero and reported
-as a warning.
-
-#### Output and input validation
-
-The default standard output is a compact report (illustrative values shown):
-
-```text
-Matched genes: 2
-Total sites: 450
-Evaluated sites: 450 (all matched sites)
-Pearson r (LRT): 0.412345
-Spearman rho (LRT): 0.501234
-
-Metric                 p <= 0.05    p <= 0.10
-ROC-AUC                  0.731000      0.749000
-PPV                      0.420000      0.465000
-FPR                      0.083000      0.121000
-```
-
-Use `--format json` for JSON on standard output or `--output FILE.json` to
-write the detailed report. The JSON includes input paths, aggregate counts,
-correlations, threshold metrics, both confusion matrices, per-gene counts, and
-warnings. Undefined metrics—for example, ROC-AUC when MEME has only one class—
-are represented as JSON `null`.
-
-By default, unmatched genes or unequal site sets stop evaluation to prevent
-silent misalignment. Folder mode supports `--allow-unmatched` to ignore genes
-without a counterpart. Both modes support `--allow-site-mismatch` to use the
-site intersection and report dropped counts. Custom filename conventions can
-be supplied with `--prediction-suffix` and `--meme-suffix`.
-
----
-
 ## 🛠️ Retraining & Fine-Tuning HyphAeon
 
 ### 1. Build per-gene training tensors
@@ -242,7 +154,6 @@ python train.py \
 | Command | Action | Description |
 | :--- | :--- | :--- |
 | `hyphaeon meme` | Site-Level Selection | Fast per-codon LRT & selection rate prediction ($>10,000\times$ faster than MLE). |
-| `hyphaeon evaluate` | MEME Concordance | Pooled ROC-AUC, LRT correlations, PPV, and FPR for folders or a single matched gene. |
 | `hyphaeon epistasis` | 3D Epistatic Sectors | Co-selection networks, hypergeometric tree overlaps, and 3D contact recovery. |
 | `hyphaeon dms` | Digital DMS | 19-AA in silico perturbation sweeps and Compensated Pathogenic Deviation mapping. |
 | `hyphaeon busted` | Alignment Omnibus | Alignment-wide episodic selection testing and SRV false-positive filtering. |

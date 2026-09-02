@@ -91,6 +91,9 @@ message. Use `pytest model_eval/ -rs` to see skip reasons.
 ```
 model_eval/
 ├── README.md              ← this file
+├── __main__.py            ← entry point for `python -m model_eval`
+├── cli.py                 ← concordance CLI (argparse, model loading, dispatch)
+├── concordance_compare.py ← shared backend: file parsing + metrics (CLI + tests)
 ├── conftest.py            ← weight loading, shared fixtures, skip logic
 ├── _harness.py            ← predict helper, variant generators
 ├── _sim.py                ← neutral alignment simulator (seq-gen wrapper)
@@ -107,7 +110,7 @@ model_eval/
 │   └── test_alignment_length.py         ← short/medium/long → FPR + LRT scale
 │
 ├── concordance/           ← does HyphAeon match its prediction target?
-│   ├── _common.py                       ← HyPhy MEME runner + cache + metrics
+│   ├── _common.py                       ← HyPhy MEME/BUSTED runner + cache
 │   └── test_hyphaeon_vs_meme.py          ← rank corr, κ, F1 vs real HyPhy MEME
 │                                          (real datasets + typical-case sims)
 │
@@ -230,15 +233,13 @@ every test invocation.
 #### Dataset-level concordance reports
 
 The concordance tests above validate expected model behavior on the repository's
-fixtures. For an ad hoc dataset or a single matched gene, use
-`hyphaeon evaluate` instead. That command consumes existing `hyphaeon meme`
-CSV and HyPhy MEME JSON files without rerunning either inference tool, pools
-sites across matched genes, and reports ROC-AUC, Pearson and Spearman
-correlations, PPV, FPR, confusion matrices, and per-gene site counts.
-
-See [Evaluate predictions against HyPhy MEME](../README.md#example-5-evaluate-predictions-against-hyphy-meme)
-for input naming, direct-file mode, exact metric definitions, and output
-options. This reporting command is separate from the `model_eval/` pytest
+fixtures. For an ad hoc dataset or a single matched gene, use the
+`python -m model_eval` CLI instead (see [CLI usage](#cli-usage) below). It
+consumes existing `hyphaeon meme` CSV and HyPhy MEME JSON files without
+rerunning either inference tool, pools sites across matched genes, and reports
+ROC-AUC, Pearson and Spearman correlations, PPV, FPR, confusion matrices, and
+per-gene site counts. It can also run the model and HyPhy MEME automatically
+from an alignment+tree. This CLI is separate from the `model_eval/` pytest
 acceptance thresholds and does not produce a pass/fail verdict.
 
 ### stability/ — determinism and edge cases
@@ -276,6 +277,69 @@ pytest model_eval/reports/ -v
 The main package test suite (`pytest tests/`) is unaffected by this directory.
 `pyproject.toml` sets `testpaths = ["tests"]`, so `pytest` with no arguments
 does not collect `model_eval/`.
+
+## CLI usage
+
+`python -m model_eval` is a standalone, **unpackaged** CLI for concordance
+evaluation — comparing HyphAeon predictions against HyPhy MEME on
+user-supplied data. It is not part of the `hyphaeon` wheel/bioconda package
+(`pyproject.toml` lists only `packages = ["hyphaeon"]`); it works only from a
+source clone. The shared parsing/metrics backend
+(`concordance_compare.py`) is the same code path the pytest concordance
+tests above use, so the CLI and the tests agree by construction.
+
+Of the five evaluation suites in `model_eval/`, only **concordance** is
+exposed as a user-facing CLI — it answers the one question users actually
+ask: "does HyphAeon agree with MEME on *my* alignment?" The other suites
+(invariance, calibration, stability, reports) test model properties or need
+external simulators and stay pytest-only.
+
+### Pattern 1 — run the model and MEME on your alignment
+
+```bash
+# HyPhy on PATH → runs both sides automatically
+python -m model_eval concordance -a my_gene.fasta -t my_tree.nwk
+
+# HyPhy not installed, user has pre-computed MEME results
+python -m model_eval concordance -a my_gene.fasta -t my_tree.nwk \
+  --meme-result my_gene.json
+```
+
+### Pattern 2 — compare directories of pre-computed results
+
+```bash
+python -m model_eval concordance \
+  --predictions-dir hyphaeon_results/ --meme-dir meme_results/
+```
+
+### Options
+
+```bash
+python -m model_eval concordance -a gene.fa -t tree.nwk \
+  [--weights PATH]              # model weights (default: HYPHAEON_WEIGHTS or HF)
+  [--meme-result PATH]          # pre-computed MEME JSON (skip HyPhy)
+  [--predictions-dir DIR]       # directory of *.csv prediction files
+  [--meme-dir DIR]              # directory of MEME JSON files
+  [--prediction-suffix .csv]    # suffix stripped to derive prediction gene names
+  [--meme-suffix .json]         # suffix stripped to derive MEME gene names
+  [--stats {all,concordance,threshold}]  # which metric set to compute
+  [--variable-only]             # exclude invariable sites from metrics
+  [--output PATH]               # write JSON results to file
+  [--format {text,json}]        # output format (default: text)
+  [--allow-unmatched]           # ignore unpaired files in directory mode
+  [--allow-site-mismatch]       # use site intersection instead of failing
+```
+
+**MEME file naming.** HyPhy MEME writes `.json` as its output terminator, so
+`--meme-suffix` defaults to `.json`. The `.MEME.json` naming convention is
+personal preference, not a requirement — pass `--meme-suffix .MEME.json` to
+match files named that way.
+
+**Metrics.** Concordance stats (Pearson r, Spearman ρ on LRTs) and threshold
+stats (ROC-AUC, PPV, FPR, Cohen's κ, F1 at α=0.05 and α=0.10) are computed
+over the pooled evaluated sites. Negative MEME LRT numerical artifacts are
+clamped to zero and reported as a warning. Cohen's κ and F1 require
+`scikit-learn`; they are reported as `undefined` when it is unavailable.
 
 ## CI
 
