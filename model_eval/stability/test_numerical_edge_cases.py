@@ -66,11 +66,11 @@ class TestSmallAlignment:
             c, a, d, z, inv, taxa, L = load_tensors(str(fa), str(nwk))
             lrt = predict(model, c, a, d, z, inv)
             assert np.isfinite(lrt).all(), "2-taxon alignment produced non-finite LRT"
-        except Exception as e:
+        except ValueError as e:
             # The pipeline may reject very small alignments — that's OK,
             # but it should fail with a clear error, not a cryptic crash.
             assert "taxa" in str(e).lower() or "species" in str(e).lower(), (
-                f"2-taxon alignment failed with unexpected error: {e}"
+                f"2-taxon alignment failed with unexpected ValueError: {e}"
             )
 
 
@@ -88,3 +88,48 @@ class TestLargeTaxaCount:
         c, a, d, z, inv, taxa, L = load_tensors(fa, nwk)
         lrt = predict(model, c, a, d, z, inv)
         assert np.isfinite(lrt).all(), "100-taxon alignment produced non-finite LRT"
+
+
+class TestPartialGaps:
+    """Columns where some taxa have gaps and others don't — the most common
+    real-world data quality issue. The model should produce finite LRTs
+    and the gap codon (token 64) should not crash the forward pass.
+    """
+
+    def test_partial_gap_column(self, model, smc6_base):
+        """Replace half the taxa at one site with gap codons (token 64).
+        The site is still variable (non-gap taxa may differ), so it should
+        produce a valid LRT.
+        """
+        base = smc6_base
+        c = base["c"].clone()
+        n_taxa = c.shape[1]
+        half = n_taxa // 2
+        c[10, :half, 0] = 64  # gaps in first half
+        lrt = predict(model, c, base["a"], base["d"], base["z"], base["inv"])
+        assert np.isfinite(lrt).all(), "Partial gap column produced non-finite LRT"
+        assert lrt[10] >= 0, "LRT at partial-gap site should be non-negative"
+
+
+class TestStopCodons:
+    """Stop codons (TAA, TAG, TGA) appear in real alignments, especially
+    from raw nucleotide simulations or pseudogenes. The model should handle
+    them without crashing — they tokenize to a valid codon token.
+    """
+
+    def test_stop_codon_column(self, model, smc6_base):
+        """Replace one taxon's codon at a site with a stop codon (TAA).
+        The model should produce a finite LRT — stop codons tokenize to
+        token 64 (same as gap/unknown) and AA token 20 (stop/unknown).
+        The key is the model doesn't crash.
+        """
+        base = smc6_base
+        c = base["c"].clone()
+        a = base["a"].clone()
+        # TAA is a stop codon: codon token 64, AA token 20 (stop/unknown).
+        # Setting both tensors ensures the test actually exercises stop
+        # codon handling, not just an AA token change.
+        c[15, 0, 0] = 64  # stop codon token (TAA/TAG/TGA → 64)
+        a[15, 0, 0] = 20  # stop/unknown AA token
+        lrt = predict(model, c, a, base["d"], base["z"], base["inv"])
+        assert np.isfinite(lrt).all(), "Stop codon column produced non-finite LRT"

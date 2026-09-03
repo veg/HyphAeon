@@ -28,11 +28,22 @@ class TestBatchSizeDeterminism:
     Also checks that significance calls (p <= 0.05) don't flip between
     batch sizes — a small LRT difference near the decision boundary
     (LRT ≈ 2.71) could flip a p-value from 0.049 to 0.051.
+
+    Parametrized over both Smc6 (20 taxa, shallow) and camelid (212 taxa,
+    100% variable) to cover small and large datasets.
     """
 
+    @pytest.mark.parametrize("dataset_name", ["smc6", "camelid"])
     @pytest.mark.parametrize("batch_a,batch_b", [(1, 64), (8, 128), (1, 256)])
-    def test_batch_size_invariance(self, model, smc6_base, batch_a, batch_b):
-        base = smc6_base
+    def test_batch_size_invariance(self, model, smc6_base, camelid_base,
+                                   dataset_name, batch_a, batch_b):
+        if dataset_name == "camelid":
+            base = camelid_base
+            if base is None:
+                pytest.skip("camelid failed to load")
+        else:
+            base = smc6_base
+
         lrt_a = predict(model, base["c"], base["a"], base["d"], base["z"],
                         base["inv"], batch=batch_a)
         lrt_b = predict(model, base["c"], base["a"], base["d"], base["z"],
@@ -42,9 +53,9 @@ class TestBatchSizeDeterminism:
         max_diff = float(np.abs(lrt_a - lrt_b)[tested].max())
 
         assert max_diff < 1e-3, (
-            f"Batch size {batch_a} vs {batch_b}: max|ΔLRT|={max_diff:.2e} "
-            f"(threshold <1e-3). Predictions are not deterministic across "
-            f"batch sizes."
+            f"[{dataset_name}] Batch size {batch_a} vs {batch_b}: "
+            f"max|ΔLRT|={max_diff:.2e} (threshold <1e-3). "
+            f"Predictions are not deterministic across batch sizes."
         )
 
         # Check no significance flips at alpha=0.05
@@ -56,38 +67,10 @@ class TestBatchSizeDeterminism:
         sig_b = lrt_b[tested] >= lrt_threshold
         n_flips = int(np.sum(sig_a != sig_b))
         assert n_flips == 0, (
-            f"Batch size {batch_a} vs {batch_b}: {n_flips} significance "
-            f"calls flipped at alpha=0.05 (LRT threshold={lrt_threshold:.3f}). "
+            f"[{dataset_name}] Batch size {batch_a} vs {batch_b}: "
+            f"{n_flips} significance calls flipped at alpha=0.05 "
+            f"(LRT threshold={lrt_threshold:.3f}). "
             f"Floating-point differences are crossing the decision boundary."
-        )
-
-
-class TestBatchSizeDeterminismLarge:
-    """Batch size determinism on a larger dataset (camelid, 212 taxa).
-
-    Larger datasets have more attention heads and larger matrices, which
-    may amplify floating-point differences. Camelid is 100% variable, so
-    all sites are tested.
-    """
-
-    @pytest.mark.parametrize("batch_a,batch_b", [(1, 64), (8, 128)])
-    def test_batch_size_invariance_large(self, model, camelid_base,
-                                         batch_a, batch_b):
-        if camelid_base is None:
-            pytest.skip("camelid failed to load")
-        base = camelid_base
-        lrt_a = predict(model, base["c"], base["a"], base["d"], base["z"],
-                        base["inv"], batch=batch_a)
-        lrt_b = predict(model, base["c"], base["a"], base["d"], base["z"],
-                        base["inv"], batch=batch_b)
-
-        tested = base["tested"]
-        max_diff = float(np.abs(lrt_a - lrt_b)[tested].max())
-
-        assert max_diff < 1e-3, (
-            f"Camelid batch size {batch_a} vs {batch_b}: "
-            f"max|ΔLRT|={max_diff:.2e} (threshold <1e-3). "
-            f"Predictions are not deterministic on large datasets."
         )
 
 

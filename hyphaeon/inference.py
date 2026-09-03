@@ -187,3 +187,113 @@ def predict_site_lrts(model, c, a, d, z, inv, tree_cache=None,
     pb.finish()
 
     return lrts
+
+
+def run_busted_inference(
+    model,
+    busted_head,
+    c, a, d, z, inv, taxa, L,
+    *,
+    device=None,
+    batch_size=64,
+    progress=True,
+    desc="BUSTED",
+):
+    """Run BUSTED omnibus inference on pre-loaded tensors.
+
+    Returns a record dict with: taxa, sites, p_value_acat, p_value_simes,
+    omnibus_lrt, predicted_gene_lrt, selection_probability,
+    synonymous_rate_variation, total_selection_energy, sig_sites_p05,
+    sig_sites_p10, rate_distributions, positive_selection_detected,
+    elapsed_seconds.
+
+    Used by cmd_busted (CLI) and model_eval/_harness.py (tests) so the
+    inference logic lives in exactly one place.
+    """
+    import time
+    from .stats import pvals_from_lrt_self_liang, cauchy_combination_p
+
+    if device is None:
+        device = next(model.parameters()).device
+    t0 = time.time()
+
+    variable_indices = np.where(~inv)[0]
+    num_variable = len(variable_indices)
+    num_species = len(taxa)
+    embed_dim = next(model.parameters()).shape[-1]
+
+    tree_cache = model.precompute_tree_cache(d.to(device), z.to(device))
+    lrts = np.zeros(L, dtype=np.float32)
+    hidden_all = torch.zeros((1, L, embed_dim), dtype=torch.float32)
+
+    if num_variable > 0:
+        pb = ChunkProgress(num_variable, desc, 'codon',
+                          enabled=progress and num_variable > 0)
+        with torch.no_grad():
+            for start_idx in range(0, num_variable, batch_size):
+                end_idx = min(start_idx + batch_size, num_variable)
+                batch_site_idx = variable_indices[start_idx:end_idx]
+                c_chunk = c[batch_site_idx].to(device)
+                a_chunk = a[batch_site_idx].to(device)
+                y_soft, _, root_repr = model.forward_cached(
+                    c_chunk, a_chunk, tree_cache, return_hidden=True)
+                chunk_lrts = torch.clamp(
+                    y_soft.squeeze(-1), min=0.0).cpu().numpy().flatten()
+                lrts[batch_site_idx] = chunk_lrts
+                hidden_all[0, batch_site_idx] = root_repr.cpu()
+                pb.update(end_idx)
+        pb.finish()
+
+    if device.type == 'mps':
+        torch.mps.synchronize()
+    elif device.type == 'cuda':
+        torch.cuda.synchronize()
+
+    # Neural BUSTED head evaluation
+    with torch.no_grad():
+        neural_out = busted_head(hidden_all.to(device))
+        pred_prob_pos = float(neural_out["cls_prob"].item())
+        pred_neural_lrt = float(neural_out["pred_lrt"].item())
+        pred_syn_var = float(neural_out["syn_var"].item())
+        pred_w3 = float(neural_out["pred_omega3"].item())
+        pred_prop = neural_out["omega_prop"].squeeze().cpu().numpy()
+        pred_omega = [0.10, 1.00, pred_w3]
+
+    elapsed = time.time() - t0
+
+    # Asymptotic mixture p-values (Self & Liang) + ACAT/Simes combination
+    pvals = pvals_from_lrt_self_liang(lrts)
+    var_p = pvals[variable_indices] if num_variable > 0 else pvals
+    p_acat = cauchy_combination_p(var_p)
+
+    sorted_p = np.sort(pvals)
+    ranks = np.arange(1, L + 1)
+    p_simes = float(np.min((L / ranks) * sorted_p))
+    p_simes = max(1e-15, min(1.0, p_simes))
+
+    sig_sites_05 = int(np.sum(pvals < 0.05))
+    sig_sites_10 = int(np.sum(pvals < 0.10))
+    total_selection_energy = float(np.sum(lrts))
+    omnibus_lrt = float(np.sum(np.maximum(0.0, lrts - 3.841)))
+    is_significant = bool(p_acat < 0.05 or pred_prob_pos > 0.50)
+
+    return {
+        "taxa": num_species,
+        "sites": L,
+        "p_value_acat": p_acat,
+        "p_value_simes": p_simes,
+        "omnibus_lrt": omnibus_lrt,
+        "predicted_gene_lrt": pred_neural_lrt,
+        "selection_probability": pred_prob_pos,
+        "synonymous_rate_variation": pred_syn_var,
+        "total_selection_energy": total_selection_energy,
+        "sig_sites_p05": sig_sites_05,
+        "sig_sites_p10": sig_sites_10,
+        "rate_distributions": {
+            "omega_1": float(pred_omega[0]), "proportion_1": float(pred_prop[0]),
+            "omega_2": float(pred_omega[1]), "proportion_2": float(pred_prop[1]),
+            "omega_3": float(pred_omega[2]), "proportion_3": float(pred_prop[2]),
+        },
+        "positive_selection_detected": is_significant,
+        "elapsed_seconds": elapsed,
+    }

@@ -1,21 +1,24 @@
 """
-concordance/_common.py — shared helpers for HyphAeon-vs-MEME concordance
-tests (test_hyphaeon_vs_meme.py: TestHyphAeonvsMEME and
-TestHyphAeonvsMEMETypicalCase).
+concordance/_common.py — HyPhy subprocess wrappers + cache for concordance
+tests (test_hyphaeon_vs_meme.py, test_busted_vs_hyphy.py).
 
 Not collected by pytest (module name doesn't match test_*.py). Provides:
   - run_hyphy_meme: run (or fetch cached) HyPhy MEME on an alignment+tree,
-    returning per-site {lrt, p_value}.
-  - meme_dict_to_arrays: convert that dict into arrays aligned with
-    HyphAeon's per-site LRT/p-value arrays.
-  - concordance_metrics: compute Spearman rho, Cohen's kappa, and F1
-    between HyphAeon and MEME on the tested sites.
+    returning per-site MemeSite records (parsed via the shared backend in
+    concordance_compare.load_meme_json).
+  - run_hyphy_busted: run (or fetch cached) HyPhy BUSTED, returning a
+    gene-level {lrt, p_value} dict.
 
-CACHING: MEME results are cached in model_eval/_cache/ keyed on
-(fasta hash, tree hash, hyphy version). MEME is deterministic for a given
+File parsing, site alignment, and concordance metrics live in
+``concordance_compare.py`` (the shared backend used by both the pytest tests
+and the ``python -m model_eval`` CLI). This module only owns the HyPhy
+subprocess invocation and its on-disk cache.
+
+CACHING: MEME/BUSTED results are cached in model_eval/_cache/ keyed on
+(fasta hash, tree hash, hyphy version). Both are deterministic for a given
 input + version, so re-running is wasteful — especially on camelid (212
 taxa, which takes minutes). The cache is committed to the repo so CI
-doesn't need to run MEME either. Delete the cache file to force a re-run.
+doesn't need to run HyPhy either. Delete the cache file to force a re-run.
 """
 import hashlib
 import json
@@ -23,9 +26,37 @@ import os
 import shutil
 import subprocess
 import tempfile
+from pathlib import Path
 
-import numpy as np
-from scipy.stats import spearmanr
+try:
+    # Under `python -m model_eval`, this module is model_eval.concordance._common
+    # and concordance_compare is a sibling of the concordance package.
+    from ..concordance_compare import (
+        MemeSite,
+        load_meme_json,
+        meme_sites_to_arrays,
+        concordance_metrics,
+    )
+except ImportError:
+    # Under pytest, model_eval/ is on sys.path and concordance_compare is a
+    # top-level module (conftest.py inserts the model_eval dir onto sys.path).
+    from concordance_compare import (
+        MemeSite,
+        load_meme_json,
+        meme_sites_to_arrays,
+        concordance_metrics,
+    )
+
+# Re-export the shared backend symbols so existing imports
+# (`from concordance._common import ...`) keep working during the transition.
+__all__ = [
+    "run_hyphy_meme",
+    "run_hyphy_busted",
+    "load_meme_json",
+    "meme_sites_to_arrays",
+    "concordance_metrics",
+    "MemeSite",
+]
 
 _CACHE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "_cache"))
 
@@ -55,12 +86,56 @@ def _file_hash(path):
     return h.hexdigest()[:16]
 
 
+def _meme_sites_from_cache(path):
+    """Deserialize a cached MEME file into Dict[int, MemeSite].
+
+    Cache files are JSON of {str(site): {lrt, p_value[, lrt_was_clamped]}}.
+
+    Two cache generations exist:
+      - Old (pre-refactor _common.py): 0-based site indices, no
+        ``lrt_was_clamped`` field. Built by ``enumerate(rows)`` directly.
+      - New (post-refactor): 1-based site IDs (matching load_meme_json),
+        with ``lrt_was_clamped``.
+
+    Old caches are detected by the absence of ``lrt_was_clamped`` and
+    shifted to 1-based to match load_meme_json's convention.
+    """
+    with open(path) as f:
+        raw = json.load(f)
+    if not raw:
+        return None
+    # Detect old 0-based caches: they lack lrt_was_clamped on every entry.
+    is_old_cache = all("lrt_was_clamped" not in v for v in raw.values())
+    shift = 1 if is_old_cache else 0
+    return {
+        (int(k) + shift): MemeSite(
+            lrt=float(v["lrt"]),
+            p_value=float(v["p_value"]),
+            lrt_was_clamped=bool(v.get("lrt_was_clamped", False)),
+        )
+        for k, v in raw.items()
+    }
+
+
+def _meme_sites_to_cache(sites):
+    """Serialize Dict[int, MemeSite] to a JSON-friendly dict for caching.
+
+    Site IDs are 1-based (matching load_meme_json's convention).
+    """
+    return {
+        str(k): {"lrt": v.lrt, "p_value": v.p_value, "lrt_was_clamped": v.lrt_was_clamped}
+        for k, v in sites.items()
+    }
+
+
 def run_hyphy_meme(fasta_path, tree_path, timeout=600):
-    """Run HyPhy MEME and return a dict: site_index -> {p_value, lrt}.
+    """Run HyPhy MEME and return a dict: site_index -> MemeSite.
 
     Results are cached in model_eval/_cache/ keyed on
     (fasta hash, tree hash, hyphy version). Returns None if hyphy is
-    unavailable or the run fails.
+    unavailable or the run fails. Parsing uses the shared backend
+    (concordance_compare.load_meme_json), which handles partition coverage
+    and negative-LRT clamping.
     """
     version = _hyphy_version()
     if version is None:
@@ -68,22 +143,18 @@ def run_hyphy_meme(fasta_path, tree_path, timeout=600):
 
     os.makedirs(_CACHE_DIR, exist_ok=True)
 
-    # Cache key: hashes of inputs + hyphy version
     fa_hash = _file_hash(fasta_path)
     nwk_hash = _file_hash(tree_path)
     cache_key = f"meme_{fa_hash}_{nwk_hash}_hyphy{version}.json"
     cache_path = os.path.join(_CACHE_DIR, cache_key)
 
-    # Check cache first
     if os.path.exists(cache_path):
-        with open(cache_path) as f:
-            sites = json.load(f)
-        # Convert string keys back to int (JSON serializes dict keys as strings)
-        sites = {int(k): v for k, v in sites.items()}
+        sites = _meme_sites_from_cache(cache_path)
+        if sites is None:
+            return None
         print(f"  [cache hit] {cache_key}")
-        return sites if sites else None
+        return sites
 
-    # Run MEME
     tmp = tempfile.mkdtemp(prefix="hyphy_meme_")
     json_out = os.path.join(tmp, "meme_results.json")
 
@@ -96,93 +167,62 @@ def run_hyphy_meme(fasta_path, tree_path, timeout=600):
     if result.returncode != 0 or not os.path.exists(json_out):
         return None
 
-    with open(json_out) as f:
-        data = json.load(f)
+    sites = load_meme_json(Path(json_out))
 
-    # HyPhy MEME JSON: MLE.content.<partition> is a list of per-site rows.
-    # Column 5 (0-based) = LRT, column 6 = p-value.
-    sites = {}
-    for partition_key, rows in data.get("MLE", {}).get("content", {}).items():
-        for i, row in enumerate(rows):
-            if len(row) > 6:
-                lrt = float(row[5])
-                pval = float(row[6])
-                sites[i] = {"p_value": pval, "lrt": lrt}
-
-    if not sites:
-        return None
-
-    # Write to cache (keys as strings for JSON)
     with open(cache_path, "w") as f:
-        json.dump({str(k): v for k, v in sites.items()}, f, indent=2)
+        json.dump(_meme_sites_to_cache(sites), f, indent=2)
     print(f"  [cache write] {cache_key}")
 
     return sites
 
 
-def meme_dict_to_arrays(meme_sites, n_sites):
-    """Convert a {site_index: {lrt, p_value}} dict into arrays aligned with
-    HyphAeon's per-site LRT/p-value arrays (length n_sites).
+def run_hyphy_busted(fasta_path, tree_path, timeout=1200):
+    """Run HyPhy BUSTED and return a dict: {lrt, p_value} (gene-level, not per-site).
 
-    Sites with no MEME entry default to lrt=0, p_value=1 (non-significant).
-
-    Returns (meme_lrts, meme_pvals, meme_tested) where meme_tested is a
-    boolean mask of sites where MEME actually produced a result. Use this
-    mask to avoid penalizing HyphAeon for sites MEME skipped.
+    Results are cached in model_eval/_cache/ keyed on
+    (fasta hash, tree hash, hyphy version). Returns None if hyphy is
+    unavailable or the run fails.
     """
-    meme_lrts = np.zeros(n_sites)
-    meme_pvals = np.ones(n_sites)
-    meme_tested = np.zeros(n_sites, dtype=bool)
-    for site_idx, info in meme_sites.items():
-        if 0 <= site_idx < n_sites:
-            meme_lrts[site_idx] = info["lrt"]
-            meme_pvals[site_idx] = info["p_value"]
-            meme_tested[site_idx] = True
-    return meme_lrts, meme_pvals, meme_tested
+    version = _hyphy_version()
+    if version is None:
+        return None
 
+    os.makedirs(_CACHE_DIR, exist_ok=True)
 
-def concordance_metrics(axo_lrts, axo_pvals, meme_lrts, meme_pvals, tested,
-                        meme_tested=None, alpha=0.05):
-    """Compute Spearman rho, Cohen's kappa, and F1 between HyphAeon and MEME
-    on the tested (variable) sites.
+    fa_hash = _file_hash(fasta_path)
+    nwk_hash = _file_hash(tree_path)
+    cache_key = f"busted_{fa_hash}_{nwk_hash}_hyphy{version}.json"
+    cache_path = os.path.join(_CACHE_DIR, cache_key)
 
-    If meme_tested is provided, only sites where both HyphAeon has a
-    variable site AND MEME produced a result are included in the metrics.
-    This avoids penalizing HyphAeon for sites that MEME skipped (e.g.,
-    insufficient substitutions), which would default to p=1 in the MEME
-    arrays and count as discordances.
+    if os.path.exists(cache_path):
+        with open(cache_path) as f:
+            result = json.load(f)
+        print(f"  [cache hit] {cache_key}")
+        return result if result else None
 
-    Returns a dict suitable for direct inclusion in a JSON report.
-    """
-    from sklearn.metrics import cohen_kappa_score, f1_score
+    tmp = tempfile.mkdtemp(prefix="hyphy_busted_")
+    json_out = os.path.join(tmp, "busted_results.json")
 
-    if meme_tested is not None:
-        concordance_tested = tested & meme_tested
-    else:
-        concordance_tested = tested
+    print(f"  [cache miss] running HyPhy BUSTED...")
+    result = subprocess.run(
+        ["hyphy", "busted", "--alignment", fasta_path, "--tree", tree_path,
+         "--output", json_out],
+        capture_output=True, text=True, timeout=timeout
+    )
+    if result.returncode != 0 or not os.path.exists(json_out):
+        return None
 
-    axo_var = axo_lrts[concordance_tested]
-    meme_var = meme_lrts[concordance_tested]
-    axo_p_var = axo_pvals[concordance_tested]
-    meme_p_var = meme_pvals[concordance_tested]
+    with open(json_out) as f:
+        data = json.load(f)
 
-    rho, p_rho = spearmanr(axo_var, meme_var)
+    test_results = data.get("test results", {})
+    lrt = float(test_results.get("LRT", 0.0))
+    pval = float(test_results.get("p-value", 1.0))
 
-    axo_sig = axo_p_var <= alpha
-    meme_sig = meme_p_var <= alpha
-    kappa = cohen_kappa_score(meme_sig, axo_sig)
-    f1 = f1_score(meme_sig, axo_sig, zero_division=0)
+    result_dict = {"lrt": lrt, "p_value": pval}
 
-    alpha_tag = f"{alpha:g}".replace(".", "")  # 0.05 -> "005", matches
-                                                 # existing artifact key naming
-    return {
-        "n_concordance_sites": int(concordance_tested.sum()),
-        "n_variable_sites": int(tested.sum()),
-        "n_meme_tested_sites": int(meme_tested.sum()) if meme_tested is not None else int(tested.sum()),
-        "spearman_rho": float(rho),
-        "spearman_p": float(p_rho),
-        f"cohen_kappa_{alpha_tag}": float(kappa),
-        f"f1_{alpha_tag}": float(f1),
-        f"hyphaeon_significant_{alpha_tag}": int(axo_sig.sum()),
-        f"meme_significant_{alpha_tag}": int(meme_sig.sum()),
-    }
+    with open(cache_path, "w") as f:
+        json.dump(result_dict, f, indent=2)
+    print(f"  [cache write] {cache_key}")
+
+    return result_dict

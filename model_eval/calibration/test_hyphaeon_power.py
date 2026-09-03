@@ -23,7 +23,7 @@ import numpy as np
 import pytest
 
 from _harness import evaluate_alignment
-from _sim import simulate_neutral_alignment, inject_selection as _inject_selection
+from _sim import simulate_neutral_alignment, inject_selection as _inject_selection, purge_stop_codons
 
 
 @pytest.mark.parametrize("n_taxa,depth,label", [
@@ -50,8 +50,7 @@ class TestHyphAeonPower:
     """
 
     def test_detects_injected_selection(self, model, seqgen_available,
-                                        n_taxa, depth, label, sim_seed,
-                                        artifacts_dir):
+                                        n_taxa, depth, label, sim_seed):
         n_codons = 100
         n_selected = 10  # 10% of sites
         n_branches = max(4, n_taxa // 5)  # 20% of taxa
@@ -60,9 +59,10 @@ class TestHyphAeonPower:
         fa, nwk = simulate_neutral_alignment(
             n_taxa=n_taxa, n_codons=n_codons, tree_depth=depth,
             seed=sim_seed, scale=1.0)
+        fa, _ = purge_stop_codons(fa, seed=sim_seed)
 
         # Inject selection
-        fa_sel, selected_sites, n_selected_taxa_actual = _inject_selection(
+        fa_sel, selected_sites, n_selected_taxa_actual, _selected_taxa = _inject_selection(
             fa, nwk, n_taxa, n_codons, n_selected, n_branches, seed=99)
 
         # Run HyphAeon on the modified alignment

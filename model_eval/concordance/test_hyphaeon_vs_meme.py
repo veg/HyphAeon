@@ -36,7 +36,8 @@ import os
 
 import pytest
 
-from concordance._common import run_hyphy_meme, meme_dict_to_arrays, concordance_metrics
+from concordance._common import run_hyphy_meme
+from concordance_compare import meme_sites_to_arrays, concordance_metrics
 from _sim import simulate_neutral_alignment, inject_selection, purge_stop_codons
 from _harness import load_tensors, predict, pvals_from_lrt
 
@@ -58,7 +59,9 @@ def _report_and_assert(metrics, dataset_label, out_path, min_rho=0.25):
 
     # Kappa should be non-negative — HyphAeon's significant-call agreement
     # with MEME should be at least as good as random (kappa >= 0).
-    kappa = metrics.get("cohen_kappa_005", 0.0)
+    kappa = metrics.get("cohen_kappa_005")
+    if kappa is None:
+        pytest.skip("scikit-learn not available for Cohen's kappa / F1")
     assert kappa >= 0.0, (
         f"HyphAeon kappa with MEME on {dataset_label} is {kappa:.3f} "
         f"(threshold >=0.0). The model's significant calls are worse than "
@@ -104,7 +107,7 @@ class TestHyphAeonvsMEME:
             pytest.skip(f"Could not run or parse HyPhy MEME on {name}")
 
         tested = base["tested"]
-        meme_lrts, meme_pvals, meme_tested = meme_dict_to_arrays(
+        meme_lrts, meme_pvals, meme_tested = meme_sites_to_arrays(
             meme_sites, len(base["lrt"]))
         metrics = concordance_metrics(base["lrt"], base["pval"],
                                       meme_lrts, meme_pvals, tested,
@@ -136,7 +139,7 @@ class TestHyphAeonvsMEMETypicalCase:
         fa, nwk = simulate_neutral_alignment(
             n_taxa=n_taxa, n_codons=n_codons, tree_depth=depth,
             seed=seed, scale=1.0)
-        fa_sel, selected_sites, n_selected_taxa = inject_selection(
+        fa_sel, selected_sites, n_selected_taxa, _ = inject_selection(
             fa, nwk, n_taxa, n_codons,
             n_selected_sites=10, n_selected_branches=10, seed=seed + 1)
         # HyPhy MEME hard-rejects in-frame stop codons (an artifact of raw
@@ -156,7 +159,7 @@ class TestHyphAeonvsMEMETypicalCase:
         if tested.sum() < 10:
             pytest.skip(f"Too few variable sites ({tested.sum()})")
 
-        meme_lrts, meme_pvals, meme_tested = meme_dict_to_arrays(
+        meme_lrts, meme_pvals, meme_tested = meme_sites_to_arrays(
             meme_sites, len(axo_lrts))
         metrics = concordance_metrics(axo_lrts, axo_pvals,
                                       meme_lrts, meme_pvals, tested,
