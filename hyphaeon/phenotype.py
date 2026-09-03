@@ -11,9 +11,6 @@ to discover convergent and directional trait-associated molecular adaptations.
 
 import os
 import re
-import sys
-import json
-import math
 import fnmatch
 from typing import Dict, List, Tuple, Optional, Union, Any
 
@@ -30,15 +27,8 @@ from .dataset import (
     parse_alignment_sequences,
     extract_tree_from_string_or_file
 )
-from .model import PhyloAxialTransformer
 from .stats import cauchy_combination_p, benjamini_hochberg
 from .inference import get_device, load_model
-from .weights import (
-    load_weights,
-    load_arch_config,
-    resolve_weights_path,
-    DEFAULT_VARIANT
-)
 
 DEFAULT_WEIGHTS = "weights/hyphaeon_v1.pt"
 from .epistasis import compute_transformer_attributions
@@ -519,7 +509,7 @@ def run_phenotype_association(
             s["q_value"] = float(q_arr[i])
     
     # 9. Dual-Track Extreme-Value Statistics
-    max_assoc = float(site_results[0]["association_rho"]) if site_results else 0.0
+    max_assoc = float(max((x["association_rho"] for x in site_results), default=0.0))
     sigma_null = 1.0 / np.sqrt(max(10, N))
     z_single = max_assoc / sigma_null if sigma_null > 0 else 0.0
     p_single = float(2.0 * stats.norm.sf(abs(z_single)))
@@ -628,7 +618,7 @@ def run_phenotype_association(
         "compact_pars_signature": compact_pars,
         "permulations_count": permulations if null_rhos is not None else 0,
         "gene_p_value_perm": gene_p_perm,
-        "significant_sites_count": len(sig_trait_sites),
+        "significant_sites_count": len([x for x in site_results if x.get("q_value", 1.0) <= alpha]),
         "coselection_pairs_count": len(coselection_pairs),
         "trait_sectors_count": len(trait_sectors),
         "coselection_pairs": coselection_pairs,
