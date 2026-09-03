@@ -32,7 +32,7 @@ class TestBustedNullCalibration:
         for ds in sim_datasets[:3]:
             fa, nwk = ds["fa"], ds["nwk"]
             result = busted_runner(fa, tree_path=nwk)
-            pvals.append(result[0]["p_value_acat"])
+            pvals.append(result["p_value_acat"])
         return np.array(pvals)
 
     @pytest.mark.xfail(reason="BUSTED FPR 66.7% on neutral data — ACAT combination "
@@ -101,8 +101,8 @@ class TestBustedPower:
         result_neutral = busted_runner(fa_neutral, tree_path=nwk)
         result_sel = busted_runner(fa_sel, tree_path=nwk)
 
-        p_neutral = result_neutral[0]["p_value_acat"]
-        p_sel = result_sel[0]["p_value_acat"]
+        p_neutral = result_neutral["p_value_acat"]
+        p_sel = result_sel["p_value_acat"]
 
         assert p_sel < p_neutral, (
             f"BUSTED p-value did not decrease with injected selection "

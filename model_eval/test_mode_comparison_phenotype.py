@@ -307,7 +307,7 @@ class TestTruePositiveDetection:
         """Run both modes once on injected dataset, shared across all 3 tests."""
         ds = injected_dataset
         fg = ",".join(ds["selected_taxa"])
-        selected_1idx = {s + 1 for s in ds["selected_sites"]}
+        selected_1idx = ds["selected_1idx"]
 
         result_i = mode_i_phylowas_runner(ds["fa"], foreground=fg,
                                            min_taxa_per_site=2)

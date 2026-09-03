@@ -113,7 +113,7 @@ class TestEpistasisNeutralCalibration:
 
             result_ii = essm_runner(ds["fa"], tree_path=ds["nwk"],
                                     max_fdr=1.0, min_sim=0.0, min_lrt=0.0,
-                                    min_shared=1)
+                                    min_shared=1, min_cesi=0.0)
             pvals_ii.extend(e["p_val"] for e in result_ii["edges"])
 
         return np.array(pvals_i), np.array(pvals_ii)
@@ -196,7 +196,7 @@ class TestEpistasisTruePositiveDetection:
         result_i = mode_i_essm_runner(ds["fa"], min_sim=0.0, max_p_pair=0.05)
         result_ii = essm_runner(ds["fa"], tree_path=ds["nwk"],
                                 min_sim=0.0, min_lrt=0.0, min_shared=1,
-                                max_fdr=0.05)
+                                max_fdr=0.05, min_cesi=0.0)
         return ds, result_i, result_ii
 
     def test_mode_i_detects_injected_edges(self, injected_edge_results):

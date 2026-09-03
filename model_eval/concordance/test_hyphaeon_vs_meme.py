@@ -139,7 +139,7 @@ class TestHyphAeonvsMEMETypicalCase:
         fa, nwk = simulate_neutral_alignment(
             n_taxa=n_taxa, n_codons=n_codons, tree_depth=depth,
             seed=seed, scale=1.0)
-        fa_sel, selected_sites, n_selected_taxa = inject_selection(
+        fa_sel, selected_sites, n_selected_taxa, _ = inject_selection(
             fa, nwk, n_taxa, n_codons,
             n_selected_sites=10, n_selected_branches=10, seed=seed + 1)
         # HyPhy MEME hard-rejects in-frame stop codons (an artifact of raw

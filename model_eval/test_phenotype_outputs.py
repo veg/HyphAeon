@@ -18,6 +18,7 @@ import pandas as pd
 import pytest
 
 from _harness import phylowas_pvals, get_taxa, fg_string
+from hyphaeon.stats import cauchy_combination_p
 
 
 @pytest.fixture(scope="module")
@@ -258,9 +259,6 @@ class TestModeIIPValues:
     def test_p_value_combines_lrt_and_assoc(self, phylowas_result):
         """p_value is the ACAT (Cauchy combination) of p_lrt and p_assoc.
 
-        ACAT formula: t = mean(tan((0.5 - p_i) * pi)),
-        p_acat = 0.5 - arctan(t) / pi.
-
         ACAT does NOT guarantee p_combined <= min(p_lrt, p_assoc) — it
         weights both inputs and can produce a value larger than the
         smallest input. We verify the actual formula instead.
@@ -269,18 +267,14 @@ class TestModeIIPValues:
             p_lrt = s["p_lrt"]
             p_assoc = s["p_assoc"]
             p_combined = s["p_value"]
-            valid_p = np.clip([p_lrt, p_assoc], 1e-15, 1.0 - 1e-6)
-            cauchy_terms = np.tan((0.5 - valid_p) * np.pi)
-            t_acat = float(np.mean(cauchy_terms))
-            expected = float(0.5 - (np.arctan(t_acat) / np.pi))
-            expected = max(1e-15, min(1.0, expected))
+            expected = cauchy_combination_p(np.array([p_lrt, p_assoc]))
             assert p_combined == pytest.approx(expected, abs=1e-8), \
                 f"p_value {p_combined} != ACAT({p_lrt}, {p_assoc}) = {expected}"
 
     def test_score_is_sqrt_lrt_times_rho(self, phylowas_result):
         """score = sqrt(max(0, lrt)) * max(0, rho)"""
         for s in phylowas_result["sites"]:
-            expected = float(np.sqrt(max(0.0, s["axomeme_lrt"])) * max(0.0, s["association_rho"]))
+            expected = float(np.sqrt(max(0.0, s["hyphaeon_lrt"])) * max(0.0, s["association_rho"]))
             assert s["score"] == pytest.approx(expected, rel=1e-5)
 
     def test_sites_sorted_by_score_descending(self, phylowas_result):

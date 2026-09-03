@@ -30,7 +30,7 @@ class TestBustedDeterminism:
         """Running BUSTED twice on the same alignment should produce identical output."""
         result1, result2 = busted_pair
 
-        r1, r2 = result1[0], result2[0]
+        r1, r2 = result1, result2
         assert r1["p_value_acat"] == pytest.approx(r2["p_value_acat"], rel=1e-10)
         assert r1["p_value_simes"] == pytest.approx(r2["p_value_simes"], rel=1e-10)
         assert r1["selection_probability"] == pytest.approx(r2["selection_probability"], rel=1e-6)
@@ -43,8 +43,8 @@ class TestBustedDeterminism:
         """Rate distribution parameters should be identical across runs."""
         result1, result2 = busted_pair
 
-        rd1 = result1[0]["rate_distributions"]
-        rd2 = result2[0]["rate_distributions"]
+        rd1 = result1["rate_distributions"]
+        rd2 = result2["rate_distributions"]
         for key in rd1:
             assert rd1[key] == pytest.approx(rd2[key], rel=1e-6), \
                 f"Rate distribution '{key}' differs between runs"
