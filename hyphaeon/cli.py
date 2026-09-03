@@ -33,7 +33,7 @@ from .weights import (
 from .phenotype import run_phenotype_association, PRESETS
 from .epistasis import run_epistasis_analysis, run_epistatic_sector_mining
 from .stats import pvals_from_lrt_meme, pvals_from_lrt_self_liang, benjamini_hochberg, cauchy_combination_p
-from .inference import get_device, load_model, prepare_alignment, predict_site_lrts, compute_adaptive_safe_batch_size
+from .inference import get_device, load_model, prepare_alignment, predict_site_lrts, compute_adaptive_safe_batch_size, run_busted_inference
 from .io import ensure_parent_directory, write_json, write_csv, format_pq
 from ._progress import ChunkProgress
 
@@ -418,117 +418,49 @@ def cmd_busted(args):
         num_variable = len(variable_indices)
         num_species = len(taxa)
         total_sites_processed += L
-        
+
         batch_size = compute_adaptive_safe_batch_size(num_species, user_batch_size=args.batch_size, device=device)
         batch_size = min(batch_size, max(1, num_variable))
-        tree_cache = model.precompute_tree_cache(d.to(device), z.to(device))
-        
-        lrts = np.zeros(L, dtype=np.float32)
-        hidden_all = torch.zeros((1, L, arch_config["embed_dim"]), dtype=torch.float32)
 
-        if num_variable > 0:
-            pb = ChunkProgress(num_variable, f'BUSTED {gene_id}', 'codon', enabled=(not is_batch and num_variable > 0))
-            with torch.no_grad():
-                for start_idx in range(0, num_variable, batch_size):
-                    end_idx = min(start_idx + batch_size, num_variable)
-                    batch_site_idx = variable_indices[start_idx:end_idx]
-                    c_chunk = c[batch_site_idx].to(device)
-                    a_chunk = a[batch_site_idx].to(device)
-                    y_soft, _, root_repr = model.forward_cached(c_chunk, a_chunk, tree_cache, return_hidden=True)
-                    chunk_lrts = torch.clamp(y_soft.squeeze(-1), min=0.0).cpu().numpy().flatten()
-                    lrts[batch_site_idx] = chunk_lrts
-                    hidden_all[0, batch_site_idx] = root_repr.cpu()
-                    pb.update(end_idx)
-            pb.finish()
-
-        if device.type == 'mps':
-            torch.mps.synchronize()
-        elif device.type == 'cuda':
-            torch.cuda.synchronize()
-            
-        # 3. Neural BUSTED Head Evaluation
-        with torch.no_grad():
-            neural_out = busted_head(hidden_all.to(device))
-            pred_prob_pos = float(neural_out["cls_prob"].item())
-            pred_neural_lrt = float(neural_out["pred_lrt"].item()) if "pred_lrt" in neural_out else float((neural_out.get("sqrt_lrt", 0.0) ** 2).item())
-            pred_syn_var = float(neural_out["syn_var"].item())
-            pred_w3 = float(neural_out["pred_omega3"].item()) if "pred_omega3" in neural_out else float(neural_out.get("omega_vals", torch.tensor([1.0, 1.0, 1.0]))[2].item())
-            pred_prop = neural_out["omega_prop"].squeeze().cpu().numpy()
-            pred_omega = [0.10, 1.00, pred_w3]
-
-        elapsed = time.time() - t0
-
-        # 4. Asymptotic mixture p-values (Self & Liang for BUSTED omnibus)
-        pvals = pvals_from_lrt_self_liang(lrts)
-
-        # 5. ACAT & Simes Combination
-        var_p = pvals[variable_indices] if num_variable > 0 else pvals
-        p_acat = cauchy_combination_p(var_p)
-
-        sorted_p = np.sort(pvals)
-        ranks = np.arange(1, L + 1)
-        p_simes = float(np.min((L / ranks) * sorted_p))
-        p_simes = max(1e-15, min(1.0, p_simes))
-
-        sig_sites_05 = int(np.sum(pvals < 0.05))
-        sig_sites_10 = int(np.sum(pvals < 0.10))
-        total_selection_energy = float(np.sum(lrts))
-        omnibus_lrt = float(np.sum(np.maximum(0.0, lrts - 3.841)))
-        is_significant = bool(p_acat < 0.05 or pred_prob_pos > 0.50)
-
-        record = {
-            "alignment": aln_path,
-            "gene": gene_id,
-            "taxa": num_species,
-            "sites": L,
-            "p_value_acat": p_acat,
-            "p_value_simes": p_simes,
-            "omnibus_lrt": omnibus_lrt,
-            "predicted_gene_lrt": pred_neural_lrt,
-            "selection_probability": pred_prob_pos,
-            "synonymous_rate_variation": pred_syn_var,
-            "total_selection_energy": total_selection_energy,
-            "sig_sites_p05": sig_sites_05,
-            "sig_sites_p10": sig_sites_10,
-            "rate_distributions": {
-                "omega_1": float(pred_omega[0]), "proportion_1": float(pred_prop[0]),
-                "omega_2": float(pred_omega[1]), "proportion_2": float(pred_prop[1]),
-                "omega_3": float(pred_omega[2]), "proportion_3": float(pred_prop[2]),
-            },
-            "positive_selection_detected": is_significant,
-            "elapsed_seconds": elapsed
-        }
+        record = run_busted_inference(
+            model, busted_head, c, a, d, z, inv, taxa, L,
+            device=device, batch_size=batch_size,
+            progress=not is_batch, desc=f'BUSTED {gene_id}',
+        )
+        record["alignment"] = aln_path
+        record["gene"] = gene_id
         batch_results.append(record)
 
         if is_batch:
-            verdict_str = "✓ POSITIVE" if is_significant else "  Neutral"
-            print(f"#{file_idx:<3d} {gene_id:<20s} {num_species:<6d} {L:<7d} {p_acat:<11.4e} {pred_prob_pos*100:<7.1f}% {pred_w3:<8.2f} {elapsed*1000:<6.1f}ms {verdict_str}")
+            verdict_str = "✓ POSITIVE" if record["positive_selection_detected"] else "  Neutral"
+            print(f"#{file_idx:<3d} {gene_id:<20s} {record['taxa']:<6d} {record['sites']:<7d} {record['p_value_acat']:<11.4e} {record['selection_probability']*100:<7.1f}% {record['rate_distributions']['omega_3']:<8.2f} {record['elapsed_seconds']*1000:<6.1f}ms {verdict_str}")
         else:
+            rd = record["rate_distributions"]
             print("\n" + "=" * 78)
             print("                HYPHAEON BUSTED SELECTION INFERENCE RESULTS")
             print("=" * 78)
             print(f"  Alignment:                 {os.path.basename(aln_path)}")
-            print(f"  Taxa Count:                {num_species}")
-            print(f"  Codon Sites:               {L} ({num_variable} variable)")
-            print(f"  Throughput:                {L / elapsed:.1f} sites/s ({elapsed * 1000:.1f} ms total)")
+            print(f"  Taxa Count:                {record['taxa']}")
+            print(f"  Codon Sites:               {record['sites']} ({num_variable} variable)")
+            print(f"  Throughput:                {record['sites'] / record['elapsed_seconds']:.1f} sites/s ({record['elapsed_seconds'] * 1000:.1f} ms total)")
             print("-" * 78)
             print(f"  [Neural BUSTED Head]")
-            print(f"    Positive Selection Prob: {pred_prob_pos * 100:.1f}%")
-            print(f"    Predicted Gene LRT:      {pred_neural_lrt:.2f}")
-            print(f"    Synonymous Variation:    Var(alpha) = {pred_syn_var:.4f}")
+            print(f"    Positive Selection Prob: {record['selection_probability'] * 100:.1f}%")
+            print(f"    Predicted Gene LRT:      {record['predicted_gene_lrt']:.2f}")
+            print(f"    Synonymous Variation:    Var(alpha) = {record['synonymous_rate_variation']:.4f}")
             print(f"  [Statistical Bridge (ACAT / Simes)]")
-            print(f"    ACAT Omnibus p-value:    {p_acat:.4e}")
-            print(f"    Simes Omnibus p-value:   {p_simes:.4e}")
-            print(f"    Total Selection Energy:  {total_selection_energy:.2f}")
-            print(f"    Significant Sites:       {sig_sites_05}/{L} (p<0.05), {sig_sites_10}/{L} (p<0.10)")
+            print(f"    ACAT Omnibus p-value:    {record['p_value_acat']:.4e}")
+            print(f"    Simes Omnibus p-value:   {record['p_value_simes']:.4e}")
+            print(f"    Total Selection Energy:  {record['total_selection_energy']:.2f}")
+            print(f"    Significant Sites:       {record['sig_sites_p05']}/{record['sites']} (p<0.05), {record['sig_sites_p10']}/{record['sites']} (p<0.10)")
             print("-" * 78)
             print("  Inferred 3-Class Omega Mixture Distribution:")
-            print(f"    Class 1 (Purifying):     omega_1 = {pred_omega[0]:.4f}  (proportion = {pred_prop[0]*100:.1f}%)")
-            print(f"    Class 2 (Neutral):       omega_2 = {pred_omega[1]:.4f}  (proportion = {pred_prop[1]*100:.1f}%)")
-            print(f"    Class 3 (Positive):      omega_3 = {pred_omega[2]:.4f}  (proportion = {pred_prop[2]*100:.1f}%)")
+            print(f"    Class 1 (Purifying):     omega_1 = {rd['omega_1']:.4f}  (proportion = {rd['proportion_1']*100:.1f}%)")
+            print(f"    Class 2 (Neutral):       omega_2 = {rd['omega_2']:.4f}  (proportion = {rd['proportion_2']*100:.1f}%)")
+            print(f"    Class 3 (Positive):      omega_3 = {rd['omega_3']:.4f}  (proportion = {rd['proportion_3']*100:.1f}%)")
             print("-" * 78)
-            if is_significant:
-                print(f"  VERDICT: POSITIVE SELECTION DETECTED (Confidence: {max(pred_prob_pos*100, (1-p_acat)*100):.1f}%)")
+            if record["positive_selection_detected"]:
+                print(f"  VERDICT: POSITIVE SELECTION DETECTED (Confidence: {max(record['selection_probability']*100, (1-record['p_value_acat'])*100):.1f}%)")
             else:
                 print("  VERDICT: No Evidence of Positive Selection (p >= 0.05)")
             print("=" * 78 + "\n")

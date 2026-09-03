@@ -20,7 +20,6 @@ from io import StringIO
 
 import numpy as np
 import torch
-import scipy.stats as stats
 from Bio import Phylo
 from Bio.Phylo.BaseTree import Clade
 
@@ -310,3 +309,40 @@ def get_taxa(fa_path, nwk_path):
 def fg_string(taxa, n_fg):
     """Return a comma-separated foreground string with the first n_fg taxa."""
     return ",".join(taxa[:n_fg])
+
+
+# ---------------------------------------------------------------------------
+# BUSTED omnibus inference
+# ---------------------------------------------------------------------------
+
+def run_busted(model, fa_path, nwk_path, busted_head=None, batch=64):
+    """Run BUSTED omnibus inference on a single alignment.
+
+    Delegates to hyphaeon.inference.run_busted_inference (the shared backend
+    also used by cmd_busted) so the inference logic lives in exactly one place.
+
+    If busted_head is None, a random-init BustedMultiTaskHead is used (the
+    ACAT p-value is still meaningful; only the neural head outputs are from
+    random weights).
+
+    Returns the record dict (same keys as run_busted_inference, plus
+    alignment and gene).
+    """
+    from hyphaeon.model import BustedMultiTaskHead
+    from hyphaeon.inference import run_busted_inference
+
+    device = next(model.parameters()).device
+    c, a, d, z, inv, taxa, L = load_tensors(fa_path, nwk_path)
+
+    if busted_head is None:
+        embed_dim = next(model.parameters()).shape[-1]
+        busted_head = BustedMultiTaskHead(embed_dim=embed_dim).to(device)
+    busted_head.eval()
+
+    record = run_busted_inference(
+        model, busted_head, c, a, d, z, inv, taxa, L,
+        device=device, batch_size=batch, progress=False,
+    )
+    record["alignment"] = fa_path
+    record["gene"] = os.path.splitext(os.path.basename(fa_path))[0]
+    return record
