@@ -15,15 +15,14 @@ This module exists solely as a baseline for comparison against Mode II
 (neural transformer attributions) in model_eval tests. It is NOT part
 of the package's public API and should not be imported by production code.
 
-Dependencies: numpy, scipy, pandas, biopython (for parse_alignment_sequences).
+Dependencies: numpy, scipy, networkx, biopython (for parse_alignment_sequences),
+hyphaeon.phenotype (for PRESETS and resolve_phenotype_vector),
+hyphaeon.stats (for benjamini_hochberg).
 No neural model weights required.
 """
-import os
-import fnmatch
 from typing import Dict, List, Tuple, Optional, Union, Any
 
 import numpy as np
-import pandas as pd
 from scipy.stats import poisson, norm
 import networkx as nx
 
@@ -32,81 +31,10 @@ from hyphaeon.dataset import (
     CODON_TO_AA,
     parse_alignment_sequences,
 )
+from hyphaeon.phenotype import resolve_phenotype_vector
+from hyphaeon.stats import benjamini_hochberg
 
 REV_AA_MAP = {v: k for k, v in AA_MAP.items()}
-
-PRESETS = {
-    "echolocation": {
-        "title": "Mammalian Echolocation Convergence",
-        "description": "Microchiropteran bats and odontocete toothed whales.",
-        "foreground": [
-            "rhi*", "hip*", "myo*", "pte*", "mor*", "min*", "emb*", "cra*", "meg*", "mol*",
-            "turTru", "delLeu", "orcOrc", "gloMel", "phaSin", "graGri", "neoPho", "phoPho",
-            "phyCat", "kogBre", "kogSim", "mesBid", "zipCav", "plaGan", "iniGeo", "lipVex", "ponBla"
-        ],
-        "controls": ["pteAle", "pteRod", "pteRuf", "pteGig", "pteVam", "ptePse", "bal*", "megNov", "eubGla", "escRob"]
-    },
-    "marine": {
-        "title": "Marine Mammal Transition & Deep Diving Hypoxia",
-        "description": "Cetaceans, Pinnipeds, Sirenians, and Sea Otters.",
-        "foreground": [
-            "enhLut*", "pusHis*", "pusSib*", "halGryp*", "phoVit*", "phoLar*", "eriBar*", "neoSch*",
-            "odoRos*", "zalCal*", "eumJub*", "arcAus*", "arcGaz*", "otoFla*", "mirLeo*", "mirAng*",
-            "lepWed*", "hydLep*", "lobCar*", "ommRos*", "triMan*", "triSen*", "triInu*", "dugDug*",
-            "turTru*", "delLeu*", "orcOrc*", "gloMel*", "phaSin*", "graGri*", "neoPho*", "phoPho*",
-            "balMys*", "balAcu*", "balPhy*", "balMus*", "megNov*", "eubGla*", "escRob*", "phyCat*",
-            "kogBre*", "kogSim*", "mesBid*", "zipCav*", "plaGan*", "iniGeo*", "lipVex*", "ponBla*"
-        ]
-    },
-    "fossorial": {
-        "title": "Subterranean Fossoriality & Hypercapnic Hypoxia",
-        "description": "Naked mole-rats, blind mole-rats, golden moles, star-nosed moles, pocket gophers.",
-        "foreground": [
-            "hetGla*", "fukDam*", "cryAns*", "nanGal*", "nanEhr*", "spaCar*", "conCri*", "talEur*",
-            "talOcc*", "scaMos*", "scaAqu*", "chrAsi*", "chrSta*", "uroGra*", "geoBur*", "thoTal*",
-            "canTub*", "ellLut*", "ellTal*"
-        ]
-    },
-    "hibernation": {
-        "title": "True Hibernation & Metabolic Torpor",
-        "description": "Marmots, ground squirrels, dormice, tenrecs, hedgehogs, Myotis bats.",
-        "foreground": [
-            "ictTri*", "uroPar*", "speCit*", "speDau*", "marFla*", "marMar*", "marVan*", "marMon*",
-            "gliGli*", "dryNit*", "musAve*", "eriEur*", "tenEca*", "echTel*", "micTal*", "myoLuc*",
-            "myoDau*", "myoMyo*", "myoNat*", "myoBra*", "ursArc*"
-        ]
-    },
-    "longevity": {
-        "title": "Extreme Longevity & Peto's Paradox Centenarians",
-        "description": "Bowhead whale, naked mole-rat, Brandt's bat, elephants, humans.",
-        "foreground": [
-            "balMys*", "hetGla*", "myoBra*", "loxAfr*", "eleMax*", "homSap*"
-        ]
-    },
-    "high_altitude": {
-        "title": "High-Altitude Hypoxia Adaptation",
-        "description": "Yak, Tibetan antelope, snow leopard, vicuna, pikas, chinchilla.",
-        "foreground": [
-            "bosGru*", "bosMut*", "panHod*", "panUnc*", "vicVic*", "vicPac*", "chiLan*", "ochCur*",
-            "ochPri*", "ochArg*"
-        ]
-    },
-    "cardenolide": {
-        "title": "Insect Cardenolide Resistance (ATP1a)",
-        "description": "Chrysochus, Tetraopes, Danaus (Monarch), Oncopeltus.",
-        "foreground": [
-            "chrysochus*", "tetraopes*", "danaus*", "oncopeltus*", "chrysomela*"
-        ]
-    },
-    "dim_light": {
-        "title": "Low-Light & Deep-Sea Rhodopsin Vision",
-        "description": "Deep-sea teleosts, cavefish, coelacanth, marine diving mammals.",
-        "foreground": [
-            "*eel*", "*conger*", "*scabbard*", "*blackdragon*", "*viperfish*", "*loosejaw*",
-            "*lampfish*", "*thornyhead*", "*cavefish*", "*dolphin*", "*coelacanth*"
-        ]
-    }
-}
 
 
 def _resolve_phenotype_vector(
@@ -119,117 +47,23 @@ def _resolve_phenotype_vector(
     species_col: Optional[str] = None,
     continuous: bool = False
 ) -> Tuple[np.ndarray, Dict[str, Any]]:
-    """Constructs the phenotypic trait vector y in R^N across all N taxa."""
-    N = len(taxa)
-    y = np.zeros(N, dtype=float)
-    meta = {
-        "mode": "discrete",
-        "foreground_count": 0,
-        "background_count": 0,
-        "description": ""
-    }
+    """Delegates to hyphaeon.phenotype.resolve_phenotype_vector.
 
-    if phenotype_file:
-        if not os.path.exists(phenotype_file):
-            raise FileNotFoundError(f"Phenotype file not found: {phenotype_file}")
-
-        sep = "\t" if phenotype_file.endswith((".tsv", ".tab")) else ","
-        df_pheno = pd.read_csv(phenotype_file, sep=sep)
-
-        if not species_col:
-            for c in ["species", "taxon", "taxa", "tree_leaf_name", "assembly", "id", "name", "species_name"]:
-                match = [col for col in df_pheno.columns if col.lower() == c]
-                if match:
-                    species_col = match[0]
-                    break
-            if not species_col:
-                species_col = df_pheno.columns[0]
-
-        if not trait_col:
-            cand_cols = [c for c in df_pheno.columns if c != species_col]
-            if not cand_cols:
-                raise ValueError(f"No valid trait column found in {phenotype_file}")
-            trait_col = cand_cols[0]
-
-        trait_dict = {}
-        for _, row in df_pheno.iterrows():
-            sp = str(row[species_col]).strip()
-            val = row[trait_col]
-            trait_dict[sp] = val
-            trait_dict[sp.lower()] = val
-
-        matched_values = []
-        for i, t in enumerate(taxa):
-            val = None
-            if t in trait_dict:
-                val = trait_dict[t]
-            elif t.lower() in trait_dict:
-                val = trait_dict[t.lower()]
-            else:
-                for k, v in trait_dict.items():
-                    if k in t or t in k:
-                        val = v
-                        break
-
-            if val is not None:
-                try:
-                    num_val = float(val)
-                    y[i] = num_val
-                    matched_values.append(num_val)
-                except ValueError:
-                    y[i] = 1.0 if str(val).lower() in ["1", "true", "yes", "case", "foreground", "target", "positive"] else 0.0
-                    matched_values.append(y[i])
-
-        if continuous:
-            meta["mode"] = "continuous"
-            if len(matched_values) > 0 and np.std(matched_values) > 0:
-                y = (y - np.mean(y)) / np.std(y)
-            meta["description"] = f"Continuous trait '{trait_col}' from {os.path.basename(phenotype_file)}"
-        else:
-            meta["mode"] = "discrete"
-            meta["foreground_count"] = int(np.sum(y > 0))
-            meta["background_count"] = int(np.sum(y <= 0))
-            meta["description"] = f"Discrete trait '{trait_col}' from {os.path.basename(phenotype_file)}"
-
-        return y, meta
-
-    if preset:
-        preset_key = preset.lower().replace("-", "_").strip()
-        if preset_key not in PRESETS:
-            raise ValueError(f"Unknown preset '{preset}'. Available: {list(PRESETS.keys())}")
-        p_info = PRESETS[preset_key]
-        patterns = p_info["foreground"]
-        meta["description"] = f"{p_info['title']} ({p_info['description']})"
-        for i, t in enumerate(taxa):
-            for pat in patterns:
-                if fnmatch.fnmatch(t.lower(), pat.lower()) or (pat.lower() in t.lower()):
-                    y[i] = 1.0
-                    break
-
-        meta["mode"] = "discrete"
-        meta["foreground_count"] = int(np.sum(y > 0))
-        meta["background_count"] = int(np.sum(y <= 0))
-        return y, meta
-
-    if foreground:
-        if isinstance(foreground, str):
-            fg_list = [p.strip() for p in foreground.split(",") if p.strip()]
-        else:
-            fg_list = foreground
-
-        for i, t in enumerate(taxa):
-            for pat in fg_list:
-                if fnmatch.fnmatch(t.lower(), pat.lower()) or (pat.lower() in t.lower()):
-                    y[i] = 1.0
-                    break
-
-        meta["mode"] = "discrete"
-        meta["foreground_count"] = int(np.sum(y > 0))
-        meta["background_count"] = int(np.sum(y <= 0))
-        meta["description"] = f"User-specified foreground patterns: {fg_list}"
-        return y, meta
-
-    raise ValueError("Must provide one of --preset, --phenotype-file, or --foreground.")
+    Kept as a thin wrapper so existing Mode I call sites don't need to change.
+    The shared implementation in hyphaeon/phenotype.py is more robust (handles
+    pd.isna, regex patterns, | separator, continuous-mode improvements) and
+    importing it here prevents drift.
+    """
+    return resolve_phenotype_vector(
+        taxa=taxa,
+        preset=preset,
+        foreground=foreground,
+        background=background,
+        phenotype_file=phenotype_file,
+        trait_col=trait_col,
+        species_col=species_col,
+        continuous=continuous,
+    )
 
 
 def run_phenotype_association_mode_i(
@@ -338,16 +172,10 @@ def run_phenotype_association_mode_i(
 
     site_results.sort(key=lambda x: x["association_rho"], reverse=True)
 
-    m = len(site_results)
-    if m > 0:
-        p_sorted_idx = np.argsort([x["p_value"] for x in site_results])
-        min_q = 1.0
-        for rank, idx in reversed(list(enumerate(p_sorted_idx))):
-            p_val = site_results[idx]["p_value"]
-            q_val = (p_val * m) / (rank + 1)
-            if q_val < min_q:
-                min_q = q_val
-            site_results[idx]["q_value"] = min(min_q, 1.0)
+    if site_results:
+        qvals = benjamini_hochberg(np.array([x["p_value"] for x in site_results]))
+        for x, q in zip(site_results, qvals):
+            x["q_value"] = float(q)
 
     max_assoc = float(site_results[0]["association_rho"]) if site_results else 0.0
     sigma_null = 1.0 / np.sqrt(max(10, N))
@@ -532,9 +360,3 @@ def mode_i_phylowas_pvals(result):
     """Extract p-values from Mode I PhyloWAS result dict."""
     sites = result.get("sites", [])
     return np.array([s.get("p_value", 1.0) for s in sites], dtype=np.float64)
-
-
-def mode_i_essm_edge_pvals(result):
-    """Extract edge p-values from Mode I ESSM result dict."""
-    edges = result.get("edges", [])
-    return np.array([e.get("p_value", 1.0) for e in edges], dtype=np.float64)
