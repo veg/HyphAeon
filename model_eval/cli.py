@@ -41,18 +41,30 @@ from .concordance_compare import ConcordanceError
 # Model loading (Pattern 1 only)
 # ---------------------------------------------------------------------------
 
-def _load_model(weights: Optional[str]):
+def _load_model(weights):
     """Load a HyphAeon checkpoint in eval mode on CPU.
 
-    Resolution order mirrors the CLI/conftest: an explicit ``--weights`` path,
-    then ``HYPHAEON_WEIGHTS``, then the default Hugging Face variant.
+    Resolution order: an explicit ``--weights`` path (must exist), then
+    ``HYPHAEON_WEIGHTS`` (falls back to Hugging Face if stale), then the
+    default Hugging Face variant.
+
+    ``weights`` may be a str or pathlib.Path (argparse produces Path);
+    it is cast to str before passing to ``load_model`` because the
+    downstream weight-loading code calls ``path.endswith()``.
     """
     from hyphaeon.inference import load_model
 
-    explicit = weights or os.environ.get("HYPHAEON_WEIGHTS")
-    if explicit and not os.path.exists(explicit):
-        raise ConcordanceError(f"Weights file not found: {explicit}")
-    return load_model(weights=explicit, device=torch.device("cpu"), strict=True)
+    if weights:
+        weights = str(weights)
+        if not os.path.exists(weights):
+            raise ConcordanceError(f"Weights file not found: {weights}")
+        return load_model(weights=weights, device=torch.device("cpu"), strict=True)
+
+    env_weights = os.environ.get("HYPHAEON_WEIGHTS")
+    if env_weights and os.path.exists(env_weights):
+        return load_model(weights=env_weights, device=torch.device("cpu"), strict=True)
+
+    return load_model(weights=None, device=torch.device("cpu"), strict=True)
 
 
 def _load_and_predict(model, alignment: Path, tree: Path):
