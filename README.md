@@ -44,7 +44,7 @@ By replacing computationally prohibitive numerical likelihood optimizations with
 1. **Pillar 1: Site-Level Diversifying Selection (MEME \& FEL)**:
    * Accurately infers codon-specific selection rates and LRT statistics in under 5 milliseconds per alignment ($>10,000\times$ faster than classical numerical optimization).
 2. **Pillar 2: Epistatic Co-Evolution \& 3D Structural Packing**:
-   * Symmetrized column-attention maps recover true tertiary protein contact maps ($C_\beta - C_\beta < 8\text{\AA}$) with top-$L/5$ precision exceeding $78\%$.
+   * Symmetrized column-attention maps recover true tertiary protein contact maps ($C_\beta - C_\beta < 8\text{\AA}$) with top-$L/5$ precision exceeding $78\%$. Vectorized Monte Carlo permutation testing (`--n-permutations`, `--max-perm-p`) validates multi-residue epistatic sectors against random $K$-site graph nulls.
 3. **Pillar 3: Digital Deep Mutational Scanning (DMS) \& Clinical Epistasis**:
    * Resolves the *Deleterious Mutation Paradox* by mapping **9,871 Compensated Pathogenic Deviations (CPDs)** across 1,713 human Mendelian disease genes in ClinVar. De novo predicts exact 3D compensatory partners ($s_{\text{comp}}$).
 4. **Pillar 4: Alignment-Wide Selection (BUSTED \& BUSTED+S)**:
@@ -241,19 +241,42 @@ for site_idx, attr in attributions.items():
 
 ## 🔬 Additional Unified Modules
 
-* **Epistatic Co-Evolution & 3D Contact Mining**:
+* **Epistatic Co-Evolution & 3D Contact Mining (`hyphaeon epistasis`)**:
   ```bash
-  hyphaeon epistasis -a examples/HIV1_RT.fasta -t examples/HIV1_RT.nwk -o epistasis.json --graphml network.graphml
+  # Run epistatic sector mining with 10,000 Monte Carlo graph permutations and p-value filtering
+  hyphaeon epistasis \
+    -a examples/HIV1_RT.fasta \
+    -t examples/HIV1_RT.nwk \
+    --n-permutations 10000 \
+    --max-perm-p 0.05 \
+    --min-coherence 0.50 \
+    -o epistasis.json \
+    --graphml network.graphml
   ```
-* **Digital Deep Mutational Scanning (DMS / ESSM)**:
+  * Evaluates spectral coherence $C(\mathcal{S}) = \lambda_1 / \operatorname{Tr}$ against $B=10,000$ random $K$-site subgraphs drawn uniformly without replacement from active alignment sites.
+  * Outputs empirical one-sided $p_{\text{perm}}$, null mean $\mathbb{E}[C_{\text{null}}]$, standard deviation, 95th percentile cutoff $C_{95}$, and theoretical isotropic baseline $1/K$. Set `--n-permutations 0` to disable permutation testing.
+
+* **Digital Deep Mutational Scanning (DMS / ESSM) (`hyphaeon dms`)**:
   ```bash
   hyphaeon dms -a examples/HIV1_RT.fasta -t examples/HIV1_RT.nwk -o dms_landscape.json
   ```
-* **PhyloWAS Phenotype-Genotype Association**:
+
+* **PhyloWAS Phenotype-Genotype Association (`hyphaeon phenotype`)**:
   ```bash
-  hyphaeon phenotype -a examples/RHO.fasta -fg "turTru,balMus,orcOrc,delDelp" -o trait_results.json
+  # Run directional PhyloWAS with trait sector permutations and phylogenetic permulations
+  hyphaeon phenotype \
+    -a examples/RHO.fasta \
+    -fg "turTru,balMus,balPhys,orcOrc,delDelp,phyCat,phoVit,halGryp,mirLeo,zalCali,odoRos" \
+    --n-permutations 10000 \
+    --max-perm-p 0.05 \
+    --permulations 1000 \
+    -o trait_results.json \
+    -c trait_sites.csv
   ```
-* **Alignment-Wide BUSTED Omnibus Selection**:
+  * **Trait Sector Permutations (`--n-permutations`, `--max-perm-p`)**: Vectorized Monte Carlo permutations testing whether spectral coherence among trait-associated sites ($\text{FDR } q \le \alpha$) significantly exceeds random $K$-site subgraphs.
+  * **Brownian Motion Liability Permulations (`--permulations`)**: Simulates continuous neutral trait evolution along the phylogeny (RERconverge null model) to compute empirical gene-level $p$-values testing alignment-wide spectral energy ($\bar{\Psi}$) and peak site association ($\rho_{\max}$).
+
+* **Alignment-Wide BUSTED Omnibus Selection (`hyphaeon busted`)**:
   ```bash
   hyphaeon busted -a examples/HIV1_RT.fasta -t examples/HIV1_RT.nwk
   ```
