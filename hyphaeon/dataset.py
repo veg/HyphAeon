@@ -493,7 +493,13 @@ def compute_tn93_distance_matrix(seq_dict: Dict[str, str], taxa: List[str], fa_p
                 for j in range(i + 1, n):
                     counts = tn.get_counts(seq_dict[taxa[i]], seq_dict[taxa[j]], "resolve")
                     nuc_freq = tn.get_nucleotide_frequency(counts)
-                    d = tn.calculate_distance(counts, nuc_freq)
+                    try:
+                        d = tn.calculate_distance(counts, nuc_freq)
+                    except (ValueError, OverflowError):
+                        # TN93 can throw math domain errors on very short or
+                        # saturated sequences (e.g. log of a negative number);
+                        # treat as a maximally distant pair.
+                        d = 1.0
                     if d is None or d == "-" or d < 0 or np.isnan(d):
                         d = 1.0
                     d = float(d)
