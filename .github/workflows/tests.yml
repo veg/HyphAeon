@@ -35,7 +35,7 @@ jobs:
         run: pip install torch --index-url https://download.pytorch.org/whl/cpu
 
       - name: Install package and dev dependencies
-        run: pip install -e .[dev]
+        run: pip install -e .[dev,tn93]
 
       # Tests use a tiny dummy checkpoint (random weights) created at runtime,
       # so no pretrained weights download is needed.
