@@ -40,11 +40,28 @@ projection engines, plus a pooled MEME concordance workflow:
 
 ## 📦 Installation
 
+HyphAeon requires Python ≥ 3.8 and PyTorch ≥ 2.0. At runtime it auto-selects
+the best available device (CUDA → Apple MPS → CPU), so no manual configuration
+is needed regardless of which install path you choose.
+
+| Method | Command | Torch | GPU? |
+| :--- | :--- | :--- | :--- |
+| **pip** (default) | `pip install hyphaeon` | CUDA-bundled wheel (~550 MB) | NVIDIA GPU if driver matches; else CPU |
+| **pip** (CPU-only) | `pip install torch --index-url https://download.pytorch.org/whl/cpu` then `pip install hyphaeon` | CPU-only wheel (~200 MB) | CPU |
+| **Bioconda** | `conda install -c bioconda hyphaeon` | CPU-only `pytorch` from conda-forge | CPU by default; swap in `pytorch-gpu` for GPU |
+| **NVIDIA Jetson** | See [issue #31](https://github.com/veg/HyphAeon/issues/31) | JetPack-native wheel (cp38 only) | Jetson GPU |
+
+To use a GPU with Bioconda, install conda-forge's GPU PyTorch variant first:
+
 ```bash
-git clone https://github.com/veg/hyphaeon.git
-cd hyphaeon
-pip install -e .
+conda create -n hyphaeon-gpu -c conda-forge pytorch-gpu
+conda activate hyphaeon-gpu
+conda install -c bioconda hyphaeon
 ```
+
+You can always install a specific PyTorch build before installing HyphAeon if
+none of the above defaults suit your system (e.g. a particular CUDA version,
+a custom wheel, or a CPU-only build on a server without GPU).
 
 ---
 
@@ -288,7 +305,7 @@ python train.py \
 | `--min-coherence` | `float` | `0.50` | Minimum spectral coherence ratio $C(\mathcal{S}) = \lambda_1 / \text{Tr}$ for candidate sectors. |
 | `--min-clique-size` | `int` | `3` | Minimum clique seed size for epistatic sectors. |
 | `--max-overlap` | `float` | `0.50` | Maximum Jaccard overlap allowed between discovered sectors. |
-| `--no-tree` / `--use-tn93` | `flag` | `False` | Estimate pairwise evolutionary distances directly from alignment via TN93 (skips tree). |
+| `--no-tree` / `--use-tn93` | `flag` | `False` | Estimate pairwise evolutionary distances directly from alignment via TN93 (skips tree). Requires the optional `tn93` package (`pip install hyphaeon[tn93]`) or the `tn93` binary on PATH. |
 
 #### `hyphaeon phenotype`
 | Flag | Type | Default | Description |
