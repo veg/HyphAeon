@@ -1,0 +1,13 @@
+#NEXUS
+BEGIN DATA;
+DIMENSIONS NTAX=3 NCHAR=9;
+FORMAT DATATYPE=DNA MISSING=? GAP=-;
+MATRIX
+'sp one' ATGAAACCC
+sp_two   ATG---CCC
+sp_three ATGAAANNN
+;
+END;
+BEGIN TREES;
+TREE t1 = ((sp_one,sp_two),sp_three);
+END;

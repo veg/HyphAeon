@@ -1,0 +1,38 @@
+/*
+ * WHY THIS FILE EXISTS
+ *
+ * `npm run typecheck` is the cheap half of keeping this package honest: the sources are plain ESM
+ * JavaScript with JSDoc types, so nothing here compiles anything — `noEmit` is the point, and the
+ * published artifact is `src/` verbatim (see package.json "files").
+ *
+ * Three settings are deliberate rather than defaults:
+ *
+ *   - `allowJs` with `checkJs: false`. The seeded modules were ported VERBATIM from datamonkey3
+ *     (see each file's header) and their function bodies must not be edited to satisfy a type
+ *     checker — that would break the "function bodies unchanged" provenance claim, which is what
+ *     makes a parity failure attributable to the port rather than to a local tweak. So the .js is
+ *     parsed (a syntax error still fails the build) and not type-checked. Any .ts added later IS
+ *     checked, and `strict` is on for it.
+ *   - `module`/`moduleResolution: NodeNext`. This package is `"type": "module"` with an `exports`
+ *     map; NodeNext is the only resolution mode that models that faithfully, including the
+ *     mandatory `.js` extensions the sources already use.
+ *   - `types: []`. The library depends on nothing at runtime and must not acquire an ambient
+ *     dependency on @types/node either — a `node:` import compiling only because a global type
+ *     package happened to be installed is exactly the I/O this package is not allowed to have.
+ */
+{
+	"compilerOptions": {
+		"module": "NodeNext",
+		"moduleResolution": "NodeNext",
+		"target": "ES2022",
+		"lib": ["ES2022"],
+		"allowJs": true,
+		"checkJs": false,
+		"noEmit": true,
+		"strict": true,
+		"skipLibCheck": true,
+		"forceConsistentCasingInFileNames": true,
+		"types": []
+	},
+	"include": ["src/**/*", "test/**/*"]
+}

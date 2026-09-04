@@ -1,0 +1,28 @@
+[
+ {
+  "name": "site_mismatch_strict",
+  "inputs": {
+   "prediction_file": "geneB.csv",
+   "meme_result_file": "geneB.MEME.json"
+  },
+  "outputs": {
+   "raises": "EvaluationError",
+   "message": "Gene 'geneB' has mismatched sites: prediction-only sites [13]"
+  },
+  "tolerance": "exact",
+  "notes": "message has absolute paths replaced by basenames"
+ },
+ {
+  "name": "gene_name_mismatch",
+  "inputs": {
+   "prediction_file": "geneA.csv",
+   "meme_result_file": "geneB.MEME.json"
+  },
+  "outputs": {
+   "raises": "EvaluationError",
+   "message": "Single-gene files do not match: prediction gene 'geneA', MEME result gene 'geneB'"
+  },
+  "tolerance": "exact",
+  "notes": "message has absolute paths replaced by basenames"
+ }
+]

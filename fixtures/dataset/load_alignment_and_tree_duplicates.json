@@ -1,0 +1,176 @@
+[
+ {
+  "name": "prune_duplicates_True",
+  "inputs": {
+   "alignment": "duplicates_5taxa.fa",
+   "tree": "duplicates_5taxa.nwk",
+   "fasta": ">s1\nATGAAACCCGGGTTT\n>s2\nATGAAACCCGGGTTT\n>s3\nATGAAACCTGGGTTC\n>s4\nATGAAACCTGGGTTC\n>s5\nATGAAGCCTGGATTA\n",
+   "newick": "((s1:0.1,s2:0.1):0.2,(s3:0.15,s4:0.05):0.1,s5:0.3);",
+   "prune_duplicates": true
+  },
+  "outputs": {
+   "taxa": [
+    "s1",
+    "s3",
+    "s5"
+   ],
+   "L": 5,
+   "dist_matrix": [
+    [
+     0.0,
+     0.550000011920929,
+     0.6000000238418579
+    ],
+    [
+     0.550000011920929,
+     0.0,
+     0.550000011920929
+    ],
+    [
+     0.6000000238418579,
+     0.550000011920929,
+     0.0
+    ]
+   ],
+   "codon_tokens": [
+    [
+     32,
+     32,
+     32
+    ],
+    [
+     39,
+     39,
+     40
+    ],
+    [
+     18,
+     17,
+     17
+    ],
+    [
+     60,
+     60,
+     59
+    ],
+    [
+     0,
+     1,
+     2
+    ]
+   ],
+   "is_aa_invariable": [
+    true,
+    true,
+    true,
+    true,
+    false
+   ]
+  },
+  "tolerance": "1e-6",
+  "notes": "duplicates s2 (of s1) and s4 (of s3) are dropped from taxa when prune_duplicates; the distance matrix is computed over the retained taxa only (the tree itself is not re-pruned)."
+ },
+ {
+  "name": "prune_duplicates_False",
+  "inputs": {
+   "alignment": "duplicates_5taxa.fa",
+   "tree": "duplicates_5taxa.nwk",
+   "fasta": ">s1\nATGAAACCCGGGTTT\n>s2\nATGAAACCCGGGTTT\n>s3\nATGAAACCTGGGTTC\n>s4\nATGAAACCTGGGTTC\n>s5\nATGAAGCCTGGATTA\n",
+   "newick": "((s1:0.1,s2:0.1):0.2,(s3:0.15,s4:0.05):0.1,s5:0.3);",
+   "prune_duplicates": false
+  },
+  "outputs": {
+   "taxa": [
+    "s1",
+    "s2",
+    "s3",
+    "s4",
+    "s5"
+   ],
+   "L": 5,
+   "dist_matrix": [
+    [
+     0.0,
+     0.20000000298023224,
+     0.550000011920929,
+     0.44999998807907104,
+     0.6000000238418579
+    ],
+    [
+     0.20000000298023224,
+     0.0,
+     0.550000011920929,
+     0.44999998807907104,
+     0.6000000238418579
+    ],
+    [
+     0.550000011920929,
+     0.550000011920929,
+     0.0,
+     0.20000000298023224,
+     0.550000011920929
+    ],
+    [
+     0.44999998807907104,
+     0.44999998807907104,
+     0.20000000298023224,
+     0.0,
+     0.44999998807907104
+    ],
+    [
+     0.6000000238418579,
+     0.6000000238418579,
+     0.550000011920929,
+     0.44999998807907104,
+     0.0
+    ]
+   ],
+   "codon_tokens": [
+    [
+     32,
+     32,
+     32,
+     32,
+     32
+    ],
+    [
+     39,
+     39,
+     39,
+     39,
+     40
+    ],
+    [
+     18,
+     18,
+     17,
+     17,
+     17
+    ],
+    [
+     60,
+     60,
+     60,
+     60,
+     59
+    ],
+    [
+     0,
+     0,
+     1,
+     1,
+     2
+    ]
+   ],
+   "is_aa_invariable": [
+    true,
+    true,
+    true,
+    true,
+    false
+   ]
+  },
+  "tolerance": "1e-6",
+  "notes": "duplicates s2 (of s1) and s4 (of s3) are dropped from taxa when prune_duplicates; the distance matrix is computed over the retained taxa only (the tree itself is not re-pruned)."
+ }
+]

@@ -1,0 +1,468 @@
+[
+ {
+  "name": "geneA_all_sites",
+  "inputs": {
+   "prediction_file": "geneA.csv",
+   "meme_result_file": "geneA.MEME.json",
+   "allow_site_mismatch": false,
+   "variable_only": false
+  },
+  "outputs": {
+   "result": {
+    "input_mode": "files",
+    "prediction_file": "geneA.csv",
+    "meme_result_file": "geneA.MEME.json",
+    "matched_genes": 1,
+    "genes": [
+     "geneA"
+    ],
+    "total_sites": 12,
+    "total_prediction_sites": 12,
+    "total_meme_sites": 12,
+    "evaluated_sites": 12,
+    "variable_sites": 8,
+    "invariable_sites": 4,
+    "evaluation_scope": "all matched sites",
+    "correlation_definition": "HyphAeon hyphaeon_lrt versus MEME LRT over pooled evaluated sites; negative MEME LRT numerical artifacts are clamped to zero",
+    "clamped_negative_meme_lrts": 1,
+    "pearson_r": 0.9221162554120992,
+    "spearman_rho": 0.8762765319761446,
+    "thresholds": {
+     "0.05": {
+      "roc_auc": 1.0,
+      "roc_auc_definition": "ground truth MEME p_value <= 0.05; score = HyphAeon hyphaeon_lrt",
+      "ppv": 0.6666666666666666,
+      "ppv_definition": "MEME and HyphAeon p_value <= 0.05",
+      "fpr": 0.1,
+      "fpr_definition": "MEME and HyphAeon p_value <= 0.05",
+      "meme_positive_sites": 2,
+      "hyphaeon_positive_sites": 3,
+      "ppv_confusion_matrix": {
+       "true_positive": 2,
+       "false_positive": 1,
+       "true_negative": 9,
+       "false_negative": 0
+      },
+      "fpr_confusion_matrix": {
+       "true_positive": 2,
+       "false_positive": 1,
+       "true_negative": 9,
+       "false_negative": 0
+      }
+     },
+     "0.10": {
+      "roc_auc": 0.9444444444444444,
+      "roc_auc_definition": "ground truth MEME p_value <= 0.1; score = HyphAeon hyphaeon_lrt",
+      "ppv": 0.6,
+      "ppv_definition": "MEME and HyphAeon p_value <= 0.1",
+      "fpr": 0.2222222222222222,
+      "fpr_definition": "MEME and HyphAeon p_value <= 0.1",
+      "meme_positive_sites": 3,
+      "hyphaeon_positive_sites": 5,
+      "ppv_confusion_matrix": {
+       "true_positive": 3,
+       "false_positive": 2,
+       "true_negative": 7,
+       "false_negative": 0
+      },
+      "fpr_confusion_matrix": {
+       "true_positive": 3,
+       "false_positive": 2,
+       "true_negative": 7,
+       "false_negative": 0
+      }
+     }
+    },
+    "per_gene": [
+     {
+      "gene": "geneA",
+      "prediction_sites": 12,
+      "meme_sites": 12,
+      "matched_sites": 12,
+      "evaluated_sites": 12,
+      "prediction_only_sites": 0,
+      "meme_only_sites": 0
+     }
+    ],
+    "warnings": [
+     "Clamped 1 negative MEME LRT numerical artifact(s) to zero"
+    ]
+   }
+  },
+  "tolerance": "1e-9",
+  "notes": "prediction_file/meme_result_file are basenames of the files under fixtures/evaluation/inputs/; correlations and AUC are 1e-9, counts and confusion matrices exact"
+ },
+ {
+  "name": "geneA_variable_only",
+  "inputs": {
+   "prediction_file": "geneA.csv",
+   "meme_result_file": "geneA.MEME.json",
+   "allow_site_mismatch": false,
+   "variable_only": true
+  },
+  "outputs": {
+   "result": {
+    "input_mode": "files",
+    "prediction_file": "geneA.csv",
+    "meme_result_file": "geneA.MEME.json",
+    "matched_genes": 1,
+    "genes": [
+     "geneA"
+    ],
+    "total_sites": 12,
+    "total_prediction_sites": 12,
+    "total_meme_sites": 12,
+    "evaluated_sites": 8,
+    "variable_sites": 8,
+    "invariable_sites": 4,
+    "evaluation_scope": "variable sites only",
+    "correlation_definition": "HyphAeon hyphaeon_lrt versus MEME LRT over pooled evaluated sites; negative MEME LRT numerical artifacts are clamped to zero",
+    "clamped_negative_meme_lrts": 1,
+    "pearson_r": 0.9151417795136202,
+    "spearman_rho": 0.6586944440522925,
+    "thresholds": {
+     "0.05": {
+      "roc_auc": 1.0,
+      "roc_auc_definition": "ground truth MEME p_value <= 0.05; score = HyphAeon hyphaeon_lrt",
+      "ppv": 0.6666666666666666,
+      "ppv_definition": "MEME and HyphAeon p_value <= 0.05",
+      "fpr": 0.16666666666666666,
+      "fpr_definition": "MEME and HyphAeon p_value <= 0.05",
+      "meme_positive_sites": 2,
+      "hyphaeon_positive_sites": 3,
+      "ppv_confusion_matrix": {
+       "true_positive": 2,
+       "false_positive": 1,
+       "true_negative": 5,
+       "false_negative": 0
+      },
+      "fpr_confusion_matrix": {
+       "true_positive": 2,
+       "false_positive": 1,
+       "true_negative": 5,
+       "false_negative": 0
+      }
+     },
+     "0.10": {
+      "roc_auc": 0.9,
+      "roc_auc_definition": "ground truth MEME p_value <= 0.1; score = HyphAeon hyphaeon_lrt",
+      "ppv": 0.6,
+      "ppv_definition": "MEME and HyphAeon p_value <= 0.1",
+      "fpr": 0.4,
+      "fpr_definition": "MEME and HyphAeon p_value <= 0.1",
+      "meme_positive_sites": 3,
+      "hyphaeon_positive_sites": 5,
+      "ppv_confusion_matrix": {
+       "true_positive": 3,
+       "false_positive": 2,
+       "true_negative": 3,
+       "false_negative": 0
+      },
+      "fpr_confusion_matrix": {
+       "true_positive": 3,
+       "false_positive": 2,
+       "true_negative": 3,
+       "false_negative": 0
+      }
+     }
+    },
+    "per_gene": [
+     {
+      "gene": "geneA",
+      "prediction_sites": 12,
+      "meme_sites": 12,
+      "matched_sites": 12,
+      "evaluated_sites": 8,
+      "prediction_only_sites": 0,
+      "meme_only_sites": 0
+     }
+    ],
+    "warnings": [
+     "Clamped 1 negative MEME LRT numerical artifact(s) to zero"
+    ]
+   }
+  },
+  "tolerance": "1e-9",
+  "notes": "invariable rows excluded from metrics, still counted in totals"
+ },
+ {
+  "name": "geneB_allow_site_mismatch",
+  "inputs": {
+   "prediction_file": "geneB.csv",
+   "meme_result_file": "geneB.MEME.json",
+   "allow_site_mismatch": true,
+   "variable_only": false
+  },
+  "outputs": {
+   "result": {
+    "input_mode": "files",
+    "prediction_file": "geneB.csv",
+    "meme_result_file": "geneB.MEME.json",
+    "matched_genes": 1,
+    "genes": [
+     "geneB"
+    ],
+    "total_sites": 12,
+    "total_prediction_sites": 13,
+    "total_meme_sites": 12,
+    "evaluated_sites": 12,
+    "variable_sites": 9,
+    "invariable_sites": 3,
+    "evaluation_scope": "all matched sites",
+    "correlation_definition": "HyphAeon hyphaeon_lrt versus MEME LRT over pooled evaluated sites; negative MEME LRT numerical artifacts are clamped to zero",
+    "clamped_negative_meme_lrts": 1,
+    "pearson_r": -0.20460826903031656,
+    "spearman_rho": -0.3076923076923077,
+    "thresholds": {
+     "0.05": {
+      "roc_auc": null,
+      "roc_auc_definition": "ground truth MEME p_value <= 0.05; score = HyphAeon hyphaeon_lrt",
+      "ppv": 0.0,
+      "ppv_definition": "MEME and HyphAeon p_value <= 0.05",
+      "fpr": 0.08333333333333333,
+      "fpr_definition": "MEME and HyphAeon p_value <= 0.05",
+      "meme_positive_sites": 0,
+      "hyphaeon_positive_sites": 1,
+      "ppv_confusion_matrix": {
+       "true_positive": 0,
+       "false_positive": 1,
+       "true_negative": 11,
+       "false_negative": 0
+      },
+      "fpr_confusion_matrix": {
+       "true_positive": 0,
+       "false_positive": 1,
+       "true_negative": 11,
+       "false_negative": 0
+      }
+     },
+     "0.10": {
+      "roc_auc": 0.1,
+      "roc_auc_definition": "ground truth MEME p_value <= 0.1; score = HyphAeon hyphaeon_lrt",
+      "ppv": 0.0,
+      "ppv_definition": "MEME and HyphAeon p_value <= 0.1",
+      "fpr": 0.3,
+      "fpr_definition": "MEME and HyphAeon p_value <= 0.1",
+      "meme_positive_sites": 2,
+      "hyphaeon_positive_sites": 3,
+      "ppv_confusion_matrix": {
+       "true_positive": 0,
+       "false_positive": 3,
+       "true_negative": 7,
+       "false_negative": 2
+      },
+      "fpr_confusion_matrix": {
+       "true_positive": 0,
+       "false_positive": 3,
+       "true_negative": 7,
+       "false_negative": 2
+      }
+     }
+    },
+    "per_gene": [
+     {
+      "gene": "geneB",
+      "prediction_sites": 13,
+      "meme_sites": 12,
+      "matched_sites": 12,
+      "evaluated_sites": 12,
+      "prediction_only_sites": 1,
+      "meme_only_sites": 0
+     }
+    ],
+    "warnings": [
+     "Site intersection used; dropped 1 prediction-only and 0 MEME-only sites",
+     "Clamped 1 negative MEME LRT numerical artifact(s) to zero"
+    ]
+   }
+  },
+  "tolerance": "1e-9",
+  "notes": "prediction site 13 has no MEME counterpart; intersection used and a warning emitted"
+ },
+ {
+  "name": "Smc6_example",
+  "inputs": {
+   "prediction_file": "Smc6.csv",
+   "meme_result_file": "Smc6.MEME.json",
+   "allow_site_mismatch": false,
+   "variable_only": false
+  },
+  "outputs": {
+   "result": {
+    "input_mode": "files",
+    "prediction_file": "Smc6.csv",
+    "meme_result_file": "Smc6.MEME.json",
+    "matched_genes": 1,
+    "genes": [
+     "Smc6"
+    ],
+    "total_sites": 1097,
+    "total_prediction_sites": 1097,
+    "total_meme_sites": 1097,
+    "evaluated_sites": 1097,
+    "variable_sites": 97,
+    "invariable_sites": 1000,
+    "evaluation_scope": "all matched sites",
+    "correlation_definition": "HyphAeon hyphaeon_lrt versus MEME LRT over pooled evaluated sites; negative MEME LRT numerical artifacts are clamped to zero",
+    "clamped_negative_meme_lrts": 4,
+    "pearson_r": 0.6769239610533377,
+    "spearman_rho": 0.9047929390935804,
+    "thresholds": {
+     "0.05": {
+      "roc_auc": 0.9814730100640439,
+      "roc_auc_definition": "ground truth MEME p_value <= 0.05; score = HyphAeon hyphaeon_lrt",
+      "ppv": 0.4,
+      "ppv_definition": "MEME and HyphAeon p_value <= 0.05",
+      "fpr": 0.0027447392497712718,
+      "fpr_definition": "MEME and HyphAeon p_value <= 0.05",
+      "meme_positive_sites": 4,
+      "hyphaeon_positive_sites": 5,
+      "ppv_confusion_matrix": {
+       "true_positive": 2,
+       "false_positive": 3,
+       "true_negative": 1090,
+       "false_negative": 2
+      },
+      "fpr_confusion_matrix": {
+       "true_positive": 2,
+       "false_positive": 3,
+       "true_negative": 1090,
+       "false_negative": 2
+      }
+     },
+     "0.10": {
+      "roc_auc": 0.9857142857142858,
+      "roc_auc_definition": "ground truth MEME p_value <= 0.1; score = HyphAeon hyphaeon_lrt",
+      "ppv": 0.2857142857142857,
+      "ppv_definition": "MEME and HyphAeon p_value <= 0.1",
+      "fpr": 0.009157509157509158,
+      "fpr_definition": "MEME and HyphAeon p_value <= 0.1",
+      "meme_positive_sites": 5,
+      "hyphaeon_positive_sites": 14,
+      "ppv_confusion_matrix": {
+       "true_positive": 4,
+       "false_positive": 10,
+       "true_negative": 1082,
+       "false_negative": 1
+      },
+      "fpr_confusion_matrix": {
+       "true_positive": 4,
+       "false_positive": 10,
+       "true_negative": 1082,
+       "false_negative": 1
+      }
+     }
+    },
+    "per_gene": [
+     {
+      "gene": "Smc6",
+      "prediction_sites": 1097,
+      "meme_sites": 1097,
+      "matched_sites": 1097,
+      "evaluated_sites": 1097,
+      "prediction_only_sites": 0,
+      "meme_only_sites": 0
+     }
+    ],
+    "warnings": [
+     "Clamped 4 negative MEME LRT numerical artifact(s) to zero"
+    ]
+   }
+  },
+  "tolerance": "1e-9",
+  "notes": "prediction = examples/Smc6_results.csv; MEME JSON synthesised from model_eval/_cache (matching 1097 sites)"
+ },
+ {
+  "name": "Smc6_example_variable_only",
+  "inputs": {
+   "prediction_file": "Smc6.csv",
+   "meme_result_file": "Smc6.MEME.json",
+   "allow_site_mismatch": false,
+   "variable_only": true
+  },
+  "outputs": {
+   "result": {
+    "input_mode": "files",
+    "prediction_file": "Smc6.csv",
+    "meme_result_file": "Smc6.MEME.json",
+    "matched_genes": 1,
+    "genes": [
+     "Smc6"
+    ],
+    "total_sites": 1097,
+    "total_prediction_sites": 1097,
+    "total_meme_sites": 1097,
+    "evaluated_sites": 97,
+    "variable_sites": 97,
+    "invariable_sites": 1000,
+    "evaluation_scope": "variable sites only",
+    "correlation_definition": "HyphAeon hyphaeon_lrt versus MEME LRT over pooled evaluated sites; negative MEME LRT numerical artifacts are clamped to zero",
+    "clamped_negative_meme_lrts": 4,
+    "pearson_r": 0.4903940288004817,
+    "spearman_rho": 0.3614585283886536,
+    "thresholds": {
+     "0.05": {
+      "roc_auc": 0.782258064516129,
+      "roc_auc_definition": "ground truth MEME p_value <= 0.05; score = HyphAeon hyphaeon_lrt",
+      "ppv": 0.4,
+      "ppv_definition": "MEME and HyphAeon p_value <= 0.05",
+      "fpr": 0.03225806451612903,
+      "fpr_definition": "MEME and HyphAeon p_value <= 0.05",
+      "meme_positive_sites": 4,
+      "hyphaeon_positive_sites": 5,
+      "ppv_confusion_matrix": {
+       "true_positive": 2,
+       "false_positive": 3,
+       "true_negative": 90,
+       "false_negative": 2
+      },
+      "fpr_confusion_matrix": {
+       "true_positive": 2,
+       "false_positive": 3,
+       "true_negative": 90,
+       "false_negative": 2
+      }
+     },
+     "0.10": {
+      "roc_auc": 0.8304347826086956,
+      "roc_auc_definition": "ground truth MEME p_value <= 0.1; score = HyphAeon hyphaeon_lrt",
+      "ppv": 0.2857142857142857,
+      "ppv_definition": "MEME and HyphAeon p_value <= 0.1",
+      "fpr": 0.10869565217391304,
+      "fpr_definition": "MEME and HyphAeon p_value <= 0.1",
+      "meme_positive_sites": 5,
+      "hyphaeon_positive_sites": 14,
+      "ppv_confusion_matrix": {
+       "true_positive": 4,
+       "false_positive": 10,
+       "true_negative": 82,
+       "false_negative": 1
+      },
+      "fpr_confusion_matrix": {
+       "true_positive": 4,
+       "false_positive": 10,
+       "true_negative": 82,
+       "false_negative": 1
+      }
+     }
+    },
+    "per_gene": [
+     {
+      "gene": "Smc6",
+      "prediction_sites": 1097,
+      "meme_sites": 1097,
+      "matched_sites": 1097,
+      "evaluated_sites": 97,
+      "prediction_only_sites": 0,
+      "meme_only_sites": 0
+     }
+    ],
+    "warnings": [
+     "Clamped 4 negative MEME LRT numerical artifact(s) to zero"
+    ]
+   }
+  },
+  "tolerance": "1e-9",
+  "notes": ""
+ }
+]

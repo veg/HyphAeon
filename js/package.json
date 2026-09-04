@@ -1,0 +1,27 @@
+{
+	"name": "@veg/hyphaeon-js",
+	"version": "1.0.0",
+	"description": "HyphAeon methods as pure JavaScript functions mirroring hyphaeon/*.py. A library only: no onnxruntime, no I/O, no workers, no server, no MCP.",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/veg/HyphAeon.git",
+		"directory": "js"
+	},
+	"type": "module",
+	"exports": {
+		".": "./src/index.js"
+	},
+	"files": [
+		"src"
+	],
+	"sideEffects": false,
+	"scripts": {
+		"test": "vitest run",
+		"typecheck": "tsc --noEmit -p tsconfig.json"
+	},
+	"devDependencies": {
+		"typescript": "^5",
+		"vitest": "^3"
+	}
+}

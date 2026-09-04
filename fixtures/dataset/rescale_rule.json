@@ -1,0 +1,390 @@
+[
+ {
+  "name": "rescale_triggered",
+  "inputs": {
+   "alignment": "rescale_5taxa.fa",
+   "tree": "rescale_triggered.nwk",
+   "newick": "((s1:12.0,s2:8.0):4.0,(s3:6.5,s4:3.0):2.0,s5:9.0);",
+   "fasta": ">s1\nATGAAACCCGGGTTT\n>s2\nATGAAACCCGGGTTC\n>s3\nATGAAACCTGGGTTC\n>s4\nATGAAGCCTGGATTC\n>s5\nATGAAGCCTGGATTA\n"
+  },
+  "outputs": {
+   "taxa": [
+    "s1",
+    "s2",
+    "s3",
+    "s4",
+    "s5"
+   ],
+   "L": 5,
+   "raw_dist_matrix": [
+    [
+     0.0,
+     20.0,
+     24.5,
+     21.0,
+     25.0
+    ],
+    [
+     20.0,
+     0.0,
+     20.5,
+     17.0,
+     21.0
+    ],
+    [
+     24.5,
+     20.5,
+     0.0,
+     9.5,
+     17.5
+    ],
+    [
+     21.0,
+     17.0,
+     9.5,
+     0.0,
+     14.0
+    ],
+    [
+     25.0,
+     21.0,
+     17.5,
+     14.0,
+     0.0
+    ]
+   ],
+   "raw_dist_max": 25.0,
+   "rescaled": true,
+   "dist_matrix": [
+    [
+     0.0,
+     4.0,
+     4.900000095367432,
+     4.199999809265137,
+     5.0
+    ],
+    [
+     4.0,
+     0.0,
+     4.099999904632568,
+     3.4000000953674316,
+     4.199999809265137
+    ],
+    [
+     4.900000095367432,
+     4.099999904632568,
+     0.0,
+     1.899999976158142,
+     3.5
+    ],
+    [
+     4.199999809265137,
+     3.4000000953674316,
+     1.899999976158142,
+     0.0,
+     2.799999952316284
+    ],
+    [
+     5.0,
+     4.199999809265137,
+     3.5,
+     2.799999952316284,
+     0.0
+    ]
+   ]
+  },
+  "tolerance": "1e-6",
+  "notes": "rule in load_alignment_and_tree: `if dist_mat.max() > 10.0: dist_mat = dist_mat / L` (L = codon count, here 5). max patristic distance 12+4+2+6.5 = 24.5 > 10 -> every entry divided by L=5"
+ },
+ {
+  "name": "rescale_not_triggered",
+  "inputs": {
+   "alignment": "rescale_5taxa.fa",
+   "tree": "rescale_not_triggered.nwk",
+   "newick": "((s1:1.2,s2:0.8):0.4,(s3:0.65,s4:0.3):0.2,s5:0.9);",
+   "fasta": ">s1\nATGAAACCCGGGTTT\n>s2\nATGAAACCCGGGTTC\n>s3\nATGAAACCTGGGTTC\n>s4\nATGAAGCCTGGATTC\n>s5\nATGAAGCCTGGATTA\n"
+  },
+  "outputs": {
+   "taxa": [
+    "s1",
+    "s2",
+    "s3",
+    "s4",
+    "s5"
+   ],
+   "L": 5,
+   "raw_dist_matrix": [
+    [
+     0.0,
+     2.0,
+     2.450000047683716,
+     2.0999999046325684,
+     2.5
+    ],
+    [
+     2.0,
+     0.0,
+     2.049999952316284,
+     1.7000000476837158,
+     2.0999999046325684
+    ],
+    [
+     2.450000047683716,
+     2.049999952316284,
+     0.0,
+     0.949999988079071,
+     1.75
+    ],
+    [
+     2.0999999046325684,
+     1.7000000476837158,
+     0.949999988079071,
+     0.0,
+     1.399999976158142
+    ],
+    [
+     2.5,
+     2.0999999046325684,
+     1.75,
+     1.399999976158142,
+     0.0
+    ]
+   ],
+   "raw_dist_max": 2.5,
+   "rescaled": false,
+   "dist_matrix": [
+    [
+     0.0,
+     2.0,
+     2.450000047683716,
+     2.0999999046325684,
+     2.5
+    ],
+    [
+     2.0,
+     0.0,
+     2.049999952316284,
+     1.7000000476837158,
+     2.0999999046325684
+    ],
+    [
+     2.450000047683716,
+     2.049999952316284,
+     0.0,
+     0.949999988079071,
+     1.75
+    ],
+    [
+     2.0999999046325684,
+     1.7000000476837158,
+     0.949999988079071,
+     0.0,
+     1.399999976158142
+    ],
+    [
+     2.5,
+     2.0999999046325684,
+     1.75,
+     1.399999976158142,
+     0.0
+    ]
+   ]
+  },
+  "tolerance": "1e-6",
+  "notes": "rule in load_alignment_and_tree: `if dist_mat.max() > 10.0: dist_mat = dist_mat / L` (L = codon count, here 5). same topology scaled by 0.1: max 2.45 <= 10 -> unchanged"
+ },
+ {
+  "name": "rescale_boundary_exactly_10",
+  "inputs": {
+   "alignment": "rescale_5taxa.fa",
+   "tree": "rescale_boundary_exactly_10.nwk",
+   "newick": "((s1:5.0,s2:5.0):0.0,(s3:1.0,s4:1.0):1.0,s5:1.0);",
+   "fasta": ">s1\nATGAAACCCGGGTTT\n>s2\nATGAAACCCGGGTTC\n>s3\nATGAAACCTGGGTTC\n>s4\nATGAAGCCTGGATTC\n>s5\nATGAAGCCTGGATTA\n"
+  },
+  "outputs": {
+   "taxa": [
+    "s1",
+    "s2",
+    "s3",
+    "s4",
+    "s5"
+   ],
+   "L": 5,
+   "raw_dist_matrix": [
+    [
+     0.0,
+     10.0,
+     7.000100135803223,
+     7.000100135803223,
+     6.000100135803223
+    ],
+    [
+     10.0,
+     0.0,
+     7.000100135803223,
+     7.000100135803223,
+     6.000100135803223
+    ],
+    [
+     7.000100135803223,
+     7.000100135803223,
+     0.0,
+     2.0,
+     3.0
+    ],
+    [
+     7.000100135803223,
+     7.000100135803223,
+     2.0,
+     0.0,
+     3.0
+    ],
+    [
+     6.000100135803223,
+     6.000100135803223,
+     3.0,
+     3.0,
+     0.0
+    ]
+   ],
+   "raw_dist_max": 10.0,
+   "rescaled": false,
+   "dist_matrix": [
+    [
+     0.0,
+     10.0,
+     7.000100135803223,
+     7.000100135803223,
+     6.000100135803223
+    ],
+    [
+     10.0,
+     0.0,
+     7.000100135803223,
+     7.000100135803223,
+     6.000100135803223
+    ],
+    [
+     7.000100135803223,
+     7.000100135803223,
+     0.0,
+     2.0,
+     3.0
+    ],
+    [
+     7.000100135803223,
+     7.000100135803223,
+     2.0,
+     0.0,
+     3.0
+    ],
+    [
+     6.000100135803223,
+     6.000100135803223,
+     3.0,
+     3.0,
+     0.0
+    ]
+   ]
+  },
+  "tolerance": "1e-6",
+  "notes": "rule in load_alignment_and_tree: `if dist_mat.max() > 10.0: dist_mat = dist_mat / L` (L = codon count, here 5). max path s1-s2 = 10.0 exactly, which is NOT > 10, so no rescale; the zero-length internal branch is raised to 1e-4 but is not on that path"
+ },
+ {
+  "name": "rescale_zero_branches_tip_over_10",
+  "inputs": {
+   "alignment": "rescale_5taxa.fa",
+   "tree": "rescale_zero_branches_tip_over_10.nwk",
+   "newick": "((s1:5.0,s2:1.0):0.0,(s3:5.0,s4:1.0):0.0,s5:1.0);",
+   "fasta": ">s1\nATGAAACCCGGGTTT\n>s2\nATGAAACCCGGGTTC\n>s3\nATGAAACCTGGGTTC\n>s4\nATGAAGCCTGGATTC\n>s5\nATGAAGCCTGGATTA\n"
+  },
+  "outputs": {
+   "taxa": [
+    "s1",
+    "s2",
+    "s3",
+    "s4",
+    "s5"
+   ],
+   "L": 5,
+   "raw_dist_matrix": [
+    [
+     0.0,
+     6.0,
+     10.000200271606445,
+     6.000199794769287,
+     6.000100135803223
+    ],
+    [
+     6.0,
+     0.0,
+     6.000199794769287,
+     2.000200033187866,
+     2.0000998973846436
+    ],
+    [
+     10.000200271606445,
+     6.000199794769287,
+     0.0,
+     6.0,
+     6.000100135803223
+    ],
+    [
+     6.000199794769287,
+     2.000200033187866,
+     6.0,
+     0.0,
+     2.0000998973846436
+    ],
+    [
+     6.000100135803223,
+     2.0000998973846436,
+     6.000100135803223,
+     2.0000998973846436,
+     0.0
+    ]
+   ],
+   "raw_dist_max": 10.000200271606445,
+   "rescaled": true,
+   "dist_matrix": [
+    [
+     0.0,
+     1.2000000476837158,
+     2.000040054321289,
+     1.2000399827957153,
+     1.2000200748443604
+    ],
+    [
+     1.2000000476837158,
+     0.0,
+     1.2000399827957153,
+     0.40004000067710876,
+     0.40001997351646423
+    ],
+    [
+     2.000040054321289,
+     1.2000399827957153,
+     0.0,
+     1.2000000476837158,
+     1.2000200748443604
+    ],
+    [
+     1.2000399827957153,
+     0.40004000067710876,
+     1.2000000476837158,
+     0.0,
+     0.40001997351646423
+    ],
+    [
+     1.2000200748443604,
+     0.40001997351646423,
+     1.2000200748443604,
+     0.40001997351646423,
+     0.0
+    ]
+   ]
+  },
+  "tolerance": "1e-6",
+  "notes": "rule in load_alignment_and_tree: `if dist_mat.max() > 10.0: dist_mat = dist_mat / L` (L = codon count, here 5). max path s1-s3 sums to 10.0 in the file but crosses two zero-length internal branches that enforce_nonzero_branch_lengths raises to 1e-4, so max = 10.0002 > 10 and the rescale fires"
+ }
+]

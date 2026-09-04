@@ -1,0 +1,18 @@
+# WHY THIS FILE EXISTS
+#
+# The repository root .gitignore is written for a Python project and has no node_modules rule, so
+# without this file the first `git add js/` in this directory commits 51 installed packages. Scoped
+# here rather than added to the root ignore because js/ is the only Node tree in the repository and
+# the root file belongs to the Python half.
+#
+# package-lock.json is NOT ignored, deliberately: .github/workflows/js.yml runs `npm ci` against it
+# with `cache-dependency-path: js/package-lock.json`, which needs the lockfile committed. It is also
+# what makes "no CDN dependencies anywhere" checkable — every byte the tests install is pinned there
+# by integrity hash.
+
+node_modules/
+
+# vitest / tsc scratch output. Nothing in this package emits a build: `files: ["src"]` publishes the
+# sources as written, and `tsc` runs with --noEmit.
+coverage/
+*.tsbuildinfo

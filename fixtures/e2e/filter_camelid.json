@@ -1,0 +1,64 @@
+[
+ {
+  "name": "filter_camelid",
+  "inputs": {
+   "call": "hyphaeon.filter.run_alignment_filter(alignment, tree, alpha_site=0.05, min_k=3, max_span=35, min_oci=0.25, min_run_length=3)",
+   "alignment": "camelid.fasta",
+   "tree": "camelid.nwk",
+   "model_safetensors_sha256": "0278dff092601acca959aa64bf6742ad17a38a5e6e31eabd424d6d224eea6ebd",
+   "device": "cpu",
+   "hyphy": "HYPHY 2.5.65(MP) for Darwin on x86_64 x86 AVX SIMD with FMA3 zlib (v1.2.12)"
+  },
+  "outputs": {
+   "result": {
+    "num_taxa": 212,
+    "num_codons": 96,
+    "num_patches_detected": 1,
+    "num_artifacts_masked": 1,
+    "masked_codons_count": 19,
+    "raw_metrics": {
+     "cct_p_value": 0.06605146641015569,
+     "sig_sites_p05": 15,
+     "sig_sites_q10": 0,
+     "mean_lrt": 2.3470513820648193
+    },
+    "cleaned_metrics": {
+     "cct_p_value": 0.06706112602443015,
+     "sig_sites_p05": 15,
+     "sig_sites_q10": 0,
+     "mean_lrt": 2.3342137336730957
+    },
+    "suppressed_spurious_sites": 0,
+    "artifacts": [
+     {
+      "patch_start_1idx": 47,
+      "patch_end_1idx": 65,
+      "span_codons": 19,
+      "significant_sites_k": 7,
+      "p_hypergeom": 0.004199330313368277,
+      "outlier_taxon": "LGL237377",
+      "consecutive_mismatches": 10,
+      "outlier_contamination_index": 0.00920679886679032,
+      "outlier_aa_sequence": "GIACIRWHDSHINTEDSVK",
+      "consensus_aa_sequence": "WVAAIISDGGSTYYADSVK",
+      "mean_raw_patch_lrt": 3.653223991394043
+     }
+    ],
+    "elapsed_seconds": null,
+    "output_alignment": "clean.fa",
+    "audit_csv": "audit.csv"
+   },
+   "masked_codon_ranges_1idx_by_taxon": {
+    "LGL237377": [
+     [
+      47,
+      65
+     ]
+    ]
+   },
+   "cleaned_alignment_sha256": "26fa903a72a7a2e69361c0cd9b866775e66df0772d1a57d9f2562f66c96cdb69"
+  },
+  "tolerance": "1e-5",
+  "notes": "OCI is inline in filter.run_alignment_filter (not a separate function) so this is an end-to-end fixture: baseline LRTs (model, 1e-5) -> MEME p -> scan_hypergeometric_patches -> per-patch consensus codons (pandas mode: lowest codon string on ties) -> per-taxon max mismatch run and count -> top taxon by (run, count) -> OCI = count/total -> artifact if (run>=3 and OCI>=0.25) or run>=4 -> NNN mask -> re-score. artifacts list, masked ranges and cleaned-alignment hash are exact; metrics 1e-5. camelid depends on HyPhy branch-length estimation (version in inputs)."
+ }
+]

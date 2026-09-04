@@ -1,0 +1,151 @@
+[
+ {
+  "name": "geneA",
+  "inputs": {
+   "file": "geneA.csv"
+  },
+  "outputs": {
+   "sites": {
+    "1": {
+     "lrt": 0.0,
+     "p_value": 0.6666666666666666,
+     "is_invariable": true
+    },
+    "2": {
+     "lrt": 1.6,
+     "p_value": 0.22652491672926736,
+     "is_invariable": false
+    },
+    "3": {
+     "lrt": 0.0,
+     "p_value": 0.6666666666666666,
+     "is_invariable": true
+    },
+    "4": {
+     "lrt": 7.2,
+     "p_value": 0.01220580565813463,
+     "is_invariable": false
+    },
+    "5": {
+     "lrt": 3.9,
+     "p_value": 0.06665299188472613,
+     "is_invariable": false
+    },
+    "6": {
+     "lrt": 3.9,
+     "p_value": 0.06665299188472613,
+     "is_invariable": false
+    },
+    "7": {
+     "lrt": 0.4,
+     "p_value": 0.4583280531882548,
+     "is_invariable": false
+    },
+    "8": {
+     "lrt": 12.5,
+     "p_value": 0.0008299187885169813,
+     "is_invariable": false
+    },
+    "9": {
+     "lrt": 0.0,
+     "p_value": 0.6666666666666666,
+     "is_invariable": true
+    },
+    "10": {
+     "lrt": 2.2,
+     "p_value": 0.16345595195989246,
+     "is_invariable": false
+    },
+    "11": {
+     "lrt": 5.1,
+     "p_value": 0.03580769724461083,
+     "is_invariable": false
+    },
+    "12": {
+     "lrt": 0.0,
+     "p_value": 0.6666666666666666,
+     "is_invariable": true
+    }
+   }
+  },
+  "tolerance": "exact",
+  "notes": "is_invariable parsed from 'True'/'False'"
+ },
+ {
+  "name": "geneB_numeric_booleans",
+  "inputs": {
+   "file": "geneB.csv"
+  },
+  "outputs": {
+   "sites": {
+    "1": {
+     "lrt": 1.647978885708315,
+     "p_value": 0.220618900206137,
+     "is_invariable": false
+    },
+    "2": {
+     "lrt": 0.5560319384664156,
+     "p_value": 0.414430107327267,
+     "is_invariable": false
+    },
+    "3": {
+     "lrt": 4.096492515496484,
+     "p_value": 0.06017733429500145,
+     "is_invariable": false
+    },
+    "4": {
+     "lrt": 4.1934402237480555,
+     "p_value": 0.0572224018475629,
+     "is_invariable": true
+    },
+    "5": {
+     "lrt": 1.9020391083557455,
+     "p_value": 0.19201561431743988,
+     "is_invariable": false
+    },
+    "6": {
+     "lrt": 5.812067801552549,
+     "p_value": 0.024828782682604734,
+     "is_invariable": false
+    },
+    "7": {
+     "lrt": 0.7696222183196979,
+     "p_value": 0.36364588329813513,
+     "is_invariable": true
+    },
+    "8": {
+     "lrt": 1.111812190649854,
+     "p_value": 0.29780902921061686,
+     "is_invariable": false
+    },
+    "9": {
+     "lrt": 2.604540772902282,
+     "p_value": 0.13166911161929037,
+     "is_invariable": true
+    },
+    "10": {
+     "lrt": 1.9666670921986498,
+     "p_value": 0.18539671335289745,
+     "is_invariable": false
+    },
+    "11": {
+     "lrt": 0.3576129252304207,
+     "p_value": 0.47158198815084634,
+     "is_invariable": false
+    },
+    "12": {
+     "lrt": 1.2773421708391581,
+     "p_value": 0.2711157991007751,
+     "is_invariable": false
+    },
+    "13": {
+     "lrt": 0.9096725845351702,
+     "p_value": 0.3347294001578176,
+     "is_invariable": false
+    }
+   }
+  },
+  "tolerance": "exact",
+  "notes": "is_invariable parsed from '1'/'0'"
+ }
+]

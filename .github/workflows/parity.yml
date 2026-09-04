@@ -1,0 +1,68 @@
+# WHY THIS FILE EXISTS
+#
+# End-to-end parity between the Python reference and every other surface on the bundled examples
+# (PARITY.md; PLAN.md 3.3 and 5.4 in veg/hyphaeon-app). scripts/parity.py runs the Python CLI on
+# examples/ and compares whatever surface outputs exist under parity/<surface>/. Only the Python
+# side is produced here: the runners for node / web / mcp live in veg/hyphaeon-app, because
+# nothing in this repository runs a model outside torch (js/ is a library). Until that runner
+# publishes its outputs into this job, the node surface is reported as missing and the job
+# passes on the Python side alone; any tolerance-class violation fails the job.
+#
+# Python setup mirrors tests.yml (CPU torch first, then the package). The bundled
+# model.safetensors is committed, so no download and no HF token is needed.
+
+name: parity
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'hyphaeon/**'
+      - 'js/**'
+      - 'fixtures/**'
+      - 'models/**'
+      - 'scripts/parity.py'
+      - '.github/workflows/parity.yml'
+
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Install CPU-only torch first (smaller than the default CUDA wheel) so
+      # the subsequent `pip install -e .[dev]` sees the requirement satisfied.
+      - name: Install CPU torch
+        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install package and dev dependencies
+        run: pip install -e .[dev]
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run parity (python reference; node compared when present)
+        env:
+          HYPHAEON_WEIGHTS: ${{ github.workspace }}/model.safetensors
+          HF_HUB_OFFLINE: "1"
+        run: python scripts/parity.py --examples all --surfaces python,node
+
+      - name: Upload parity report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: parity_report
+          path: |
+            parity/report.json
+            parity/python/*.json
+            parity/python/*.log
+          if-no-files-found: error

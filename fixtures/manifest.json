@@ -1,0 +1,178 @@
+{
+ "generator": "scripts/gen_fixtures.py",
+ "engine_commit": "3cb9cc6e9dd54d002eaa55d22e9fdca09974a116",
+ "generated_at": "2026-09-04T11:02:43-0700",
+ "model_safetensors_sha256": "0278dff092601acca959aa64bf6742ad17a38a5e6e31eabd424d6d224eea6ebd",
+ "model_safetensors_bytes": 9842824,
+ "environment": {
+  "python": "3.14.0",
+  "numpy": "2.3.3",
+  "scipy": "1.16.2",
+  "networkx": "3.6.1",
+  "torch": "2.10.0",
+  "biopython": "1.85",
+  "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+  "hyphy": "HYPHY 2.5.65(MP) for Darwin on x86_64 x86 AVX SIMD with FMA3 zlib (v1.2.12)"
+ },
+ "synthetic_seed": 20260904,
+ "engine_default_rng_seed": 42,
+ "rng": {
+  "epistasis.compute_sector_permutation_test": "numpy.random.default_rng(rng_seed) -> PCG64; rng.choice(pool, size=K, replace=False)",
+  "phenotype.generate_permulations": "numpy legacy global RandomState: np.random.seed(seed); np.random.randn(M, n_perm) (MT19937)"
+ },
+ "tolerance_classes": {
+  "exact": "equality after canonicalisation (tokens, names, integer counts, graph membership, strings)",
+  "1e-5": "max |delta| <= 1e-5: anything that passed through the neural model (LRT, attention, attributions) and MDS coordinates (per-column sign)",
+  "1e-6": "max |delta| <= 1e-6: float32 arithmetic on float32 inputs (patristic distances, cosine networks, coherence)",
+  "1e-9": "max |delta| <= 1e-9: special functions and float64 statistics (chi2/t/hypergeometric survival, BH, CCT, correlations, AUC)",
+  "statistical": "Monte Carlo outputs: |p_js - p_py| <= 3*sqrt(p(1-p)/B), null moments within 2%; membership/exact fields still compared exactly"
+ },
+ "known_quirks": [
+  "cli.py cmd_busted loads BustedMultiTaskHead with strict=False; model.safetensors lacks 11 of its parameters (see busted_head_missing_keys) and torch is never seeded, so predicted_gene_lrt, selection_probability, synonymous_rate_variation, omega_3, proportion_* and positive_selection_detected differ on every run. They are nulled in fixtures/e2e/busted_*.json.",
+  "dataset.load_alignment_and_tree with max_species strides taxa to at most 2*max_species BEFORE Faith's PD; for 212 camelid taxa the stride is 1 so it keeps the first 128 taxa in tree order.",
+  "dataset.load_alignment_and_tree rescale rule fires on dist_mat.max() > 10.0 AFTER enforce_nonzero_branch_lengths, so a zero-length branch can tip a max of exactly 10.0 over the threshold.",
+  "cli.py cmd_meme --filter duplicates the OCI logic of filter.run_alignment_filter with two differences: consensus codons are not checked for '?' or length 3, and the artifact rule uses --min-patch-consec.",
+  "epistasis: CLI default min_sim is 0.30 while compute_branch_coselection_network's default is 0.35; the CLI never passes min_cesi (function default 2.0) or min_shared beyond its own default.",
+  "epistasis.extract_epistatic_sectors_tse accepts max_overlap but never uses it.",
+  "epistasis and phenotype CLIs have no --seed flag; rng_seed=42 and seed=42 are hard-wired defaults.",
+  "phenotype.resolve_phenotype_vector ignores `background`; continuous mode z-scores across all taxa including unmatched ones (which contribute 0 before standardisation).",
+  "phenotype.resolve_phenotype_vector file mode falls back to substring matching in both directions over dict insertion order, so a short species name can match a longer taxon name.",
+  "evaluation.load_meme_json treats -0.0 as not negative (no clamp flag) because the test is raw_lrt < 0.0.",
+  "dataset.parse_alignment_sequences PHYLIP branch: an alphanumeric sequence-only continuation line (<= 35 chars) is taken as a taxon name, and a 'name seq' line with <= 10 sequence characters is not a record start; multi-line PHYLIP therefore parses into garbage (pinned in parse_alignment_sequences.json).",
+  "dataset.parse_alignment_sequences NEXUS branch: quoted matrix labels containing spaces are split on whitespace.",
+  "dataset.extract_tree_from_string_or_file: a NEXUS 'TREE name = [&R] (...);' line is rejected because the rooting annotation precedes '(' (returns None).",
+  "filter.scan_hypergeometric_patches reports nothing when every site is significant (P(X>=k)=1 for every window).",
+  "stats.benjamini_hochberg uses numpy argsort (quicksort) which is unstable; tied p-values still get identical q so results are order-independent."
+ ],
+ "counts": {
+  "stats": {
+   "pvals_from_lrt_meme": 10,
+   "pvals_from_lrt_self_liang": 10,
+   "benjamini_hochberg": 11,
+   "cauchy_combination_p": 12
+  },
+  "filter": {
+   "scan_hypergeometric_patches": 8
+  },
+  "evaluation": {
+   "load_meme_json": 3,
+   "load_prediction_csv": 2,
+   "roc_auc": 3,
+   "correlations": 4,
+   "evaluate_files": 5,
+   "evaluate_files_errors": 2
+  },
+  "epistasis": {
+   "compute_branch_coselection_network": 5,
+   "extract_epistatic_sectors_tse": 8,
+   "compute_sector_permutation_test": 5
+  },
+  "phenotype": {
+   "resolve_phenotype_vector": 15,
+   "compute_phylogenetic_covariance": 3,
+   "generate_permulations": 3
+  },
+  "dataset": {
+   "tokenizer": 3,
+   "parse_alignment_sequences": 13,
+   "extract_tree_from_string_or_file": 11,
+   "compute_fast_dist_matrix": 2,
+   "compute_mds_coordinates": 5,
+   "load_alignment_and_tree": 2,
+   "rescale_rule": 4,
+   "prune_identical_sequences": 4,
+   "load_alignment_and_tree_duplicates": 2,
+   "downsample_taxa_faith_pd": 4
+  },
+  "attribution": {
+   "attribute_selection": 1
+  },
+  "dms": {
+   "run_insilico_selection_dms": 2
+  },
+  "e2e": {
+   "meme_bat_oas1": 1,
+   "meme_Smc6": 1,
+   "meme_camelid": 1,
+   "meme_HIV1_RT": 1,
+   "meme_RHO": 1,
+   "meme_bat_oas1_attribute_filter": 1,
+   "busted_Smc6": 1,
+   "busted_HIV1_RT": 1,
+   "epistasis_Smc6_n_permutations_1000": 1,
+   "phenotype_RHO_marine_n_permutations_0": 1,
+   "filter_bat_oas1": 1,
+   "filter_camelid": 1
+  }
+ },
+ "bytes": {
+  "stats/pvals_from_lrt_meme.json": 16311,
+  "stats/pvals_from_lrt_self_liang.json": 16062,
+  "stats/benjamini_hochberg.json": 23217,
+  "stats/cauchy_combination_p.json": 14093,
+  "filter/scan_hypergeometric_patches.json": 53247,
+  "evaluation/load_meme_json.json": 105135,
+  "evaluation/load_prediction_csv.json": 3063,
+  "evaluation/roc_auc.json": 909,
+  "evaluation/correlations.json": 3913,
+  "evaluation/evaluate_files.json": 13771,
+  "evaluation/evaluate_files_errors.json": 725,
+  "epistasis/compute_branch_coselection_network.json": 319966,
+  "epistasis/extract_epistatic_sectors_tse.json": 123709,
+  "epistasis/compute_sector_permutation_test.json": 36924,
+  "phenotype/resolve_phenotype_vector.json": 79738,
+  "phenotype/compute_phylogenetic_covariance.json": 17055,
+  "phenotype/generate_permulations.json": 218594,
+  "dataset/tokenizer.json": 6075,
+  "dataset/parse_alignment_sequences.json": 78559,
+  "dataset/extract_tree_from_string_or_file.json": 18474,
+  "dataset/compute_fast_dist_matrix.json": 21137,
+  "dataset/compute_mds_coordinates.json": 77808,
+  "dataset/load_alignment_and_tree.json": 585183,
+  "dataset/rescale_rule.json": 7176,
+  "dataset/prune_identical_sequences.json": 2091,
+  "dataset/load_alignment_and_tree_duplicates.json": 2885,
+  "dataset/downsample_taxa_faith_pd.json": 435764,
+  "attribution/attribute_selection.json": 20246,
+  "dms/run_insilico_selection_dms.json": 9785,
+  "e2e/meme_bat_oas1.json": 58734,
+  "e2e/meme_Smc6.json": 173790,
+  "e2e/meme_camelid.json": 17551,
+  "e2e/meme_HIV1_RT.json": 55768,
+  "e2e/meme_RHO.json": 57770,
+  "e2e/meme_bat_oas1_attribute_filter.json": 86860,
+  "e2e/busted_Smc6.json": 2136,
+  "e2e/busted_HIV1_RT.json": 2174,
+  "e2e/epistasis_Smc6_n_permutations_1000.json": 18762,
+  "e2e/phenotype_RHO_marine_n_permutations_0.json": 130087,
+  "e2e/filter_bat_oas1.json": 1856,
+  "e2e/filter_camelid.json": 2370
+ },
+ "total_bytes": 2919473,
+ "elapsed_seconds": 73.2,
+ "e2e_wall_seconds": {
+  "meme_bat_oas1": 1.6,
+  "meme_Smc6": 1.6,
+  "meme_camelid": 3.9,
+  "meme_HIV1_RT": 17.6,
+  "meme_RHO": 4.8,
+  "meme_bat_oas1_attribute_filter": 1.8,
+  "busted_Smc6": 1.7,
+  "busted_HIV1_RT": 17.7,
+  "epistasis_Smc6_n_permutations_1000": 2.6,
+  "phenotype_RHO_marine_n_permutations_0": 8.0
+ },
+ "busted_head_missing_keys": [
+  "coral_logp.theta_steps",
+  "coral_lrt.theta_steps",
+  "coral_omega3.theta_steps",
+  "head_prop.bias",
+  "head_prop.weight",
+  "head_syn_var.0.bias",
+  "head_syn_var.0.weight",
+  "head_syn_var.2.bias",
+  "head_syn_var.2.weight",
+  "in_proj.bias",
+  "in_proj.weight"
+ ]
+}

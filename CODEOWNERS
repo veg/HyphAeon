@@ -1,0 +1,14 @@
+# Ownership for the methods and their mirror.
+#
+# The Python reference (hyphaeon/), its JavaScript port (js/), the fixtures generated from the
+# one and replayed by the other (fixtures/), and the exported models plus manifest (models/) are
+# one thing reviewed by one set of people: a change to a method and its port land in the same
+# pull request, side by side (PLAN.md 5.5 in veg/hyphaeon-app).
+#
+# @veg/hyphaeon-maintainers is a placeholder. Replace it with the real GitHub team (or a list of
+# users) once the team exists; CODEOWNERS is silently ignored for a team that does not.
+
+/hyphaeon/  @veg/hyphaeon-maintainers
+/js/        @veg/hyphaeon-maintainers
+/fixtures/  @veg/hyphaeon-maintainers
+/models/    @veg/hyphaeon-maintainers

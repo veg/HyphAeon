@@ -88,3 +88,4 @@ weights/
 *.pt
 *.safetensors
 REVIEW.md
+parity/

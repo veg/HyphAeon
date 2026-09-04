@@ -1,0 +1,49 @@
+[
+ {
+  "name": "busted_HIV1_RT",
+  "inputs": {
+   "argv": [
+    "hyphaeon",
+    "busted",
+    "-a",
+    "HIV1_RT.fasta",
+    "-t",
+    "HIV1_RT.nwk",
+    "--cpu",
+    "-o",
+    "<out.json>"
+   ],
+   "model_safetensors_sha256": "0278dff092601acca959aa64bf6742ad17a38a5e6e31eabd424d6d224eea6ebd",
+   "device": "cpu",
+   "torch": "2.10.0",
+   "hyphy": "HYPHY 2.5.65(MP) for Darwin on x86_64 x86 AVX SIMD with FMA3 zlib (v1.2.12)"
+  },
+  "outputs": {
+   "alignment": "HIV1_RT.fasta",
+   "gene": "HIV1_RT",
+   "taxa": 475,
+   "sites": 335,
+   "p_value_acat": 0.0012560732454011125,
+   "p_value_simes": 0.004985100291419881,
+   "omnibus_lrt": 153.3007354736328,
+   "predicted_gene_lrt": null,
+   "selection_probability": null,
+   "synonymous_rate_variation": null,
+   "total_selection_energy": 505.8414306640625,
+   "sig_sites_p05": 66,
+   "sig_sites_p10": 96,
+   "rate_distributions": {
+    "omega_1": 0.1,
+    "proportion_1": null,
+    "omega_2": 1.0,
+    "proportion_2": null,
+    "omega_3": null,
+    "proportion_3": null
+   },
+   "positive_selection_detected": null,
+   "elapsed_seconds": null
+  },
+  "tolerance": "1e-5",
+  "notes": "`hyphaeon busted` JSON (cli.py cmd_busted): Self-Liang site p, ACAT over variable sites, Simes over all sites, omnibus_lrt = sum max(0, lrt-3.841), neural BustedMultiTaskHead outputs (selection_probability, predicted_gene_lrt, synonymous_rate_variation, omega proportions). Head outputs 1e-5; counts exact. NEURAL HEAD FIELDS NULLED: model.safetensors lacks these BustedMultiTaskHead parameters coral_logp.theta_steps, coral_lrt.theta_steps, coral_omega3.theta_steps, head_prop.bias, head_prop.weight, head_syn_var.0.bias, head_syn_var.0.weight, head_syn_var.2.bias, head_syn_var.2.weight, in_proj.bias, in_proj.weight so they are random on every run (strict=False, no seed); predicted_gene_lrt, selection_probability, synonymous_rate_variation, omega_3/proportion_* and positive_selection_detected (which depends on selection_probability) are therefore null here and must not be compared. omega_1/omega_2 are constants (0.10, 1.00). Timing fields nulled (wall times are in manifest.json e2e_wall_seconds); paths reduced to basenames."
+ }
+]

@@ -1155,6 +1155,15 @@ def main():
     from .evaluation import configure_parser as configure_evaluation_parser
     configure_evaluation_parser(eval_parser)
 
+    # 8. ONNX export (backbone: lrt / mean_root_attns / root_repr; BUSTED head; manifest.json)
+    export_parser = subparsers.add_parser(
+        "export-onnx",
+        help="Export ONNX graphs for the general/viral variants plus busted_head.onnx and models/manifest.json",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    from .export import configure_parser as configure_export_parser
+    configure_export_parser(export_parser)
+
     args = parser.parse_args()
     if args.command in ["meme", "predict", "site-selection"]:
         cmd_meme(args)
@@ -1178,6 +1187,9 @@ def main():
             evaluate_command(args)
         except EvaluationError as exc:
             parser.error(str(exc))
+    elif args.command == "export-onnx":
+        from .export import command as export_command
+        export_command(args)
     else:
         parser.print_help()
 

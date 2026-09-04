@@ -1,0 +1,44 @@
+{
+  "model_version": "v1",
+  "variants": {
+    "general": {
+      "safetensors_sha256": "0278dff092601acca959aa64bf6742ad17a38a5e6e31eabd424d6d224eea6ebd",
+      "onnx_sha256": "aa10e8e0f059436bd8a6f59e1fb3f0137e845533b9c65009230c7de6b91ef22c",
+      "busted_head_onnx_sha256": "2ad554e02b5580b813a915d8fbd8a4fa925c7679977adb596388fdc8d4c1c116",
+      "trained_on": "TOGA mammalian, 742 species",
+      "regime": "deep / cross-species"
+    },
+    "viral": {
+      "safetensors_sha256": "b6b0d8d09518fa5068f955ffc14179cbf6f4fd375119d89776d9461143b84595",
+      "onnx_sha256": "c3ea5795b397e64fdf2b80b0018c2e41ec2ac630cd827002b85c744580b6a2e2",
+      "trained_on": "base + ~9,300 Datamonkey viral",
+      "regime": "viral / shallow"
+    }
+  },
+  "taxon_cap": 512,
+  "default_taxon_cap": 256,
+  "dropped_heads_policy": "omit",
+  "onnx": {
+    "opset": 17,
+    "inputs": [
+      "msa_codons",
+      "msa_aas",
+      "dist_matrix",
+      "mds_coords"
+    ],
+    "outputs": [
+      "lrt",
+      "mean_root_attns",
+      "root_repr"
+    ]
+  },
+  "prng": {
+    "algorithm": "xoshiro256**",
+    "default_seed": 42
+  },
+  "reference_version": "1.0.0",
+  "exported_with": {
+    "torch": "2.10.0",
+    "onnx": "1.22.0"
+  }
+}

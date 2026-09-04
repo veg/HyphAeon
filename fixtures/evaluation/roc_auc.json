@@ -1,0 +1,76 @@
+[
+ {
+  "name": "ties_average_rank",
+  "inputs": {
+   "labels": [
+    true,
+    false,
+    true,
+    true,
+    false,
+    false,
+    true,
+    false
+   ],
+   "scores": [
+    5.0,
+    5.0,
+    2.0,
+    9.0,
+    0.0,
+    2.0,
+    2.0,
+    1.0
+   ]
+  },
+  "outputs": {
+   "auc": 0.78125
+  },
+  "tolerance": "1e-9",
+  "notes": "Mann-Whitney AUC with rankdata(method='average') so tied scores share the mean rank"
+ },
+ {
+  "name": "all_positive",
+  "inputs": {
+   "labels": [
+    true,
+    true,
+    true,
+    true
+   ],
+   "scores": [
+    0.0,
+    1.0,
+    2.0,
+    3.0
+   ]
+  },
+  "outputs": {
+   "auc": null
+  },
+  "tolerance": "exact",
+  "notes": "no negatives -> None"
+ },
+ {
+  "name": "perfect",
+  "inputs": {
+   "labels": [
+    false,
+    false,
+    true,
+    true
+   ],
+   "scores": [
+    0.1,
+    0.2,
+    0.8,
+    0.9
+   ]
+  },
+  "outputs": {
+   "auc": 1.0
+  },
+  "tolerance": "exact",
+  "notes": ""
+ }
+]

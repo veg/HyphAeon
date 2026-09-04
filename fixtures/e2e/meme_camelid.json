@@ -1,0 +1,709 @@
+[
+ {
+  "name": "meme_camelid",
+  "inputs": {
+   "argv": [
+    "hyphaeon",
+    "meme",
+    "-a",
+    "camelid.fasta",
+    "-t",
+    "camelid.nwk",
+    "--cpu",
+    "-o",
+    "<out.json>"
+   ],
+   "model_safetensors_sha256": "0278dff092601acca959aa64bf6742ad17a38a5e6e31eabd424d6d224eea6ebd",
+   "device": "cpu",
+   "torch": "2.10.0",
+   "hyphy": "HYPHY 2.5.65(MP) for Darwin on x86_64 x86 AVX SIMD with FMA3 zlib (v1.2.12)"
+  },
+  "outputs": {
+   "alignment": "camelid.fasta",
+   "tree": "camelid.nwk",
+   "taxa_count": 212,
+   "codon_count": 96,
+   "runtime_sec": null,
+   "filter_enabled": false,
+   "artifacts_masked": [],
+   "attribution_enabled": false,
+   "attributions": {},
+   "sites": [
+    {
+     "site": 1,
+     "hyphaeon_lrt": 0.5098299384117126,
+     "p_value": 0.4267239570617676,
+     "q_value": 0.5185506343841553,
+     "is_invariable": false
+    },
+    {
+     "site": 2,
+     "hyphaeon_lrt": 0.0,
+     "p_value": 0.6666666865348816,
+     "q_value": 0.6666666865348816,
+     "is_invariable": true
+    },
+    {
+     "site": 3,
+     "hyphaeon_lrt": 2.92970871925354,
+     "p_value": 0.11082988977432251,
+     "q_value": 0.36869460344314575,
+     "is_invariable": false
+    },
+    {
+     "site": 4,
+     "hyphaeon_lrt": 0.0,
+     "p_value": 0.6666666865348816,
+     "q_value": 0.6666666865348816,
+     "is_invariable": true
+    },
+    {
+     "site": 5,
+     "hyphaeon_lrt": 5.022334575653076,
+     "p_value": 0.03727031499147415,
+     "q_value": 0.2825925648212433,
+     "is_invariable": false
+    },
+    {
+     "site": 6,
+     "hyphaeon_lrt": 1.0425463914871216,
+     "p_value": 0.3098824918270111,
+     "q_value": 0.41317665576934814,
+     "is_invariable": false
+    },
+    {
+     "site": 7,
+     "hyphaeon_lrt": 0.0,
+     "p_value": 0.6666666865348816,
+     "q_value": 0.6666666865348816,
+     "is_invariable": true
+    },
+    {
+     "site": 8,
+     "hyphaeon_lrt": 0.0,
+     "p_value": 0.6666666865348816,
+     "q_value": 0.6666666865348816,
+     "is_invariable": true
+    },
+    {
+     "site": 9,
+     "hyphaeon_lrt": 0.0,
+     "p_value": 0.6666666865348816,
+     "q_value": 0.6666666865348816,
+     "is_invariable": true
+    },
+    {
+     "site": 10,
+     "hyphaeon_lrt": 1.068681001663208,
+     "p_value": 0.30526015162467957,
+     "q_value": 0.4129622280597687,
+     "is_invariable": false
+    },
+    {
+     "site": 11,
+     "hyphaeon_lrt": 10.234591484069824,
+     "p_value": 0.0026106354780495167,
+     "q_value": 0.23540838062763214,
+     "is_invariable": false
+    },
+    {
+     "site": 12,
+     "hyphaeon_lrt": 0.1464722454547882,
+     "p_value": 0.5513520836830139,
+     "q_value": 0.6227035522460938,
+     "is_invariable": false
+    },
+    {
+     "site": 13,
+     "hyphaeon_lrt": 1.1059733629226685,
+     "p_value": 0.2988050580024719,
+     "q_value": 0.4129622280597687,
+     "is_invariable": false
+    },
+    {
+     "site": 14,
+     "hyphaeon_lrt": 1.260148286819458,
+     "p_value": 0.27375608682632446,
+     "q_value": 0.4129622280597687,
+     "is_invariable": false
+    },
+    {
+     "site": 15,
+     "hyphaeon_lrt": 0.0,
+     "p_value": 0.6666666865348816,
+     "q_value": 0.6666666865348816,
+     "is_invariable": true
+    },
+    {
+     "site": 16,
+     "hyphaeon_lrt": 1.0677694082260132,
+     "p_value": 0.3054199814796448,
+     "q_value": 0.4129622280597687,
+     "is_invariable": false
+    },
+    {
+     "site": 17,
+     "hyphaeon_lrt": 0.0,
+     "p_value": 0.6666666865348816,
+     "q_value": 0.6666666865348816,
+     "is_invariable": true
+    },
+    {
+     "site": 18,
+     "hyphaeon_lrt": 4.184653282165527,
+     "p_value": 0.05748402327299118,
+     "q_value": 0.3246156573295593,
+     "is_invariable": false
+    },
+    {
+     "site": 19,
+     "hyphaeon_lrt": 1.7155523300170898,
+     "p_value": 0.21258483827114105,
+     "q_value": 0.3924643099308014,
+     "is_invariable": false
+    },
+    {
+     "site": 20,
+     "hyphaeon_lrt": 2.1048996448516846,
+     "p_value": 0.17204494774341583,
+     "q_value": 0.36869460344314575,
+     "is_invariable": false
+    },
+    {
+     "site": 21,
+     "hyphaeon_lrt": 4.780856609344482,
+     "p_value": 0.042216505855321884,
+     "q_value": 0.2825925648212433,
+     "is_invariable": false
+    },
+    {
+     "site": 22,
+     "hyphaeon_lrt": 0.0,
+     "p_value": 0.6666666865348816,
+     "q_value": 0.6666666865348816,
+     "is_invariable": true
+    },
+    {
+     "site": 23,
+     "hyphaeon_lrt": 1.0988951921463013,
+     "p_value": 0.300017774105072,
+     "q_value": 0.4129622280597687,
+     "is_invariable": false
+    },
+    {
+     "site": 24,
+     "hyphaeon_lrt": 2.961686372756958,
+     "p_value": 0.10897449404001236,
+     "q_value": 0.36869460344314575,
+     "is_invariable": false
+    },
+    {
+     "site": 25,
+     "hyphaeon_lrt": 3.3682475090026855,
+     "p_value": 0.08799522370100021,
+     "q_value": 0.35198089480400085,
+     "is_invariable": false
+    },
+    {
+     "site": 26,
+     "hyphaeon_lrt": 0.6285002827644348,
+     "p_value": 0.3961617648601532,
+     "q_value": 0.49391594529151917,
+     "is_invariable": false
+    },
+    {
+     "site": 27,
+     "hyphaeon_lrt": 4.895347595214844,
+     "p_value": 0.03979341685771942,
+     "q_value": 0.2825925648212433,
+     "is_invariable": false
+    },
+    {
+     "site": 28,
+     "hyphaeon_lrt": 2.245244026184082,
+     "p_value": 0.159530371427536,
+     "q_value": 0.36869460344314575,
+     "is_invariable": false
+    },
+    {
+     "site": 29,
+     "hyphaeon_lrt": 3.460153818130493,
+     "p_value": 0.08385862410068512,
+     "q_value": 0.35198089480400085,
+     "is_invariable": false
+    },
+    {
+     "site": 30,
+     "hyphaeon_lrt": 1.437907338142395,
+     "p_value": 0.2478061467409134,
+     "q_value": 0.39648982882499695,
+     "is_invariable": false
+    },
+    {
+     "site": 31,
+     "hyphaeon_lrt": 4.84589958190918,
+     "p_value": 0.04082213714718819,
+     "q_value": 0.2825925648212433,
+     "is_invariable": false
+    },
+    {
+     "site": 32,
+     "hyphaeon_lrt": 2.9171924591064453,
+     "p_value": 0.1115649864077568,
+     "q_value": 0.36869460344314575,
+     "is_invariable": false
+    },
+    {
+     "site": 33,
+     "hyphaeon_lrt": 6.834097862243652,
+     "p_value": 0.014713023789227009,
+     "q_value": 0.23540838062763214,
+     "is_invariable": false
+    },
+    {
+     "site": 34,
+     "hyphaeon_lrt": 2.962956428527832,
+     "p_value": 0.10890147089958191,
+     "q_value": 0.36869460344314575,
+     "is_invariable": false
+    },
+    {
+     "site": 35,
+     "hyphaeon_lrt": 2.57066011428833,
+     "p_value": 0.13406376540660858,
+     "q_value": 0.36869460344314575,
+     "is_invariable": false
+    },
+    {
+     "site": 36,
+     "hyphaeon_lrt": 2.699726104736328,
+     "p_value": 0.12517742812633514,
+     "q_value": 0.36869460344314575,
+     "is_invariable": false
+    },
+    {
+     "site": 37,
+     "hyphaeon_lrt": 1.9126763343811035,
+     "p_value": 0.1909089833498001,
+     "q_value": 0.38481640815734863,
+     "is_invariable": false
+    },
+    {
+     "site": 38,
+     "hyphaeon_lrt": 2.5953805446624756,
+     "p_value": 0.1323121041059494,
+     "q_value": 0.36869460344314575,
+     "is_invariable": false
+    },
+    {
+     "site": 39,
+     "hyphaeon_lrt": 2.6449897289276123,
+     "p_value": 0.12886859476566315,
+     "q_value": 0.36869460344314575,
+     "is_invariable": false
+    },
+    {
+     "site": 40,
+     "hyphaeon_lrt": 2.3738389015197754,
+     "p_value": 0.14890694618225098,
+     "q_value": 0.36869460344314575,
+     "is_invariable": false
+    },
+    {
+     "site": 41,
+     "hyphaeon_lrt": 1.5522444248199463,
+     "p_value": 0.23257657885551453,
+     "q_value": 0.39648982882499695,
+     "is_invariable": false
+    },
+    {
+     "site": 42,
+     "hyphaeon_lrt": 1.0692704916000366,
+     "p_value": 0.3051568269729614,
+     "q_value": 0.4129622280597687,
+     "is_invariable": false
+    },
+    {
+     "site": 43,
+     "hyphaeon_lrt": 1.1508114337921143,
+     "p_value": 0.29125523567199707,
+     "q_value": 0.4129622280597687,
+     "is_invariable": false
+    },
+    {
+     "site": 44,
+     "hyphaeon_lrt": 2.1337010860443115,
+     "p_value": 0.16939425468444824,
+     "q_value": 0.36869460344314575,
+     "is_invariable": false
+    },
+    {
+     "site": 45,
+     "hyphaeon_lrt": 1.936255693435669,
+     "p_value": 0.18848028779029846,
+     "q_value": 0.38481640815734863,
+     "is_invariable": false
+    },
+    {
+     "site": 46,
+     "hyphaeon_lrt": 2.372776508331299,
+     "p_value": 0.14899158477783203,
+     "q_value": 0.36869460344314575,
+     "is_invariable": false
+    },
+    {
+     "site": 47,
+     "hyphaeon_lrt": 5.800107479095459,
+     "p_value": 0.024981655180454254,
+     "q_value": 0.2825925648212433,
+     "is_invariable": false
+    },
+    {
+     "site": 48,
+     "hyphaeon_lrt": 0.3879053294658661,
+     "p_value": 0.4620429575443268,
+     "q_value": 0.5476064682006836,
+     "is_invariable": false
+    },
+    {
+     "site": 49,
+     "hyphaeon_lrt": 1.1765673160552979,
+     "p_value": 0.287019282579422,
+     "q_value": 0.4129622280597687,
+     "is_invariable": false
+    },
+    {
+     "site": 50,
+     "hyphaeon_lrt": 4.268618583679199,
+     "p_value": 0.05503305047750473,
+     "q_value": 0.3246156573295593,
+     "is_invariable": false
+    },
+    {
+     "site": 51,
+     "hyphaeon_lrt": 4.693960666656494,
+     "p_value": 0.04415508732199669,
+     "q_value": 0.2825925648212433,
+     "is_invariable": false
+    },
+    {
+     "site": 52,
+     "hyphaeon_lrt": 3.6805574893951416,
+     "p_value": 0.07473196089267731,
+     "q_value": 0.35198089480400085,
+     "is_invariable": false
+    },
+    {
+     "site": 53,
+     "hyphaeon_lrt": 7.175375461578369,
+     "p_value": 0.012360142543911934,
+     "q_value": 0.23540838062763214,
+     "is_invariable": false
+    },
+    {
+     "site": 54,
+     "hyphaeon_lrt": 4.045251846313477,
+     "p_value": 0.06180150806903839,
+     "q_value": 0.3296080529689789,
+     "is_invariable": false
+    },
+    {
+     "site": 55,
+     "hyphaeon_lrt": 5.421517848968506,
+     "p_value": 0.030345339328050613,
+     "q_value": 0.2825925648212433,
+     "is_invariable": false
+    },
+    {
+     "site": 56,
+     "hyphaeon_lrt": 1.8603779077529907,
+     "p_value": 0.1964167207479477,
+     "q_value": 0.38481640815734863,
+     "is_invariable": false
+    },
+    {
+     "site": 57,
+     "hyphaeon_lrt": 7.003277778625488,
+     "p_value": 0.013495060615241528,
+     "q_value": 0.23540838062763214,
+     "is_invariable": false
+    },
+    {
+     "site": 58,
+     "hyphaeon_lrt": 2.3352699279785156,
+     "p_value": 0.15201258659362793,
+     "q_value": 0.36869460344314575,
+     "is_invariable": false
+    },
+    {
+     "site": 59,
+     "hyphaeon_lrt": 7.886958599090576,
+     "p_value": 0.008600019849836826,
+     "q_value": 0.23540838062763214,
+     "is_invariable": false
+    },
+    {
+     "site": 60,
+     "hyphaeon_lrt": 3.068220853805542,
+     "p_value": 0.1030217707157135,
+     "q_value": 0.36869460344314575,
+     "is_invariable": false
+    },
+    {
+     "site": 61,
+     "hyphaeon_lrt": 1.1714987754821777,
+     "p_value": 0.2878471910953522,
+     "q_value": 0.4129622280597687,
+     "is_invariable": false
+    },
+    {
+     "site": 62,
+     "hyphaeon_lrt": 1.7406275272369385,
+     "p_value": 0.20968517661094666,
+     "q_value": 0.3924643099308014,
+     "is_invariable": false
+    },
+    {
+     "site": 63,
+     "hyphaeon_lrt": 0.23239262402057648,
+     "p_value": 0.5153701305389404,
+     "q_value": 0.5913824439048767,
+     "is_invariable": false
+    },
+    {
+     "site": 64,
+     "hyphaeon_lrt": 1.5135077238082886,
+     "p_value": 0.2376166135072708,
+     "q_value": 0.39648982882499695,
+     "is_invariable": false
+    },
+    {
+     "site": 65,
+     "hyphaeon_lrt": 5.949267864227295,
+     "p_value": 0.02314126491546631,
+     "q_value": 0.2825925648212433,
+     "is_invariable": false
+    },
+    {
+     "site": 66,
+     "hyphaeon_lrt": 0.9418027400970459,
+     "p_value": 0.32850542664527893,
+     "q_value": 0.42587149143218994,
+     "is_invariable": false
+    },
+    {
+     "site": 67,
+     "hyphaeon_lrt": 0.43210268020629883,
+     "p_value": 0.44870880246162415,
+     "q_value": 0.5384505987167358,
+     "is_invariable": false
+    },
+    {
+     "site": 68,
+     "hyphaeon_lrt": 2.5289196968078613,
+     "p_value": 0.13707667589187622,
+     "q_value": 0.36869460344314575,
+     "is_invariable": false
+    },
+    {
+     "site": 69,
+     "hyphaeon_lrt": 0.5137901902198792,
+     "p_value": 0.42564889788627625,
+     "q_value": 0.5185506343841553,
+     "is_invariable": false
+    },
+    {
+     "site": 70,
+     "hyphaeon_lrt": 1.602054238319397,
+     "p_value": 0.22626851499080658,
+     "q_value": 0.39648982882499695,
+     "is_invariable": false
+    },
+    {
+     "site": 71,
+     "hyphaeon_lrt": 3.5479981899261475,
+     "p_value": 0.08009136468172073,
+     "q_value": 0.35198089480400085,
+     "is_invariable": false
+    },
+    {
+     "site": 72,
+     "hyphaeon_lrt": 2.0965073108673096,
+     "p_value": 0.17282558977603912,
+     "q_value": 0.36869460344314575,
+     "is_invariable": false
+    },
+    {
+     "site": 73,
+     "hyphaeon_lrt": 2.123063564300537,
+     "p_value": 0.17036817967891693,
+     "q_value": 0.36869460344314575,
+     "is_invariable": false
+    },
+    {
+     "site": 74,
+     "hyphaeon_lrt": 1.0166466236114502,
+     "p_value": 0.3145459294319153,
+     "q_value": 0.41364943981170654,
+     "is_invariable": false
+    },
+    {
+     "site": 75,
+     "hyphaeon_lrt": 1.8912674188613892,
+     "p_value": 0.19314326345920563,
+     "q_value": 0.38481640815734863,
+     "is_invariable": false
+    },
+    {
+     "site": 76,
+     "hyphaeon_lrt": 7.651481628417969,
+     "p_value": 0.009695939719676971,
+     "q_value": 0.23540838062763214,
+     "is_invariable": false
+    },
+    {
+     "site": 77,
+     "hyphaeon_lrt": 1.2857073545455933,
+     "p_value": 0.2698417603969574,
+     "q_value": 0.4129622280597687,
+     "is_invariable": false
+    },
+    {
+     "site": 78,
+     "hyphaeon_lrt": 2.3125154972076416,
+     "p_value": 0.15387675166130066,
+     "q_value": 0.36869460344314575,
+     "is_invariable": false
+    },
+    {
+     "site": 79,
+     "hyphaeon_lrt": 2.762787103652954,
+     "p_value": 0.12106101959943771,
+     "q_value": 0.36869460344314575,
+     "is_invariable": false
+    },
+    {
+     "site": 80,
+     "hyphaeon_lrt": 1.50399911403656,
+     "p_value": 0.2388722002506256,
+     "q_value": 0.39648982882499695,
+     "is_invariable": false
+    },
+    {
+     "site": 81,
+     "hyphaeon_lrt": 0.36132529377937317,
+     "p_value": 0.47039419412612915,
+     "q_value": 0.5507054328918457,
+     "is_invariable": false
+    },
+    {
+     "site": 82,
+     "hyphaeon_lrt": 2.213623285293579,
+     "p_value": 0.16226328909397125,
+     "q_value": 0.36869460344314575,
+     "is_invariable": false
+    },
+    {
+     "site": 83,
+     "hyphaeon_lrt": 3.4169633388519287,
+     "p_value": 0.08577711135149002,
+     "q_value": 0.35198089480400085,
+     "is_invariable": false
+    },
+    {
+     "site": 84,
+     "hyphaeon_lrt": 1.7326232194900513,
+     "p_value": 0.21060608327388763,
+     "q_value": 0.3924643099308014,
+     "is_invariable": false
+    },
+    {
+     "site": 85,
+     "hyphaeon_lrt": 3.5559418201446533,
+     "p_value": 0.07975936681032181,
+     "q_value": 0.35198089480400085,
+     "is_invariable": false
+    },
+    {
+     "site": 86,
+     "hyphaeon_lrt": 4.838752746582031,
+     "p_value": 0.04097303748130798,
+     "q_value": 0.2825925648212433,
+     "is_invariable": false
+    },
+    {
+     "site": 87,
+     "hyphaeon_lrt": 1.5206531286239624,
+     "p_value": 0.23667789995670319,
+     "q_value": 0.39648982882499695,
+     "is_invariable": false
+    },
+    {
+     "site": 88,
+     "hyphaeon_lrt": 0.9200054407119751,
+     "p_value": 0.3327121138572693,
+     "q_value": 0.42587149143218994,
+     "is_invariable": false
+    },
+    {
+     "site": 89,
+     "hyphaeon_lrt": 1.4963736534118652,
+     "p_value": 0.23988445103168488,
+     "q_value": 0.39648982882499695,
+     "is_invariable": false
+    },
+    {
+     "site": 90,
+     "hyphaeon_lrt": 0.0,
+     "p_value": 0.6666666865348816,
+     "q_value": 0.6666666865348816,
+     "is_invariable": true
+    },
+    {
+     "site": 91,
+     "hyphaeon_lrt": 0.22698046267032623,
+     "p_value": 0.5174596309661865,
+     "q_value": 0.5913824439048767,
+     "is_invariable": false
+    },
+    {
+     "site": 92,
+     "hyphaeon_lrt": 1.2467387914657593,
+     "p_value": 0.27583569288253784,
+     "q_value": 0.4129622280597687,
+     "is_invariable": false
+    },
+    {
+     "site": 93,
+     "hyphaeon_lrt": 1.4619693756103516,
+     "p_value": 0.24451115727424622,
+     "q_value": 0.39648982882499695,
+     "is_invariable": false
+    },
+    {
+     "site": 94,
+     "hyphaeon_lrt": 0.029338961467146873,
+     "p_value": 0.6205267310142517,
+     "q_value": 0.6666666865348816,
+     "is_invariable": false
+    },
+    {
+     "site": 95,
+     "hyphaeon_lrt": 0.8312641382217407,
+     "p_value": 0.35054394602775574,
+     "q_value": 0.4427923262119293,
+     "is_invariable": false
+    },
+    {
+     "site": 96,
+     "hyphaeon_lrt": 0.0,
+     "p_value": 0.6666666865348816,
+     "q_value": 0.6666666865348816,
+     "is_invariable": true
+    }
+   ]
+  },
+  "tolerance": "1e-5",
+  "notes": "`hyphaeon meme` JSON (cli.py cmd_meme). p_value/q_value are float32 casts of the float64 stats. Per-site LRT through the model is 1e-5; is_invariable exact. RHO has an embedded NEXUS tree and 710 taxa (> 500, so MDS uses the Lanczos path). camelid.nwk has no branch lengths: HyPhy HKY85 estimation ran first, so this fixture depends on the HyPhy version recorded in inputs. Timing fields nulled (wall times are in manifest.json e2e_wall_seconds); paths reduced to basenames."
+ }
+]

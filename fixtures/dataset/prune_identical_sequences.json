@@ -1,0 +1,149 @@
+[
+ {
+  "name": "planted_duplicates",
+  "inputs": {
+   "seq_dict": {
+    "a": "ATGAAA",
+    "b": "ATGAAA",
+    "c": "ATGAAC",
+    "d": "ATGAAA",
+    "e": "ATGAAC",
+    "f": "atgaaa",
+    "g": "ATG---"
+   },
+   "taxa": [
+    "a",
+    "b",
+    "c",
+    "d",
+    "e",
+    "f",
+    "g"
+   ]
+  },
+  "outputs": {
+   "unique_taxa": [
+    "a",
+    "c",
+    "f",
+    "g"
+   ],
+   "dup_map": {
+    "a": [
+     "b",
+     "d"
+    ],
+    "c": [
+     "e"
+    ],
+    "f": [],
+    "g": []
+   },
+   "num_pruned": 3
+  },
+  "tolerance": "exact",
+  "notes": "signature: prune_identical_sequences(seq_dict, taxa) -> (unique_taxa in first-seen order, dup_map rep -> [dups], num_pruned). Byte-identical only: 'atgaaa' != 'ATGAAA' at this level (parse upper-cases earlier); gapped variants are distinct."
+ },
+ {
+  "name": "taxa_order_matters",
+  "inputs": {
+   "seq_dict": {
+    "a": "ATGAAA",
+    "b": "ATGAAA",
+    "c": "ATGAAC",
+    "d": "ATGAAA",
+    "e": "ATGAAC",
+    "f": "atgaaa",
+    "g": "ATG---"
+   },
+   "taxa": [
+    "g",
+    "f",
+    "e",
+    "d",
+    "c",
+    "b",
+    "a"
+   ]
+  },
+  "outputs": {
+   "unique_taxa": [
+    "g",
+    "f",
+    "e",
+    "d"
+   ],
+   "dup_map": {
+    "g": [],
+    "f": [],
+    "e": [
+     "c"
+    ],
+    "d": [
+     "b",
+     "a"
+    ]
+   },
+   "num_pruned": 3
+  },
+  "tolerance": "exact",
+  "notes": "representative is the first taxon in the given order"
+ },
+ {
+  "name": "subset_of_taxa",
+  "inputs": {
+   "seq_dict": {
+    "a": "ATGAAA",
+    "b": "ATGAAA",
+    "c": "ATGAAC",
+    "d": "ATGAAA",
+    "e": "ATGAAC",
+    "f": "atgaaa",
+    "g": "ATG---"
+   },
+   "taxa": [
+    "b",
+    "d"
+   ]
+  },
+  "outputs": {
+   "unique_taxa": [
+    "b"
+   ],
+   "dup_map": {
+    "b": [
+     "d"
+    ]
+   },
+   "num_pruned": 1
+  },
+  "tolerance": "exact",
+  "notes": ""
+ },
+ {
+  "name": "no_duplicates",
+  "inputs": {
+   "seq_dict": {
+    "x": "AAA",
+    "y": "AAC"
+   },
+   "taxa": [
+    "x",
+    "y"
+   ]
+  },
+  "outputs": {
+   "unique_taxa": [
+    "x",
+    "y"
+   ],
+   "dup_map": {
+    "x": [],
+    "y": []
+   },
+   "num_pruned": 0
+  },
+  "tolerance": "exact",
+  "notes": ""
+ }
+]

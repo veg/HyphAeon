@@ -1,0 +1,43 @@
+[
+ {
+  "name": "filter_bat_oas1",
+  "inputs": {
+   "call": "hyphaeon.filter.run_alignment_filter(alignment, tree, alpha_site=0.05, min_k=3, max_span=35, min_oci=0.25, min_run_length=3)",
+   "alignment": "bat_oas1.fasta",
+   "tree": "bat_oas1.nwk",
+   "model_safetensors_sha256": "0278dff092601acca959aa64bf6742ad17a38a5e6e31eabd424d6d224eea6ebd",
+   "device": "cpu",
+   "hyphy": "HYPHY 2.5.65(MP) for Darwin on x86_64 x86 AVX SIMD with FMA3 zlib (v1.2.12)"
+  },
+  "outputs": {
+   "result": {
+    "num_taxa": 18,
+    "num_codons": 351,
+    "num_patches_detected": 1,
+    "num_artifacts_masked": 0,
+    "masked_codons_count": 0,
+    "raw_metrics": {
+     "cct_p_value": 0.4364920152853552,
+     "sig_sites_p05": 5,
+     "sig_sites_q10": 0,
+     "mean_lrt": 0.5723475813865662
+    },
+    "cleaned_metrics": {
+     "cct_p_value": 0.4364920152853552,
+     "sig_sites_p05": 5,
+     "sig_sites_q10": 0,
+     "mean_lrt": 0.5723475813865662
+    },
+    "suppressed_spurious_sites": 0,
+    "artifacts": [],
+    "elapsed_seconds": null,
+    "output_alignment": "clean.fa",
+    "audit_csv": "audit.csv"
+   },
+   "masked_codon_ranges_1idx_by_taxon": {},
+   "cleaned_alignment_sha256": "0af7f6c838608d4020116269093e5213af3d75adbbd896326aa8d80c5bac52c6"
+  },
+  "tolerance": "1e-5",
+  "notes": "OCI is inline in filter.run_alignment_filter (not a separate function) so this is an end-to-end fixture: baseline LRTs (model, 1e-5) -> MEME p -> scan_hypergeometric_patches -> per-patch consensus codons (pandas mode: lowest codon string on ties) -> per-taxon max mismatch run and count -> top taxon by (run, count) -> OCI = count/total -> artifact if (run>=3 and OCI>=0.25) or run>=4 -> NNN mask -> re-score. artifacts list, masked ranges and cleaned-alignment hash are exact; metrics 1e-5. bat_oas1 yields 1 candidate patch and 0 artifacts, exercising the no-mask path."
+ }
+]

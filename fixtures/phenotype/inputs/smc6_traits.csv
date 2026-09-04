@@ -1,0 +1,13 @@
+species,hominoid,body_mass_kg,note
+homSap_293T,yes,62.0,human
+hg18,1,62.0,human build
+panTro4,true,45.0,
+panPan,case,39.0,
+ponAbe2,foreground,60.0,
+nomLeu3,no,6.0,
+macMul,0,8.0,
+rheMac,false,8.0,
+calJac,no,0.35,
+saiBol,,0.8,missing trait
+chlSab,NO,4.5,case-insensitive
+aotTri,yes,1.0,partial name: matches aotTri_OMK by substring

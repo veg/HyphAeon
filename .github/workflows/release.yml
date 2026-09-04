@@ -1,0 +1,127 @@
+# WHY THIS FILE EXISTS
+#
+# One tag releases both halves of this repository from one commit (PLAN.md D19 in
+# veg/hyphaeon-app): `hyphaeon` to PyPI and `@veg/hyphaeon-js` to npm, with models/manifest.json
+# attached to the GitHub release so the artifact hashes a given version verified against are
+# recorded next to it. The versions are checked against the tag before anything is published,
+# because a tag v1.4.0 that ships js/package.json 1.3.0 breaks the app's "pin an exact version"
+# rule silently.
+#
+# Credentials:
+#   - PyPI uses trusted publishing (OIDC, no secret). The PyPI project must have a trusted
+#     publisher configured for owner `veg`, repository `HyphAeon`, workflow `release.yml`,
+#     environment `pypi`.
+#   - npm uses secrets.NPM_TOKEN (an automation token) plus `--provenance`, which needs
+#     `id-token: write` and a `repository` field in js/package.json that matches this repo.
+#
+# The MCP is not published from here; it lives in veg/hyphaeon-app.
+
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version from tag
+        id: tag
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: js/package.json version equals the tag
+        run: |
+          pkg=$(node -p "require('./js/package.json').version")
+          echo "tag ${{ steps.tag.outputs.version }} / js/package.json $pkg"
+          test "$pkg" = "${{ steps.tag.outputs.version }}"
+
+      - name: pyproject.toml version equals the tag
+        run: |
+          py=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          echo "tag ${{ steps.tag.outputs.version }} / pyproject.toml $py"
+          test "$py" = "${{ steps.tag.outputs.version }}"
+
+      - name: models/manifest.json is present
+        run: test -f models/manifest.json
+
+  pypi:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build sdist and wheel
+        run: |
+          pip install build
+          python -m build
+
+      - name: Publish to PyPI (trusted publishing)
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  npm:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    defaults:
+      run:
+        working-directory: js
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: 'https://registry.npmjs.org'
+          cache: npm
+          cache-dependency-path: js/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build --if-present
+
+      - name: Publish @veg/hyphaeon-js with provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --provenance --access public
+
+  github-release:
+    needs: [verify, pypi, npm]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create the release if the tag has none, then attach the manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="$GITHUB_REF_NAME"
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --title "$tag" --generate-notes
+          fi
+          gh release upload "$tag" models/manifest.json --clobber
