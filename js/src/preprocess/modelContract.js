@@ -1,131 +1,106 @@
 /**
  * WHY THIS FILE EXISTS
  *
- * Ported verbatim from datamonkey3 (main@fac1330) src/lib/services/axomeme/modelContract.js.
- * Function bodies unchanged, existing exports untouched; it imports nothing. ONE ADDITION, at the
- * bottom of the file: `OUTPUT_SPEC_V1`, describing the three-output graph this repository's
- * `export-onnx` produces. Nothing else was edited.
+ * The description of, and the validator for, the tensors that cross the boundary this package does
+ * not cross. `@veg/hyphaeon-js` never loads a model — that is `hyphaeon-app`'s `runtime/` — so this
+ * file is how a pure function can still say "the bundle you just built is not what the graph
+ * accepts" before anything expensive happens.
  *
- * It is the description of, and the validator for, the tensors that cross the boundary this package
- * does not cross. `@veg/hyphaeon-js` never loads a model — that is `hyphaeon-app`'s `runtime/` — so
- * this file is how a pure function can still say "the bundle you just built is not what the graph
- * accepts" before anything expensive happens. The constants pin `PhyloAxialTransformer.forward`
- * (`hyphaeon/model.py:481-583`) and `model_config.json`.
+ * WHAT IT MIRRORS (all at veg/HyphAeon 267f5cf):
+ *   - the token vocabularies of `hyphaeon/dataset.py:25-57` (`GENETIC_CODE`, `AA_MAP`,
+ *     `get_codon_token`, `get_aa_token`): 61 sense codons 0..60, everything else 64; 20 residues
+ *     0..19, everything else 20;
+ *   - the embedding sizes of `hyphaeon/model.py:248-256`: `nn.Embedding(num_tokens=66, ...)` for
+ *     codons and `nn.Embedding(23, ...)` for amino acids — the graph accepts 0..65 and 0..22, the
+ *     tokenizer only ever produces 0..64 and 0..20;
+ *   - the input signature of `PhyloAxialTransformer.forward` (`model.py:481-583`): `msa_codons`
+ *     [B,N,W] int64, `msa_aas` [B,N,W] int64, `dist_matrix` [B,N,N] float32, `mds_coords` [B,N,4]
+ *     float32, with `dist_matrix` and `mds_coords` per-alignment (dataset.py:727-728 unsqueezes
+ *     them to [1,N,N] / [1,N,4] and the model broadcasts);
+ *   - `models/manifest.json`: `taxon_cap` 512, `default_taxon_cap` 256 (also `max_species=256`
+ *     in `model.py:248`), the four input names and the three output names of `export-onnx`.
  *
- * The long note below was written against the AxoMEME 2.0 handoff scripts. Read tokenizer.js's
- * header alongside it: the vocabulary it pins is the 2.0 training vocabulary, and `hyphaeon/
- * dataset.py` at v1.0.0 numbers codons differently again. That is an open Phase 0 question, and this
- * file is a description of a contract rather than the arbiter of it.
+ * WHAT IT DELIBERATELY DOES NOT DO: it does not load a model, and it does not decide which of the
+ * two output specs applies — the runtime reads `models/manifest.json` for that.
+ *
+ * DIVERGENCE FROM THE DATAMONKEY3 PORT (main@fac1330 src/lib/services/axomeme/modelContract.js),
+ * which this file replaces:
+ *   - `CODON_UNKNOWN` was 65 and `CODON_GAP` 64 (AxoMEME 2.0 training vocabulary). dataset.py has
+ *     one codon sentinel, 64, for stops, gaps and anything unrecognised. Both constants are now 64
+ *     and `CODON_STOP` is added, also 64.
+ *   - `AA_LIST` was the 23-character 'ACDEFGHIKLMNPQRSTVWY*-?' with stop 20 / gap 21 / unknown 22.
+ *     dataset.py's `AA_MAP` has the 20 residues only and `get_aa_token` returns 20 for everything
+ *     else. `AA_LIST` is now the 20 residues; `AA_STOP`, `AA_GAP` and `AA_UNKNOWN` are all 20.
+ *   - `NUM_AA_TOKENS` (23) is added beside `NUM_CODON_TOKENS` (66): the embedding tables are larger
+ *     than the vocabulary the tokenizer produces, and a validator that used the vocabulary as the
+ *     table size would wrongly reject nothing and wrongly accept nothing — it is recorded because
+ *     the gap between the two is a fact about the checkpoint worth knowing.
+ *   - `CODON_VALID_BELOW` / `AA_VALID_BELOW` were the 2.0 model's `(c < 64) & (a < 21)` gate.
+ *     `model.py:481-583` at 267f5cf has NO token gate at all; the only "validity" rule in v1.0.0 is
+ *     dataset.py:721's `aa_col < 20` for the invariable-site mask. The constants are kept for the
+ *     runtime (64 and 20) and now name that rule.
+ *   - `MAX_SPECIES_DEFAULT` was 512. It is now 256 (`model.py:248` `max_species=256`,
+ *     `manifest.json` `default_taxon_cap`), and `MAX_SPECIES_CAP` = 512 (`manifest.json`
+ *     `taxon_cap`, `cli.py:1108` busted default) is added. dataset.py itself applies NO cap unless
+ *     `max_species` is passed (`cli.py:1025` meme default None), which is what
+ *     `loadAlignmentAndTree` mirrors; these two constants are for the runtime's own policy.
+ *   - The long AxoMEME 2.0 handoff narrative (driver-vs-training tokenizer, MDS on the padded matrix)
+ *     is gone: it described a different model and a different preprocessing; mds.js and assemble.js
+ *     carry the dataset.py facts instead.
+ *   - `validateInputBundle` keeps its checks (dims, element counts, value ranges, stale tensors,
+ *     zero diagonal, finite and non-negative distances) with the ranges read from the new spec.
+ *   - `OUTPUT_SPEC` (the single-output DM3 artifact), `VERIFIED_MODEL_SHA256`, `OUTPUT_SPEC_V1` and
+ *     `OUTPUT_NAMES_V1` are unchanged.
  */
 
-/**
- * modelContract.js — what the AxoMEME 2.0 ONNX graph accepts and returns.
- *
- * WHY THIS FILE EXISTS, AND WHY IT IS CODE RATHER THAN A README.
- *
- * The exported graph is the MODEL ONLY. It takes five already-computed tensors and returns five;
- * the entire preprocessing pipeline that produces those tensors — newick parse, patristic
- * distances, taxon subsampling, codon/AA tokenisation, and the MDS eigendecomposition — is NOT in
- * the graph and has to be rebuilt in JS. `mds_coords` is a graph INPUT, not something the graph
- * computes. (`torch.linalg.eigh` has no ONNX lowering, so this is forced rather than chosen:
- * exporting the identical module with eigh removed succeeds and with it present fails.)
- *
- * That means every number below is a place a JS port can be silently, plausibly wrong — producing
- * a well-formed tensor of the right shape that means something different from what the model was
- * trained on. Several of them are genuinely surprising, so they are constants here with citations
- * rather than assumptions in someone's head:
- *
- *   - CODON ORDER IS "TCAG", NOT ALPHABETICAL. The vocabulary is built as
- *     `[a+b+c for a in "TCAG" for b in "TCAG" for c in "TCAG"]`, the standard genetic-code table
- *     order. An ACGT-ordered vocabulary is a perfectly valid-looking permutation of the same 64
- *     tokens and would be wrong at every site. THE HANDOFF'S OWN INFERENCE DRIVER GETS THIS WRONG —
- *     see the next paragraph before "correcting" anything here to match it.
- *
- * THE DRIVER'S TOKENIZER DISAGREES WITH THE TRAINING TOKENIZER. This is measured, not suspected.
- *
- *   train_transformer_selection.py:74-85  (TRAINING)  64 codons, TCAG order, '-'->64, '?'->65
- *   predict_regression_nexus.py:49-80     (INFERENCE) 60 codons, ALPHABETICAL, everything else ->65
- *
- * The driver defines its own `CODON_LIST` / `CODON_TO_IDX` at lines 49-55, then redefines
- * `get_codon_token` at line 74 — but never redefines `CODON_TO_IDX`, so the winning function looks up
- * the 60-codon alphabetical map. It imports only `PhyloAxialTransformer`,
- * `compute_mds_coordinates` and `decode_soft_ordinal_lrt` from the training module (line 28), so the
- * training tokenizer is never in scope. Result, checked over all 64 codons:
- *
- *   63 of 64 codons receive a DIFFERENT token at inference than at training
- *     ATG: train 35 -> inference 14      TTT: train  0 -> inference 59
- *     AAA: train 42 -> inference  0      GGG: train 63 -> inference 42
- *   TTA (Leucine) and all three stop codons are ABSENT from the driver's list entirely, so they
- *   collapse to 65 "unknown" — real leucine data is discarded rather than mistokenised.
- *   The amino-acid stream is nearly intact: 3 of 64 wrong, the stops, because the driver's
- *   GENETIC_CODE writes them as '_' while AA_LIST contains '*', so they land on 22 instead of 20.
- *
- * DM3 USES THE TRAINING VOCABULARY, which is what this file pins. A model trained on TCAG-64 has to
- * be served TCAG-64; there is no reading under which the driver's map is the right one for these
- * weights. Reproducing the driver here would reproduce a bug.
- *
- * Note what this does NOT invalidate: the ML team's ONNX-vs-PyTorch parity result. That test feeds
- * the same tensors to both sides, so it proves the graph was exported faithfully and is unaffected
- * by which tokenizer produced those tensors. The bug is invisible to it by construction — which is
- * exactly why it survived to here.
- *   - GAP AND UNKNOWN ARE DIFFERENT TOKENS, and they differ between the two streams: codons use
- *     64/65, amino acids use 21/22. They are not interchangeable — `forward()` gates on
- *     `(c_cent < 64) & (a_cent < 21)`, so a gap counts as invalid at the central site.
- *   - MDS IS COMPUTED ON THE PADDED MATRIX. `compute_mds_coordinates` is handed the full
- *     [max_species, max_species] tensor, zeros included, so the padded region participates in the
- *     double-centring and the coordinates depend on max_species — not just on the real taxa. A port
- *     that runs MDS on the N real species and pads afterwards gets different numbers.
- *   - THE TWO PHYLO TENSORS ARE SITE-INVARIANT. dist_matrix and mds_coords are
- *     computed once and `expand`ed across sites. They are per-alignment, not per-site, which is what
- *     makes batching every site into one graph run cheap.
- *
- * Sources, all in the ML team's handoff (axomeme-2.0-viral-handoff/scripts/):
- *   predict_regression_nexus.py:161-187   compute_mds_coordinates
- *   predict_regression_nexus.py:1213-1229 tensor allocation, pad tokens, MDS on the padded matrix
- *   predict_regression_nexus.py:1271-1275 the site-invariant expands
- *   predict_regression_nexus.py:981-982   window_size / max_species defaults
- *   train_transformer_selection.py:73-97  codon + amino acid vocabularies
- *   forward(msa_codons, msa_aas, dist_matrix, mds_coords)  — four inputs in v1-viral
- *
- * This module is deliberately a LEAF: it imports nothing, computes nothing, and holds no model. It
- * describes and it validates. Nothing here should ever pull in onnxruntime-web — the runtime is
- * loaded on the AxoMEME path only, and the reachability guard in
- * src/test/meme-hit-likelihood.test.js exists to keep that true.
- */
-
-/** Codon vocabulary order. NOT alphabetical — see the header. */
+/** Codon table order of `GENETIC_CODE` in dataset.py:25-33: TCAG, third position fastest. */
 export const CODON_ORDER = 'TCAG';
 
-/** 64 sense+stop codons occupy 0..63; these two are the sentinels. */
+/**
+ * dataset.py:25-33 numbers the 61 sense codons 0..60 in TCAG order with the stops skipped, maps
+ * TAA/TAG/TGA to 64, and `get_codon_token` (line 52) returns 64 for anything not in the table:
+ * gaps, ambiguity codes, wrong lengths, 'U'. Tokens 61, 62, 63 and 65 are never produced.
+ */
+export const CODON_STOP = 64;
 export const CODON_GAP = 64;
-export const CODON_UNKNOWN = 65;
+export const CODON_UNKNOWN = 64;
 
-/** `num_tokens=66` is passed to the model constructor: 64 codons + gap + unknown. */
+/** `nn.Embedding(num_tokens=66, ...)`, model.py:248,255. The graph accepts 0..65. */
 export const NUM_CODON_TOKENS = 66;
 
-/** Amino acid vocabulary, index = position in this string. */
-export const AA_LIST = 'ACDEFGHIKLMNPQRSTVWY*-?';
-export const AA_GAP = 21; // AA_LIST.indexOf('-')
-export const AA_UNKNOWN = 22; // AA_LIST.indexOf('?')
+/**
+ * dataset.py:36-39 `AA_MAP`: the 20 standard residues, alphabetical, 0..19. `get_aa_token`
+ * (line 55) returns 20 for a stop ('*'), a gap, ambiguity, or anything untranslatable.
+ */
+export const AA_LIST = 'ACDEFGHIKLMNPQRSTVWY';
+export const AA_STOP = 20;
+export const AA_GAP = 20;
+export const AA_UNKNOWN = 20;
+
+/** `nn.Embedding(23, ...)`, model.py:256. The graph accepts 0..22; the tokenizer emits 0..20. */
+export const NUM_AA_TOKENS = 23;
 
 /**
- * `forward()` treats a species as present at the central site only if
- * `(codon < 64) & (aa < 21) & !padded`. So a gap is NOT a valid observation, and these are the
- * thresholds — not `<= 64` / `<= 21`.
+ * The only validity rule in v1.0.0: dataset.py:721 `valid_aa = aa_col[aa_col < 20]` when deciding
+ * whether a site is invariable. Codons have no such rule in the reference; 64 is the sense-codon
+ * bound (61 sense codons occupy 0..60, and 64 is the sentinel).
  */
 export const CODON_VALID_BELOW = 64;
-export const AA_VALID_BELOW = 21;
-
-/** `--max_species` default. Tensors are padded to exactly this many rows. */
-export const MAX_SPECIES_DEFAULT = 512;
+export const AA_VALID_BELOW = 20;
 
 /**
- * `--window_size` default, and the value this checkpoint was fine-tuned at. The model reads the
- * CENTRAL column (`window_size // 2`), so an even window would shift which codon is scored.
+ * `max_species=256` in `PhyloAxialTransformer.__init__` (model.py:248) and `default_taxon_cap` in
+ * models/manifest.json. dataset.py applies no cap unless asked (cli.py:1025 defaults to None).
  */
+export const MAX_SPECIES_DEFAULT = 256;
+
+/** `taxon_cap` in models/manifest.json; `cli.py:1108` busted `--max-species` default. */
+export const MAX_SPECIES_CAP = 512;
+
+/** dataset.py builds [L, N, 1] token tensors: one codon per site, no window. */
 export const WINDOW_SIZE_DEFAULT = 1;
 
-/** `compute_mds_coordinates(..., n_components=4)`. */
+/** `compute_mds_coordinates(dist_mat, n_components=4)`, dataset.py:688. */
 export const MDS_COMPONENTS = 4;
 
 /**
@@ -165,42 +140,19 @@ export const INPUT_SPEC = Object.freeze([
 ]);
 
 /**
- * The single graph output. RESOLVED against the artifact itself — read out of the ONNX graph on
- * axomeme_v1_viral_finetuned.onnx (sha256 de765904…ccda3), not from documentation. The ML team's
- * own dev doc lists four inputs in its table while its prose says five; the table is correct for
- * this export and the prose is left over from 2.0.
- *
- * THE EXPORT IS EVAL MODE. This was an open question worth recording, because the shipped driver
- * switches the module to `model.train()` before every forward pass purely to reach the branch that
- * returns RAW ORDINAL LOGITS, so it can apply `--prior_shift` and call `decode_soft_ordinal_lrt`
- * itself (predict_regression_nexus.py:1354-1366). The answer is that the graph took the EVAL branch:
- * five outputs, `lrt` already decoded. Two consequences for the JS side:
- *
- *   - JS does NOT implement `decode_soft_ordinal_lrt`. The graph did it.
- *   - `prior_shift` is baked to 0 and is not reachable. If a calibration shift is ever wanted, it has
- *     to be re-exported, not applied here.
- *
- * STILL OPEN, and it belongs to POSTPROCESSING rather than to this contract: the driver applies
- * `np.expm1` to alpha / beta_neg / beta_pos before writing its CSV. Those heads are `F.softplus(...)`,
- * and expm1(softplus(x)) == exp(x), so the model is predicting log1p(rate) and expm1 recovers the
- * rate — meaning the raw graph outputs are NOT rates and must not be shown as such. `p_neg` is
- * sigmoid in-graph and is already a probability. Whether `lrt` needs a further exp is unresolved: the
- * driver emits both `predicted_log_lrt` and `predicted_lrt` columns, and which one this output
- * corresponds to has to be checked against sample_predictions.csv before anything is rendered.
+ * The single output of the DataMonkey 3 artifact `axomeme_v1_viral_finetuned.onnx` (sha256
+ * de765904…ccda3), read off the graph itself: `lrt`, the ordinal decode already applied in-graph
+ * (eval-mode export). Kept beside `OUTPUT_SPEC_V1` because both artifacts exist and the runtime
+ * picks by manifest.
  */
 export const OUTPUT_SPEC = Object.freeze([
 	Object.freeze({
 		name: 'lrt',
 		note: 'MEME LRT surrogate, ordinal decode already applied in-graph (eval-mode export)'
 	})
-	// v1-viral exports ONLY this head. The retired 2.0 export also returned alpha, beta_neg,
-	// beta_pos and p_neg, which fed the dS / dN+ / p columns. Those are gone with the model.
 ]);
 
-/**
- * The artifact this contract was verified against. A different export is not necessarily wrong, but
- * it is not this one, and the eval-mode conclusion above was read off THIS graph.
- */
+/** The DataMonkey 3 artifact `OUTPUT_SPEC` was verified against. */
 export const VERIFIED_MODEL_SHA256 =
 	'de765904107ba436c6ad6abbecb8af54962abd8444e1b5044947bb945d8ccda3';
 
@@ -210,11 +162,9 @@ export const INPUT_NAMES = Object.freeze(INPUT_SPEC.map((s) => s.name));
 /**
  * Check a bundle of prepared tensors against the contract, without running anything.
  *
- * This is the cheap half of parity: it cannot tell you the MDS coordinates are RIGHT — only real
- * fixtures from the Python pipeline can do that — but it catches the whole class of errors that
- * produce a well-formed tensor with the wrong meaning, which is the class a JS port actually
- * generates. Returns every problem it finds rather than throwing on the first, because a port under
- * development usually has several and stopping at one wastes a round trip.
+ * It cannot tell you the MDS coordinates are RIGHT — the fixture replay does that — but it catches
+ * the whole class of errors that produce a well-formed tensor with the wrong meaning. Returns every
+ * problem it finds rather than throwing on the first.
  *
  * @param {Record<string, {data: ArrayLike<number|bigint|boolean>, dims: number[]}>} bundle
  * @param {{batch: number, numSpecies: number, windowSize?: number, mdsComponents?: number}} shape
@@ -264,12 +214,9 @@ export function validateInputBundle(bundle, shape) {
 		}
 	}
 
-	// A TENSOR THE GRAPH DOES NOT ACCEPT is an error, not something to ignore.
-	//
-	// The specific case this catches is a bundle built for the retired 2.0 graph reaching v1-viral —
-	// it would carry `padding_mask`, which no longer exists. onnxruntime would reject it too, but
-	// several layers down and with a message about an invalid input name rather than about a stale
-	// caller. Failing here says which tensor and why.
+	// A tensor the graph does not accept is an error, not something to ignore: a bundle built for
+	// a different model (e.g. one carrying `padding_mask`) fails here with the tensor named, rather
+	// than several layers down inside onnxruntime.
 	for (const key of Object.keys(bundle)) {
 		if (!INPUT_NAMES.includes(key)) {
 			errors.push(
@@ -279,12 +226,6 @@ export function validateInputBundle(bundle, shape) {
 		}
 	}
 
-	// Cross-tensor invariants — the ones that are individually well-formed but jointly wrong.
-	//
-	// The mask-polarity check that used to live here is gone with `padding_mask`: v1-viral has no
-	// mask input, so there is no polarity to get backwards. What it protected against — a tensor
-	// that is well-formed in dtype, dims and element count but means the opposite of what the model
-	// expects — no longer has a vector here.
 	const dist = bundle.dist_matrix;
 
 	if (dist) {
@@ -310,9 +251,9 @@ export function validateInputBundle(bundle, shape) {
 				break;
 			}
 			if (v < 0) {
-				// Not a shape error — a real one. DM3's own NJ emits negative branch lengths and the
-				// Python inference path throws on them rather than degrading; see
-				// src/lib/utils/treeSanitation.js for the measurement and the crash site.
+				// dataset.py cannot produce one: enforce_nonzero_branch_lengths (dataset.py:289-300)
+				// raises every non-root branch to >= 1e-4 before the matrix is built. A negative
+				// distance therefore means the bundle did not come through loadAlignmentAndTree.
 				errors.push(`dist_matrix[${i}] = ${v} — negative patristic distance`);
 				break;
 			}
@@ -323,40 +264,18 @@ export function validateInputBundle(bundle, shape) {
 }
 
 /**
- * THE THREE-OUTPUT GRAPH THIS REPOSITORY EXPORTS. Added for @veg/hyphaeon-js; not present in the
- * datamonkey3 original, and deliberately alongside `OUTPUT_SPEC` rather than replacing it.
+ * THE THREE-OUTPUT GRAPH THIS REPOSITORY EXPORTS (`hyphaeon export-onnx`), beside `OUTPUT_SPEC`.
+ * The runtime chooses between them by `models/manifest.json` `onnx.outputs`, never by sniffing
+ * `session.outputNames`: `mean_root_attns` and `root_repr` are both float32 and both
+ * `[batch, something]`, so a mis-assignment would not crash.
  *
- * TWO GRAPHS EXIST AND BOTH ARE VALID. `OUTPUT_SPEC` above describes the shipped
- * `axomeme_v1_viral_finetuned.onnx` (sha256 de765904…ccda3), read off the artifact itself: ONE
- * output, `lrt`. That is what DataMonkey 3 serves today and what `VERIFIED_MODEL_SHA256` pins. This
- * constant describes what `hyphaeon export-onnx` produces for this repository — the same four
- * inputs, so `INPUT_SPEC` and `validateInputBundle` are unchanged and every trap they catch still
- * applies, with two further heads exposed.
- *
- * THE RUNTIME CHOOSES BETWEEN THEM BY THE MANIFEST, NEVER BY GUESSING. `models/manifest.json`
- * carries `onnx.outputs` beside each variant's `onnx_sha256`; the app's `runtime/` verifies the hash
- * of the artifact it loaded, reads that list, and picks the matching spec. Sniffing
- * `session.outputNames` would work right up until an export changed order or added a head, and then
- * silently mis-assign whole tensors — `mean_root_attns` and `root_repr` are both float32 and both
- * `[batch, something]`, so nothing would crash. This package does not load a model and therefore
- * cannot make the choice itself; it only supplies the two descriptions to choose between.
- *
- * WHERE THE SHAPES COME FROM, in `hyphaeon/model.py`:
- *   - `lrt` — `y_lrt_soft.view(batch_size)` (model.py:582), the ordinal decode already applied
- *     in-graph. Same head, same meaning, same eval-mode conclusion as `OUTPUT_SPEC`.
+ * Shapes, from `hyphaeon/model.py`:
+ *   - `lrt` — `y_lrt_soft.view(batch_size)` (model.py:582), ordinal decode applied in-graph.
  *   - `mean_root_attns` — `all_attns.mean(dim=(0, 2)).view(batch_size, num_species)`
- *     (model.py:476-477), the root token's attention over species, averaged across layers and
- *     heads. `num_species` is the graph's N, i.e. the SELECTED taxa, so an attention vector is
- *     indexed by `selectedNames` from assemble.js and not by the alignment's own order.
- *   - `root_repr` — `x_full[:, 0, central_idx, :]` (model.py:576), the [ROOT] token's embedding at
- *     the central window position. `embed_dim` is 384 for this checkpoint (model_config.json), which
- *     is a property of the weights rather than of the contract, hence the symbolic dim.
- *
- * WHAT EACH ONE UNLOCKS, so an export that drops a head is recognised as a lost feature rather than
- * a smaller file: `lrt` alone gives meme, filtering, attribution, dms and the omnibus site p-values;
- * `mean_root_attns` is what epistasis multiplies by its deltas and what phenotype splits into
- * foreground and background attention; `root_repr` is the input to the separate `busted_head.onnx`
- * graph. A two-output export is not a degraded meme run — it is an epistasis pillar that cannot run.
+ *     (model.py:476-477): the root token's attention over species, averaged across layers and heads,
+ *     indexed by the `taxa` order `loadAlignmentAndTree` returns.
+ *   - `root_repr` — `x_full[:, 0, central_idx, :]` (model.py:576), embed_dim 384 for this checkpoint
+ *     (model_config.json); the input to `busted_head.onnx`.
  */
 export const OUTPUT_SPEC_V1 = Object.freeze([
 	Object.freeze({

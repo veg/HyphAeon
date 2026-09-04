@@ -1,0 +1,2074 @@
+{
+ "parse": [
+  {
+   "name": "bom_fasta_falls_to_nexus",
+   "text": "\ufeff>a\nATGAAACCCGGGTTTAAACCCGGG\n>b\nATGAAACCCGGGTTTAAACCCGGT\n",
+   "sequences": {}
+  },
+  {
+   "name": "bare_gt_header_raises",
+   "text": ">\nATGAAA\n",
+   "error": "IndexError"
+  },
+  {
+   "name": "fasta_stops_at_begin_block",
+   "text": ">a\nATGAAA\n>b\nATGAAC\nBEGIN TREES;\n>c\nATGAAG\n",
+   "sequences": {
+    "a": "ATGAAA",
+    "b": "ATGAAC"
+   }
+  },
+  {
+   "name": "fasta_stops_at_tree_line",
+   "text": ">a\nATGAAA\nTREE t = (a,b);\n>b\nATGAAC\n",
+   "sequences": {
+    "a": "ATGAAA"
+   }
+  },
+  {
+   "name": "fasta_tab_kept_space_removed",
+   "text": ">a\nATG AAA\tCCC\n",
+   "sequences": {
+    "a": "ATGAAA\tCCC"
+   }
+  },
+  {
+   "name": "fasta_quoted_double_name",
+   "text": ">\"sp one\" desc\nATGAAA\n",
+   "sequences": {
+    "sp": "ATGAAA"
+   }
+  },
+  {
+   "name": "phylip_short_falls_through_to_fasta",
+   "text": "2 6\n>a\nATGAAA\n>b\nATGAAC\n",
+   "sequences": {
+    "ATGAAA": ">B",
+    "ATGAAC": ""
+   }
+  },
+  {
+   "name": "phylip_not_enough_records_then_nexus",
+   "text": "3 6\nsp_one ATGAAACCCGGG\nsp_two ATGAAACCCGGT\n",
+   "sequences": {}
+  },
+  {
+   "name": "phylip_lowercase_u",
+   "text": "1 12\nsp_one augaaacccggg\n",
+   "sequences": {
+    "sp_one": "ATGAAACCCGGG"
+   }
+  },
+  {
+   "name": "nexus_no_matrix_fallback",
+   "text": "#NEXUS\nsp_one ATGAAACCCGGGTTTAAACCCGGG\nsp_two ATGAAACCCGGGTTTAAACCCGGT\nshort ATGAAA\n",
+   "sequences": {
+    "sp_one": "ATGAAACCCGGGTTTAAACCCGGG",
+    "sp_two": "ATGAAACCCGGGTTTAAACCCGGT"
+   }
+  },
+  {
+   "name": "nexus_interleaved_appends",
+   "text": "#NEXUS\nBEGIN DATA;\nMATRIX\nx ATG\ny CCC\nx AAA\n;\nEND;\n",
+   "sequences": {
+    "x": "ATGAAA",
+    "y": "CCC"
+   }
+  },
+  {
+   "name": "nexus_nolabels_more_rows_than_labels",
+   "text": "#NEXUS\nTAXLABELS a b;\nFORMAT NOLABELS;\nMATRIX\nATG\nCCC\nGGG\n;\n",
+   "sequences": {
+    "a": "ATG",
+    "b": "CCC"
+   }
+  },
+  {
+   "name": "nexus_taxlabels_ignored_when_labels",
+   "text": "#NEXUS\nTAXLABELS a b;\nFORMAT DATATYPE=DNA;\nMATRIX\nz ATG\nw CCC\n;\n",
+   "sequences": {
+    "z": "ATG",
+    "w": "CCC"
+   }
+  },
+  {
+   "name": "crlf_fasta",
+   "text": ">a\r\nATG\r\nAAA\r\n>b\r\nCCC\r\n",
+   "sequences": {
+    "a": "ATGAAA",
+    "b": "CCC"
+   }
+  },
+  {
+   "name": "nbsp_is_whitespace_in_python",
+   "text": ">a\u00a0desc\nATG\n",
+   "sequences": {
+    "a": "ATG"
+   }
+  },
+  {
+   "name": "empty_text",
+   "text": "",
+   "sequences": {}
+  },
+  {
+   "name": "whitespace_only",
+   "text": "  \n\t\n",
+   "sequences": {}
+  }
+ ],
+ "tree": [
+  {
+   "name": "root_level_comma_no_outer_parens",
+   "source": "A:0.1,(B:0.2,C:0.3):0.4;",
+   "raw": null,
+   "needs_branch_lengths": null,
+   "after_enforce": null
+  },
+  {
+   "name": "numeric_internal_label_is_confidence",
+   "source": "((A:0.1,B:0.2)95:0.3,(C:0.1,D:0.2)0.8:0.1);",
+   "raw": {
+    "terminals": [
+     "A",
+     "B",
+     "C",
+     "D"
+    ],
+    "terminal_branch_lengths": [
+     0.1,
+     0.2,
+     0.1,
+     0.2
+    ],
+    "n_clades": 7,
+    "clade_names_preorder": [
+     null,
+     null,
+     "A",
+     "B",
+     null,
+     "C",
+     "D"
+    ],
+    "clade_branch_lengths_preorder": [
+     null,
+     0.3,
+     0.1,
+     0.2,
+     0.1,
+     0.1,
+     0.2
+    ],
+    "clade_confidences_preorder": [
+     null,
+     95,
+     null,
+     null,
+     0.8,
+     null,
+     null
+    ],
+    "has_nonzero_branch_lengths": true
+   },
+   "needs_branch_lengths": false,
+   "after_enforce": {
+    "terminals": [
+     "A",
+     "B",
+     "C",
+     "D"
+    ],
+    "terminal_branch_lengths": [
+     0.1,
+     0.2,
+     0.1,
+     0.2
+    ],
+    "n_clades": 7,
+    "clade_names_preorder": [
+     null,
+     null,
+     "A",
+     "B",
+     null,
+     "C",
+     "D"
+    ],
+    "clade_branch_lengths_preorder": [
+     null,
+     0.3,
+     0.1,
+     0.2,
+     0.1,
+     0.1,
+     0.2
+    ],
+    "clade_confidences_preorder": [
+     null,
+     95,
+     null,
+     null,
+     0.8,
+     null,
+     null
+    ],
+    "has_nonzero_branch_lengths": true
+   }
+  },
+  {
+   "name": "escaped_single_quote_label",
+   "source": "(('it''s':0.1,B:0.2):0.3,(C:0.1,D:0.2):0.1);",
+   "raw": {
+    "terminals": [
+     "it's",
+     "B",
+     "C",
+     "D"
+    ],
+    "terminal_branch_lengths": [
+     0.1,
+     0.2,
+     0.1,
+     0.2
+    ],
+    "n_clades": 7,
+    "clade_names_preorder": [
+     null,
+     null,
+     "it's",
+     "B",
+     null,
+     "C",
+     "D"
+    ],
+    "clade_branch_lengths_preorder": [
+     null,
+     0.3,
+     0.1,
+     0.2,
+     0.1,
+     0.1,
+     0.2
+    ],
+    "clade_confidences_preorder": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "has_nonzero_branch_lengths": true
+   },
+   "needs_branch_lengths": false,
+   "after_enforce": {
+    "terminals": [
+     "it's",
+     "B",
+     "C",
+     "D"
+    ],
+    "terminal_branch_lengths": [
+     0.1,
+     0.2,
+     0.1,
+     0.2
+    ],
+    "n_clades": 7,
+    "clade_names_preorder": [
+     null,
+     null,
+     "it's",
+     "B",
+     null,
+     "C",
+     "D"
+    ],
+    "clade_branch_lengths_preorder": [
+     null,
+     0.3,
+     0.1,
+     0.2,
+     0.1,
+     0.1,
+     0.2
+    ],
+    "clade_confidences_preorder": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "has_nonzero_branch_lengths": true
+   }
+  },
+  {
+   "name": "space_after_colon",
+   "source": "((A: 0.1,B:0.2):0.3,(C:0.1,D:0.2):0.1);",
+   "raw": {
+    "terminals": [
+     "A",
+     "B",
+     "C",
+     "D"
+    ],
+    "terminal_branch_lengths": [
+     0.1,
+     0.2,
+     0.1,
+     0.2
+    ],
+    "n_clades": 7,
+    "clade_names_preorder": [
+     null,
+     null,
+     "A",
+     "B",
+     null,
+     "C",
+     "D"
+    ],
+    "clade_branch_lengths_preorder": [
+     null,
+     0.3,
+     0.1,
+     0.2,
+     0.1,
+     0.1,
+     0.2
+    ],
+    "clade_confidences_preorder": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "has_nonzero_branch_lengths": true
+   },
+   "needs_branch_lengths": false,
+   "after_enforce": {
+    "terminals": [
+     "A",
+     "B",
+     "C",
+     "D"
+    ],
+    "terminal_branch_lengths": [
+     0.1,
+     0.2,
+     0.1,
+     0.2
+    ],
+    "n_clades": 7,
+    "clade_names_preorder": [
+     null,
+     null,
+     "A",
+     "B",
+     null,
+     "C",
+     "D"
+    ],
+    "clade_branch_lengths_preorder": [
+     null,
+     0.3,
+     0.1,
+     0.2,
+     0.1,
+     0.1,
+     0.2
+    ],
+    "clade_confidences_preorder": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "has_nonzero_branch_lengths": true
+   }
+  },
+  {
+   "name": "two_trees_on_two_lines_is_none",
+   "source": "((A,B),(C,D));\n((E,F),(G,H));\n",
+   "raw": {
+    "terminals": [
+     "A",
+     "B",
+     "C",
+     "D"
+    ],
+    "terminal_branch_lengths": [
+     null,
+     null,
+     null,
+     null
+    ],
+    "n_clades": 7,
+    "clade_names_preorder": [
+     null,
+     null,
+     "A",
+     "B",
+     null,
+     "C",
+     "D"
+    ],
+    "clade_branch_lengths_preorder": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "clade_confidences_preorder": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "has_nonzero_branch_lengths": false
+   },
+   "needs_branch_lengths": true,
+   "after_enforce": {
+    "terminals": [
+     "A",
+     "B",
+     "C",
+     "D"
+    ],
+    "terminal_branch_lengths": [
+     0.001,
+     0.001,
+     0.001,
+     0.001
+    ],
+    "n_clades": 7,
+    "clade_names_preorder": [
+     null,
+     null,
+     "A",
+     "B",
+     null,
+     "C",
+     "D"
+    ],
+    "clade_branch_lengths_preorder": [
+     null,
+     0.001,
+     0.001,
+     0.001,
+     0.001,
+     0.001,
+     0.001
+    ],
+    "clade_confidences_preorder": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "has_nonzero_branch_lengths": true
+   }
+  },
+  {
+   "name": "text_after_semicolon_same_line_then_fallback",
+   "source": "((A:0.1,B:0.2):0.3,(C,D)); trailing\n",
+   "raw": null,
+   "needs_branch_lengths": null,
+   "after_enforce": null
+  },
+  {
+   "name": "nexus_tree_command_with_hyphy_tags",
+   "source": "#NEXUS\nBEGIN TREES;\nTREE t1 = ((A:0.1{FG},B:0.2):0.3{FG},(C:0.1,D:0.2):0.1);\nEND;\n",
+   "raw": {
+    "terminals": [
+     "A",
+     "B",
+     "C",
+     "D"
+    ],
+    "terminal_branch_lengths": [
+     0.1,
+     0.2,
+     0.1,
+     0.2
+    ],
+    "n_clades": 7,
+    "clade_names_preorder": [
+     null,
+     null,
+     "A",
+     "B",
+     null,
+     "C",
+     "D"
+    ],
+    "clade_branch_lengths_preorder": [
+     null,
+     0.3,
+     0.1,
+     0.2,
+     0.1,
+     0.1,
+     0.2
+    ],
+    "clade_confidences_preorder": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "has_nonzero_branch_lengths": true
+   },
+   "needs_branch_lengths": false,
+   "after_enforce": {
+    "terminals": [
+     "A",
+     "B",
+     "C",
+     "D"
+    ],
+    "terminal_branch_lengths": [
+     0.1,
+     0.2,
+     0.1,
+     0.2
+    ],
+    "n_clades": 7,
+    "clade_names_preorder": [
+     null,
+     null,
+     "A",
+     "B",
+     null,
+     "C",
+     "D"
+    ],
+    "clade_branch_lengths_preorder": [
+     null,
+     0.3,
+     0.1,
+     0.2,
+     0.1,
+     0.1,
+     0.2
+    ],
+    "clade_confidences_preorder": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "has_nonzero_branch_lengths": true
+   }
+  },
+  {
+   "name": "embedded_in_fasta_second_line",
+   "source": ">a\nATG\n>b\nCCC\n\n((a:0.1,b:0.2):0.3,(c:0.1,d:0.1):0.1);\n",
+   "raw": {
+    "terminals": [
+     "a",
+     "b",
+     "c",
+     "d"
+    ],
+    "terminal_branch_lengths": [
+     0.1,
+     0.2,
+     0.1,
+     0.1
+    ],
+    "n_clades": 7,
+    "clade_names_preorder": [
+     null,
+     null,
+     "a",
+     "b",
+     null,
+     "c",
+     "d"
+    ],
+    "clade_branch_lengths_preorder": [
+     null,
+     0.3,
+     0.1,
+     0.2,
+     0.1,
+     0.1,
+     0.1
+    ],
+    "clade_confidences_preorder": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "has_nonzero_branch_lengths": true
+   },
+   "needs_branch_lengths": false,
+   "after_enforce": {
+    "terminals": [
+     "a",
+     "b",
+     "c",
+     "d"
+    ],
+    "terminal_branch_lengths": [
+     0.1,
+     0.2,
+     0.1,
+     0.1
+    ],
+    "n_clades": 7,
+    "clade_names_preorder": [
+     null,
+     null,
+     "a",
+     "b",
+     null,
+     "c",
+     "d"
+    ],
+    "clade_branch_lengths_preorder": [
+     null,
+     0.3,
+     0.1,
+     0.2,
+     0.1,
+     0.1,
+     0.1
+    ],
+    "clade_confidences_preorder": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "has_nonzero_branch_lengths": true
+   }
+  },
+  {
+   "name": "negative_and_zero_lengths",
+   "source": "((A:-0.5,B:0):0.00001,(C:0.3,D:0.4):0.06);",
+   "raw": {
+    "terminals": [
+     "A",
+     "B",
+     "C",
+     "D"
+    ],
+    "terminal_branch_lengths": [
+     -0.5,
+     0.0,
+     0.3,
+     0.4
+    ],
+    "n_clades": 7,
+    "clade_names_preorder": [
+     null,
+     null,
+     "A",
+     "B",
+     null,
+     "C",
+     "D"
+    ],
+    "clade_branch_lengths_preorder": [
+     null,
+     1e-05,
+     -0.5,
+     0.0,
+     0.06,
+     0.3,
+     0.4
+    ],
+    "clade_confidences_preorder": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "has_nonzero_branch_lengths": true
+   },
+   "needs_branch_lengths": false,
+   "after_enforce": {
+    "terminals": [
+     "A",
+     "B",
+     "C",
+     "D"
+    ],
+    "terminal_branch_lengths": [
+     0.0001,
+     0.0001,
+     0.3,
+     0.4
+    ],
+    "n_clades": 7,
+    "clade_names_preorder": [
+     null,
+     null,
+     "A",
+     "B",
+     null,
+     "C",
+     "D"
+    ],
+    "clade_branch_lengths_preorder": [
+     null,
+     0.0001,
+     0.0001,
+     0.0001,
+     0.06,
+     0.3,
+     0.4
+    ],
+    "clade_confidences_preorder": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "has_nonzero_branch_lengths": true
+   }
+  },
+  {
+   "name": "root_branch_length_ignored",
+   "source": "((A:0.1,B:0.2):0.05,(C:0.3,D:0.4):0.06):9.0;",
+   "raw": {
+    "terminals": [
+     "A",
+     "B",
+     "C",
+     "D"
+    ],
+    "terminal_branch_lengths": [
+     0.1,
+     0.2,
+     0.3,
+     0.4
+    ],
+    "n_clades": 7,
+    "clade_names_preorder": [
+     null,
+     null,
+     "A",
+     "B",
+     null,
+     "C",
+     "D"
+    ],
+    "clade_branch_lengths_preorder": [
+     9.0,
+     0.05,
+     0.1,
+     0.2,
+     0.06,
+     0.3,
+     0.4
+    ],
+    "clade_confidences_preorder": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "has_nonzero_branch_lengths": true
+   },
+   "needs_branch_lengths": false,
+   "after_enforce": {
+    "terminals": [
+     "A",
+     "B",
+     "C",
+     "D"
+    ],
+    "terminal_branch_lengths": [
+     0.1,
+     0.2,
+     0.3,
+     0.4
+    ],
+    "n_clades": 7,
+    "clade_names_preorder": [
+     null,
+     null,
+     "A",
+     "B",
+     null,
+     "C",
+     "D"
+    ],
+    "clade_branch_lengths_preorder": [
+     9.0,
+     0.05,
+     0.1,
+     0.2,
+     0.06,
+     0.3,
+     0.4
+    ],
+    "clade_confidences_preorder": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "has_nonzero_branch_lengths": true
+   }
+  },
+  {
+   "name": "unbalanced_extra_close_is_none",
+   "source": "((A,B),(C,D)));",
+   "raw": null,
+   "needs_branch_lengths": null,
+   "after_enforce": null
+  },
+  {
+   "name": "unbalanced_missing_close_is_none",
+   "source": "((A,B),(C,D);",
+   "raw": null,
+   "needs_branch_lengths": null,
+   "after_enforce": null
+  },
+  {
+   "name": "scientific_notation_lengths",
+   "source": "((A:1e-3,B:2.5E-2):3e-1,(C:0.3,D:0.4):0.06);",
+   "raw": {
+    "terminals": [
+     "A",
+     "B",
+     "C",
+     "D"
+    ],
+    "terminal_branch_lengths": [
+     0.001,
+     0.025,
+     0.3,
+     0.4
+    ],
+    "n_clades": 7,
+    "clade_names_preorder": [
+     null,
+     null,
+     "A",
+     "B",
+     null,
+     "C",
+     "D"
+    ],
+    "clade_branch_lengths_preorder": [
+     null,
+     0.3,
+     0.001,
+     0.025,
+     0.06,
+     0.3,
+     0.4
+    ],
+    "clade_confidences_preorder": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "has_nonzero_branch_lengths": true
+   },
+   "needs_branch_lengths": false,
+   "after_enforce": {
+    "terminals": [
+     "A",
+     "B",
+     "C",
+     "D"
+    ],
+    "terminal_branch_lengths": [
+     0.001,
+     0.025,
+     0.3,
+     0.4
+    ],
+    "n_clades": 7,
+    "clade_names_preorder": [
+     null,
+     null,
+     "A",
+     "B",
+     null,
+     "C",
+     "D"
+    ],
+    "clade_branch_lengths_preorder": [
+     null,
+     0.3,
+     0.001,
+     0.025,
+     0.06,
+     0.3,
+     0.4
+    ],
+    "clade_confidences_preorder": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "has_nonzero_branch_lengths": true
+   }
+  },
+  {
+   "name": "duplicate_tip_names",
+   "source": "((A:0.1,A:0.2):0.05,(C:0.3,D:0.4):0.06);",
+   "raw": {
+    "terminals": [
+     "A",
+     "A",
+     "C",
+     "D"
+    ],
+    "terminal_branch_lengths": [
+     0.1,
+     0.2,
+     0.3,
+     0.4
+    ],
+    "n_clades": 7,
+    "clade_names_preorder": [
+     null,
+     null,
+     "A",
+     "A",
+     null,
+     "C",
+     "D"
+    ],
+    "clade_branch_lengths_preorder": [
+     null,
+     0.05,
+     0.1,
+     0.2,
+     0.06,
+     0.3,
+     0.4
+    ],
+    "clade_confidences_preorder": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "has_nonzero_branch_lengths": true
+   },
+   "needs_branch_lengths": false,
+   "after_enforce": {
+    "terminals": [
+     "A",
+     "A",
+     "C",
+     "D"
+    ],
+    "terminal_branch_lengths": [
+     0.1,
+     0.2,
+     0.3,
+     0.4
+    ],
+    "n_clades": 7,
+    "clade_names_preorder": [
+     null,
+     null,
+     "A",
+     "A",
+     null,
+     "C",
+     "D"
+    ],
+    "clade_branch_lengths_preorder": [
+     null,
+     0.05,
+     0.1,
+     0.2,
+     0.06,
+     0.3,
+     0.4
+    ],
+    "clade_confidences_preorder": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "has_nonzero_branch_lengths": true
+   }
+  },
+  {
+   "name": "internal_label_string_kept",
+   "source": "((A:0.1,B:0.2)clade1:0.05,(C:0.3,D:0.4)x9:0.06);",
+   "raw": {
+    "terminals": [
+     "A",
+     "B",
+     "C",
+     "D"
+    ],
+    "terminal_branch_lengths": [
+     0.1,
+     0.2,
+     0.3,
+     0.4
+    ],
+    "n_clades": 7,
+    "clade_names_preorder": [
+     null,
+     "clade1",
+     "A",
+     "B",
+     "x9",
+     "C",
+     "D"
+    ],
+    "clade_branch_lengths_preorder": [
+     null,
+     0.05,
+     0.1,
+     0.2,
+     0.06,
+     0.3,
+     0.4
+    ],
+    "clade_confidences_preorder": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "has_nonzero_branch_lengths": true
+   },
+   "needs_branch_lengths": false,
+   "after_enforce": {
+    "terminals": [
+     "A",
+     "B",
+     "C",
+     "D"
+    ],
+    "terminal_branch_lengths": [
+     0.1,
+     0.2,
+     0.3,
+     0.4
+    ],
+    "n_clades": 7,
+    "clade_names_preorder": [
+     null,
+     "clade1",
+     "A",
+     "B",
+     "x9",
+     "C",
+     "D"
+    ],
+    "clade_branch_lengths_preorder": [
+     null,
+     0.05,
+     0.1,
+     0.2,
+     0.06,
+     0.3,
+     0.4
+    ],
+    "clade_confidences_preorder": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "has_nonzero_branch_lengths": true
+   }
+  },
+  {
+   "name": "quoted_name_with_colon_and_parens",
+   "source": "(('a:b(c)':0.1,B:0.2):0.05,(C:0.3,D:0.4):0.06);",
+   "raw": {
+    "terminals": [
+     "a:b(c)",
+     "B",
+     "C",
+     "D"
+    ],
+    "terminal_branch_lengths": [
+     0.1,
+     0.2,
+     0.3,
+     0.4
+    ],
+    "n_clades": 7,
+    "clade_names_preorder": [
+     null,
+     null,
+     "a:b(c)",
+     "B",
+     null,
+     "C",
+     "D"
+    ],
+    "clade_branch_lengths_preorder": [
+     null,
+     0.05,
+     0.1,
+     0.2,
+     0.06,
+     0.3,
+     0.4
+    ],
+    "clade_confidences_preorder": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "has_nonzero_branch_lengths": true
+   },
+   "needs_branch_lengths": false,
+   "after_enforce": {
+    "terminals": [
+     "a:b(c)",
+     "B",
+     "C",
+     "D"
+    ],
+    "terminal_branch_lengths": [
+     0.1,
+     0.2,
+     0.3,
+     0.4
+    ],
+    "n_clades": 7,
+    "clade_names_preorder": [
+     null,
+     null,
+     "a:b(c)",
+     "B",
+     null,
+     "C",
+     "D"
+    ],
+    "clade_branch_lengths_preorder": [
+     null,
+     0.05,
+     0.1,
+     0.2,
+     0.06,
+     0.3,
+     0.4
+    ],
+    "clade_confidences_preorder": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "has_nonzero_branch_lengths": true
+   }
+  },
+  {
+   "name": "comment_inside_tree_regex_path",
+   "source": "tree x = ((A:0.1,B:0.2)[&label=1]:0.05,(C:0.3,D:0.4):0.06);",
+   "raw": {
+    "terminals": [
+     "A",
+     "B",
+     "C",
+     "D"
+    ],
+    "terminal_branch_lengths": [
+     0.1,
+     0.2,
+     0.3,
+     0.4
+    ],
+    "n_clades": 7,
+    "clade_names_preorder": [
+     null,
+     null,
+     "A",
+     "B",
+     null,
+     "C",
+     "D"
+    ],
+    "clade_branch_lengths_preorder": [
+     null,
+     0.05,
+     0.1,
+     0.2,
+     0.06,
+     0.3,
+     0.4
+    ],
+    "clade_confidences_preorder": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "has_nonzero_branch_lengths": true
+   },
+   "needs_branch_lengths": false,
+   "after_enforce": {
+    "terminals": [
+     "A",
+     "B",
+     "C",
+     "D"
+    ],
+    "terminal_branch_lengths": [
+     0.1,
+     0.2,
+     0.3,
+     0.4
+    ],
+    "n_clades": 7,
+    "clade_names_preorder": [
+     null,
+     null,
+     "A",
+     "B",
+     null,
+     "C",
+     "D"
+    ],
+    "clade_branch_lengths_preorder": [
+     null,
+     0.05,
+     0.1,
+     0.2,
+     0.06,
+     0.3,
+     0.4
+    ],
+    "clade_confidences_preorder": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "has_nonzero_branch_lengths": true
+   }
+  },
+  {
+   "name": "topology_only_half_zero",
+   "source": "((A:0.1,B:0):0,(C:0,D:0):0);",
+   "raw": {
+    "terminals": [
+     "A",
+     "B",
+     "C",
+     "D"
+    ],
+    "terminal_branch_lengths": [
+     0.1,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "n_clades": 7,
+    "clade_names_preorder": [
+     null,
+     null,
+     "A",
+     "B",
+     null,
+     "C",
+     "D"
+    ],
+    "clade_branch_lengths_preorder": [
+     null,
+     0.0,
+     0.1,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "clade_confidences_preorder": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "has_nonzero_branch_lengths": false
+   },
+   "needs_branch_lengths": true,
+   "after_enforce": {
+    "terminals": [
+     "A",
+     "B",
+     "C",
+     "D"
+    ],
+    "terminal_branch_lengths": [
+     0.1,
+     0.0001,
+     0.0001,
+     0.0001
+    ],
+    "n_clades": 7,
+    "clade_names_preorder": [
+     null,
+     null,
+     "A",
+     "B",
+     null,
+     "C",
+     "D"
+    ],
+    "clade_branch_lengths_preorder": [
+     null,
+     0.0001,
+     0.1,
+     0.0001,
+     0.0001,
+     0.0001,
+     0.0001
+    ],
+    "clade_confidences_preorder": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "has_nonzero_branch_lengths": true
+   }
+  },
+  {
+   "name": "one_positive_of_six",
+   "source": "((A:0.1,B:0):0,(C:0,D:0):0.0);",
+   "raw": {
+    "terminals": [
+     "A",
+     "B",
+     "C",
+     "D"
+    ],
+    "terminal_branch_lengths": [
+     0.1,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "n_clades": 7,
+    "clade_names_preorder": [
+     null,
+     null,
+     "A",
+     "B",
+     null,
+     "C",
+     "D"
+    ],
+    "clade_branch_lengths_preorder": [
+     null,
+     0.0,
+     0.1,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "clade_confidences_preorder": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "has_nonzero_branch_lengths": false
+   },
+   "needs_branch_lengths": true,
+   "after_enforce": {
+    "terminals": [
+     "A",
+     "B",
+     "C",
+     "D"
+    ],
+    "terminal_branch_lengths": [
+     0.1,
+     0.0001,
+     0.0001,
+     0.0001
+    ],
+    "n_clades": 7,
+    "clade_names_preorder": [
+     null,
+     null,
+     "A",
+     "B",
+     null,
+     "C",
+     "D"
+    ],
+    "clade_branch_lengths_preorder": [
+     null,
+     0.0001,
+     0.1,
+     0.0001,
+     0.0001,
+     0.0001,
+     0.0001
+    ],
+    "clade_confidences_preorder": [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    "has_nonzero_branch_lengths": true
+   }
+  }
+ ],
+ "match": [
+  {
+   "name": "exact",
+   "tree_taxa": [
+    "A",
+    "B",
+    "C",
+    "D"
+   ],
+   "alignment_names": [
+    "D",
+    "B",
+    "X"
+   ],
+   "taxa": [
+    "B",
+    "D"
+   ],
+   "tier": "exact",
+   "dropped_aln": 1,
+   "dropped_tree": 2
+  },
+  {
+   "name": "exact_with_duplicate_tree_tips",
+   "tree_taxa": [
+    "A",
+    "A",
+    "B"
+   ],
+   "alignment_names": [
+    "A",
+    "B"
+   ],
+   "taxa": [
+    "A",
+    "A",
+    "B"
+   ],
+   "tier": "exact",
+   "dropped_aln": -1,
+   "dropped_tree": 0
+  },
+  {
+   "name": "quote_stripped",
+   "tree_taxa": [
+    "A",
+    "B"
+   ],
+   "alignment_names": [
+    "'A'",
+    "\"B\"",
+    "C"
+   ],
+   "taxa": [
+    "'A'",
+    "\"B\""
+   ],
+   "tier": "quote_stripped",
+   "dropped_aln": 1,
+   "dropped_tree": 0
+  },
+  {
+   "name": "quote_stripped_last_wins",
+   "tree_taxa": [
+    "A"
+   ],
+   "alignment_names": [
+    "'A'",
+    "A\""
+   ],
+   "taxa": [
+    "A\""
+   ],
+   "tier": "quote_stripped",
+   "dropped_aln": 1,
+   "dropped_tree": 0
+  },
+  {
+   "name": "case_insensitive",
+   "tree_taxa": [
+    "Homo",
+    "Pan"
+   ],
+   "alignment_names": [
+    "homo",
+    "'PAN'"
+   ],
+   "taxa": [
+    "homo",
+    "'PAN'"
+   ],
+   "tier": "case_insensitive",
+   "dropped_aln": 0,
+   "dropped_tree": 0
+  },
+  {
+   "name": "case_insensitive_last_wins",
+   "tree_taxa": [
+    "homo"
+   ],
+   "alignment_names": [
+    "HOMO",
+    "Homo"
+   ],
+   "taxa": [
+    "Homo"
+   ],
+   "tier": "case_insensitive",
+   "dropped_aln": 1,
+   "dropped_tree": 0
+  },
+  {
+   "name": "none",
+   "tree_taxa": [
+    "A"
+   ],
+   "alignment_names": [
+    "B"
+   ],
+   "error": "ValueError"
+  },
+  {
+   "name": "exact_beats_quote_even_if_partial",
+   "tree_taxa": [
+    "A",
+    "B"
+   ],
+   "alignment_names": [
+    "A",
+    "'B'"
+   ],
+   "taxa": [
+    "A"
+   ],
+   "tier": "exact",
+   "dropped_aln": 1,
+   "dropped_tree": 1
+  }
+ ],
+ "downsample": {
+  "max_species_1": {
+   "selected": [
+    "b",
+    "c"
+   ],
+   "sub": [
+    [
+     0.0,
+     3.0
+    ],
+    [
+     3.0,
+     0.0
+    ]
+   ]
+  },
+  "all_zero_repeats": {
+   "selected": [
+    "a",
+    "a",
+    "a"
+   ],
+   "sub": [
+    [
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     0.0
+    ]
+   ]
+  }
+ },
+ "stride": [
+  {
+   "n": 10,
+   "max_species": 2,
+   "result": [
+    "t0",
+    "t2",
+    "t4",
+    "t6"
+   ]
+  },
+  {
+   "n": 9,
+   "max_species": 2,
+   "result": [
+    "t0",
+    "t2",
+    "t4",
+    "t6"
+   ]
+  },
+  {
+   "n": 5,
+   "max_species": 2,
+   "result": [
+    "t0",
+    "t1",
+    "t2",
+    "t3"
+   ]
+  },
+  {
+   "n": 212,
+   "max_species": 64,
+   "result": [
+    "t0",
+    "t1",
+    "t2",
+    "t3",
+    "t4",
+    "t5",
+    "t6",
+    "t7",
+    "t8",
+    "t9",
+    "t10",
+    "t11",
+    "t12",
+    "t13",
+    "t14",
+    "t15",
+    "t16",
+    "t17",
+    "t18",
+    "t19",
+    "t20",
+    "t21",
+    "t22",
+    "t23",
+    "t24",
+    "t25",
+    "t26",
+    "t27",
+    "t28",
+    "t29",
+    "t30",
+    "t31",
+    "t32",
+    "t33",
+    "t34",
+    "t35",
+    "t36",
+    "t37",
+    "t38",
+    "t39",
+    "t40",
+    "t41",
+    "t42",
+    "t43",
+    "t44",
+    "t45",
+    "t46",
+    "t47",
+    "t48",
+    "t49",
+    "t50",
+    "t51",
+    "t52",
+    "t53",
+    "t54",
+    "t55",
+    "t56",
+    "t57",
+    "t58",
+    "t59",
+    "t60",
+    "t61",
+    "t62",
+    "t63",
+    "t64",
+    "t65",
+    "t66",
+    "t67",
+    "t68",
+    "t69",
+    "t70",
+    "t71",
+    "t72",
+    "t73",
+    "t74",
+    "t75",
+    "t76",
+    "t77",
+    "t78",
+    "t79",
+    "t80",
+    "t81",
+    "t82",
+    "t83",
+    "t84",
+    "t85",
+    "t86",
+    "t87",
+    "t88",
+    "t89",
+    "t90",
+    "t91",
+    "t92",
+    "t93",
+    "t94",
+    "t95",
+    "t96",
+    "t97",
+    "t98",
+    "t99",
+    "t100",
+    "t101",
+    "t102",
+    "t103",
+    "t104",
+    "t105",
+    "t106",
+    "t107",
+    "t108",
+    "t109",
+    "t110",
+    "t111",
+    "t112",
+    "t113",
+    "t114",
+    "t115",
+    "t116",
+    "t117",
+    "t118",
+    "t119",
+    "t120",
+    "t121",
+    "t122",
+    "t123",
+    "t124",
+    "t125",
+    "t126",
+    "t127"
+   ]
+  },
+  {
+   "n": 17,
+   "max_species": 4,
+   "result": [
+    "t0",
+    "t2",
+    "t4",
+    "t6",
+    "t8",
+    "t10",
+    "t12",
+    "t14"
+   ]
+  },
+  {
+   "n": 7,
+   "max_species": -2,
+   "result": [
+    "t0",
+    "t1",
+    "t2"
+   ]
+  }
+ ],
+ "load_alignment_and_tree_max_species_8_Smc6": {
+  "taxa": [
+   "nomLeu3",
+   "aotTri_OMK",
+   "chlSab",
+   "ponAbe2",
+   "homSap_293T",
+   "colAng",
+   "macFas",
+   "rhiRox"
+  ],
+  "L": 1097,
+  "dist_matrix": [
+   [
+    0.0,
+    0.04704099893569946,
+    0.02865000069141388,
+    0.020535999909043312,
+    0.016565000638365746,
+    0.026947999373078346,
+    0.027334000915288925,
+    0.02517000027000904
+   ],
+   [
+    0.04704099893569946,
+    0.0,
+    0.04531300067901611,
+    0.04632699862122536,
+    0.04235599935054779,
+    0.04361100122332573,
+    0.04399700090289116,
+    0.041832998394966125
+   ],
+   [
+    0.02865000069141388,
+    0.04531300067901611,
+    0.0,
+    0.027936000376939774,
+    0.023964999243617058,
+    0.010332000441849232,
+    0.006889999844133854,
+    0.008554000407457352
+   ],
+   [
+    0.020535999909043312,
+    0.04632699862122536,
+    0.027936000376939774,
+    0.0,
+    0.014223000034689903,
+    0.02623400092124939,
+    0.02662000060081482,
+    0.024455999955534935
+   ],
+   [
+    0.016565000638365746,
+    0.04235599935054779,
+    0.023964999243617058,
+    0.014223000034689903,
+    0.0,
+    0.022262999787926674,
+    0.022648999467492104,
+    0.02048500068485737
+   ],
+   [
+    0.026947999373078346,
+    0.04361100122332573,
+    0.010332000441849232,
+    0.02623400092124939,
+    0.022262999787926674,
+    0.0,
+    0.009015999734401703,
+    0.0038960000965744257
+   ],
+   [
+    0.027334000915288925,
+    0.04399700090289116,
+    0.006889999844133854,
+    0.02662000060081482,
+    0.022648999467492104,
+    0.009015999734401703,
+    0.0,
+    0.00723800016567111
+   ],
+   [
+    0.02517000027000904,
+    0.041832998394966125,
+    0.008554000407457352,
+    0.024455999955534935,
+    0.02048500068485737,
+    0.0038960000965744257,
+    0.00723800016567111,
+    0.0
+   ]
+  ],
+  "mds_gram": [
+   [
+    0.0003731367760337889,
+    -0.00023562870046589524,
+    -0.00012633964070118964,
+    0.000143815137562342,
+    0.00014015636406838894,
+    -9.931066597346216e-05,
+    -0.00011108243052149191,
+    -8.474681089865044e-05
+   ],
+   [
+    -0.00023562870046589524,
+    0.001368279685266316,
+    -0.00024341502285096794,
+    -0.00022060821356717497,
+    -0.0001230612542713061,
+    -0.00019201239047106355,
+    -0.0002069719776045531,
+    -0.0001465819077566266
+   ],
+   [
+    -0.00012633964070118964,
+    -0.00024341502285096794,
+    0.00017610861686989665,
+    -0.00012577060260809958,
+    -9.007944026961923e-05,
+    0.00014057474618311971,
+    0.0001535246556159109,
+    0.00011539668776094913
+   ],
+   [
+    0.000143815137562342,
+    -0.00022060821356717497,
+    -0.00012577060260809958,
+    0.0003361032868269831,
+    0.00015860532585065812,
+    -9.676702757133171e-05,
+    -0.00011090211773989722,
+    -8.447584696114063e-05
+   ],
+   [
+    0.00014015636406838894,
+    -0.0001230612542713061,
+    -9.007944026961923e-05,
+    0.00015860532585065812,
+    0.00017534650396555662,
+    -9.440677240490913e-05,
+    -8.558091940358281e-05,
+    -8.097980753518641e-05
+   ],
+   [
+    -9.931066597346216e-05,
+    -0.00019201239047106355,
+    0.00014057474618311971,
+    -9.676702757133171e-05,
+    -9.440677240490913e-05,
+    0.00011931510380236432,
+    0.00012441372382454574,
+    9.819326078286394e-05
+   ],
+   [
+    -0.00011108243052149191,
+    -0.0002069719776045531,
+    0.0001535246556159109,
+    -0.00011090211773989722,
+    -8.558091940358281e-05,
+    0.00012441372382454574,
+    0.00013434984430205077,
+    0.00010224921425106004
+   ],
+   [
+    -8.474681089865044e-05,
+    -0.0001465819077566266,
+    0.00011539668776094913,
+    -8.447584696114063e-05,
+    -8.097980753518641e-05,
+    9.819326078286394e-05,
+    0.00010224921425106004,
+    8.094518125290051e-05
+   ]
+  ],
+  "n_invariable": 1025,
+  "codon_tokens_site0": [
+   32,
+   32,
+   32,
+   32,
+   32,
+   32,
+   32,
+   32
+  ],
+  "hyphy_on_path": true
+ }
+}

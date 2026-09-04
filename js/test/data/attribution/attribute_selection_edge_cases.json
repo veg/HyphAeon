@@ -1,0 +1,133 @@
+{
+ "gap_majority_consensus": {
+  "0": {
+   "site_0indexed": 0,
+   "site_1indexed": 1,
+   "predicted_lrt": 7.75,
+   "consensus_codon": "TGA",
+   "consensus_aa": "*",
+   "num_mutated_taxa": 2,
+   "driving_species": [
+    {
+     "taxon": "Taxon_004",
+     "taxon_index": 3,
+     "observed_codon": "TTT",
+     "observed_aa": "F",
+     "consensus_codon": "TGA",
+     "consensus_aa": "*",
+     "delta_lrt": 7.75,
+     "pct_signal_explained": 100.0,
+     "mean_patristic_depth": 1.399999976158142
+    },
+    {
+     "taxon": "Taxon_005",
+     "taxon_index": 4,
+     "observed_codon": "TCC",
+     "observed_aa": "S",
+     "consensus_codon": "TGA",
+     "consensus_aa": "*",
+     "delta_lrt": 7.75,
+     "pct_signal_explained": 100.0,
+     "mean_patristic_depth": 2.0
+    }
+   ],
+   "when_selection_occurred": {
+    "evolutionary_epoch": "Intermediate Subclade Burst",
+    "mode_of_adaptation": "Recurrent / Multi-Lineage Adaptation",
+    "weighted_patristic_depth": 1.6999999869822968,
+    "tree_depth_ratio": 0.4249999967455742
+   }
+  }
+ },
+ "zero_lrt_diffuse": {
+  "0": {
+   "site_0indexed": 0,
+   "site_1indexed": 1,
+   "predicted_lrt": 0.0,
+   "consensus_codon": "TTT",
+   "consensus_aa": "F",
+   "num_mutated_taxa": 2,
+   "driving_species": [
+    {
+     "taxon": "Taxon_004",
+     "taxon_index": 3,
+     "observed_codon": "TTA",
+     "observed_aa": "L",
+     "consensus_codon": "TTT",
+     "consensus_aa": "F",
+     "delta_lrt": 0.0,
+     "pct_signal_explained": 0.0,
+     "mean_patristic_depth": 0.75
+    },
+    {
+     "taxon": "Taxon_003",
+     "taxon_index": 2,
+     "observed_codon": "TTC",
+     "observed_aa": "F",
+     "consensus_codon": "TTT",
+     "consensus_aa": "F",
+     "delta_lrt": -5.0,
+     "pct_signal_explained": 0.0,
+     "mean_patristic_depth": 0.75
+    }
+   ],
+   "when_selection_occurred": {
+    "evolutionary_epoch": "Diffuse / Unresolved",
+    "mode_of_adaptation": "Diffuse Background Variation",
+    "weighted_patristic_depth": 0.0,
+    "tree_depth_ratio": 0.0
+   }
+  }
+ },
+ "zero_distances": {
+  "0": {
+   "site_0indexed": 0,
+   "site_1indexed": 1,
+   "predicted_lrt": 10.0,
+   "consensus_codon": "TTT",
+   "consensus_aa": "F",
+   "num_mutated_taxa": 3,
+   "driving_species": [
+    {
+     "taxon": "Taxon_003",
+     "taxon_index": 2,
+     "observed_codon": "CTT",
+     "observed_aa": "L",
+     "consensus_codon": "TTT",
+     "consensus_aa": "F",
+     "delta_lrt": 0.0,
+     "pct_signal_explained": 0.0,
+     "mean_patristic_depth": 0.0
+    },
+    {
+     "taxon": "Taxon_004",
+     "taxon_index": 3,
+     "observed_codon": "CTT",
+     "observed_aa": "L",
+     "consensus_codon": "TTT",
+     "consensus_aa": "F",
+     "delta_lrt": 0.0,
+     "pct_signal_explained": 0.0,
+     "mean_patristic_depth": 0.0
+    },
+    {
+     "taxon": "Taxon_005",
+     "taxon_index": 4,
+     "observed_codon": "ATT",
+     "observed_aa": "I",
+     "consensus_codon": "TTT",
+     "consensus_aa": "F",
+     "delta_lrt": 0.0,
+     "pct_signal_explained": 0.0,
+     "mean_patristic_depth": 0.0
+    }
+   ],
+   "when_selection_occurred": {
+    "evolutionary_epoch": "Diffuse / Unresolved",
+    "mode_of_adaptation": "Diffuse Background Variation",
+    "weighted_patristic_depth": 0.0,
+    "tree_depth_ratio": 0.0
+   }
+  }
+ }
+}

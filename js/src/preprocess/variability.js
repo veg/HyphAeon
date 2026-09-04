@@ -1,22 +1,7 @@
 /**
  * WHY THIS FILE EXISTS
  *
- * Ported verbatim from datamonkey3 (main@fac1330) src/lib/services/axomeme/postprocess.js. Function
- * bodies unchanged: `isSiteVariable` and `siteVariability` are lifted with their documentation and
- * not one character of their logic, and the `./tokenizer.js` import resolves to the sibling module
- * here as it did there.
- *
- * ONLY THOSE TWO FUNCTIONS CAME ACROSS, and the split is not arbitrary. They are ALIGNMENT
- * functions: given aligned codon strings, is this site variable? That is preprocessing — it decides
- * what the model is even asked about, and it mirrors the invariable-site rule of
- * `hyphaeon/dataset.py` (dataset.py:718-723), which is why it belongs in a library that mirrors
- * `hyphaeon/*.py`. Everything else in datamonkey3's postprocess.js — `buildPredictions`, the tier
- * gates, z-scores, percentile ranks and `callModes.js` — is RESULT SEMANTICS: what to show a
- * researcher and where to draw a line on a number the model produced. That is a product decision,
- * it changes without the methods changing, and it lives in `hyphaeon-app`'s `runtime/`. Splitting
- * the file is how the ownership rule in src/README.md stays enforceable rather than aspirational.
- *
- * THE REFERENCE IT MIRRORS, in full, so the divergences below can be checked without opening it:
+ * Mirrors the invariable-site rule of `hyphaeon/dataset.py:718-723` at veg/HyphAeon 267f5cf:
  *
  *     is_aa_invariable = np.zeros(L, dtype=bool)
  *     for site in range(L):
@@ -25,84 +10,95 @@
  *         if len(np.unique(valid_aa)) <= 1:
  *             is_aa_invariable[site] = True
  *
- * TWO DIVERGENCES AGAINST v1.0.0 dataset.py. Both are recorded rather than resolved, for the reason
- * given in tokenizer.js: this port was verified against real data and dataset.py has not been, so an
- * inspection-time "fix" would trade a measured behaviour for a guess. The fixture harness decides.
+ * A site is invariable iff at most one distinct amino-acid TOKEN below 20 appears in its column.
+ * Stops, gaps and unknowns are all token 20 (`get_aa_token`, dataset.py:55-57) and so are not
+ * observations; a column with nothing usable is invariable. `invariableMask` is the exact loop over
+ * a [L, N, 1] token array; `isSiteVariable` / `siteVariability` are the same rule phrased over codon
+ * strings for callers that have not tokenised yet.
  *
- *   1. THE SERINE RULE IS NOT IN dataset.py. `isSiteVariable` calls a site variable when every
- *      sequence codes serine but reaches it through both codon families (TCN and AGY) — the
- *      selection-relevant case documented below. dataset.py compares amino-acid TOKENS only, so
- *      serine is serine and such a site is marked invariable, which zeroes it. This is the more
- *      consequential of the two: it changes which sites are scored at all, always in the direction
- *      of this port scoring MORE sites than the Python.
- *   2. STOP CODONS. dataset.py's filter is `aa_col < 20`, and `get_aa_token` maps a stop to exactly
- *      20, so a stop contributes nothing to the comparison. This port keeps `aaToken(c) <= 20`, so a
- *      stop is a real observation (`'*'` is a token in `AA_LIST`) and a site mixing Met with a stop
- *      is variable here and invariable there. In-frame stops are not rare in real submissions —
- *      dataset.py:715-716 counts and reports them — so this is reachable, not theoretical.
+ * WHAT IT DELIBERATELY DOES NOT DO: it does not decide what to do with an invariable site. That is
+ * result semantics (cli.py zeroes the LRT) and belongs to the runtime.
  *
- * The empty case agrees by both routes and is worth stating so it is not mistaken for a third
- * divergence: a site where nothing is usable has zero distinct residues, `len(unique) <= 1` is true
- * in Python and `aas.size === 0` returns false here, and both call it invariable.
+ * DIVERGENCE FROM THE DATAMONKEY3 PORT (main@fac1330 src/lib/services/axomeme/postprocess.js
+ * `isSiteVariable`/`siteVariability`), which this file replaces:
+ *   1. THE SERINE RULE IS GONE. DM3 called a site variable when every sequence coded serine but
+ *      through both codon families (TCN and AGY). dataset.py compares amino-acid tokens only, so
+ *      such a site is invariable here.
+ *   2. STOPS ARE NOT OBSERVATIONS. DM3 kept a stop ('*', token 20 in its 23-letter list) as a real
+ *      residue, so Met + stop was variable. dataset.py filters `aa_col < 20` and a stop is 20.
+ *   3. AMBIGUITY IS DECIDED BY THE TOKEN, not by scanning for '-', 'N' or '?': anything
+ *      `get_aa_token` cannot translate is 20 and drops out, which is the same set plus every other
+ *      untranslatable string.
+ * Both DM3 rules scored MORE sites than the Python; the fixture replay (`is_aa_invariable` for Smc6
+ * and bat_oas1 in fixtures/dataset/load_alignment_and_tree.json) pins the Python.
  */
 
-import { GENETIC_CODE, aaToken } from './tokenizer.js';
+import { aaToken } from './tokenizer.js';
+import { AA_VALID_BELOW } from './modelContract.js';
 
 /**
- * Is this site variable, in the reference's sense?
+ * dataset.py:719-723 for one column of amino-acid tokens.
  *
- * Two conditions, and the second is easy to miss: a site is also variable if every sequence codes
- * SERINE but reaches it through both codon families (TCN and AGY). Serine is the one residue whose
- * codons occupy two disjoint blocks of the genetic code, so a TCN<->AGY switch requires multiple
- * substitutions while remaining synonymous — selection-relevant despite the amino acid never
- * changing. Dropping this condition silently marks those sites invariant and zeroes them.
- *
- * @param {string[]} codons observed codons at this site, gaps/ambiguity already excluded
- * @returns {boolean}
+ * @param {ArrayLike<number>} aaColumn amino-acid tokens of every taxon at one site
+ * @returns {boolean} true when `len(np.unique(aa_col[aa_col < 20])) <= 1`
  */
-export function isSiteVariable(codons) {
-	if (!codons || codons.length === 0) return false;
-	const aas = new Set();
-	for (const c of codons) {
-		const aa = GENETIC_CODE.get(c.toUpperCase());
-		if (aa && aa !== '?') aas.add(aa);
+export function isAaInvariable(aaColumn) {
+	let first = -1;
+	for (let i = 0; i < aaColumn.length; i++) {
+		const t = aaColumn[i];
+		if (t < AA_VALID_BELOW) {
+			if (first < 0) first = t;
+			else if (t !== first) return false;
+		}
 	}
-	if (aas.size === 0) return false;
-	if (aas.size > 1) return true;
-	if (aas.size === 1 && aas.has('S')) {
-		const upper = codons.map((c) => c.toUpperCase());
-		const hasTCN = upper.some((c) => c === 'TCA' || c === 'TCC' || c === 'TCG' || c === 'TCT');
-		const hasAGY = upper.some((c) => c === 'AGC' || c === 'AGT');
-		if (hasTCN && hasAGY) return true;
-	}
-	return false;
+	return true;
 }
 
 /**
- * Variability flags for every site of an alignment, from the aligned sequences.
+ * The whole mask of dataset.py:718-723 over a [L, N, 1] amino-acid token array (row-major, site
+ * major: element `site * N + taxon`).
  *
- * Mirrors the reference's collection loop: only codons that are complete, ungapped and unambiguous
- * are considered, and a sequence shorter than the reference simply contributes nothing at the sites
- * it does not reach.
+ * @param {ArrayLike<number>} aTokens L * N amino-acid tokens
+ * @param {number} L
+ * @param {number} N
+ * @returns {Uint8Array} length L, 1 where the site is invariable
+ */
+export function invariableMask(aTokens, L, N) {
+	const out = new Uint8Array(L);
+	const col = new Array(N);
+	for (let site = 0; site < L; site++) {
+		for (let i = 0; i < N; i++) col[i] = aTokens[site * N + i];
+		out[site] = isAaInvariable(col) ? 1 : 0;
+	}
+	return out;
+}
+
+/**
+ * Is this site variable — the negation of dataset.py's rule, phrased over codon strings.
+ *
+ * @param {string[]|null|undefined} codons observed codons at this site (any strings; whatever
+ *   `get_aa_token` cannot translate is token 20 and ignored, exactly as in the reference)
+ * @returns {boolean} true iff more than one distinct amino-acid token below 20 is present
+ */
+export function isSiteVariable(codons) {
+	if (!codons || codons.length === 0) return false;
+	return !isAaInvariable(codons.map((c) => aaToken(c)));
+}
+
+/**
+ * Variability flags for every site of an alignment, from aligned nucleotide strings, mirroring the
+ * per-site codon slice of dataset.py:699 (`seq[site*3:(site+1)*3]`, which past a short sequence's
+ * end is shorter than 3 characters and tokenises to 20).
  *
  * @param {string[]} sequences aligned nucleotide sequences, same frame
- * @param {number} totalCodons
- * @returns {boolean[]}
+ * @param {number} totalCodons L
+ * @returns {boolean[]} true where the site is variable (NOT invariable)
  */
 export function siteVariability(sequences, totalCodons) {
 	const flags = new Array(totalCodons).fill(false);
 	for (let s = 0; s < totalCodons; s++) {
 		const codons = [];
-		for (const seq of sequences) {
-			const start = s * 3;
-			if (start + 3 > seq.length) continue;
-			const c = seq.slice(start, start + 3).toUpperCase();
-			if (c.includes('-') || c.includes('N') || c.includes('?')) continue;
-			// aaToken rejects anything the genetic code cannot translate, which is the same filter the
-			// reference applies before collecting a codon.
-			if (aaToken(c) > 20) continue;
-			codons.push(c);
-		}
+		for (const seq of sequences) codons.push(String(seq).slice(s * 3, s * 3 + 3));
 		flags[s] = isSiteVariable(codons);
 	}
 	return flags;

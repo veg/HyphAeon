@@ -1,0 +1,28 @@
+{
+ "mask_extends_short_sequence": {
+  "input": "ACGTTTGGG",
+  "sites": [
+   2,
+   3,
+   5
+  ],
+  "output": "ACGTTTNNNNNNNNN"
+ },
+ "mask_partial_last_codon": {
+  "input": "ACGTTTGG",
+  "sites": [
+   2
+  ],
+  "output": "ACGTTTNNN"
+ },
+ "pandas_mode_ties": {
+  "valid": [
+   "GGG",
+   "AAA",
+   "CCC",
+   "AAA",
+   "GGG"
+  ],
+  "mode": "AAA"
+ }
+}

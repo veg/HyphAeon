@@ -11,10 +11,12 @@
  * because a transcription error in the codon vocabulary is invisible until it meets real fixtures,
  * which is a much later and much more expensive place to find it.
  *
- * WHAT WAS CHANGED, AND ONLY THIS: the import paths, repointed from
- * `../lib/services/axomeme/…` at DataMonkey 3's layout to `../src/preprocess/…` at this package's.
- * Not one case, expectation or comment was edited, so a failure here is a failure of the port and
- * never of a local adjustment to the test. Comments that cite DataMonkey 3 paths
+ * WHAT WAS CHANGED: the import paths, repointed from `../lib/services/axomeme/…` at DataMonkey 3's
+ * layout to `../src/preprocess/…` at this package's; and, in Phase 1a, the three cases that pinned
+ * DataMonkey 3's vocabulary (gap 64 / unknown 65, AA sentinels 20/21/22, max_species 512) now pin
+ * hyphaeon/dataset.py's (one sentinel per stream, 64 and 20; max_species 256 with a 512 cap), the
+ * `validBundle` tokens moved into that vocabulary, and the out-of-vocabulary case uses 65. Those
+ * edits are marked in place. Comments that cite DataMonkey 3 paths
  * (`src/lib/utils/treeSanitation.js`, `scripts/axomeme/verify_preprocessing.py`) are left as
  * written: they are the record of where a measurement was taken, and rewriting them would break the
  * trail without moving the evidence.
@@ -42,13 +44,17 @@ import {
 	CODON_ORDER,
 	CODON_GAP,
 	CODON_UNKNOWN,
+	CODON_STOP,
 	NUM_CODON_TOKENS,
+	NUM_AA_TOKENS,
 	AA_LIST,
 	AA_GAP,
 	AA_UNKNOWN,
+	AA_STOP,
 	CODON_VALID_BELOW,
 	AA_VALID_BELOW,
 	MAX_SPECIES_DEFAULT,
+	MAX_SPECIES_CAP,
 	WINDOW_SIZE_DEFAULT,
 	MDS_COMPONENTS,
 	INPUT_SPEC,
@@ -75,11 +81,11 @@ function validBundle() {
 	const distOne = d.flat();
 	return {
 		msa_codons: {
-			data: new BigInt64Array([0n, 5n, 63n, 65n, 1n, 2n, 3n, 65n]),
+			data: new BigInt64Array([0n, 5n, 60n, 64n, 1n, 2n, 3n, 64n]),
 			dims: [BATCH, SPECIES, WIN]
 		},
 		msa_aas: {
-			data: new BigInt64Array([0n, 4n, 20n, 22n, 1n, 2n, 3n, 22n]),
+			data: new BigInt64Array([0n, 4n, 19n, 20n, 1n, 2n, 3n, 20n]),
 			dims: [BATCH, SPECIES, WIN]
 		},
 		dist_matrix: {
@@ -113,19 +119,29 @@ describe('the transcribed constants', () => {
 		expect(codons.indexOf('ATG')).toBe(35);
 	});
 
-	it('keeps gap and unknown distinct, and different between the two streams', () => {
+	it('sends gap, unknown and stop to ONE sentinel per stream, different between the streams', () => {
+		// dataset.py:33-57 (267f5cf): `GENETIC_CODE.get(codon, 64)` after a 61-entry sense-codon
+		// table, and `AA_MAP.get(aa, 20)` over the 20 residues. DataMonkey 3's port kept gap (64)
+		// and unknown (65) apart and gave the AA stream three sentinels (20/21/22); Phase 0's
+		// fixture replay settled it for dataset.py (PHASE0.md gap 1), so these are the numbers the
+		// shipped checkpoint was trained on. The embedding tables are still sized 66 / 23
+		// (model.py), so the unused rows 65 and 21..22 exist but no token ever reaches them.
 		expect(CODON_GAP).toBe(64);
-		expect(CODON_UNKNOWN).toBe(65);
+		expect(CODON_UNKNOWN).toBe(64);
+		expect(CODON_STOP).toBe(64);
 		expect(NUM_CODON_TOKENS).toBe(66);
-		expect(AA_GAP).toBe(AA_LIST.indexOf('-'));
-		expect(AA_UNKNOWN).toBe(AA_LIST.indexOf('?'));
-		expect(AA_GAP).toBe(21);
-		expect(AA_UNKNOWN).toBe(22);
+		expect(AA_LIST).toBe('ACDEFGHIKLMNPQRSTVWY');
+		expect(AA_LIST.length).toBe(20);
+		expect(AA_GAP).toBe(20);
+		expect(AA_UNKNOWN).toBe(20);
+		expect(AA_STOP).toBe(20);
+		expect(NUM_AA_TOKENS).toBe(23);
 		expect(CODON_GAP).not.toBe(AA_GAP);
 	});
 
 	it('sets the validity thresholds so that a GAP is not a valid observation', () => {
-		// forward() gates on (c < 64) & (a < 21). A gap is 64 / 21, so it fails both — deliberately.
+		// dataset.py:721 gates variability on aa_col < 20 and forward() on c < 64. A gap is 64 / 20,
+		// so it fails both — deliberately.
 		expect(CODON_VALID_BELOW).toBe(CODON_GAP);
 		expect(AA_VALID_BELOW).toBe(AA_GAP);
 		expect(CODON_GAP < CODON_VALID_BELOW).toBe(false);
@@ -133,7 +149,11 @@ describe('the transcribed constants', () => {
 	});
 
 	it('pins the checkpoint defaults', () => {
-		expect(MAX_SPECIES_DEFAULT).toBe(512);
+		// model.py max_species=256 is the positional budget the general checkpoint was trained with
+		// (models/manifest.json default_taxon_cap); 512 is the app's hard cap (taxon_cap), which the
+		// graph accepts because num_species is a dynamic axis.
+		expect(MAX_SPECIES_DEFAULT).toBe(256);
+		expect(MAX_SPECIES_CAP).toBe(512);
 		expect(MDS_COMPONENTS).toBe(4);
 		// window_size 1 means the central index is 0 and every window IS the site. An even window
 		// would put the scored codon off-centre.
@@ -212,8 +232,10 @@ describe('validateInputBundle', () => {
 
 	it('catches an out-of-vocabulary token', () => {
 		const b = validBundle();
-		b.msa_codons.data = new BigInt64Array([0n, 5n, 63n, 66n, 1n, 2n, 3n, 65n]);
-		expect(check(b).errors.join(' ')).toMatch(/msa_codons\[3\] = 66/);
+		// 65 is a row of the embedding table that dataset.py never emits (see the sentinel test); the
+		// contract rejects it so a DM3-vocabulary bundle cannot reach the graph.
+		b.msa_codons.data = new BigInt64Array([0n, 5n, 60n, 65n, 1n, 2n, 3n, 64n]);
+		expect(check(b).errors.join(' ')).toMatch(/msa_codons\[3\] = 65/);
 	});
 
 	it('rejects a bundle carrying a tensor the graph does not accept', () => {

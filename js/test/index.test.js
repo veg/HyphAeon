@@ -8,12 +8,13 @@
  *
  *   1. NOTHING ELSE IMPORTS `src/index.js`. Every other test imports the module it exercises, so a
  *      broken entry point — a typo'd path, a module dropped from the barrel, a NAME COLLISION
- *      between two `export *` lines, which is a hard SyntaxError at link time — would leave the
- *      whole suite green and break every consumer on install. This file is the only place that
- *      loads the package the way an app does.
+ *      between two `export *` lines (two DIFFERENT bindings under one name are silently dropped
+ *      from the namespace by the ES module linker; only a local declaration makes it an error)
+ *      — would leave the whole suite green and break every consumer on install. This file is the
+ *      only place that loads the package the way an app does.
  *   2. THE PUBLIC SURFACE IS A COMMITMENT. `index.js` re-exports whole modules deliberately (its
  *      header says why), which means adding an export to any file under `src/preprocess/` publishes
- *      it, and deleting one breaks a pinned consumer. Listing all 41 names here turns both into a
+ *      it, and deleting one breaks a pinned consumer. Listing all 179 names here turns both into a
  *      visible diff in the pull request that causes them, rather than a discovery in `hyphaeon-app`.
  *   3. THE EXPORTS MAP IS LOAD-BEARING, not decoration. `package.json` exposes exactly `.`, so a
  *      deep import into `src/preprocess/…` must FAIL — otherwise consumers pin internal paths, and
@@ -31,22 +32,36 @@ import * as lib from '@veg/hyphaeon-js';
 import * as modelContract from '../src/preprocess/modelContract.js';
 import * as assemble from '../src/preprocess/assemble.js';
 import * as variability from '../src/preprocess/variability.js';
+import * as symmetricEigenModule from '../src/preprocess/symmetricEigen.js';
+import * as bh from '../src/numeric/bh.js';
+import * as ranks from '../src/numeric/ranks.js';
+import * as stats from '../src/stats.js';
+import * as evaluate from '../src/evaluate.js';
+import * as omnibus from '../src/omnibus.js';
 
-/** Every public symbol of src/preprocess/*, sorted. Grouped by module for reviewable diffs. */
+/**
+ * Every public symbol of the package, sorted. Grouped by module (first module to claim a name
+ * wins; symmetricEigen, benjaminiHochberg and rocAuc are also re-exported by numeric/index.js,
+ * stats.js and evaluate.js as the same bindings) for reviewable diffs. Regenerate with the same
+ * loop over `Object.keys(await import(module))` when a module adds or removes an export.
+ */
 const PUBLIC_SURFACE = [
-	// modelContract.js
 	'AA_GAP',
 	'AA_LIST',
+	'AA_STOP',
 	'AA_UNKNOWN',
 	'AA_VALID_BELOW',
 	'CODON_GAP',
 	'CODON_ORDER',
+	'CODON_STOP',
 	'CODON_UNKNOWN',
 	'CODON_VALID_BELOW',
 	'INPUT_NAMES',
 	'INPUT_SPEC',
+	'MAX_SPECIES_CAP',
 	'MAX_SPECIES_DEFAULT',
 	'MDS_COMPONENTS',
+	'NUM_AA_TOKENS',
 	'NUM_CODON_TOKENS',
 	'OUTPUT_NAMES_V1',
 	'OUTPUT_SPEC',
@@ -54,34 +69,185 @@ const PUBLIC_SURFACE = [
 	'VERIFIED_MODEL_SHA256',
 	'WINDOW_SIZE_DEFAULT',
 	'validateInputBundle',
-	// newick.js
-	'leafIndex',
-	'normalizeTaxonName',
-	'parseNewick',
-	// tokenizer.js
-	'AA_TO_IDX',
+	// preprocess/symmetricEigen.js
+	'symmetricEigen',
+	// preprocess/parse.js
+	'PY_NOT_WS',
+	'PY_WS',
+	'parseAlignmentSequences',
+	'pyIsAlnum',
+	'pyIsDigit',
+	'pyLen',
+	'pyLstrip',
+	'pyRstrip',
+	'pySplit',
+	'pySplit1',
+	'pySplitLines',
+	'pyStrip',
+	'pyStripChars',
+	// preprocess/tokenizer.js
+	'AA_MAP',
 	'CODON_LIST',
-	'CODON_TO_IDX',
+	'CODON_TO_AA',
 	'GENETIC_CODE',
 	'aaToken',
 	'codonToken',
 	'tokenizeSequence',
-	// patristic.js
-	'maxPdSelect',
-	'patristicMatrix',
-	'patristicRow',
-	'rootDistances',
-	// symmetricEigen.js / mds.js
-	'computeMdsCoordinates',
-	'symmetricEigen',
-	// variability.js
+	// preprocess/variability.js
+	'invariableMask',
+	'isAaInvariable',
 	'isSiteVariable',
 	'siteVariability',
-	// assemble.js
+	// preprocess/tree.js
+	'NewickError',
+	'enforceNonzeroBranchLengths',
+	'extractTree',
+	'findClades',
+	'getTerminals',
+	'hasNonzeroBranchLengths',
+	'matchTaxa',
+	'needsBranchLengths',
+	'parseNewickTrees',
+	'readNewick',
+	'stripQuotes',
+	'treeTaxa',
+	// preprocess/patristic.js
+	'computeFastDistMatrix',
+	'patristicMatrix',
+	'patristicRow',
+	'rescaleDistances',
+	'rootDistances',
+	// preprocess/downsample.js
+	'downsampleTaxaFaithPd',
+	'pruneIdenticalSequences',
+	'stridePreselect',
+	// preprocess/mds.js
+	'computeMdsCoordinates',
+	// preprocess/assemble.js
 	'batchSizeFor',
-	'chooseReference',
-	'orderSpecies',
-	'prepareAlignment'
+	'loadAlignmentAndTree',
+	'siteBatch',
+	'siteBatches',
+	// numeric/reduce.js
+	'float32Sum',
+	'numpyMeanFloat32',
+	'numpyPairwiseSum',
+	// numeric/special.js
+	'betaincReg',
+	'chi2Cdf',
+	'chi2Sf',
+	'erfc',
+	'gammaincReg',
+	'gammaincc',
+	'hypergeomCdf',
+	'hypergeomPmf',
+	'hypergeomSf',
+	'lgamma',
+	'logChoose',
+	'normCdf',
+	'normSf',
+	'tCdf',
+	'tSf',
+	// numeric/prng.js
+	'Xoshiro256',
+	// numeric/ranks.js
+	'pearson',
+	'rankdata',
+	'rocAuc',
+	'spearman',
+	// numeric/bh.js
+	'benjaminiHochberg',
+	// numeric/cauchy.js
+	'cauchyCombination',
+	// numeric/linalg.js
+	'cholesky',
+	'largestEigenvalue',
+	'symmetricEigenvalues',
+	// stats.js
+	'cauchyCombinationP',
+	'memeSitePq',
+	'pvalsFromLrtMeme',
+	'pvalsFromLrtSelfLiang',
+	// writers.js
+	'PY_FLOAT_KEYS',
+	'PY_INT_KEYS',
+	'bustedCsv',
+	'bustedJson',
+	'dataFrameCsv',
+	'dmsCsv',
+	'epistasisCsv',
+	'evaluateJson',
+	'graphml',
+	'memeCsv',
+	'memeJson',
+	'memeResult',
+	'memeSiteRecords',
+	'phenotypeCsv',
+	'pyFloatRepr',
+	'pyFormatFixed',
+	'pyFormatG',
+	'pyJsonDumps',
+	'pyRepr',
+	'pyStr',
+	'resultJson',
+	// evaluate.js
+	'EvaluationError',
+	'confusion',
+	'correlations',
+	'dictReaderRows',
+	'evaluateDirectories',
+	'evaluateFiles',
+	'evaluatePairs',
+	'formatTextReport',
+	'fpr',
+	'loadMemeJson',
+	'loadPredictionCsv',
+	'matchGeneFiles',
+	'normalizedHeader',
+	'parseCsvRows',
+	'ppv',
+	'thresholdMetrics',
+	// filter.js
+	'auditPatch',
+	'consensusCodons',
+	'fastaText',
+	'maskCodonSpan',
+	'predictSiteLrts',
+	'runAlignmentFilter',
+	'scanHypergeometricPatches',
+	// attribution.js
+	'INV_GENETIC_CODE',
+	'attributeSelection',
+	'attributionSiteFields',
+	'attributionsOneIndexed',
+	// omnibus.js
+	'BUSTED_ACAT_ALPHA',
+	'BUSTED_EMBED_DIM',
+	'BUSTED_HEAD_INPUT_NAMES',
+	'BUSTED_HEAD_OUTPUT_NAMES',
+	'BUSTED_LRT_THRESHOLD',
+	'BUSTED_OMEGA_1',
+	'BUSTED_OMEGA_2',
+	'BUSTED_PROB_THRESHOLD',
+	'BUSTED_SIMES_FLOOR',
+	'bustedHeadFields',
+	'bustedRecord',
+	'bustedStatistics',
+	'bustedVerdict',
+	'gatherSiteBatch',
+	'omnibusLrt',
+	'runBusted',
+	'simesP',
+	'totalSelectionEnergy',
+	'variableSiteIndices',
+	// diagnostics.js
+	'DIAGNOSTIC_CODES',
+	'DIAGNOSTIC_THRESHOLDS',
+	'WORK_PER_SECOND',
+	'diagnose',
+	'meanPairwiseDivergence',
+	'medianOffDiagonal',
+	'sniffAlignmentFormat',
 ].sort();
 
 describe('the package entry point', () => {
@@ -95,39 +261,50 @@ describe('the package entry point', () => {
 		expect(lib.validateInputBundle).toBe(modelContract.validateInputBundle);
 		expect(lib.INPUT_SPEC).toBe(modelContract.INPUT_SPEC);
 		expect(lib.OUTPUT_SPEC_V1).toBe(modelContract.OUTPUT_SPEC_V1);
-		expect(lib.prepareAlignment).toBe(assemble.prepareAlignment);
+		expect(lib.loadAlignmentAndTree).toBe(assemble.loadAlignmentAndTree);
 		expect(lib.isSiteVariable).toBe(variability.isSiteVariable);
+		expect(lib.runBusted).toBe(omnibus.runBusted);
+	});
+
+	it('resolves the deliberately shared names to the kernel binding', () => {
+		// Three names are exported by two modules each. The ES linker keeps a name only when every
+		// `export *` that supplies it supplies the SAME binding, so these three being present at all
+		// proves the re-exports are aliases and not copies. The identity checks make that explicit.
+		expect(lib.symmetricEigen).toBe(symmetricEigenModule.symmetricEigen);
+		expect(lib.benjaminiHochberg).toBe(bh.benjaminiHochberg);
+		expect(lib.benjaminiHochberg).toBe(stats.benjaminiHochberg);
+		expect(lib.rocAuc).toBe(ranks.rocAuc);
+		expect(lib.rocAuc).toBe(evaluate.rocAuc);
 	});
 
 	it('runs the preprocessing pipeline through the entry point alone', () => {
-		// The smallest end-to-end proof that the barrel is wired: parse, order, tokenise, distance,
-		// MDS and validate, touching nothing but `lib`. Any missing re-export shows up here as a
-		// TypeError rather than as an undefined that quietly becomes NaN downstream.
-		const p = lib.prepareAlignment({
-			names: ['alpha', 'beta', 'gamma'],
-			sequences: ['ATGTTATCA', 'ATGCTATCA', 'ATGTTAAGC'],
-			treeText: '((beta:0.3,alpha:0.15):0.02,gamma:0.1);',
-			maxSpecies: 8
-		});
-		expect(p.totalCodons).toBe(3);
-		expect(p.speciesCount).toBe(3);
-		const v = lib.validateInputBundle(p.batch(0), {
-			batch: p.totalCodons,
-			numSpecies: p.speciesCount,
-			windowSize: p.windowSize
-		});
+		// The smallest end-to-end proof that the barrel is wired: parse, match, tokenise, distance,
+		// MDS, the invariable mask, one site batch and validate, touching nothing but `lib`. Any
+		// missing re-export shows up here as a TypeError rather than as an undefined that quietly
+		// becomes NaN downstream.
+		const loaded = lib.loadAlignmentAndTree(
+			'>alpha\nATGTTATCA\n>beta\nATGCTATCA\n>gamma\nATGTTAAGC\n',
+			'((beta:0.3,alpha:0.15):0.02,gamma:0.1);',
+			{ maxSpecies: 8 }
+		);
+		expect(loaded.L).toBe(3);
+		expect(loaded.N).toBe(3);
+		const bundle = lib.siteBatch(loaded, 0, loaded.L);
+		const v = lib.validateInputBundle(bundle, { batch: loaded.L, numSpecies: loaded.N });
 		expect(v.errors).toEqual([]);
 		// Site 0 is ATG / ATG / ATG — one residue, invariable.
 		// Site 1 is TTA / CTA / TTA — three codons, all Leucine, so invariable despite the change.
-		// Site 2 is TCA / TCA / AGC — a serine island: variable ONLY under the TCN/AGY rule, and the
-		// case `hyphaeon/dataset.py` currently calls invariable (see variability.js's header). If the
-		// fixture harness settles that question against this port, this line is one of the two that
-		// has to change.
+		// Site 2 is TCA / TCA / AGC — a serine island: two codon families, ONE amino acid, which
+		// dataset.py:718-723 calls invariable (no TCN/AGY rule; the fixture harness settled this
+		// against the DataMonkey 3 port, PLAN.md §5.3).
+		expect(Array.from(loaded.invariable)).toEqual([1, 1, 1]);
 		expect(lib.siteVariability(['ATGTTATCA', 'ATGCTATCA', 'ATGTTAAGC'], 3)).toEqual([
 			false,
 			false,
-			true
+			false
 		]);
+		// And one statistic through the method layer: an all-zero LRT vector is p = 2/3 everywhere.
+		expect(Array.from(lib.pvalsFromLrtMeme(new Float32Array(3)))).toEqual([2 / 3, 2 / 3, 2 / 3]);
 	});
 });
 
@@ -164,7 +341,7 @@ describe('the exports map, resolved by Node itself', () => {
 		// The layout under src/ must stay a private matter — a deep import that works once becomes an
 		// API nobody agreed to. Asserting the error CODE rather than its message keeps this stable
 		// across Node versions.
-		expect(resolveInNode('@veg/hyphaeon-js/src/preprocess/newick.js')).toEqual({
+		expect(resolveInNode('@veg/hyphaeon-js/src/preprocess/tree.js')).toEqual({
 			ok: false,
 			code: 'ERR_PACKAGE_PATH_NOT_EXPORTED'
 		});

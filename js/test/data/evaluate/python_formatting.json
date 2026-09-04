@@ -1,0 +1,2509 @@
+{
+ "float_repr": [
+  [
+   0.0,
+   "0.0"
+  ],
+  [
+   -0.0,
+   "-0.0"
+  ],
+  [
+   1.0,
+   "1.0"
+  ],
+  [
+   100.0,
+   "100.0"
+  ],
+  [
+   1000000000000000.0,
+   "1000000000000000.0"
+  ],
+  [
+   1e+16,
+   "1e+16"
+  ],
+  [
+   1e+17,
+   "1e+17"
+  ],
+  [
+   1e+21,
+   "1e+21"
+  ],
+  [
+   1e+22,
+   "1e+22"
+  ],
+  [
+   0.0001,
+   "0.0001"
+  ],
+  [
+   1e-05,
+   "1e-05"
+  ],
+  [
+   0.001,
+   "0.001"
+  ],
+  [
+   1.2345678901234568e+17,
+   "1.2345678901234568e+17"
+  ],
+  [
+   1.5e-300,
+   "1.5e-300"
+  ],
+  [
+   5e-324,
+   "5e-324"
+  ],
+  [
+   1.7976931348623157e+308,
+   "1.7976931348623157e+308"
+  ],
+  [
+   2.2250738585072014e-308,
+   "2.2250738585072014e-308"
+  ],
+  [
+   0.1,
+   "0.1"
+  ],
+  [
+   0.30000000000000004,
+   "0.30000000000000004"
+  ],
+  [
+   0.3333333333333333,
+   "0.3333333333333333"
+  ],
+  [
+   0.6666666666666666,
+   "0.6666666666666666"
+  ],
+  [
+   9007199254740992.0,
+   "9007199254740992.0"
+  ],
+  [
+   1e+100,
+   "1e+100"
+  ],
+  [
+   1.5e-07,
+   "1.5e-07"
+  ],
+  [
+   12345.678,
+   "12345.678"
+  ],
+  [
+   -1234567.0,
+   "-1234567.0"
+  ],
+  [
+   1e-10,
+   "1e-10"
+  ],
+  [
+   999999999999999.9,
+   "999999999999999.9"
+  ],
+  [
+   9999999999999998.0,
+   "9999999999999998.0"
+  ],
+  [
+   0.000123456,
+   "0.000123456"
+  ],
+  [
+   1e-06,
+   "1e-06"
+  ],
+  [
+   1e-07,
+   "1e-07"
+  ],
+  [
+   0.6666666865348816,
+   "0.6666666865348816"
+  ],
+  [
+   5.023776531219482,
+   "5.023776531219482"
+  ],
+  [
+   1.0150756628943599e-05,
+   "1.0150756628943599e-05"
+  ],
+  [
+   1.990858718556173e-198,
+   "1.990858718556173e-198"
+  ],
+  [
+   2.4815198667780723e+194,
+   "2.4815198667780723e+194"
+  ],
+  [
+   1.3204922533189546e+180,
+   "1.3204922533189546e+180"
+  ],
+  [
+   7.431684395345918e+54,
+   "7.431684395345918e+54"
+  ],
+  [
+   2.239861751455514e-48,
+   "2.239861751455514e-48"
+  ],
+  [
+   9.534755101783841e-263,
+   "9.534755101783841e-263"
+  ],
+  [
+   3.5963741650947966e-230,
+   "3.5963741650947966e-230"
+  ],
+  [
+   8.748064390169323e+181,
+   "8.748064390169323e+181"
+  ],
+  [
+   6.917939999898582e-120,
+   "6.917939999898582e-120"
+  ],
+  [
+   2.738537027346377e-48,
+   "2.738537027346377e-48"
+  ],
+  [
+   5.796177869650768e-59,
+   "5.796177869650768e-59"
+  ],
+  [
+   1.2207096629983816e-229,
+   "1.2207096629983816e-229"
+  ],
+  [
+   8.032100680458887e+254,
+   "8.032100680458887e+254"
+  ],
+  [
+   4.9049328506269965e+61,
+   "4.9049328506269965e+61"
+  ],
+  [
+   5.1919814333065225e+200,
+   "5.1919814333065225e+200"
+  ],
+  [
+   4.354390085200412e-185,
+   "4.354390085200412e-185"
+  ],
+  [
+   2.7613839399385263e-292,
+   "2.7613839399385263e-292"
+  ],
+  [
+   4.57395645052402e-220,
+   "4.57395645052402e-220"
+  ],
+  [
+   3.2174592065686394e+27,
+   "3.2174592065686394e+27"
+  ],
+  [
+   6.219378367014761e+190,
+   "6.219378367014761e+190"
+  ],
+  [
+   4.327818283896846e-98,
+   "4.327818283896846e-98"
+  ],
+  [
+   3.5706425908085885e+127,
+   "3.5706425908085885e+127"
+  ],
+  [
+   5.554652344170314e-27,
+   "5.554652344170314e-27"
+  ],
+  [
+   1.2244739819726557e+94,
+   "1.2244739819726557e+94"
+  ],
+  [
+   2.9076930803140667e-185,
+   "2.9076930803140667e-185"
+  ],
+  [
+   2.857475885031746e+145,
+   "2.857475885031746e+145"
+  ],
+  [
+   8.834286249019315e+201,
+   "8.834286249019315e+201"
+  ],
+  [
+   5.042727039775359e+297,
+   "5.042727039775359e+297"
+  ],
+  [
+   8.504075867872552e-178,
+   "8.504075867872552e-178"
+  ],
+  [
+   4.421983335688977e+163,
+   "4.421983335688977e+163"
+  ],
+  [
+   4.957812798109566e-12,
+   "4.957812798109566e-12"
+  ],
+  [
+   7.665063868386926e+44,
+   "7.665063868386926e+44"
+  ],
+  [
+   438635774579.71985,
+   "438635774579.71985"
+  ],
+  [
+   1.654989689219467e+303,
+   "1.654989689219467e+303"
+  ],
+  [
+   4.19076190781743e-267,
+   "4.19076190781743e-267"
+  ],
+  [
+   6.736390533217376e-302,
+   "6.736390533217376e-302"
+  ],
+  [
+   5.597722666999797e-202,
+   "5.597722666999797e-202"
+  ],
+  [
+   9.311252710428686e+83,
+   "9.311252710428686e+83"
+  ],
+  [
+   1.2741407226020806e+256,
+   "1.2741407226020806e+256"
+  ],
+  [
+   9.121442911103181e-166,
+   "9.121442911103181e-166"
+  ],
+  [
+   6.647840561442781e-194,
+   "6.647840561442781e-194"
+  ],
+  [
+   2.84e-321,
+   "2.84e-321"
+  ],
+  [
+   9.050211114379541e-284,
+   "9.050211114379541e-284"
+  ],
+  [
+   6.777951782446031e-113,
+   "6.777951782446031e-113"
+  ],
+  [
+   6.803105724569323e-274,
+   "6.803105724569323e-274"
+  ],
+  [
+   1.3126098908917695e+170,
+   "1.3126098908917695e+170"
+  ],
+  [
+   5.694445475756116e+47,
+   "5.694445475756116e+47"
+  ],
+  [
+   4.146343594440228e+20,
+   "4.146343594440228e+20"
+  ],
+  [
+   6.967209207129927e-180,
+   "6.967209207129927e-180"
+  ],
+  [
+   6.323448189666558e+214,
+   "6.323448189666558e+214"
+  ],
+  [
+   6.342352909990453e-61,
+   "6.342352909990453e-61"
+  ],
+  [
+   7.64647837188098e-286,
+   "7.64647837188098e-286"
+  ],
+  [
+   7.917896172195228e-195,
+   "7.917896172195228e-195"
+  ],
+  [
+   4.178514905385823e-185,
+   "4.178514905385823e-185"
+  ],
+  [
+   4.907324070213615e+128,
+   "4.907324070213615e+128"
+  ],
+  [
+   4.5329676182826574e-159,
+   "4.5329676182826574e-159"
+  ],
+  [
+   1.827665747567797e+93,
+   "1.827665747567797e+93"
+  ],
+  [
+   7.6431745897546795e+289,
+   "7.6431745897546795e+289"
+  ],
+  [
+   4.073701696825363e-257,
+   "4.073701696825363e-257"
+  ],
+  [
+   8.873813220624954e-172,
+   "8.873813220624954e-172"
+  ],
+  [
+   9.822580452528448e-303,
+   "9.822580452528448e-303"
+  ],
+  [
+   7.152582438308023e-241,
+   "7.152582438308023e-241"
+  ],
+  [
+   3.6956230178849747e+158,
+   "3.6956230178849747e+158"
+  ],
+  [
+   7.18734225288516e-237,
+   "7.18734225288516e-237"
+  ],
+  [
+   4.256487093632001e-128,
+   "4.256487093632001e-128"
+  ],
+  [
+   6.929706713186969e+95,
+   "6.929706713186969e+95"
+  ],
+  [
+   1.7153326966173167e-63,
+   "1.7153326966173167e-63"
+  ],
+  [
+   3.864805216256868e-241,
+   "3.864805216256868e-241"
+  ],
+  [
+   1.1620743905048636e-241,
+   "1.1620743905048636e-241"
+  ],
+  [
+   3.1465634315282843e-44,
+   "3.1465634315282843e-44"
+  ],
+  [
+   1.1985106242592847e-215,
+   "1.1985106242592847e-215"
+  ],
+  [
+   2.4343261319787688e-111,
+   "2.4343261319787688e-111"
+  ],
+  [
+   70043003393963.56,
+   "70043003393963.56"
+  ],
+  [
+   2.7854367988151795e-295,
+   "2.7854367988151795e-295"
+  ],
+  [
+   9.230948758789004e+157,
+   "9.230948758789004e+157"
+  ],
+  [
+   7.247648574587759e-89,
+   "7.247648574587759e-89"
+  ],
+  [
+   9.339028400728354e+275,
+   "9.339028400728354e+275"
+  ],
+  [
+   3.9257984015446424e+79,
+   "3.9257984015446424e+79"
+  ],
+  [
+   3.2233309200976335e-14,
+   "3.2233309200976335e-14"
+  ],
+  [
+   8.186283560670997e-243,
+   "8.186283560670997e-243"
+  ],
+  [
+   5.1765251079079225e-50,
+   "5.1765251079079225e-50"
+  ],
+  [
+   5.300101815681746e+168,
+   "5.300101815681746e+168"
+  ],
+  [
+   1.5452212714961021e-50,
+   "1.5452212714961021e-50"
+  ],
+  [
+   2.5241616705590555e-108,
+   "2.5241616705590555e-108"
+  ],
+  [
+   8.611116773767003e+202,
+   "8.611116773767003e+202"
+  ],
+  [
+   4.209448934900085e+268,
+   "4.209448934900085e+268"
+  ],
+  [
+   9.386987268234282e-138,
+   "9.386987268234282e-138"
+  ],
+  [
+   6.5487565018524375e-161,
+   "6.5487565018524375e-161"
+  ],
+  [
+   9.985438831044181e+288,
+   "9.985438831044181e+288"
+  ],
+  [
+   3.0150790868375576e-193,
+   "3.0150790868375576e-193"
+  ],
+  [
+   8.635359948474153e-289,
+   "8.635359948474153e-289"
+  ],
+  [
+   1.1953723530421722e+72,
+   "1.1953723530421722e+72"
+  ],
+  [
+   2.4010414633699805e+115,
+   "2.4010414633699805e+115"
+  ],
+  [
+   408933.87002972735,
+   "408933.87002972735"
+  ],
+  [
+   5.809814643090829e+260,
+   "5.809814643090829e+260"
+  ],
+  [
+   7.899230663058807e+212,
+   "7.899230663058807e+212"
+  ],
+  [
+   5.488049068992685e-119,
+   "5.488049068992685e-119"
+  ],
+  [
+   6.494527400678293e-62,
+   "6.494527400678293e-62"
+  ],
+  [
+   2.374541180105725e+240,
+   "2.374541180105725e+240"
+  ],
+  [
+   7.044818948063719e+138,
+   "7.044818948063719e+138"
+  ],
+  [
+   4.824240717392031e-111,
+   "4.824240717392031e-111"
+  ],
+  [
+   1.3143979346276203e+261,
+   "1.3143979346276203e+261"
+  ],
+  [
+   1.0919406385853935e+248,
+   "1.0919406385853935e+248"
+  ],
+  [
+   3.523928120315658e-11,
+   "3.523928120315658e-11"
+  ],
+  [
+   1.1736571236973249e+96,
+   "1.1736571236973249e+96"
+  ],
+  [
+   7673099543939.288,
+   "7673099543939.288"
+  ],
+  [
+   3.282240010317178e-101,
+   "3.282240010317178e-101"
+  ],
+  [
+   4.72888e-318,
+   "4.72888e-318"
+  ],
+  [
+   5.40243713429875e-185,
+   "5.40243713429875e-185"
+  ],
+  [
+   8.862289045148387e-25,
+   "8.862289045148387e-25"
+  ],
+  [
+   1.3767624237274323e-290,
+   "1.3767624237274323e-290"
+  ],
+  [
+   1.7315948399614867e-71,
+   "1.7315948399614867e-71"
+  ],
+  [
+   3.3410416412910225e-295,
+   "3.3410416412910225e-295"
+  ],
+  [
+   5.615540159970612e-301,
+   "5.615540159970612e-301"
+  ],
+  [
+   4.4004160999617425e-48,
+   "4.4004160999617425e-48"
+  ],
+  [
+   8.562332701692864e+260,
+   "8.562332701692864e+260"
+  ],
+  [
+   1.2218337704201366e-217,
+   "1.2218337704201366e-217"
+  ],
+  [
+   458094.47071990004,
+   "458094.47071990004"
+  ],
+  [
+   6.8000593806514135e-19,
+   "6.8000593806514135e-19"
+  ],
+  [
+   1.9743743375500534e+239,
+   "1.9743743375500534e+239"
+  ],
+  [
+   -3.695233883473373e+290,
+   "-3.695233883473373e+290"
+  ],
+  [
+   -1.9042514323153645e+75,
+   "-1.9042514323153645e+75"
+  ],
+  [
+   -4.697330680400907e-133,
+   "-4.697330680400907e-133"
+  ],
+  [
+   1.771557986195923e-83,
+   "1.771557986195923e-83"
+  ],
+  [
+   -3.990846192785714e+202,
+   "-3.990846192785714e+202"
+  ],
+  [
+   -1.745209521297165e-155,
+   "-1.745209521297165e-155"
+  ],
+  [
+   -1.1715288510150986e+30,
+   "-1.1715288510150986e+30"
+  ],
+  [
+   -3.4767221804327867e-53,
+   "-3.4767221804327867e-53"
+  ],
+  [
+   21945.73669619663,
+   "21945.73669619663"
+  ],
+  [
+   -2.4001120722868492e+150,
+   "-2.4001120722868492e+150"
+  ],
+  [
+   -4.4872848484319915e-144,
+   "-4.4872848484319915e-144"
+  ],
+  [
+   -4.3678487205123394e+77,
+   "-4.3678487205123394e+77"
+  ],
+  [
+   -3.4539712325018645e-143,
+   "-3.4539712325018645e-143"
+  ],
+  [
+   2.0341269889390004e-90,
+   "2.0341269889390004e-90"
+  ],
+  [
+   1.0124502340275894e-280,
+   "1.0124502340275894e-280"
+  ],
+  [
+   4426814708942855.0,
+   "4426814708942855.0"
+  ],
+  [
+   -5.454892438046505e+282,
+   "-5.454892438046505e+282"
+  ],
+  [
+   -7.012080359727923e-306,
+   "-7.012080359727923e-306"
+  ],
+  [
+   2.0492678322852298e-230,
+   "2.0492678322852298e-230"
+  ],
+  [
+   3.39173208105031e-113,
+   "3.39173208105031e-113"
+  ],
+  [
+   -1.773273610330441e+75,
+   "-1.773273610330441e+75"
+  ],
+  [
+   -1.4770889031393452e-180,
+   "-1.4770889031393452e-180"
+  ],
+  [
+   1.0753264722665197e+270,
+   "1.0753264722665197e+270"
+  ],
+  [
+   -8.920990948919953e+294,
+   "-8.920990948919953e+294"
+  ],
+  [
+   1.202983063750515e-60,
+   "1.202983063750515e-60"
+  ],
+  [
+   -1.151146080632389e+192,
+   "-1.151146080632389e+192"
+  ],
+  [
+   7.614884362386226e-239,
+   "7.614884362386226e-239"
+  ],
+  [
+   -6.474057609018194e+106,
+   "-6.474057609018194e+106"
+  ],
+  [
+   7.180959733609643e-158,
+   "7.180959733609643e-158"
+  ],
+  [
+   9.141689271467647e-22,
+   "9.141689271467647e-22"
+  ],
+  [
+   -2.6587953667670887e+234,
+   "-2.6587953667670887e+234"
+  ],
+  [
+   -7.694923632773606e+71,
+   "-7.694923632773606e+71"
+  ],
+  [
+   -9.244606638534359e+126,
+   "-9.244606638534359e+126"
+  ],
+  [
+   -8.230820119411606e-89,
+   "-8.230820119411606e-89"
+  ],
+  [
+   7.705371507463276e+280,
+   "7.705371507463276e+280"
+  ],
+  [
+   -9.191308757974955e-35,
+   "-9.191308757974955e-35"
+  ],
+  [
+   3.658859354271137e-94,
+   "3.658859354271137e-94"
+  ],
+  [
+   -2.965759225731164e+46,
+   "-2.965759225731164e+46"
+  ],
+  [
+   -5.875465088581223e-15,
+   "-5.875465088581223e-15"
+  ],
+  [
+   -7.316794703591229e+79,
+   "-7.316794703591229e+79"
+  ]
+ ],
+ "float_repr_special": [
+  [
+   "inf",
+   "inf"
+  ],
+  [
+   "-inf",
+   "-inf"
+  ],
+  [
+   "nan",
+   "nan"
+  ]
+ ],
+ "format_fixed6": [
+  [
+   0.0078125,
+   "0.007812"
+  ],
+  [
+   2.5e-07,
+   "0.000000"
+  ],
+  [
+   123456.9999995,
+   "123456.999999"
+  ],
+  [
+   -1e-07,
+   "-0.000000"
+  ],
+  [
+   1e+21,
+   "1000000000000000000000.000000"
+  ],
+  [
+   0.5,
+   "0.500000"
+  ],
+  [
+   1.0,
+   "1.000000"
+  ],
+  [
+   0.1234565,
+   "0.123456"
+  ],
+  [
+   0.1234575,
+   "0.123457"
+  ],
+  [
+   5e-07,
+   "0.000000"
+  ],
+  [
+   1.5e-06,
+   "0.000002"
+  ],
+  [
+   0.9999995,
+   "1.000000"
+  ],
+  [
+   1e-300,
+   "0.000000"
+  ],
+  [
+   123456789.12345679,
+   "123456789.123457"
+  ],
+  [
+   -1.5,
+   "-1.500000"
+  ],
+  [
+   0.0,
+   "0.000000"
+  ],
+  [
+   -0.0,
+   "-0.000000"
+  ],
+  [
+   0.6769239610533377,
+   "0.676924"
+  ],
+  [
+   0.00390625,
+   "0.003906"
+  ],
+  [
+   5e-07,
+   "0.000000"
+  ],
+  [
+   2.0000005,
+   "2.000001"
+  ],
+  [
+   1e-07,
+   "0.000000"
+  ],
+  [
+   0.9999999,
+   "1.000000"
+  ]
+ ],
+ "format_g": [
+  [
+   0.05,
+   "0.05"
+  ],
+  [
+   0.1,
+   "0.1"
+  ],
+  [
+   1e-05,
+   "1e-05"
+  ],
+  [
+   123456789.0,
+   "1.23457e+08"
+  ],
+  [
+   0.0001,
+   "0.0001"
+  ],
+  [
+   1.5,
+   "1.5"
+  ],
+  [
+   100000.0,
+   "100000"
+  ],
+  [
+   1000000.0,
+   "1e+06"
+  ],
+  [
+   1.234e-05,
+   "1.234e-05"
+  ],
+  [
+   0.0001,
+   "0.0001"
+  ],
+  [
+   12345.6789,
+   "12345.7"
+  ],
+  [
+   0.0,
+   "0"
+  ],
+  [
+   1.0,
+   "1"
+  ],
+  [
+   999999.4,
+   "999999"
+  ],
+  [
+   999999.5,
+   "1e+06"
+  ],
+  [
+   0.5,
+   "0.5"
+  ],
+  [
+   2.0,
+   "2"
+  ]
+ ],
+ "repr": [
+  [
+   "abc",
+   "'abc'"
+  ],
+  [
+   "it's",
+   "\"it's\""
+  ],
+  [
+   "say \"hi\"",
+   "'say \"hi\"'"
+  ],
+  [
+   "both ' and \"",
+   "'both \\' and \"'"
+  ],
+  [
+   "back\\slash",
+   "'back\\\\slash'"
+  ],
+  [
+   "tab\tnl\n",
+   "'tab\\tnl\\n'"
+  ],
+  [
+   "\u0001",
+   "'\\x01\\x7f'"
+  ],
+  [
+   "é€",
+   "'é€'"
+  ],
+  [
+   "😀",
+   "'😀'"
+  ],
+  [
+   [
+    1,
+    2,
+    "x"
+   ],
+   "[1, 2, 'x']"
+  ],
+  [
+   {
+    "A": 0.5,
+    "B": -1.0
+   },
+   "{'A': 0.5, 'B': -1.0}"
+  ],
+  [
+   [],
+   "[]"
+  ],
+  [
+   {},
+   "{}"
+  ],
+  [
+   null,
+   "None"
+  ],
+  [
+   true,
+   "True"
+  ],
+  [
+   false,
+   "False"
+  ],
+  [
+   1e-05,
+   "1e-05"
+  ],
+  [
+   [
+    [
+     1
+    ],
+    [
+     "a"
+    ]
+   ],
+   "[[1], ['a']]"
+  ],
+  [
+   " ",
+   "'\\xa0'"
+  ],
+  [
+   "a b",
+   "'a b'"
+  ],
+  [
+   "",
+   "''"
+  ]
+ ],
+ "meme_json": {
+  "sites_slice": [
+   139,
+   142
+  ],
+  "attribution_key": "141",
+  "runtime_sec": 1.25,
+  "text": "{\n  \"alignment\": \"bat_oas1.fasta\",\n  \"tree\": \"bat_oas1.nwk\",\n  \"taxa_count\": 18,\n  \"codon_count\": 351,\n  \"runtime_sec\": 1.25,\n  \"filter_enabled\": true,\n  \"artifacts_masked\": [],\n  \"attribution_enabled\": true,\n  \"attributions\": {\n    \"141\": {\n      \"site_0indexed\": 140,\n      \"site_1indexed\": 141,\n      \"predicted_lrt\": 5.023776531219482,\n      \"consensus_codon\": \"GTG\",\n      \"consensus_aa\": \"V\",\n      \"num_mutated_taxa\": 2,\n      \"driving_species\": [\n        {\n          \"taxon\": \"P_kuhl\",\n          \"taxon_index\": 11,\n          \"observed_codon\": \"AAG\",\n          \"observed_aa\": \"K\",\n          \"consensus_codon\": \"GTG\",\n          \"consensus_aa\": \"V\",\n          \"delta_lrt\": 2.6715292930603027,\n          \"pct_signal_explained\": 53.17770956686662,\n          \"mean_patristic_depth\": 0.2745901942253113\n        },\n        {\n          \"taxon\": \"M_nat\",\n          \"taxon_index\": 16,\n          \"observed_codon\": \"ACG\",\n          \"observed_aa\": \"T\",\n          \"consensus_codon\": \"GTG\",\n          \"consensus_aa\": \"V\",\n          \"delta_lrt\": 0.544682502746582,\n          \"pct_signal_explained\": 10.84209258436829,\n          \"mean_patristic_depth\": 0.29268959164619446\n        }\n      ],\n      \"when_selection_occurred\": {\n        \"evolutionary_epoch\": \"Recent Terminal / Tip Sweep\",\n        \"mode_of_adaptation\": \"Recurrent / Multi-Lineage Adaptation\",\n        \"weighted_patristic_depth\": 0.2776554221812905,\n        \"tree_depth_ratio\": 0.7902622493132836\n      }\n    }\n  },\n  \"sites\": [\n    {\n      \"site\": 140,\n      \"hyphaeon_lrt\": 0.0,\n      \"p_value\": 0.6666666865348816,\n      \"q_value\": 0.6666666865348816,\n      \"is_invariable\": true\n    },\n    {\n      \"site\": 141,\n      \"hyphaeon_lrt\": 5.023776531219482,\n      \"p_value\": 0.03724261373281479,\n      \"q_value\": 0.6666666865348816,\n      \"is_invariable\": false,\n      \"evolutionary_epoch\": \"Recent Terminal / Tip Sweep\",\n      \"adaptation_mode\": \"Recurrent / Multi-Lineage Adaptation\",\n      \"top_driver\": \"P_kuhl\",\n      \"top_mutation\": \"V->K\",\n      \"attribution_details\": {\n        \"site_0indexed\": 140,\n        \"site_1indexed\": 141,\n        \"predicted_lrt\": 5.023776531219482,\n        \"consensus_codon\": \"GTG\",\n        \"consensus_aa\": \"V\",\n        \"num_mutated_taxa\": 2,\n        \"driving_species\": [\n          {\n            \"taxon\": \"P_kuhl\",\n            \"taxon_index\": 11,\n            \"observed_codon\": \"AAG\",\n            \"observed_aa\": \"K\",\n            \"consensus_codon\": \"GTG\",\n            \"consensus_aa\": \"V\",\n            \"delta_lrt\": 2.6715292930603027,\n            \"pct_signal_explained\": 53.17770956686662,\n            \"mean_patristic_depth\": 0.2745901942253113\n          },\n          {\n            \"taxon\": \"M_nat\",\n            \"taxon_index\": 16,\n            \"observed_codon\": \"ACG\",\n            \"observed_aa\": \"T\",\n            \"consensus_codon\": \"GTG\",\n            \"consensus_aa\": \"V\",\n            \"delta_lrt\": 0.544682502746582,\n            \"pct_signal_explained\": 10.84209258436829,\n            \"mean_patristic_depth\": 0.29268959164619446\n          }\n        ],\n        \"when_selection_occurred\": {\n          \"evolutionary_epoch\": \"Recent Terminal / Tip Sweep\",\n          \"mode_of_adaptation\": \"Recurrent / Multi-Lineage Adaptation\",\n          \"weighted_patristic_depth\": 0.2776554221812905,\n          \"tree_depth_ratio\": 0.7902622493132836\n        }\n      }\n    },\n    {\n      \"site\": 142,\n      \"hyphaeon_lrt\": 1.304652452468872,\n      \"p_value\": 0.2669815719127655,\n      \"q_value\": 0.6666666865348816,\n      \"is_invariable\": false\n    }\n  ]\n}"
+ },
+ "json_edge": {
+  "text": "{\n  \"a\": [],\n  \"b\": {},\n  \"c\": [\n    1,\n    2.5,\n    null,\n    true,\n    false,\n    \"x\\u00e9\\n\\\"y\\\"\\\\/\\t\\ud83d\\ude00\\u0001\\u007f\"\n  ],\n  \"d\": NaN,\n  \"e\": Infinity,\n  \"f\": -Infinity,\n  \"g\": 1e+16,\n  \"h\": 1e-05,\n  \"i\": -0.0,\n  \"j\": {\n    \"k\": [\n      {\n        \"l\": []\n      }\n    ]\n  },\n  \"\\u00fc\": 1\n}"
+ },
+ "json_allow_nan_error": "Out of range float values are not JSON compliant: nan",
+ "meme_csv_attr": {
+  "sites_slice": [
+   138,
+   144
+  ],
+  "text": "site,hyphaeon_lrt,p_value,q_value,is_invariable,evolutionary_epoch,adaptation_mode,top_driver,top_mutation\n139,1.3527190685272217,0.2598780393600464,0.6666666865348816,False,,,,\n140,0.0,0.6666666865348816,0.6666666865348816,True,,,,\n141,5.023776531219482,0.03724261373281479,0.6666666865348816,False,Recent Terminal / Tip Sweep,Recurrent / Multi-Lineage Adaptation,P_kuhl,V->K\n142,1.304652452468872,0.2669815719127655,0.6666666865348816,False,,,,\n143,1.0835167169570923,0.3026726245880127,0.6666666865348816,False,,,,\n144,0.9314062595367432,0.3305036425590515,0.6666666865348816,False,,,,\n"
+ },
+ "meme_csv_plain": {
+  "sites_slice": [
+   0,
+   4
+  ],
+  "text": "site,hyphaeon_lrt,p_value,q_value,is_invariable\n1,0.0,0.6666666865348816,0.6666666865348816,True\n2,0.0,0.6666666865348816,0.6666666865348816,True\n3,0.0,0.6666666865348816,0.6666666865348816,True\n4,0.0,0.6666666865348816,0.6666666865348816,True\n"
+ },
+ "busted": {
+  "record": {
+   "alignment": "Smc6.fasta",
+   "gene": "Smc6",
+   "taxa": 20,
+   "sites": 1097,
+   "p_value_acat": 0.11831563373812454,
+   "p_value_simes": 1.0,
+   "omnibus_lrt": 3.285405158996582,
+   "predicted_gene_lrt": 0.0,
+   "selection_probability": 0.664965033531189,
+   "synonymous_rate_variation": 0.0123,
+   "total_selection_energy": 84.76806640625,
+   "sig_sites_p05": 5,
+   "sig_sites_p10": 14,
+   "rate_distributions": {
+    "omega_1": 0.1,
+    "proportion_1": 0.3,
+    "omega_2": 1.0,
+    "proportion_2": 0.2469,
+    "omega_3": 0.5653032064437866,
+    "proportion_3": 0.45309603214263916
+   },
+   "positive_selection_detected": true,
+   "elapsed_seconds": 0.123456
+  },
+  "csv": "Gene,Taxa,Sites,p_ACAT,p_Simes,Selection_Prob,Pred_Gene_LRT,Omnibus_LRT,Omega_3,Prop_Positive,Sig_Sites_p05,Selected,Time_ms\nSmc6,20,1097,0.11831563373812454,1.0,0.664965033531189,0.0,3.285405158996582,0.5653032064437866,0.45309603214263916,5,True,123.456\n",
+  "json_single": "{\n  \"alignment\": \"Smc6.fasta\",\n  \"gene\": \"Smc6\",\n  \"taxa\": 20,\n  \"sites\": 1097,\n  \"p_value_acat\": 0.11831563373812454,\n  \"p_value_simes\": 1.0,\n  \"omnibus_lrt\": 3.285405158996582,\n  \"predicted_gene_lrt\": 0.0,\n  \"selection_probability\": 0.664965033531189,\n  \"synonymous_rate_variation\": 0.0123,\n  \"total_selection_energy\": 84.76806640625,\n  \"sig_sites_p05\": 5,\n  \"sig_sites_p10\": 14,\n  \"rate_distributions\": {\n    \"omega_1\": 0.1,\n    \"proportion_1\": 0.3,\n    \"omega_2\": 1.0,\n    \"proportion_2\": 0.2469,\n    \"omega_3\": 0.5653032064437866,\n    \"proportion_3\": 0.45309603214263916\n  },\n  \"positive_selection_detected\": true,\n  \"elapsed_seconds\": 0.123456\n}",
+  "json_batch": "[\n  {\n    \"alignment\": \"Smc6.fasta\",\n    \"gene\": \"Smc6\",\n    \"taxa\": 20,\n    \"sites\": 1097,\n    \"p_value_acat\": 0.11831563373812454,\n    \"p_value_simes\": 1.0,\n    \"omnibus_lrt\": 3.285405158996582,\n    \"predicted_gene_lrt\": 0.0,\n    \"selection_probability\": 0.664965033531189,\n    \"synonymous_rate_variation\": 0.0123,\n    \"total_selection_energy\": 84.76806640625,\n    \"sig_sites_p05\": 5,\n    \"sig_sites_p10\": 14,\n    \"rate_distributions\": {\n      \"omega_1\": 0.1,\n      \"proportion_1\": 0.3,\n      \"omega_2\": 1.0,\n      \"proportion_2\": 0.2469,\n      \"omega_3\": 0.5653032064437866,\n      \"proportion_3\": 0.45309603214263916\n    },\n    \"positive_selection_detected\": true,\n    \"elapsed_seconds\": 0.123456\n  },\n  {\n    \"alignment\": \"Smc6.fasta\",\n    \"gene\": \"Smc6\",\n    \"taxa\": 20,\n    \"sites\": 1097,\n    \"p_value_acat\": 0.11831563373812454,\n    \"p_value_simes\": 1.0,\n    \"omnibus_lrt\": 3.285405158996582,\n    \"predicted_gene_lrt\": 0.0,\n    \"selection_probability\": 0.664965033531189,\n    \"synonymous_rate_variation\": 0.0123,\n    \"total_selection_energy\": 84.76806640625,\n    \"sig_sites_p05\": 5,\n    \"sig_sites_p10\": 14,\n    \"rate_distributions\": {\n      \"omega_1\": 0.1,\n      \"proportion_1\": 0.3,\n      \"omega_2\": 1.0,\n      \"proportion_2\": 0.2469,\n      \"omega_3\": 0.5653032064437866,\n      \"proportion_3\": 0.45309603214263916\n    },\n    \"positive_selection_detected\": true,\n    \"elapsed_seconds\": 0.123456\n  }\n]"
+ },
+ "edges_csv": "site_u,site_v,ref_u,ref_v,lrt_u,lrt_v,similarity,shared_taxa,shared_branches,p_val,hyper_p,fdr_q,cesi\n279,930,S,D,3.291477918624878,4.06926155090332,0.8029388189315796,5,5,1.0150756628943599e-05,1.0150756628943599e-05,0.00011417182395234704,2.938567876815796\n685,930,M,D,1.6507127285003662,4.06926155090332,0.8866360187530518,9,9,9.665634346023611e-08,9.665634346023611e-08,1.206519982588361e-06,2.297941207885742\n244,279,H,S,1.5463194847106934,3.291477918624878,0.9804830551147461,5,5,1.8179415547454533e-14,1.8179415547454533e-14,2.721651300597455e-13,2.2120001316070557\n279,557,S,R,3.291477918624878,1.3669373989105225,0.9999999403953552,5,5,4.5085419303972895e-64,4.5085419303972895e-64,0.0,2.1211419105529785\n279,461,S,V,3.291477918624878,1.2188094854354858,0.9999998211860657,5,5,8.874168145691056e-60,8.874168145691056e-60,0.0,2.0029184818267822\n",
+ "plasticity_csv": {
+  "slice": [
+   0,
+   2
+  ],
+  "text": "site,wt_aa,baseline_lrt,p_value,intrinsic_plasticity,mean_delta_lrt,max_delta_lrt,min_delta_lrt,mutant_deltas\n244,H,1.5463194847106934,0.10683980406620318,0.2697484493255615,-0.08431005477905273,0.7519710063934326,-0.5665940046310425,\"{'A': 0.34870076179504395, 'C': 0.16176021099090576, 'D': -0.04399538040161133, 'E': 0.002041339874267578, 'F': 0.2575204372406006, 'G': 0.7519710063934326, 'I': 0.026872873306274414, 'K': -0.48641514778137207, 'L': -0.35364794731140137, 'M': -0.18122351169586182, 'N': -0.5170401334762573, 'P': -0.5665940046310425, 'Q': -0.34080004692077637, 'R': -0.08679091930389404, 'S': -0.0030355453491210938, 'T': -0.46620500087738037, 'V': 0.024694442749023438, 'W': 0.18810343742370605, 'Y': -0.3178079128265381}\"\n279,S,3.291477918624878,0.03482015594859847,0.6573642492294312,0.02060459740459919,1.601933240890503,-1.1577248573303223,\"{'A': -0.11837530136108398, 'C': -0.2546203136444092, 'D': 0.18271589279174805, 'E': 1.601933240890503, 'F': -0.6169803142547607, 'G': 1.037527322769165, 'H': -0.7961759567260742, 'I': -0.09975671768188477, 'K': 0.9605057239532471, 'L': 0.17831945419311523, 'M': -0.7846560478210449, 'N': -0.22249221801757812, 'P': -0.8952944278717041, 'Q': 1.500457525253296, 'R': 0.5473790168762207, 'T': -1.1577248573303223, 'V': 0.4318661689758301, 'W': -0.3463754653930664, 'Y': -0.7567653656005859}\"\n"
+ },
+ "dms_csv": {
+  "slice": [
+   0,
+   2
+  ],
+  "text": "site,wt_aa,baseline_lrt,p_value,intrinsic_plasticity,mean_delta_lrt,max_delta_lrt,min_delta_lrt\n244,H,1.5463194847106934,0.10683980406620318,0.2697484493255615,-0.08431005477905273,0.7519710063934326,-0.5665940046310425\n279,S,3.291477918624878,0.03482015594859847,0.6573642492294312,0.02060459740459919,1.601933240890503,-1.1577248573303223\n"
+ },
+ "sectors_csv": "sector_id,size,sites,spectral_coherence,p_perm,null_coherence_mean,null_coherence_std,null_coherence_95,isotropic_baseline,shared_taxa,shared_branches,mean_lrt,pars_signature,consensus_signature\n1,4,\"[244, 279, 461, 557]\",0.9913166761398315,0.001,0.5106074810028076,0.11975622922182083,0.7407147884368896,0.25,5,5,1.8558859825134277,[ H244 - S279 - V461 - R557 ],[ H244 - S279 - V461 - R557 ]\n2,2,\"[685, 930]\",0.9439828991889954,0.093,0.6947686672210693,0.13935528695583344,0.9999998211860657,0.5,9,9,2.859987258911133,[ M685 - D930 ],[ M685 - D930 ]\n",
+ "edges_graphml": "<?xml version='1.0' encoding='utf-8'?>\n<graphml xmlns=\"http://graphml.graphdrawing.org/xmlns\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd\"><key id=\"d3\" for=\"edge\" attr.name=\"fdr_q\" attr.type=\"double\"/>\n<key id=\"d2\" for=\"edge\" attr.name=\"shared\" attr.type=\"long\"/>\n<key id=\"d1\" for=\"edge\" attr.name=\"cesi\" attr.type=\"double\"/>\n<key id=\"d0\" for=\"edge\" attr.name=\"weight\" attr.type=\"double\"/>\n<graph edgedefault=\"undirected\"><node id=\"279\"/>\n<node id=\"930\"/>\n<node id=\"685\"/>\n<node id=\"244\"/>\n<node id=\"557\"/>\n<node id=\"461\"/>\n<edge source=\"279\" target=\"930\">\n  <data key=\"d0\">0.8029388189315796</data>\n  <data key=\"d1\">2.938567876815796</data>\n  <data key=\"d2\">5</data>\n  <data key=\"d3\">0.00011417182395234704</data>\n</edge>\n<edge source=\"279\" target=\"244\">\n  <data key=\"d0\">0.9804830551147461</data>\n  <data key=\"d1\">2.2120001316070557</data>\n  <data key=\"d2\">5</data>\n  <data key=\"d3\">2.721651300597455e-13</data>\n</edge>\n<edge source=\"279\" target=\"557\">\n  <data key=\"d0\">0.9999999403953552</data>\n  <data key=\"d1\">2.1211419105529785</data>\n  <data key=\"d2\">5</data>\n  <data key=\"d3\">0.0</data>\n</edge>\n<edge source=\"279\" target=\"461\">\n  <data key=\"d0\">0.9999998211860657</data>\n  <data key=\"d1\">2.0029184818267822</data>\n  <data key=\"d2\">5</data>\n  <data key=\"d3\">0.0</data>\n</edge>\n<edge source=\"930\" target=\"685\">\n  <data key=\"d0\">0.8866360187530518</data>\n  <data key=\"d1\">2.297941207885742</data>\n  <data key=\"d2\">9</data>\n  <data key=\"d3\">1.206519982588361e-06</data>\n</edge>\n</graph></graphml>",
+ "phenotype_csv": {
+  "slice": [
+   0,
+   3
+  ],
+  "text": "site,ref_aa,derived_aa,hyphaeon_lrt,p_lrt,attribution_norm,fg_mean_attn,bg_mean_attn,association_rho,p_value,p_assoc,p_assoc_parametric,p_assoc_perm,score,foreground_freq_pct,background_freq_pct,q_value\n325,K,R,12.1986722946167,0.00023911769676487893,0.03281300142407417,0.0024604906793683767,0.0003214233147446066,0.2486979228379374,1.3652140529174517e-10,6.826075800091072e-11,6.826075800091072e-11,,0.8686172308914965,54.54545454545454,7.064364207221351,6.598534589101017e-09\n83,D,N,3.861927032470703,0.02469678409397602,0.026350712403655052,0.001867738668806851,0.00039441906847059727,0.23508236967831894,1.3406201704313503e-09,6.703101037616199e-10,6.703101037616199e-10,,0.46197884826419805,72.72727272727273,15.830721003134796,3.887798494250916e-08\n7,P,L,1.5440630912780762,0.10700701922178268,0.058606162667274475,0.004212781321257353,0.0005376082845032215,0.23840860989883442,8.187440170281945e-10,4.093720465821344e-10,4.093720465821344e-10,,0.29624733789002994,54.54545454545454,6.132075471698113,2.9679470617272052e-08\n"
+ },
+ "csv_quirks": "a,b,c,d,e,f,g,h,i\n1,True,\"x,y\",\"q\"\"q\",,1.5,,,\n2,,,,,,\"[1, 2]\",\"{'A': 0.5, 'B': -1.0}\",\"line\nbreak\"\n",
+ "csv_floats": "v\n0.0\n1.0\n1e+16\n1000000000000000.0\n0.0001\n1e-05\n1.2345678901234568e+17\n1.5e-300\n-0.0\n2.5\n1e+22\ninf\n-inf\n",
+ "csv_int_missing": "a,b\n1,1.0\n2,\n",
+ "csv_bool_missing": "a,b\nTrue,False\nFalse,\n",
+ "csv_single_column": "a\n\"\"\nx\n\"\"\n",
+ "graphml": {
+  "small": {
+   "edges": [
+    {
+     "site_u": 279,
+     "site_v": 930,
+     "similarity": 0.8029388189315796,
+     "cesi": 2.938567876815796,
+     "shared_branches": 5,
+     "fdr_q": 0.00011417182395234704
+    },
+    {
+     "site_u": 930,
+     "site_v": 12,
+     "similarity": 0.5,
+     "cesi": 1e-05,
+     "shared_branches": 3,
+     "fdr_q": 1.0
+    },
+    {
+     "site_u": 279,
+     "site_v": 12,
+     "similarity": 0.25,
+     "cesi": 0.0,
+     "shared_branches": 2,
+     "fdr_q": 2.5e-07
+    },
+    {
+     "site_u": 7,
+     "site_v": 279,
+     "similarity": 1.0,
+     "cesi": 3.0,
+     "shared_branches": 10,
+     "fdr_q": 1e-16
+    }
+   ],
+   "text": "<?xml version='1.0' encoding='utf-8'?>\n<graphml xmlns=\"http://graphml.graphdrawing.org/xmlns\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd\"><key id=\"d3\" for=\"edge\" attr.name=\"fdr_q\" attr.type=\"double\"/>\n<key id=\"d2\" for=\"edge\" attr.name=\"shared\" attr.type=\"long\"/>\n<key id=\"d1\" for=\"edge\" attr.name=\"cesi\" attr.type=\"double\"/>\n<key id=\"d0\" for=\"edge\" attr.name=\"weight\" attr.type=\"double\"/>\n<graph edgedefault=\"undirected\"><node id=\"279\"/>\n<node id=\"930\"/>\n<node id=\"12\"/>\n<node id=\"7\"/>\n<edge source=\"279\" target=\"930\">\n  <data key=\"d0\">0.8029388189315796</data>\n  <data key=\"d1\">2.938567876815796</data>\n  <data key=\"d2\">5</data>\n  <data key=\"d3\">0.00011417182395234704</data>\n</edge>\n<edge source=\"279\" target=\"12\">\n  <data key=\"d0\">0.25</data>\n  <data key=\"d1\">0.0</data>\n  <data key=\"d2\">2</data>\n  <data key=\"d3\">2.5e-07</data>\n</edge>\n<edge source=\"279\" target=\"7\">\n  <data key=\"d0\">1.0</data>\n  <data key=\"d1\">3.0</data>\n  <data key=\"d2\">10</data>\n  <data key=\"d3\">1e-16</data>\n</edge>\n<edge source=\"930\" target=\"12\">\n  <data key=\"d0\">0.5</data>\n  <data key=\"d1\">1e-05</data>\n  <data key=\"d2\">3</data>\n  <data key=\"d3\">1.0</data>\n</edge>\n</graph></graphml>"
+  },
+  "empty": {
+   "edges": [],
+   "text": "<?xml version='1.0' encoding='utf-8'?>\n<graphml xmlns=\"http://graphml.graphdrawing.org/xmlns\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd\"><graph edgedefault=\"undirected\"></graph></graphml>"
+  },
+  "dup": {
+   "edges": [
+    {
+     "site_u": 1,
+     "site_v": 2,
+     "similarity": 0.1,
+     "cesi": 0.2,
+     "shared_branches": 1,
+     "fdr_q": 0.3
+    },
+    {
+     "site_u": 2,
+     "site_v": 1,
+     "similarity": 0.9,
+     "cesi": 0.8,
+     "shared_branches": 7,
+     "fdr_q": 0.6
+    },
+    {
+     "site_u": 2,
+     "site_v": 2,
+     "similarity": 0.5,
+     "cesi": 0.5,
+     "shared_branches": 5,
+     "fdr_q": 0.5
+    }
+   ],
+   "text": "<?xml version='1.0' encoding='utf-8'?>\n<graphml xmlns=\"http://graphml.graphdrawing.org/xmlns\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd\"><key id=\"d3\" for=\"edge\" attr.name=\"fdr_q\" attr.type=\"double\"/>\n<key id=\"d2\" for=\"edge\" attr.name=\"shared\" attr.type=\"long\"/>\n<key id=\"d1\" for=\"edge\" attr.name=\"cesi\" attr.type=\"double\"/>\n<key id=\"d0\" for=\"edge\" attr.name=\"weight\" attr.type=\"double\"/>\n<graph edgedefault=\"undirected\"><node id=\"1\"/>\n<node id=\"2\"/>\n<edge source=\"1\" target=\"2\">\n  <data key=\"d0\">0.9</data>\n  <data key=\"d1\">0.8</data>\n  <data key=\"d2\">7</data>\n  <data key=\"d3\">0.6</data>\n</edge>\n<edge source=\"2\" target=\"2\">\n  <data key=\"d0\">0.5</data>\n  <data key=\"d1\">0.5</data>\n  <data key=\"d2\">5</data>\n  <data key=\"d3\">0.5</data>\n</edge>\n</graph></graphml>"
+  },
+  "esc": {
+   "edges": [
+    {
+     "site_u": "a<b",
+     "site_v": "c&\"d",
+     "similarity": 1.0,
+     "cesi": 1.0,
+     "shared_branches": 1,
+     "fdr_q": 1.0
+    }
+   ],
+   "text": "<?xml version='1.0' encoding='utf-8'?>\n<graphml xmlns=\"http://graphml.graphdrawing.org/xmlns\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd\"><key id=\"d3\" for=\"edge\" attr.name=\"fdr_q\" attr.type=\"double\"/>\n<key id=\"d2\" for=\"edge\" attr.name=\"shared\" attr.type=\"long\"/>\n<key id=\"d1\" for=\"edge\" attr.name=\"cesi\" attr.type=\"double\"/>\n<key id=\"d0\" for=\"edge\" attr.name=\"weight\" attr.type=\"double\"/>\n<graph edgedefault=\"undirected\"><node id=\"a&lt;b\"/>\n<node id=\"c&amp;&quot;d\"/>\n<edge source=\"a&lt;b\" target=\"c&amp;&quot;d\">\n  <data key=\"d0\">1.0</data>\n  <data key=\"d1\">1.0</data>\n  <data key=\"d2\">1</data>\n  <data key=\"d3\">1.0</data>\n</edge>\n</graph></graphml>"
+  }
+ },
+ "text_report": [
+  {
+   "result": {
+    "input_mode": "files",
+    "prediction_file": "geneB.csv",
+    "meme_result_file": "geneB.MEME.json",
+    "matched_genes": 1,
+    "genes": [
+     "geneB"
+    ],
+    "total_sites": 12,
+    "total_prediction_sites": 13,
+    "total_meme_sites": 12,
+    "evaluated_sites": 12,
+    "variable_sites": 9,
+    "invariable_sites": 3,
+    "evaluation_scope": "all matched sites",
+    "correlation_definition": "HyphAeon hyphaeon_lrt versus MEME LRT over pooled evaluated sites; negative MEME LRT numerical artifacts are clamped to zero",
+    "clamped_negative_meme_lrts": 1,
+    "pearson_r": -0.20460826903031656,
+    "spearman_rho": -0.3076923076923077,
+    "thresholds": {
+     "0.05": {
+      "roc_auc": null,
+      "roc_auc_definition": "ground truth MEME p_value <= 0.05; score = HyphAeon hyphaeon_lrt",
+      "ppv": 0.0,
+      "ppv_definition": "MEME and HyphAeon p_value <= 0.05",
+      "fpr": 0.08333333333333333,
+      "fpr_definition": "MEME and HyphAeon p_value <= 0.05",
+      "meme_positive_sites": 0,
+      "hyphaeon_positive_sites": 1,
+      "ppv_confusion_matrix": {
+       "true_positive": 0,
+       "false_positive": 1,
+       "true_negative": 11,
+       "false_negative": 0
+      },
+      "fpr_confusion_matrix": {
+       "true_positive": 0,
+       "false_positive": 1,
+       "true_negative": 11,
+       "false_negative": 0
+      }
+     },
+     "0.10": {
+      "roc_auc": 0.1,
+      "roc_auc_definition": "ground truth MEME p_value <= 0.1; score = HyphAeon hyphaeon_lrt",
+      "ppv": 0.0,
+      "ppv_definition": "MEME and HyphAeon p_value <= 0.1",
+      "fpr": 0.3,
+      "fpr_definition": "MEME and HyphAeon p_value <= 0.1",
+      "meme_positive_sites": 2,
+      "hyphaeon_positive_sites": 3,
+      "ppv_confusion_matrix": {
+       "true_positive": 0,
+       "false_positive": 3,
+       "true_negative": 7,
+       "false_negative": 2
+      },
+      "fpr_confusion_matrix": {
+       "true_positive": 0,
+       "false_positive": 3,
+       "true_negative": 7,
+       "false_negative": 2
+      }
+     }
+    },
+    "per_gene": [
+     {
+      "gene": "geneB",
+      "prediction_sites": 13,
+      "meme_sites": 12,
+      "matched_sites": 12,
+      "evaluated_sites": 12,
+      "prediction_only_sites": 1,
+      "meme_only_sites": 0
+     }
+    ],
+    "warnings": [
+     "Site intersection used; dropped 1 prediction-only and 0 MEME-only sites",
+     "Clamped 1 negative MEME LRT numerical artifact(s) to zero"
+    ]
+   },
+   "text": "Matched genes: 1\nTotal sites: 12\nEvaluated sites: 12 (all matched sites)\nPearson r (LRT): -0.204608\nSpearman rho (LRT): -0.307692\n\nMetric                 p <= 0.05    p <= 0.10\nROC-AUC                 undefined      0.100000\nPPV                      0.000000      0.000000\nFPR                      0.083333      0.300000\n\nWarning: Site intersection used; dropped 1 prediction-only and 0 MEME-only sites\nWarning: Clamped 1 negative MEME LRT numerical artifact(s) to zero"
+  },
+  {
+   "result": {
+    "input_mode": "files",
+    "prediction_file": "geneA.csv",
+    "meme_result_file": "geneA.MEME.json",
+    "matched_genes": 1,
+    "genes": [
+     "geneA"
+    ],
+    "total_sites": 12,
+    "total_prediction_sites": 12,
+    "total_meme_sites": 12,
+    "evaluated_sites": 12,
+    "variable_sites": 8,
+    "invariable_sites": 4,
+    "evaluation_scope": "all matched sites",
+    "correlation_definition": "HyphAeon hyphaeon_lrt versus MEME LRT over pooled evaluated sites; negative MEME LRT numerical artifacts are clamped to zero",
+    "clamped_negative_meme_lrts": 1,
+    "pearson_r": null,
+    "spearman_rho": 0.8762765319761446,
+    "thresholds": {
+     "0.05": {
+      "roc_auc": 1.0,
+      "roc_auc_definition": "ground truth MEME p_value <= 0.05; score = HyphAeon hyphaeon_lrt",
+      "ppv": null,
+      "ppv_definition": "MEME and HyphAeon p_value <= 0.05",
+      "fpr": 0.1,
+      "fpr_definition": "MEME and HyphAeon p_value <= 0.05",
+      "meme_positive_sites": 2,
+      "hyphaeon_positive_sites": 3,
+      "ppv_confusion_matrix": {
+       "true_positive": 2,
+       "false_positive": 1,
+       "true_negative": 9,
+       "false_negative": 0
+      },
+      "fpr_confusion_matrix": {
+       "true_positive": 2,
+       "false_positive": 1,
+       "true_negative": 9,
+       "false_negative": 0
+      }
+     },
+     "0.10": {
+      "roc_auc": 0.9444444444444444,
+      "roc_auc_definition": "ground truth MEME p_value <= 0.1; score = HyphAeon hyphaeon_lrt",
+      "ppv": 0.6,
+      "ppv_definition": "MEME and HyphAeon p_value <= 0.1",
+      "fpr": 0.0078125,
+      "fpr_definition": "MEME and HyphAeon p_value <= 0.1",
+      "meme_positive_sites": 3,
+      "hyphaeon_positive_sites": 5,
+      "ppv_confusion_matrix": {
+       "true_positive": 3,
+       "false_positive": 2,
+       "true_negative": 7,
+       "false_negative": 0
+      },
+      "fpr_confusion_matrix": {
+       "true_positive": 3,
+       "false_positive": 2,
+       "true_negative": 7,
+       "false_negative": 0
+      }
+     }
+    },
+    "per_gene": [
+     {
+      "gene": "geneA",
+      "prediction_sites": 12,
+      "meme_sites": 12,
+      "matched_sites": 12,
+      "evaluated_sites": 12,
+      "prediction_only_sites": 0,
+      "meme_only_sites": 0
+     }
+    ],
+    "warnings": []
+   },
+   "text": "Matched genes: 1\nTotal sites: 12\nEvaluated sites: 12 (all matched sites)\nPearson r (LRT): undefined\nSpearman rho (LRT): 0.876277\n\nMetric                 p <= 0.05    p <= 0.10\nROC-AUC                  1.000000      0.944444\nPPV                     undefined      0.600000\nFPR                      0.100000      0.007812"
+  }
+ ],
+ "csv_reader": [
+  [
+   "a,b\n1,2\n",
+   [
+    [
+     "a",
+     "b"
+    ],
+    [
+     "1",
+     "2"
+    ]
+   ]
+  ],
+  [
+   "a,b\r\n1,2\r\n",
+   [
+    [
+     "a",
+     "b"
+    ],
+    [
+     "1",
+     "2"
+    ]
+   ]
+  ],
+  [
+   "a,b\r1,2\r",
+   [
+    [
+     "a",
+     "b"
+    ],
+    [
+     "1",
+     "2"
+    ]
+   ]
+  ],
+  [
+   "a,b\n\n1,2\n\n",
+   [
+    [
+     "a",
+     "b"
+    ],
+    [],
+    [
+     "1",
+     "2"
+    ],
+    []
+   ]
+  ],
+  [
+   "a,\"b,c\",d\n\"x\"\"y\",,\"z\nw\"\n",
+   [
+    [
+     "a",
+     "b,c",
+     "d"
+    ],
+    [
+     "x\"y",
+     "",
+     "z\nw"
+    ]
+   ]
+  ],
+  [
+   "a,b,c\n1,2\n1,2,3,4\n",
+   [
+    [
+     "a",
+     "b",
+     "c"
+    ],
+    [
+     "1",
+     "2"
+    ],
+    [
+     "1",
+     "2",
+     "3",
+     "4"
+    ]
+   ]
+  ],
+  [
+   "a,b\n1,2",
+   [
+    [
+     "a",
+     "b"
+    ],
+    [
+     "1",
+     "2"
+    ]
+   ]
+  ],
+  [
+   "a,b\n1,",
+   [
+    [
+     "a",
+     "b"
+    ],
+    [
+     "1",
+     ""
+    ]
+   ]
+  ],
+  [
+   "a\n\"unterminated",
+   [
+    [
+     "a"
+    ],
+    [
+     "unterminated"
+    ]
+   ]
+  ],
+  [
+   "a,b\n\"q\"x,\"r\" s\n",
+   [
+    [
+     "a",
+     "b"
+    ],
+    [
+     "qx",
+     "r s"
+    ]
+   ]
+  ],
+  [
+   "﻿site,x\n1,2\n",
+   [
+    [
+     "﻿site",
+     "x"
+    ],
+    [
+     "1",
+     "2"
+    ]
+   ]
+  ],
+  [
+   " a , b \n 1 , 2 \n",
+   [
+    [
+     " a ",
+     " b "
+    ],
+    [
+     " 1 ",
+     " 2 "
+    ]
+   ]
+  ],
+  [
+   "a,b\n\"\",\"\"\n",
+   [
+    [
+     "a",
+     "b"
+    ],
+    [
+     "",
+     ""
+    ]
+   ]
+  ],
+  [
+   "",
+   []
+  ],
+  [
+   "\n",
+   [
+    []
+   ]
+  ],
+  [
+   "\n\na,b\n1,2\n",
+   [
+    [],
+    [],
+    [
+     "a",
+     "b"
+    ],
+    [
+     "1",
+     "2"
+    ]
+   ]
+  ],
+  [
+   "a,b\n1,2\n\n",
+   [
+    [
+     "a",
+     "b"
+    ],
+    [
+     "1",
+     "2"
+    ],
+    []
+   ]
+  ],
+  [
+   "\"a\nb\",c\n1,2\n",
+   [
+    [
+     "a\nb",
+     "c"
+    ],
+    [
+     "1",
+     "2"
+    ]
+   ]
+  ],
+  [
+   "a,b\r\n\r\n1,2",
+   [
+    [
+     "a",
+     "b"
+    ],
+    [],
+    [
+     "1",
+     "2"
+    ]
+   ]
+  ],
+  [
+   "a,b\n\"x\"\n",
+   [
+    [
+     "a",
+     "b"
+    ],
+    [
+     "x"
+    ]
+   ]
+  ],
+  [
+   "a,b\n1,2\r\n3,4\n5,6\r7,8",
+   [
+    [
+     "a",
+     "b"
+    ],
+    [
+     "1",
+     "2"
+    ],
+    [
+     "3",
+     "4"
+    ],
+    [
+     "5",
+     "6"
+    ],
+    [
+     "7",
+     "8"
+    ]
+   ]
+  ],
+  [
+   "\"a\"\"b\",c\n",
+   [
+    [
+     "a\"b",
+     "c"
+    ]
+   ]
+  ],
+  [
+   "a,b,\n,,\n",
+   [
+    [
+     "a",
+     "b",
+     ""
+    ],
+    [
+     "",
+     "",
+     ""
+    ]
+   ]
+  ]
+ ],
+ "dict_reader": [
+  [
+   "﻿site,hyphaeon_lrt,p_value,is_invariable\n1,0.5,0.5,True\n",
+   [
+    "site",
+    "hyphaeon_lrt",
+    "p_value",
+    "is_invariable"
+   ],
+   [
+    [
+     2,
+     [
+      [
+       "site",
+       "1"
+      ],
+      [
+       "hyphaeon_lrt",
+       "0.5"
+      ],
+      [
+       "p_value",
+       "0.5"
+      ],
+      [
+       "is_invariable",
+       "True"
+      ]
+     ]
+    ]
+   ]
+  ],
+  [
+   "\nsite,hyphaeon_lrt,p_value,is_invariable\n1,0.5,0.5,True\n",
+   [],
+   [
+    [
+     2,
+     [
+      [
+       "None",
+       [
+        "site",
+        "hyphaeon_lrt",
+        "p_value",
+        "is_invariable"
+       ]
+      ]
+     ]
+    ],
+    [
+     3,
+     [
+      [
+       "None",
+       [
+        "1",
+        "0.5",
+        "0.5",
+        "True"
+       ]
+      ]
+     ]
+    ]
+   ]
+  ],
+  [
+   "site,hyphaeon_lrt,p_value,is_invariable\n\n1,0.5,0.5,True\n\n2,0.5,0.5,False\n",
+   [
+    "site",
+    "hyphaeon_lrt",
+    "p_value",
+    "is_invariable"
+   ],
+   [
+    [
+     2,
+     [
+      [
+       "site",
+       "1"
+      ],
+      [
+       "hyphaeon_lrt",
+       "0.5"
+      ],
+      [
+       "p_value",
+       "0.5"
+      ],
+      [
+       "is_invariable",
+       "True"
+      ]
+     ]
+    ],
+    [
+     3,
+     [
+      [
+       "site",
+       "2"
+      ],
+      [
+       "hyphaeon_lrt",
+       "0.5"
+      ],
+      [
+       "p_value",
+       "0.5"
+      ],
+      [
+       "is_invariable",
+       "False"
+      ]
+     ]
+    ]
+   ]
+  ],
+  [
+   "site,hyphaeon_lrt,p_value,is_invariable,site\n1,0.5,0.5,True,2\n",
+   [
+    "site",
+    "hyphaeon_lrt",
+    "p_value",
+    "is_invariable",
+    "site"
+   ],
+   [
+    [
+     2,
+     [
+      [
+       "site",
+       "2"
+      ],
+      [
+       "hyphaeon_lrt",
+       "0.5"
+      ],
+      [
+       "p_value",
+       "0.5"
+      ],
+      [
+       "is_invariable",
+       "True"
+      ]
+     ]
+    ]
+   ]
+  ],
+  [
+   "site,hyphaeon_lrt,p_value,is_invariable\n1,0.5\n",
+   [
+    "site",
+    "hyphaeon_lrt",
+    "p_value",
+    "is_invariable"
+   ],
+   [
+    [
+     2,
+     [
+      [
+       "site",
+       "1"
+      ],
+      [
+       "hyphaeon_lrt",
+       "0.5"
+      ],
+      [
+       "p_value",
+       null
+      ],
+      [
+       "is_invariable",
+       null
+      ]
+     ]
+    ]
+   ]
+  ],
+  [
+   "",
+   null,
+   []
+  ],
+  [
+   "\n",
+   [],
+   []
+  ],
+  [
+   "site,hyphaeon_lrt,p_value,is_invariable\n1,0.5,0.5,True,extra,more\n",
+   [
+    "site",
+    "hyphaeon_lrt",
+    "p_value",
+    "is_invariable"
+   ],
+   [
+    [
+     2,
+     [
+      [
+       "site",
+       "1"
+      ],
+      [
+       "hyphaeon_lrt",
+       "0.5"
+      ],
+      [
+       "p_value",
+       "0.5"
+      ],
+      [
+       "is_invariable",
+       "True"
+      ],
+      [
+       "None",
+       [
+        "extra",
+        "more"
+       ]
+      ]
+     ]
+    ]
+   ]
+  ]
+ ],
+ "float_parse": [
+  [
+   "1.5",
+   "1.5"
+  ],
+  [
+   " 1.5 ",
+   "1.5"
+  ],
+  [
+   "inf",
+   "inf"
+  ],
+  [
+   "-Infinity",
+   "-inf"
+  ],
+  [
+   "nan",
+   "nan"
+  ],
+  [
+   "1e3",
+   "1000.0"
+  ],
+  [
+   "1_000.5",
+   "1000.5"
+  ],
+  [
+   "",
+   null
+  ],
+  [
+   "abc",
+   null
+  ],
+  [
+   ".5",
+   "0.5"
+  ],
+  [
+   "5.",
+   "5.0"
+  ],
+  [
+   "+.5e-3",
+   "0.0005"
+  ],
+  [
+   "1e",
+   null
+  ],
+  [
+   "0x10",
+   null
+  ],
+  [
+   "٣.5",
+   "3.5"
+  ],
+  [
+   "1__0",
+   null
+  ],
+  [
+   "  ",
+   null
+  ],
+  [
+   "InFiNiTy",
+   "inf"
+  ],
+  [
+   "NAN",
+   "nan"
+  ],
+  [
+   "-nan",
+   "nan"
+  ],
+  [
+   "1.5\n",
+   "1.5"
+  ],
+  [
+   "1,5",
+   null
+  ],
+  [
+   "١٢",
+   "12.0"
+  ],
+  [
+   "1e400",
+   "inf"
+  ],
+  [
+   "-.5",
+   "-0.5"
+  ],
+  [
+   "1_0e1_0",
+   "100000000000.0"
+  ],
+  [
+   "1.",
+   "1.0"
+  ],
+  [
+   ".",
+   null
+  ],
+  [
+   "+",
+   null
+  ],
+  [
+   "1e+",
+   null
+  ],
+  [
+   "  7  ",
+   "7.0"
+  ],
+  [
+   "\u001c8\u001f",
+   null
+  ]
+ ],
+ "int_parse": [
+  [
+   "12",
+   12
+  ],
+  [
+   " 12 ",
+   12
+  ],
+  [
+   "+3",
+   3
+  ],
+  [
+   "-3",
+   -3
+  ],
+  [
+   "1_000",
+   1000
+  ],
+  [
+   "1.0",
+   null
+  ],
+  [
+   "1e2",
+   null
+  ],
+  [
+   "",
+   null
+  ],
+  [
+   "0x10",
+   null
+  ],
+  [
+   "٣",
+   3
+  ],
+  [
+   "1__0",
+   null
+  ],
+  [
+   "_1",
+   null
+  ],
+  [
+   "1_",
+   null
+  ],
+  [
+   "০৩",
+   3
+  ],
+  [
+   "abc",
+   null
+  ],
+  [
+   "007",
+   7
+  ],
+  [
+   "-0",
+   0
+  ],
+  [
+   "𝟙",
+   1
+  ]
+ ],
+ "boolean": [
+  [
+   "True",
+   true
+  ],
+  [
+   " yes ",
+   true
+  ],
+  [
+   "0",
+   false
+  ],
+  [
+   "NO",
+   false
+  ],
+  [
+   "1",
+   true
+  ],
+  [
+   "t",
+   "geneX.csv: is_invariable must be true or false, got 't'"
+  ],
+  [
+   null,
+   "geneX.csv: is_invariable must be true or false, got None"
+  ],
+  [
+   "  false\t",
+   false
+  ],
+  [
+   "Yes",
+   true
+  ],
+  [
+   "TRUE",
+   true
+  ],
+  [
+   "",
+   "geneX.csv: is_invariable must be true or false, got ''"
+  ],
+  [
+   "none",
+   "geneX.csv: is_invariable must be true or false, got 'none'"
+  ]
+ ],
+ "normalized_header": [
+  [
+   "<b>LRT</b>",
+   "lrt"
+  ],
+  [
+   "p-value",
+   "pvalue"
+  ],
+  [
+   "&beta;<sup>-</sup>",
+   ""
+  ],
+  [
+   "LRT&nbsp;",
+   "lrt"
+  ],
+  [
+   "L&#82;T",
+   "lrt"
+  ],
+  [
+   "L&#x52;T",
+   "lrt"
+  ],
+  [
+   "&fjlig;x",
+   "fjx"
+  ],
+  [
+   "&Idot;",
+   "i"
+  ],
+  [
+   "&ltx",
+   "x"
+  ],
+  [
+   "&ampLRT",
+   "lrt"
+  ],
+  [
+   "&notin;",
+   ""
+  ],
+  [
+   "&noti",
+   "i"
+  ],
+  [
+   "&#0;a",
+   "a"
+  ],
+  [
+   "&#xD800;b",
+   "b"
+  ],
+  [
+   "&#150;",
+   ""
+  ],
+  [
+   "&#1;z",
+   "z"
+  ],
+  [
+   [
+    "LRT",
+    "desc"
+   ],
+   "lrt"
+  ],
+  [
+   [],
+   ""
+  ],
+  [
+   5,
+   "5"
+  ],
+  [
+   null,
+   "none"
+  ],
+  [
+   true,
+   "true"
+  ],
+  [
+   "&unknownentity;lrt",
+   "unknownentitylrt"
+  ],
+  [
+   "&#xZZ;",
+   "xzz"
+  ],
+  [
+   "&#;",
+   ""
+  ],
+  [
+   "&#x;",
+   "x"
+  ],
+  [
+   "a&b",
+   "ab"
+  ],
+  [
+   "&LT;rt",
+   "rt"
+  ],
+  [
+   "&CounterClockwiseContourIntegral;p",
+   "p"
+  ],
+  [
+   "&#1114112;x",
+   "x"
+  ],
+  [
+   "&#1114111;x",
+   "x"
+  ],
+  [
+   "&#128;",
+   ""
+  ],
+  [
+   "&#8490;",
+   "k"
+  ],
+  [
+   "&#304;",
+   "i"
+  ],
+  [
+   "&amp;#76;",
+   "76"
+  ],
+  [
+   "&#x1D7D9;",
+   ""
+  ],
+  [
+   "<sup>+</sup>p",
+   "p"
+  ],
+  [
+   "p<sup>-</sup>",
+   "p"
+  ],
+  [
+   "# branches under selection",
+   "branchesunderselection"
+  ],
+  [
+   "&#65;&#x42;C",
+   "abc"
+  ],
+  [
+   "&aacute",
+   ""
+  ],
+  [
+   "&aacuteX",
+   "x"
+  ],
+  [
+   "&AMPx",
+   "x"
+  ],
+  [
+   "&Aacute;&amp",
+   ""
+  ],
+  [
+   "&&lt;;",
+   ""
+  ],
+  [
+   "&#xd7ff;",
+   ""
+  ],
+  [
+   "&#xe000;",
+   ""
+  ],
+  [
+   "&#0xff;",
+   "xff"
+  ],
+  [
+   "&#12;",
+   ""
+  ],
+  [
+   "&#13;",
+   ""
+  ],
+  [
+   "&#65536;",
+   ""
+  ],
+  [
+   "&Longlefta",
+   "longlefta"
+  ],
+  [
+   "&Longleftarrow;",
+   ""
+  ],
+  [
+   "&nbs",
+   "nbs"
+  ],
+  [
+   "&nbsp",
+   ""
+  ]
+ ],
+ "probability_messages": [
+  [
+   1.5,
+   "geneX.csv: p_value must be between 0 and 1, got 1.5"
+  ],
+  [
+   "2",
+   "geneX.csv: p_value must be between 0 and 1, got 2.0"
+  ],
+  [
+   -0.5,
+   "geneX.csv: p_value must be between 0 and 1, got -0.5"
+  ],
+  [
+   2.0,
+   "geneX.csv: p_value must be between 0 and 1, got 2.0"
+  ],
+  [
+   "1e0",
+   "ok"
+  ],
+  [
+   "0",
+   "ok"
+  ],
+  [
+   "1",
+   "ok"
+  ],
+  [
+   "abc",
+   "geneX.csv: p_value is not numeric: 'abc'"
+  ],
+  [
+   null,
+   "geneX.csv: p_value is not numeric: None"
+  ],
+  [
+   "inf",
+   "geneX.csv: p_value must be finite, got 'inf'"
+  ],
+  [
+   true,
+   "ok"
+  ]
+ ],
+ "site_number_messages": [
+  [
+   "1.5",
+   "geneX.csv: site must be a positive integer, got '1.5'"
+  ],
+  [
+   "0",
+   "geneX.csv: site must be a positive integer, got '0'"
+  ],
+  [
+   "-1",
+   "geneX.csv: site must be a positive integer, got '-1'"
+  ],
+  [
+   "3.0",
+   3
+  ],
+  [
+   "abc",
+   "geneX.csv: site is not numeric: 'abc'"
+  ],
+  [
+   null,
+   "geneX.csv: site is not numeric: None"
+  ],
+  [
+   "inf",
+   "geneX.csv: site must be finite, got 'inf'"
+  ],
+  [
+   "12",
+   12
+  ],
+  [
+   " 7 ",
+   7
+  ],
+  [
+   "٣",
+   3
+  ],
+  [
+   true,
+   1
+  ]
+ ]
+}
