@@ -1040,6 +1040,7 @@ def cmd_temporal(args):
         batch_size=getattr(args, "batch_size", None),
         max_species=getattr(args, "max_species", None),
         cpu=getattr(args, "cpu", False),
+        use_tn93=use_tn93,
         plot=getattr(args, "plot", False)
     )
 
