@@ -839,10 +839,12 @@ def gen_dataset(w: Writer) -> None:
 
     # --- patristic distances + MDS on the example trees
     dist_cases, mds_cases = [], []
-    mds_sig = ("signature: compute_mds_coordinates(dist_matrix float32 [N,N], n_components=4) -> float32 [N,4]. Dense path (N<=500): H = I - 1/N, B = -0.5 H D^2 H in float32, "
+    mds_sig = ("signature: compute_mds_coordinates(dist_matrix float32 [N,N], n_components=4, mds_sign='canonical') -> float32 [N,4]. Dense path (N<=500): H = I - 1/N, B = -0.5 H D^2 H in float32, "
                "numpy.linalg.eigh (LAPACK syevd), eigenvalues sorted descending, coords = eigvecs[:, :4] * sqrt(max(eigval, 0)). "
-               "SIGN CONVENTION: eigenvector signs are whatever LAPACK returns and are NOT normalised, so a port must compare each column up to a global sign flip "
-               "(min(max|c_js - c_py|, max|c_js + c_py|) <= 1e-5) or compare the sign-invariant Gram matrix coords @ coords.T given here as 'gram'. "
+               "SIGN CONVENTION (mds_sign='canonical', the default): before the sqrt(eigval) scaling each kept eigenvector is flipped so that its largest-magnitude entry "
+               "is positive (np.argmax(np.abs(col)): first index on ties; an all-zero column is left alone). Columns are therefore comparable EXACTLY (max|c_js - c_py| <= 1e-5) "
+               "with no sign-flip allowance; the sign-invariant Gram matrix coords @ coords.T is still given as 'gram' for degenerate eigenspaces. "
+               "mds_sign='lapack' keeps the solver's signs (the pre-canonical behaviour) and is not what these fixtures record. "
                "N > 500 uses scipy eigsh (Lanczos) on an implicit operator; same convention, same tolerance.")
     example_trees = {}
     for nwk, fa in (("Smc6.nwk", "Smc6.fasta"), ("bat_oas1.nwk", "bat_oas1.fasta"), ("HIV1_RT.nwk", "HIV1_RT.fasta")):
@@ -856,44 +858,44 @@ def gen_dataset(w: Writer) -> None:
             dist_cases.append(case(f"example_{nwk}", {"newick": (EXAMPLES / nwk).read_text().strip(), "taxa": taxa}, {"dist_matrix": D, "max": float(D.max())}, "1e-6",
                                    "signature: compute_fast_dist_matrix(tree, taxa) -> float32 [N,N]; depths accumulated in float64 from the root (None branch length = 0), "
                                    "d(i,j) = depth_i + depth_j - 2 depth_lca, stored float32. Tree first passed through enforce_nonzero_branch_lengths(min_len=1e-4). taxa = tree terminal order filtered to alignment names."))
-            coords = compute_mds_coordinates(D, 4)
-            mds_cases.append(case(f"example_{nwk}_raw_distances", {"dist_matrix": D, "n_components": 4},
+            coords = compute_mds_coordinates(D, 4, mds_sign="canonical")
+            mds_cases.append(case(f"example_{nwk}_raw_distances", {"dist_matrix": D, "n_components": 4, "mds_sign": "canonical"},
                                   {"coords": coords, "gram": coords @ coords.T, "abs_coords": np.abs(coords)}, "1e-5", mds_sig))
     # rescaled bat (what the pipeline actually feeds the model)
     tree, taxa, D = example_trees["bat_oas1.nwk"]
     Lb = len(next(iter(parse_alignment_sequences(str(EXAMPLES / "bat_oas1.fasta")).values()))) // 3
     Db = (D / Lb).astype(np.float32)
-    coords = compute_mds_coordinates(Db, 4)
-    mds_cases.append(case("example_bat_oas1_rescaled_by_L", {"dist_matrix": Db, "n_components": 4}, {"coords": coords, "gram": coords @ coords.T, "abs_coords": np.abs(coords)}, "1e-5",
+    coords = compute_mds_coordinates(Db, 4, mds_sign="canonical")
+    mds_cases.append(case("example_bat_oas1_rescaled_by_L", {"dist_matrix": Db, "n_components": 4, "mds_sign": "canonical"}, {"coords": coords, "gram": coords @ coords.T, "abs_coords": np.abs(coords)}, "1e-5",
                           mds_sig + f" Input is the bat_oas1 patristic matrix divided by L={Lb} (the >10 rescale rule)."))
     rng = np.random.default_rng(SYNTH_SEED + 5)
     pts = rng.normal(size=(6, 2))
     Ds = np.sqrt(((pts[:, None, :] - pts[None, :, :]) ** 2).sum(-1)).astype(np.float32)
-    coords = compute_mds_coordinates(Ds, 4)
-    mds_cases.append(case("synthetic_euclidean_2d_points_6", {"dist_matrix": Ds, "n_components": 4}, {"coords": coords, "gram": coords @ coords.T, "abs_coords": np.abs(coords)}, "1e-5",
+    coords = compute_mds_coordinates(Ds, 4, mds_sign="canonical")
+    mds_cases.append(case("synthetic_euclidean_2d_points_6", {"dist_matrix": Ds, "n_components": 4, "mds_sign": "canonical"}, {"coords": coords, "gram": coords @ coords.T, "abs_coords": np.abs(coords)}, "1e-5",
                           mds_sig + " Exact Euclidean distances from 2-D points: components 3 and 4 have eigenvalue ~0 and are numerically noise-scaled (sqrt of tiny positive or clipped 0)."))
     D3 = np.array([[0, 1, 1], [1, 0, 1], [1, 1, 0]], np.float32)
-    coords = compute_mds_coordinates(D3, 4)
-    mds_cases.append(case("equilateral_3_points_padding", {"dist_matrix": D3, "n_components": 4}, {"coords": coords, "gram": coords @ coords.T, "abs_coords": np.abs(coords)}, "1e-5",
+    coords = compute_mds_coordinates(D3, 4, mds_sign="canonical")
+    mds_cases.append(case("equilateral_3_points_padding", {"dist_matrix": D3, "n_components": 4, "mds_sign": "canonical"}, {"coords": coords, "gram": coords @ coords.T, "abs_coords": np.abs(coords)}, "1e-5",
                           mds_sig + " N=3 < n_components: eigvecs has only 3 columns so the 4th is zero-padded; degenerate eigenvalues make individual columns basis-dependent, use 'gram'."))
     w.write("dataset", "compute_fast_dist_matrix", dist_cases)
     w.write("dataset", "compute_mds_coordinates", mds_cases)
 
     # --- load_alignment_and_tree on Smc6 and bat_oas1 (full assembly)
-    lat_sig = ("signature: load_alignment_and_tree(fa_path, nwk_path=None, max_species=None, prune_duplicates=True, use_tn93=False) -> "
+    lat_sig = ("signature: load_alignment_and_tree(fa_path, nwk_path=None, max_species=None, prune_duplicates=True, use_tn93=False, mds_sign=None -> HYPHAEON_MDS_SIGN or 'canonical') -> "
                "(c [L,N,1] int64, a [L,N,1] int64, d [1,N,N] float32, z [1,N,4] float32, is_aa_invariable [L] bool, taxa, L). "
                "Steps: parse -> tree -> enforce_nonzero_branch_lengths -> taxa = tree terminal order kept if in alignment (fallbacks: quote-stripped, then case-insensitive) -> "
                "prune identical sequences -> L = len(first seq)//3 -> patristic matrix -> if max > 10: divide by L -> MDS -> tokens -> invariable = <=1 distinct valid aa (tokens < 20).")
     lat_cases = []
     for fa, nwk in (("Smc6.fasta", "Smc6.nwk"), ("bat_oas1.fasta", "bat_oas1.nwk")):
-        c, a, d, z, inv, taxa, L = load_alignment_and_tree(str(EXAMPLES / fa), str(EXAMPLES / nwk))
+        c, a, d, z, inv, taxa, L = load_alignment_and_tree(str(EXAMPLES / fa), str(EXAMPLES / nwk), mds_sign="canonical")
         raw_D = example_trees[nwk][2]
         zc = z[0].numpy()
-        lat_cases.append(case(f"example_{fa}", {"alignment": fa, "tree": nwk, "max_species": None, "prune_duplicates": True},
+        lat_cases.append(case(f"example_{fa}", {"alignment": fa, "tree": nwk, "max_species": None, "prune_duplicates": True, "mds_sign": "canonical"},
                               {"taxa": taxa, "L": L, "N": len(taxa), "codon_tokens": c[:, :, 0].numpy(), "aa_tokens": a[:, :, 0].numpy(),
                                "dist_matrix": d[0].numpy(), "rescaled_by_L": bool(raw_D.max() > 10.0), "raw_dist_max": float(raw_D.max()),
                                "mds_coords": zc, "mds_gram": zc @ zc.T, "is_aa_invariable": inv, "n_invariable": int(inv.sum())},
-                              "1e-5", lat_sig + " Tokens, taxa, L and the invariable mask are exact; dist_matrix 1e-6; mds_coords 1e-5 up to per-column sign (see compute_mds_coordinates notes)."))
+                              "1e-5", lat_sig + " Tokens, taxa, L and the invariable mask are exact; dist_matrix 1e-6; mds_coords 1e-5 EXACT per column under the canonical sign convention (see compute_mds_coordinates notes)."))
     w.write("dataset", "load_alignment_and_tree", lat_cases)
 
     # --- >10 rescale rule on a synthetic tree
@@ -1090,27 +1092,30 @@ def gen_e2e(w: Writer, model_sha: str) -> None:
         return data, notes
 
     meme_note = ("`hyphaeon meme` JSON (cli.py cmd_meme). p_value/q_value are float32 casts of the float64 stats. Per-site LRT through the model is 1e-5; "
-                 "is_invariable exact. RHO has an embedded NEXUS tree and 710 taxa (> 500, so MDS uses the Lanczos path).")
-    run_cli("meme_bat_oas1", ["meme", "-a", "examples/bat_oas1.fasta", "-t", "examples/bat_oas1.nwk", "--cpu"], meme_note)
-    run_cli("meme_Smc6", ["meme", "-a", "examples/Smc6.fasta", "-t", "examples/Smc6.nwk", "--cpu"], meme_note)
-    run_cli("meme_camelid", ["meme", "-a", "examples/camelid.fasta", "-t", "examples/camelid.nwk", "--cpu"], meme_note + " camelid.nwk has no branch lengths: HyPhy HKY85 estimation ran first, so this fixture depends on the HyPhy version recorded in inputs.")
-    run_cli("meme_HIV1_RT", ["meme", "-a", "examples/HIV1_RT.fasta", "-t", "examples/HIV1_RT.nwk", "--cpu"], meme_note)
-    run_cli("meme_RHO", ["meme", "-a", "examples/RHO.fasta", "--cpu"], meme_note)
-    run_cli("meme_bat_oas1_attribute_filter", ["meme", "-a", "examples/bat_oas1.fasta", "-t", "examples/bat_oas1.nwk", "--cpu", "--attribute", "--filter"],
+                 "is_invariable exact. RHO has an embedded NEXUS tree and 710 taxa (> 500, so MDS uses the Lanczos path). "
+                 "MDS eigenvector signs are canonical (--mds-sign canonical: largest-|entry| of each kept eigenvector positive); the model is not sign-invariant, so a port must use the same convention.")
+    MDS = ["--mds-sign", "canonical"]   # the fixtures' sign convention, recorded in argv (also the CLI default)
+    SEED = ["--seed", str(PERM_SEED)]
+    run_cli("meme_bat_oas1", ["meme", "-a", "examples/bat_oas1.fasta", "-t", "examples/bat_oas1.nwk", "--cpu"] + MDS, meme_note)
+    run_cli("meme_Smc6", ["meme", "-a", "examples/Smc6.fasta", "-t", "examples/Smc6.nwk", "--cpu"] + MDS, meme_note)
+    run_cli("meme_camelid", ["meme", "-a", "examples/camelid.fasta", "-t", "examples/camelid.nwk", "--cpu"] + MDS, meme_note + " camelid.nwk has no branch lengths: HyPhy HKY85 estimation ran first, so this fixture depends on the HyPhy version recorded in inputs.")
+    run_cli("meme_HIV1_RT", ["meme", "-a", "examples/HIV1_RT.fasta", "-t", "examples/HIV1_RT.nwk", "--cpu"] + MDS, meme_note)
+    run_cli("meme_RHO", ["meme", "-a", "examples/RHO.fasta", "--cpu"] + MDS, meme_note)
+    run_cli("meme_bat_oas1_attribute_filter", ["meme", "-a", "examples/bat_oas1.fasta", "-t", "examples/bat_oas1.nwk", "--cpu", "--attribute", "--filter"] + MDS,
             meme_note + " --attribute adds attributions keyed by 1-indexed site; --filter runs the cli.py copy of the hypergeometric+OCI screen (which differs slightly from filter.py: no '?' or length check on consensus codons).")
     busted_note = ("`hyphaeon busted` JSON (cli.py cmd_busted): Self-Liang site p, ACAT over variable sites, Simes over all sites, omnibus_lrt = sum max(0, lrt-3.841), "
                    "neural BustedMultiTaskHead outputs (selection_probability, predicted_gene_lrt, synonymous_rate_variation, omega proportions). Head outputs 1e-5; counts exact.")
-    run_cli("busted_Smc6", ["busted", "-a", "examples/Smc6.fasta", "-t", "examples/Smc6.nwk", "--cpu"], busted_note, postprocess=busted_post)
-    run_cli("busted_HIV1_RT", ["busted", "-a", "examples/HIV1_RT.fasta", "-t", "examples/HIV1_RT.nwk", "--cpu"], busted_note, postprocess=busted_post)
+    run_cli("busted_Smc6", ["busted", "-a", "examples/Smc6.fasta", "-t", "examples/Smc6.nwk", "--cpu"] + MDS, busted_note, postprocess=busted_post)
+    run_cli("busted_HIV1_RT", ["busted", "-a", "examples/HIV1_RT.fasta", "-t", "examples/HIV1_RT.nwk", "--cpu"] + MDS, busted_note, postprocess=busted_post)
     run_cli("epistasis_Smc6_n_permutations_1000",
-            ["epistasis", "-a", "examples/Smc6.fasta", "-t", "examples/Smc6.nwk", "--cpu", "--n-permutations", "1000"],
+            ["epistasis", "-a", "examples/Smc6.fasta", "-t", "examples/Smc6.nwk", "--cpu", "--n-permutations", "1000"] + SEED + MDS,
             "`hyphaeon epistasis` JSON (epistasis.run_epistatic_analysis). CLI defaults: min_sim 0.30, min_shared 2, max_fdr 0.05, min_lrt 1.0, min_cesi 2.0 (function default, CLI has no flag), "
-            "min_coherence 0.50, rng_seed 42 (CLI has no --seed flag). edges: cosine/t/BH on float32 attributions (1e-5 through the model); sectors: membership exact given identical edges, "
+            "min_coherence 0.50, rng_seed 42 (--seed 42, the CLI default). MDS signs canonical (--mds-sign canonical). edges: cosine/t/BH on float32 attributions (1e-5 through the model); sectors: membership exact given identical edges, "
             "p_perm/null_* statistical (B=1000, PCG64 seed 42); plasticity: DMS over sector sites (1e-5). Duplicate collections (edges/coselection_edges etc.) are the Python's.", tolerance="statistical")
     run_cli("phenotype_RHO_marine_n_permutations_0",
-            ["phenotype", "-a", "examples/RHO.fasta", "-fg", RHO_MARINE_FOREGROUND, "--n-permutations", "0", "--cpu"],
+            ["phenotype", "-a", "examples/RHO.fasta", "-fg", RHO_MARINE_FOREGROUND, "--n-permutations", "0", "--cpu"] + SEED + MDS,
             "`hyphaeon phenotype` JSON (phenotype.run_phenotype_association) with the README Example 3 foreground, --permulations 0 (parametric p) and --n-permutations 0 "
-            "(trait sector permutation block degenerate). Site stats 1e-5 through the model; p_evd/score tracks 1e-9 given identical inputs; sector membership exact.")
+            "(trait sector permutation block degenerate); --seed 42 (the CLI default; seeds permulations and the sector permutation null) and --mds-sign canonical. Site stats 1e-5 through the model; p_evd/score tracks 1e-9 given identical inputs; sector membership exact.")
 
     # filter: the `filter` subcommand writes only a FASTA and an audit CSV (no JSON), so the result dict is taken from
     # filter.run_alignment_filter, the function cmd_filter calls, with the CLI's default thresholds.
@@ -1148,6 +1153,9 @@ def main() -> int:
     args = ap.parse_args()
 
     wanted = set(args.only) if args.only else {"stats", "filter", "evaluation", "epistasis", "phenotype", "dataset", "attribution", "dms", "e2e"}
+    # Fixtures always record the canonical MDS sign convention: every in-process load_alignment_and_tree call
+    # (attribution, dms, the dataset cases that do not pass mds_sign explicitly, filter e2e) reads this env var.
+    os.environ["HYPHAEON_MDS_SIGN"] = "canonical"
     if args.skip_model:
         wanted -= {"attribution", "dms", "e2e"}
     if args.skip_e2e:
@@ -1183,13 +1191,15 @@ def main() -> int:
         "environment": python_env(),
         "synthetic_seed": SYNTH_SEED,
         "engine_default_rng_seed": PERM_SEED,
+        "mds_sign": "canonical",
+        "mds_sign_rule": "dataset.compute_mds_coordinates(mds_sign='canonical'): each kept eigenvector is flipped so its largest-magnitude entry is positive (np.argmax(np.abs(col)), first index on ties) before scaling by sqrt(eigenvalue); CLI --mds-sign / env HYPHAEON_MDS_SIGN, default canonical. 'lapack' keeps the solver's signs and is not what the fixtures record.",
         "rng": {
             "epistasis.compute_sector_permutation_test": "numpy.random.default_rng(rng_seed) -> PCG64; rng.choice(pool, size=K, replace=False)",
             "phenotype.generate_permulations": "numpy legacy global RandomState: np.random.seed(seed); np.random.randn(M, n_perm) (MT19937)",
         },
         "tolerance_classes": {
             "exact": "equality after canonicalisation (tokens, names, integer counts, graph membership, strings)",
-            "1e-5": "max |delta| <= 1e-5: anything that passed through the neural model (LRT, attention, attributions) and MDS coordinates (per-column sign)",
+            "1e-5": "max |delta| <= 1e-5: anything that passed through the neural model (LRT, attention, attributions) and MDS coordinates (exact per column under the canonical sign convention)",
             "1e-6": "max |delta| <= 1e-6: float32 arithmetic on float32 inputs (patristic distances, cosine networks, coherence)",
             "1e-9": "max |delta| <= 1e-9: special functions and float64 statistics (chi2/t/hypergeometric survival, BH, CCT, correlations, AUC)",
             "statistical": "Monte Carlo outputs: |p_js - p_py| <= 3*sqrt(p(1-p)/B), null moments within 2%; membership/exact fields still compared exactly",
@@ -1201,7 +1211,7 @@ def main() -> int:
             "cli.py cmd_meme --filter duplicates the OCI logic of filter.run_alignment_filter with two differences: consensus codons are not checked for '?' or length 3, and the artifact rule uses --min-patch-consec.",
             "epistasis: CLI default min_sim is 0.30 while compute_branch_coselection_network's default is 0.35; the CLI never passes min_cesi (function default 2.0) or min_shared beyond its own default.",
             "epistasis.extract_epistatic_sectors_tse accepts max_overlap but never uses it.",
-            "epistasis and phenotype CLIs have no --seed flag; rng_seed=42 and seed=42 are hard-wired defaults.",
+            "epistasis and phenotype CLIs expose --seed (default 42) feeding rng_seed / seed; the e2e fixtures pass --seed 42 explicitly.",
             "phenotype.resolve_phenotype_vector ignores `background`; continuous mode z-scores across all taxa including unmatched ones (which contribute 0 before standardisation).",
             "phenotype.resolve_phenotype_vector file mode falls back to substring matching in both directions over dict insertion order, so a short species name can match a longer taxon name.",
             "evaluation.load_meme_json treats -0.0 as not negative (no clamp flag) because the test is raw_lrt < 0.0.",

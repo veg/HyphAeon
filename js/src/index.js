@@ -16,6 +16,14 @@
  * intended contract — see src/README.md for what is allowed in here in the first place, which is the
  * rule doing the real work — and test/index.test.js pins the resulting surface name by name.
  *
+ * ONE PYTHON FILE CAN BE SEVERAL MODULES. `hyphaeon/epistasis.py` is 776 lines and three unrelated
+ * jobs, so PLAN.md §5.1 splits it the way it is used: `epistasis.js` (attributions and the
+ * co-selection network, lines 51-222), `sectors.js` (the permutation null and sector mining,
+ * 224-445) and `dms.js` (the in-silico DMS sweep, 446-628 and 724-768). The networkx primitives the
+ * middle one needs are kernel code, not method code — every consumer of a graph wants the same
+ * ordering and tie-breaking — so they sit in `numeric/graph.js` and reach here through
+ * `numeric/index.js`. Each module's header names its own line range.
+ *
  * ORDER IS DEPENDENCY ORDER, leaves first. There are no name collisions across the modules:
  * ES module linking treats two `export *` lines that export the SAME binding under one name as one
  * export (symmetricEigen, benjaminiHochberg and rocAuc are re-exported from the kernel by
@@ -46,7 +54,7 @@ export * from './preprocess/mds.js'; // computeMdsCoordinates
 export * from './preprocess/assemble.js'; // loadAlignmentAndTree, siteBatch, siteBatches, batchSizeFor
 
 // ---- numeric/: the kernel (PLAN.md §5.1) --------------------------------------------------------
-export * from './numeric/index.js'; // special functions, Xoshiro256, ranks, BH, CCT, linalg, numpy reductions
+export * from './numeric/index.js'; // special functions, Xoshiro256, ranks, BH, CCT, linalg, graph (networkx semantics), numpy reductions
 
 // ---- method modules, one per hyphaeon/*.py ------------------------------------------------------
 export * from './stats.js'; // pvalsFromLrtMeme, pvalsFromLrtSelfLiang, memeSitePq, cauchyCombinationP (+ benjaminiHochberg)
@@ -55,4 +63,7 @@ export * from './evaluate.js'; // evaluation.py: loaders, matching, correlations
 export * from './filter.js'; // filter.py: scanHypergeometricPatches, predictSiteLrts, consensusCodons, auditPatch, runAlignmentFilter
 export * from './attribution.js'; // attribution.py: attributeSelection, attributionSiteFields, attributionsOneIndexed, INV_GENETIC_CODE
 export * from './omnibus.js'; // cli.py cmd_busted statistics: bustedStatistics, bustedRecord, runBusted, simesP, omnibusLrt, BUSTED_*
+export * from './epistasis.js'; // epistasis.py:51-222: consensusDelta, computeTransformerAttributions, runTransformerAttributions, computeBranchCoselectionNetwork, CoselectionGraph
+export * from './sectors.js'; // epistasis.py:224-445: computeSectorPermutationTest, extractEpistaticSectorsTse, REV_AA_MAP, float32Percentile
+export * from './dms.js'; // epistasis.py:446-628, 724-768: runInsilicoSelectionDms, runDigitalDmsAnalysis, digitalDmsRecord, CANONICAL_AA_TO_CODON
 export * from './diagnostics.js'; // PLAN.md §4.3 pre-flight: diagnose, DIAGNOSTIC_CODES, DIAGNOSTIC_THRESHOLDS

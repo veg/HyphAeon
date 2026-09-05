@@ -15,17 +15,22 @@
  *   extract_tree_from_string_or_file terminals, terminal branch lengths, clade count, the
  *                                   has_nonzero_branch_lengths flag, and the None cases
  *   compute_fast_dist_matrix        Smc6 and bat_oas1, 1e-6
- *   compute_mds_coordinates         1e-5 up to a per-column sign, plus the Gram matrix
+ *   compute_mds_coordinates         1e-5 EXACT per column (canonical signs), plus the Gram matrix
  *   rescale_rule                    the four synthetic trees, 1e-6
  *   prune_identical_sequences       exact
  *   load_alignment_and_tree_duplicates  exact tokens/mask, 1e-6 distances
  *   downsample_taxa_faith_pd        exact taxa, 1e-6 sub-matrix (camelid 128 -> 64 included)
  *   load_alignment_and_tree         Smc6 and bat_oas1 end to end
  *
- * MDS SIGN CONVENTION: dataset.py applies none, so each column is compared up to a global sign
- * flip (fixtures/README.md), and the sign-invariant Gram matrix is compared as well. Where the
- * top eigenvalues are degenerate (the equilateral triangle case) only the Gram matrix is
- * meaningful; that case is compared on Gram alone.
+ * MDS SIGN CONVENTION: dataset.py canonicalises eigenvector signs (largest-|entry| of each kept
+ * column positive, first index on ties, before the sqrt(eigenvalue) scaling; `mds_sign="canonical"`,
+ * the default) and mds.js applies the same rule, so `z` is compared EXACTLY per column at the 1e-5
+ * class — no sign-flip allowance (fixtures/README.md "MDS sign convention"; MDS_SIGN.md). Before the
+ * fixtures were regenerated with that default this file compared min(|js - py|, |js + py|) per column;
+ * that allowance is gone on purpose: a sign disagreement is now a defect, because the model is not
+ * sign-invariant. The sign-invariant Gram matrix is still compared as a second check. Where the top
+ * eigenvalues are degenerate (the equilateral triangle case) only the Gram matrix is meaningful;
+ * that case is compared on Gram alone.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync, existsSync, statSync } from 'node:fs';
@@ -72,19 +77,11 @@ function maxAbsDiff(a, b) {
 	return worst;
 }
 
-/** Column-wise comparison up to a global sign per column: max over columns of min(|js-py|, |js+py|). */
-function maxColumnDiffUpToSign(jsFlat, pyRows, n, k) {
+/** max |js - py| over an n x k column-major-by-row JS array against the fixture's row lists. */
+function maxColumnDiff(jsFlat, pyRows, n, k) {
 	let worst = 0;
 	for (let col = 0; col < k; col++) {
-		let same = 0;
-		let flipped = 0;
-		for (let i = 0; i < n; i++) {
-			const js = jsFlat[i * k + col];
-			const py = pyRows[i][col];
-			same = Math.max(same, Math.abs(js - py));
-			flipped = Math.max(flipped, Math.abs(js + py));
-		}
-		worst = Math.max(worst, Math.min(same, flipped));
+		for (let i = 0; i < n; i++) worst = Math.max(worst, Math.abs(jsFlat[i * k + col] - pyRows[i][col]));
 	}
 	return worst;
 }
@@ -119,31 +116,30 @@ function mdsTol(c, magnitude) {
 }
 
 /**
- * Per-column comparison up to a global sign, with a noise floor: a component whose eigenvalue is
- * below float32 resolution of the spectrum (eps32 * lambda_max, i.e. a coordinate below
- * sqrt(eps32 * max Gram entry)) is rounding noise on BOTH sides — the synthetic 2-D case's 3rd and 4th
- * components have eigenvalues 2e-7 and 5e-9 against 10.7 — and is only required to stay below that
- * floor here too.
+ * Per-column EXACT comparison (canonical signs on both sides; no sign-flip allowance), with a noise
+ * floor: a component whose eigenvalue is below float32 resolution of the spectrum (eps32 *
+ * lambda_max, i.e. a coordinate below sqrt(eps32 * max Gram entry)) is rounding noise on BOTH sides
+ * — the synthetic 2-D case's 3rd and 4th components have eigenvalues 2e-7 and 5e-9 against 10.7 —
+ * so its pivot, and hence its canonical sign, is solver-dependent; it is only required to stay below
+ * that floor here too. Every other column must match the reference including its sign.
  */
 function checkMdsColumns(c, jsFlat, pyRows, n, k, gramMax) {
 	const noiseFloor = Math.sqrt(EPS32 * gramMax);
 	for (let col = 0; col < k; col++) {
 		let same = 0;
-		let flipped = 0;
 		let pyMag = 0;
 		let jsMag = 0;
 		for (let i = 0; i < n; i++) {
 			const js = jsFlat[i * k + col];
 			const py = pyRows[i][col];
 			same = Math.max(same, Math.abs(js - py));
-			flipped = Math.max(flipped, Math.abs(js + py));
 			pyMag = Math.max(pyMag, Math.abs(py));
 			jsMag = Math.max(jsMag, Math.abs(js));
 		}
 		if (pyMag < noiseFloor) {
 			expect(jsMag, `${c.name} column ${col} is below the float32 noise floor in the reference`).toBeLessThan(noiseFloor);
 		} else {
-			expect(Math.min(same, flipped), `${c.name} column ${col} up to sign`).toBeLessThanOrEqual(mdsTol(c, pyMag));
+			expect(same, `${c.name} column ${col} exact (canonical sign)`).toBeLessThanOrEqual(mdsTol(c, pyMag));
 		}
 	}
 }
@@ -280,7 +276,9 @@ describe('dataset/compute_mds_coordinates.json', () => {
 			const rows = c.inputs.dist_matrix;
 			const n = rows.length;
 			const k = c.inputs.n_components;
-			const z = computeMdsCoordinates(Float32Array.from(flat(rows)), n, k);
+			// The fixture records inputs.mds_sign = "canonical"; the library's default is the same rule.
+			expect(c.inputs.mds_sign).toBe('canonical');
+			const z = computeMdsCoordinates(Float32Array.from(flat(rows)), n, k, { mdsSign: c.inputs.mds_sign });
 			const pyGram = flat(c.outputs.gram);
 			const gramMax = Math.max(...pyGram.map(Math.abs));
 			expect(maxAbsDiff(gram(z, n, k), pyGram), 'gram').toBeLessThanOrEqual(mdsTol(c, gramMax));
@@ -376,7 +374,9 @@ describe('dataset/load_alignment_and_tree.json', () => {
 			expect(r.notices.distanceRescaled).toBe(o.rescaled_by_L);
 			expect(r.notices.rawDistMax).toBeCloseTo(o.raw_dist_max, 5);
 			expect(maxAbsDiff(r.d, flat(o.dist_matrix)), 'dist_matrix').toBeLessThanOrEqual(1e-6);
-			expect(maxColumnDiffUpToSign(r.z, o.mds_coords, r.N, 4), 'mds up to sign').toBeLessThanOrEqual(tol(c));
+			// Exact per column, sign included: both sides canonical (inputs.mds_sign), 1e-5 absolute after rescale.
+			expect(c.inputs.mds_sign).toBe('canonical');
+			expect(maxColumnDiff(r.z, o.mds_coords, r.N, 4), 'mds exact (canonical sign)').toBeLessThanOrEqual(tol(c));
 			expect(maxAbsDiff(gram(r.z, r.N, 4), flat(o.mds_gram)), 'mds gram').toBeLessThanOrEqual(tol(c));
 			expect(Array.from(r.invariable, (v) => v === 1)).toEqual(o.is_aa_invariable);
 			expect(r.invariable.reduce((s, v) => s + v, 0)).toBe(o.n_invariable);

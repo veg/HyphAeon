@@ -364,7 +364,8 @@ def run_phenotype_association(
     progress: bool = True,
     use_tn93: bool = False,
     n_permutations: int = 10000,
-    max_perm_p: Optional[float] = None
+    max_perm_p: Optional[float] = None,
+    seed: int = 42
 ) -> Dict[str, Any]:
     """
     Executes directional Phenotype-Genotype association (PhyloWAS) on a codon alignment
@@ -428,7 +429,7 @@ def run_phenotype_association(
     gene_p_perm = None
     if permulations > 0 and tree_obj is not None:
         try:
-            Y_perms = generate_permulations(y, tree_obj, taxa, n_perm=permulations) # [P, N]
+            Y_perms = generate_permulations(y, tree_obj, taxa, n_perm=permulations, seed=seed) # [P, N]
             norm_y_perms = np.linalg.norm(Y_perms, axis=1) # [P]
             
             # Site-level null correlations: [L, P]
@@ -616,7 +617,8 @@ def run_phenotype_association(
                     a_np=a_np,
                     taxa=taxa,
                     n_permutations=n_permutations,
-                    max_perm_p=max_perm_p
+                    max_perm_p=max_perm_p,
+                    rng_seed=seed
                 )
 
     return {

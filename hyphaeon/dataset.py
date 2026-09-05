@@ -351,11 +351,55 @@ def compute_fast_dist_matrix(tree: Phylo.BaseTree.Tree, taxa: List[str]) -> np.n
             
     return dist_mat
 
-def compute_mds_coordinates(dist_matrix: np.ndarray, n_components: int = 4) -> np.ndarray:
+MDS_SIGN_MODES = ("canonical", "lapack")
+MDS_SIGN_ENV = "HYPHAEON_MDS_SIGN"
+
+
+def resolve_mds_sign(mds_sign: Optional[str] = None) -> str:
+    """
+    Resolves the MDS eigenvector sign convention: an explicit value wins, then the
+    HYPHAEON_MDS_SIGN environment variable, then "canonical".
+
+      "canonical": each kept eigenvector is flipped so that its largest-magnitude entry is
+                   positive (ties: first index, np.argmax semantics), BEFORE scaling by
+                   sqrt(eigenvalue). Deterministic across eigensolvers (LAPACK, ARPACK, tred2/tql2).
+      "lapack":    signs are left as the eigensolver returned them (the pre-1.1 behaviour).
+    """
+    value = mds_sign if mds_sign is not None else os.environ.get(MDS_SIGN_ENV, "canonical")
+    value = str(value).strip().lower()
+    if value not in MDS_SIGN_MODES:
+        raise ValueError(f"mds_sign must be one of {MDS_SIGN_MODES}, got {value!r}")
+    return value
+
+
+def canonicalize_eigenvector_signs(eigvecs: np.ndarray) -> np.ndarray:
+    """
+    Flips each column of eigvecs [N, k] so that its largest-magnitude entry is positive.
+    Ties resolve to the first index (np.argmax). An all-zero column is left unchanged.
+    Sign flips are exact in floating point, so the coordinates are bitwise those of the
+    unflipped solver up to sign. Returns a new array; the input is not modified.
+    """
+    out = np.array(eigvecs, copy=True)
+    if out.ndim != 2 or out.shape[1] == 0:
+        return out
+    pivot = np.argmax(np.abs(out), axis=0)                 # first index on ties
+    flip = out[pivot, np.arange(out.shape[1])] < 0
+    out[:, flip] *= -1
+    return out
+
+
+def compute_mds_coordinates(dist_matrix: np.ndarray, n_components: int = 4, mds_sign: Optional[str] = None) -> np.ndarray:
     """
     Classical Multidimensional Scaling (MDS) embedding into 4D continuous coordinate space.
     Uses fast Truncated Lanczos spectral solver for N > 500, with dense eigh fallback.
+
+    mds_sign selects the eigenvector sign convention ("canonical" | "lapack"; None reads
+    HYPHAEON_MDS_SIGN, default "canonical"). The model is not sign-invariant (mds_proj is a
+    Linear layer on the raw coordinates), so this choice changes per-site LRTs at the 1e-2
+    relative level; see MDS_SIGN.md. Canonical signs are applied to the kept eigenvectors
+    before they are scaled by sqrt(eigenvalue), on both the Lanczos and the dense path.
     """
+    mds_sign = resolve_mds_sign(mds_sign)
     n = dist_matrix.shape[0]
     if n > 500:
         try:
@@ -371,8 +415,11 @@ def compute_mds_coordinates(dist_matrix: np.ndarray, n_components: int = 4) -> n
             idx = np.argsort(eigvals)[::-1]
             eigvals = eigvals[idx]
             eigvecs = eigvecs[:, idx]
+            kept = eigvecs[:, :n_components]
+            if mds_sign == "canonical":
+                kept = canonicalize_eigenvector_signs(kept)
             pos_eigvals = np.maximum(eigvals[:n_components], 0)
-            coords = eigvecs[:, :n_components] * np.sqrt(pos_eigvals)
+            coords = kept * np.sqrt(pos_eigvals)
             if coords.shape[1] < n_components:
                 pad = np.zeros((n, n_components - coords.shape[1]))
                 coords = np.hstack([coords, pad])
@@ -386,8 +433,11 @@ def compute_mds_coordinates(dist_matrix: np.ndarray, n_components: int = 4) -> n
     idx = np.argsort(eigvals)[::-1]
     eigvals = eigvals[idx]
     eigvecs = eigvecs[:, idx]
+    kept = eigvecs[:, :n_components]
+    if mds_sign == "canonical":
+        kept = canonicalize_eigenvector_signs(kept)
     pos_eigvals = np.maximum(eigvals[:n_components], 0)
-    coords = eigvecs[:, :n_components] * np.sqrt(pos_eigvals)
+    coords = kept * np.sqrt(pos_eigvals)
     if coords.shape[1] < n_components:
         pad = np.zeros((n, n_components - coords.shape[1]))
         coords = np.hstack([coords, pad])
@@ -525,7 +575,8 @@ def load_alignment_and_tree(
     nwk_path: Optional[str] = None,
     max_species: Optional[int] = None,
     prune_duplicates: bool = True,
-    use_tn93: bool = False
+    use_tn93: bool = False,
+    mds_sign: Optional[str] = None
 ):
     """
     Parses alignment (FASTA or NEXUS) and phylogenetic tree (from nwk_path or embedded in alignment).
@@ -534,8 +585,11 @@ def load_alignment_and_tree(
     Enforces non-zero branch lengths (estimating them via HyPhy if available and missing).
     Automatically prunes identical sequence duplicates and trims tree accordingly if prune_duplicates=True.
     Optionally applies greedy Faith's PD species downsampling if max_species is specified.
+    mds_sign selects the MDS eigenvector sign convention ("canonical" | "lapack"); None reads
+    the HYPHAEON_MDS_SIGN environment variable and defaults to "canonical".
     Returns PyTorch tensors (c, a, d, z), invariable mask, taxa list, and codon length L.
     """
+    mds_sign = resolve_mds_sign(mds_sign)
     # 1. Parse alignment sequences
     seq_dict = parse_alignment_sequences(fa_path)
     if not seq_dict:
@@ -685,7 +739,7 @@ def load_alignment_and_tree(
             print(f"[*] Faith's PD Species Downsampling: Selected {len(taxa)} taxa maximizing tree diversity.")
 
     n_taxa = len(taxa)
-    mds_coords = compute_mds_coordinates(dist_mat, n_components=4)
+    mds_coords = compute_mds_coordinates(dist_mat, n_components=4, mds_sign=mds_sign)
 
     c_all = np.zeros((L, n_taxa, 1), dtype=np.int64)
     a_all = np.zeros((L, n_taxa, 1), dtype=np.int64)

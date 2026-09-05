@@ -21,7 +21,7 @@ import torch
 import networkx as nx
 
 from .model import PhyloAxialTransformer, BustedMultiTaskHead
-from .dataset import load_alignment_and_tree
+from .dataset import load_alignment_and_tree, resolve_mds_sign, MDS_SIGN_ENV, MDS_SIGN_MODES
 from .weights import (
     resolve_weights_path,
     load_arch_config,
@@ -43,12 +43,32 @@ DEFAULT_VARIANT_ENV = os.environ.get("HYPHAEON_VARIANT", DEFAULT_VARIANT)
 _local_repo_weights = Path(__file__).resolve().parent.parent / "model.safetensors"
 DEFAULT_WEIGHTS_ENV = os.environ.get("HYPHAEON_WEIGHTS", str(_local_repo_weights) if _local_repo_weights.exists() else None)
 
+# MDS eigenvector sign convention (dataset.compute_mds_coordinates). The env var sets the default;
+# --mds-sign on any alignment-loading subcommand overrides it. See MDS_SIGN.md.
+MDS_SIGN_DEFAULT = os.environ.get(MDS_SIGN_ENV, "canonical")
+MDS_SIGN_HELP = ("MDS eigenvector sign convention: 'canonical' flips each kept eigenvector so its largest-magnitude "
+                 "entry is positive (reproducible across eigensolvers and across the Python/JS implementations); "
+                 "'lapack' keeps the eigensolver's signs (pre-canonical behaviour). Default: HYPHAEON_MDS_SIGN or 'canonical'. "
+                 "The model is not sign-invariant, so this changes LRTs at the ~1e-2 relative level (see MDS_SIGN.md).")
+SEED_DEFAULT = 42
+SEED_HELP = ("Random seed for the Monte Carlo sector permutation null (numpy default_rng / PCG64) and, for `phenotype`, "
+             "also for the Brownian-motion permulations (numpy legacy global state, np.random.seed). Default: 42.")
+
+
+def _apply_mds_sign(args) -> str:
+    """Resolve --mds-sign and publish it through HYPHAEON_MDS_SIGN so every load_alignment_and_tree
+    call in the pipeline (inference.prepare_alignment, filter, epistasis, phenotype) sees the same value."""
+    mode = resolve_mds_sign(getattr(args, "mds_sign", None))
+    os.environ[MDS_SIGN_ENV] = mode
+    return mode
+
 def determine_adaptive_batch_size(num_species: int, total_sites: int, device: torch.device, user_batch_size: int = None) -> int:
     # DEPRECATED: retained for test/back-compat; delegates to compute_adaptive_safe_batch_size
     bs = compute_adaptive_safe_batch_size(num_species, user_batch_size=user_batch_size, device=device)
     return min(bs, total_sites)
 
 def cmd_meme(args):
+    mds_sign = _apply_mds_sign(args)
     device = get_device(cpu=getattr(args, "cpu", False))
     print(f"[*] Hardware device selected: {device.type.upper()}")
 
@@ -188,7 +208,7 @@ def cmd_meme(args):
                     
                 c_cl, a_cl, d_cl, z_cl, inv_cl, taxa_cl, L_cl = load_alignment_and_tree(
                     cleaned_temp_path, args.tree, max_species=args.max_species, prune_duplicates=prune_dups,
-                    use_tn93=use_tn93
+                    use_tn93=use_tn93, mds_sign=mds_sign
                 )
                 lrts_cl = predict_site_lrts(model, c_cl, a_cl, d_cl, z_cl, inv_cl,
                                             tree_cache=tree_cache, batch_size=batch_size, device=device,
@@ -327,6 +347,7 @@ def cmd_meme(args):
         write_csv(args.csv, csv_records)
 
 def cmd_busted(args):
+    mds_sign = _apply_mds_sign(args)
     """
     Run Alignment-Wide Omnibus Selection Testing (BUSTED & BUSTED+S emulation).
     Combines site-level representations via ACAT Cauchy transformation and
@@ -414,7 +435,7 @@ def cmd_busted(args):
         try:
             c, a, d, z, inv, taxa, L = load_alignment_and_tree(
                 aln_path, tree_path, max_species=args.max_species, prune_duplicates=prune_dups,
-                use_tn93=use_tn93
+                use_tn93=use_tn93, mds_sign=mds_sign
             )
         except Exception as e:
             if not is_batch:
@@ -592,6 +613,7 @@ def list_models():
     print(f"Default variant: {DEFAULT_VARIANT}")
 
 def cmd_phenotype(args):
+    _apply_mds_sign(args)
     alignment_path = os.path.expanduser(args.alignment) if getattr(args, "alignment", None) else None
     tree_path = os.path.expanduser(args.tree) if getattr(args, "tree", None) else None
     weights_path = os.path.expanduser(args.weights) if getattr(args, "weights", None) else DEFAULT_WEIGHTS_ENV
@@ -626,7 +648,8 @@ def cmd_phenotype(args):
             cpu=getattr(args, "cpu", False),
             use_tn93=use_tn93,
             n_permutations=getattr(args, "n_permutations", 10000),
-            max_perm_p=getattr(args, "max_perm_p", None)
+            max_perm_p=getattr(args, "max_perm_p", None),
+            seed=getattr(args, "seed", SEED_DEFAULT)
         )
     except Exception as e:
         print(f"\n[!] Phenotype Association Error: {e}")
@@ -701,6 +724,7 @@ def cmd_phenotype(args):
         write_csv(args.csv, sites)
 
 def cmd_epistasis(args):
+    _apply_mds_sign(args)
     use_tn93 = getattr(args, "no_tree", False) or getattr(args, "use_tn93", False) or (getattr(args, "tree", None) == "tn93")
     print(f"[*] Executing Phylogenetic Branch Attribution, Co-Selection Networks & Selection DMS (ESSM)...")
     print(f"[*] Alignment: {args.alignment}")
@@ -727,6 +751,7 @@ def cmd_epistasis(args):
             min_coherence=getattr(args, "min_coherence", 0.50),
             n_permutations=getattr(args, "n_permutations", 10000),
             max_perm_p=getattr(args, "max_perm_p", None),
+            rng_seed=getattr(args, "seed", SEED_DEFAULT),
             run_dms=not getattr(args, "no_dms", False),
             cpu=getattr(args, "cpu", False),
             use_tn93=use_tn93
@@ -834,6 +859,7 @@ def cmd_epistasis(args):
         print(f"[✓] Co-selection network GraphML written to: {args.graphml}")
 
 def cmd_dms(args):
+    _apply_mds_sign(args)
     use_tn93 = getattr(args, "no_tree", False) or getattr(args, "use_tn93", False) or (getattr(args, "tree", None) == "tn93")
     print(f"[*] Executing in silico Selection Deep Mutational Scanning (Digital DMS / ESSM)...")
     print(f"[*] Alignment: {args.alignment}")
@@ -949,6 +975,7 @@ def cmd_disease(args):
 def cmd_filter(args):
     """Executes automated alignment quality control, artifact detection, and surgical masking."""
     from .filter import run_alignment_filter
+    _apply_mds_sign(args)
     
     print("[*] Executing Automated Alignment Error Detection & Surgical Masking...")
     print(f"[*] Alignment: {args.alignment}")
@@ -1024,6 +1051,7 @@ def main():
     pred_parser.add_argument("-b", "--batch-size", type=int, default=None, help="Site batch size (default: auto-selected; very large values may be capped to a hardware-safe threshold to prevent GPU OOM)")
     pred_parser.add_argument("-s", "--max-species", type=int, default=None, help="Maximum number of species to include (PD downsampling)")
     pred_parser.add_argument("--no-prune-duplicates", action="store_true", help="Disable automatic collapsing of 100%% identical sequence duplicates")
+    pred_parser.add_argument("--mds-sign", choices=MDS_SIGN_MODES, default=MDS_SIGN_DEFAULT, help=MDS_SIGN_HELP)
     pred_parser.add_argument("-o", "--output", help="Optional path to output JSON results")
     pred_parser.add_argument("-c", "--csv", help="Optional path to output CSV results")
     pred_parser.add_argument("--cpu", action="store_true", help="Force CPU inference")
@@ -1054,6 +1082,8 @@ def main():
     pheno_parser.add_argument("--alpha", type=float, default=0.05, help="FDR significance threshold")
     pheno_parser.add_argument("--n-permutations", type=int, default=10000, help="Number of random K-site subset Monte Carlo permutations for trait sector significance testing (default: 10000)")
     pheno_parser.add_argument("--max-perm-p", type=float, default=None, help="Maximum permutation p-value threshold to retain trait sectors (default: None, retain all C(S) >= 0.45)")
+    pheno_parser.add_argument("--seed", type=int, default=SEED_DEFAULT, help=SEED_HELP)
+    pheno_parser.add_argument("--mds-sign", choices=MDS_SIGN_MODES, default=MDS_SIGN_DEFAULT, help=MDS_SIGN_HELP)
     pheno_parser.add_argument("--cpu", action="store_true", help="Force CPU execution")
     pheno_parser.add_argument("-o", "--output", help="Optional path to output JSON results")
     pheno_parser.add_argument("-c", "--csv", help="Optional path to output CSV results")
@@ -1075,6 +1105,8 @@ def main():
     epi_parser.add_argument("--min-coherence", type=float, default=0.50, help="Minimum spectral coherence ratio C(S) for epistatic sectors (default: 0.50)")
     epi_parser.add_argument("--n-permutations", type=int, default=10000, help="Number of random K-site subset Monte Carlo permutations for sector significance testing (default: 10000)")
     epi_parser.add_argument("--max-perm-p", type=float, default=None, help="Maximum permutation p-value threshold to retain sectors (default: None, retain all C(S) >= min_coherence)")
+    epi_parser.add_argument("--seed", type=int, default=SEED_DEFAULT, help=SEED_HELP)
+    epi_parser.add_argument("--mds-sign", choices=MDS_SIGN_MODES, default=MDS_SIGN_DEFAULT, help=MDS_SIGN_HELP)
     epi_parser.add_argument("--no-dms", action="store_true", help="Skip 19-amino-acid in silico Selection DMS sweep")
     epi_parser.add_argument("--cpu", action="store_true", help="Force CPU execution")
     epi_parser.add_argument("-o", "--output", help="Optional path to output JSON results")
@@ -1089,6 +1121,7 @@ def main():
     dms_parser.add_argument("--use-tn93", action="store_true", help="Estimate pairwise distances directly from alignment using TN93 (skips tree)")
     dms_parser.add_argument("-w", "--weights", default=DEFAULT_WEIGHTS_ENV, help="Path to local model weights file (overrides HF download)")
     dms_parser.add_argument("--focal-taxon", help="Focal taxon for in silico Selection DMS sweep (default: auto/consensus)")
+    dms_parser.add_argument("--mds-sign", choices=MDS_SIGN_MODES, default=MDS_SIGN_DEFAULT, help=MDS_SIGN_HELP)
     dms_parser.add_argument("--cpu", action="store_true", help="Force CPU execution")
     dms_parser.add_argument("-o", "--output", help="Optional path to output JSON results")
     dms_parser.add_argument("-c", "--csv", help="Optional path to output CSV results")
@@ -1106,6 +1139,7 @@ def main():
     busted_parser.add_argument("-w", "--weights", default=DEFAULT_WEIGHTS_ENV, help="Path to local model weights file (overrides HF download)")
     busted_parser.add_argument("--model-variant", dest="variant", default=DEFAULT_VARIANT_ENV, help=f"Model variant to download from HF (default: {DEFAULT_VARIANT})")
     busted_parser.add_argument("-s", "--max-species", type=int, default=512, help="Maximum number of taxa (Farthest-Point Traversal subsampling if exceeded)")
+    busted_parser.add_argument("--mds-sign", choices=MDS_SIGN_MODES, default=MDS_SIGN_DEFAULT, help=MDS_SIGN_HELP)
     busted_parser.add_argument("-b", "--batch-size", type=int, default=None, help="Number of codon sites to process in parallel (default: adaptive; very large values may be capped to a hardware-safe threshold to prevent GPU OOM)")
     busted_parser.add_argument("--cpu", action="store_true", help="Force CPU execution")
     busted_parser.add_argument("-o", "--output", help="Optional path to output JSON results")
@@ -1136,6 +1170,7 @@ def main():
     filter_parser.add_argument("-c", "--csv", help="Optional path to write artifact audit log (CSV format)")
     filter_parser.add_argument("-b", "--batch-size", type=int, default=None, help="Site batch size (default: adaptive hardware budget)")
     filter_parser.add_argument("-s", "--max-species", type=int, default=None, help="Maximum number of taxa to include (PD downsampling)")
+    filter_parser.add_argument("--mds-sign", choices=MDS_SIGN_MODES, default=MDS_SIGN_DEFAULT, help=MDS_SIGN_HELP)
     filter_parser.add_argument("--alpha-site", type=float, default=0.05, help="Site significance threshold for cluster scanning (default: 0.05)")
     filter_parser.add_argument("--min-k", type=int, default=3, help="Minimum significant sites within window (default: 3)")
     filter_parser.add_argument("--max-span", type=int, default=35, help="Maximum codon window span for spatial cluster (default: 35)")

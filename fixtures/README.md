@@ -74,17 +74,36 @@ its notes say which fields are exact regardless (site lists, counts, strings).
 
 ### MDS sign convention
 
-`compute_mds_coordinates` returns LAPACK `eigh` eigenvectors with no sign
-normalisation. Compare each column up to a global sign flip, or compare the
-sign-invariant `gram` (`coords @ coords.T`) and `abs_coords` outputs provided
-alongside `coords`.
+`compute_mds_coordinates(dist_matrix, n_components=4, mds_sign="canonical")`
+canonicalises eigenvector signs: before the `sqrt(eigenvalue)` scaling, each kept
+eigenvector is flipped so that its largest-magnitude entry is positive
+(`np.argmax(np.abs(col))`, first index on ties; an all-zero column is left alone).
+The rule is a property of the matrix, not of the eigensolver, so LAPACK `eigh`,
+ARPACK `eigsh` (N > 500) and the library's tred2/tql2 all land on the same signs.
+Every fixture that records coordinates (`dataset/compute_mds_coordinates.json`,
+`dataset/load_alignment_and_tree.json`, and everything downstream of the model in
+`attribution/`, `dms/`, `e2e/`) was generated under this convention;
+`inputs.mds_sign` records it and `manifest.json` carries `mds_sign` and
+`mds_sign_rule`. **Compare `coords` exactly, per column, at the 1e-5 class** — no
+sign-flip allowance. The sign-invariant `gram` (`coords @ coords.T`) and
+`abs_coords` outputs remain for degenerate eigenspaces (equal eigenvalues, where
+individual columns are basis-dependent) and for noise-level components.
+
+The previous behaviour (`mds_sign="lapack"`: signs as the solver returned them) is
+still reachable through `--mds-sign lapack` / `HYPHAEON_MDS_SIGN=lapack`, but the
+fixtures do not record it. Because the model is not sign-invariant, the two
+conventions give different LRTs (up to 0.59 absolute, ~1e-2 relative on the
+bundled examples); `MDS_SIGN.md` has the measurement.
 
 ### Random number generators
 
 | function | RNG | seed |
 |---|---|---|
-| `epistasis.compute_sector_permutation_test` (and sectors' `p_perm`) | `numpy.random.default_rng(rng_seed)` → PCG64; `rng.choice(pool, K, replace=False)` per draw | 42 |
-| `phenotype.generate_permulations` | numpy legacy global state: `np.random.seed(seed)`; `np.random.randn(M, n_perm)` (MT19937) | 42 |
+| `epistasis.compute_sector_permutation_test` (and sectors' `p_perm`) | `numpy.random.default_rng(rng_seed)` → PCG64; `rng.choice(pool, K, replace=False)` per draw | 42 (`hyphaeon epistasis --seed`, default 42) |
+| `phenotype.generate_permulations` | numpy legacy global state: `np.random.seed(seed)`; `np.random.randn(M, n_perm)` (MT19937) | 42 (`hyphaeon phenotype --seed`, default 42; the same flag seeds the trait-sector permutation null) |
+
+The `e2e/` epistasis and phenotype cases pass `--seed 42` explicitly and every CLI
+case passes `--mds-sign canonical`, so `inputs.argv` records both.
 
 The JS port uses its own PRNG (xoshiro256\*\*, PLAN.md D17); these outputs are
 compared statistically only. Synthetic *inputs* were drawn with

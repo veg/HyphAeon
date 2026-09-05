@@ -444,129 +444,130 @@
      0.0
     ]
    ],
-   "n_components": 4
+   "n_components": 4,
+   "mds_sign": "canonical"
   },
   "outputs": {
    "coords": [
     [
      -0.012789632193744183,
-     0.009929959662258625,
-     -4.433447429619264e-06,
-     0.0003185808309353888
+     -0.009929959662258625,
+     4.433447429619264e-06,
+     -0.0003185808309353888
     ],
     [
      -0.012960601598024368,
-     0.010106160305440426,
-     4.86243334307801e-06,
-     0.0003608990809880197
+     -0.010106160305440426,
+     -4.86243334307801e-06,
+     -0.0003608990809880197
     ],
     [
      -0.011626998893916607,
-     0.008710164576768875,
-     -7.794739940436557e-05,
-     -3.477737482171506e-05
+     -0.008710164576768875,
+     7.794739940436557e-05,
+     3.477737482171506e-05
     ],
     [
      -0.01162780448794365,
-     0.008710983209311962,
-     -7.790294330334291e-05,
-     -3.460397419985384e-05
+     -0.008710983209311962,
+     7.790294330334291e-05,
+     3.460397419985384e-05
     ],
     [
      -0.01187857799232006,
-     0.008960522711277008,
-     -6.47475098958239e-05,
-     2.1023262888775207e-05
+     -0.008960522711277008,
+     6.47475098958239e-05,
+     -2.1023262888775207e-05
     ],
     [
      -0.010600214824080467,
-     0.007634726818650961,
-     -0.0001263330050278455,
-     -0.0002549650671426207
+     -0.007634726818650961,
+     0.0001263330050278455,
+     0.0002549650671426207
     ],
     [
      -0.010847753845155239,
-     0.007877504453063011,
-     -0.00011335675662849098,
-     -0.0002014072088059038
+     -0.007877504453063011,
+     0.00011335675662849098,
+     0.0002014072088059038
     ],
     [
      -0.009913329966366291,
-     0.006525612436234951,
-     -0.0001305796322412789,
-     -0.00043224848923273385
+     -0.006525612436234951,
+     0.0001305796322412789,
+     0.00043224848923273385
     ],
     [
      -0.011265609413385391,
-     0.007715733256191015,
-     -4.5975830289535224e-05,
-     -0.00014233980618882924
+     -0.007715733256191015,
+     4.5975830289535224e-05,
+     0.00014233980618882924
     ],
     [
      -0.0086388373747468,
-     -0.012757042422890663,
-     -0.0004610433825291693,
-     0.0019085241947323084
+     0.012757042422890663,
+     0.0004610433825291693,
+     -0.0019085241947323084
     ],
     [
      -0.008503863587975502,
-     -0.01259340438991785,
-     -0.0004582010442391038,
-     0.0017800037749111652
+     0.01259340438991785,
+     0.0004582010442391038,
+     -0.0017800037749111652
     ],
     [
      -0.00843473058193922,
-     -0.012498990632593632,
-     -0.00045395802590064704,
-     0.0016982152592390776
+     0.012498990632593632,
+     0.00045395802590064704,
+     -0.0016982152592390776
     ],
     [
      -0.008435375057160854,
-     -0.012499763630330563,
-     -0.0004539729852695018,
-     0.0016988179413601756
+     0.012499763630330563,
+     0.0004539729852695018,
+     -0.0016988179413601756
     ],
     [
      -0.011048558168113232,
-     -0.014869390986859798,
-     -5.4757847465225495e-06,
-     0.0066163260489702225
+     0.014869390986859798,
+     5.4757847465225495e-06,
+     -0.0066163260489702225
     ],
     [
      -0.011409200727939606,
-     -0.014735383912920952,
-     0.0007855048170313239,
-     -0.012834186665713787
+     0.014735383912920952,
+     -0.0007855048170313239,
+     0.012834186665713787
     ],
     [
      0.02981577068567276,
-     0.0005157344858162105,
-     0.003750389674678445,
-     -0.000193474639672786
+     -0.0005157344858162105,
+     -0.003750389674678445,
+     0.000193474639672786
     ],
     [
      0.0324101597070694,
-     0.0007807049551047385,
-     0.009193217381834984,
-     0.0007270433707162738
+     -0.0007807049551047385,
+     -0.009193217381834984,
+     -0.0007270433707162738
     ],
     [
      0.030361583456397057,
-     0.000574131787288934,
-     0.0046130758710205555,
-     -2.0318322640378028e-05
+     -0.000574131787288934,
+     -0.0046130758710205555,
+     2.0318322640378028e-05
     ],
     [
      0.03075988218188286,
-     0.0006376735982485116,
-     -0.0030752290040254593,
-     -0.0005335930036380887
+     -0.0006376735982485116,
+     0.0030752290040254593,
+     0.0005335930036380887
     ],
     [
      0.0366336964070797,
-     0.0012743615079671144,
-     -0.012797875329852104,
-     -0.0004475213645491749
+     -0.0012743615079671144,
+     0.012797875329852104,
+     0.0004475213645491749
     ]
    ],
    "gram": [
@@ -1135,7 +1136,7 @@
    ]
   },
   "tolerance": "1e-5",
-  "notes": "signature: compute_mds_coordinates(dist_matrix float32 [N,N], n_components=4) -> float32 [N,4]. Dense path (N<=500): H = I - 1/N, B = -0.5 H D^2 H in float32, numpy.linalg.eigh (LAPACK syevd), eigenvalues sorted descending, coords = eigvecs[:, :4] * sqrt(max(eigval, 0)). SIGN CONVENTION: eigenvector signs are whatever LAPACK returns and are NOT normalised, so a port must compare each column up to a global sign flip (min(max|c_js - c_py|, max|c_js + c_py|) <= 1e-5) or compare the sign-invariant Gram matrix coords @ coords.T given here as 'gram'. N > 500 uses scipy eigsh (Lanczos) on an implicit operator; same convention, same tolerance."
+  "notes": "signature: compute_mds_coordinates(dist_matrix float32 [N,N], n_components=4, mds_sign='canonical') -> float32 [N,4]. Dense path (N<=500): H = I - 1/N, B = -0.5 H D^2 H in float32, numpy.linalg.eigh (LAPACK syevd), eigenvalues sorted descending, coords = eigvecs[:, :4] * sqrt(max(eigval, 0)). SIGN CONVENTION (mds_sign='canonical', the default): before the sqrt(eigval) scaling each kept eigenvector is flipped so that its largest-magnitude entry is positive (np.argmax(np.abs(col)): first index on ties; an all-zero column is left alone). Columns are therefore comparable EXACTLY (max|c_js - c_py| <= 1e-5) with no sign-flip allowance; the sign-invariant Gram matrix coords @ coords.T is still given as 'gram' for degenerate eigenspaces. mds_sign='lapack' keeps the solver's signs (the pre-canonical behaviour) and is not what these fixtures record. N > 500 uses scipy eigsh (Lanczos) on an implicit operator; same convention, same tolerance."
  },
  {
   "name": "example_bat_oas1.nwk_raw_distances",
@@ -1502,115 +1503,116 @@
      0.0
     ]
    ],
-   "n_components": 4
+   "n_components": 4,
+   "mds_sign": "canonical"
   },
   "outputs": {
    "coords": [
     [
-     -25.72239875793457,
-     -37.41883087158203,
+     25.72239875793457,
+     37.41883087158203,
      -15.931398391723633,
      36.34495162963867
     ],
     [
-     -28.329448699951172,
-     -47.93256378173828,
+     28.329448699951172,
+     47.93256378173828,
      -21.862794876098633,
      -1.9132225513458252
     ],
     [
-     -30.449260711669922,
-     -56.08335876464844,
+     30.449260711669922,
+     56.08335876464844,
      -26.38393783569336,
      -17.335161209106445
     ],
     [
-     -30.449260711669922,
-     -56.08335876464844,
+     30.449260711669922,
+     56.08335876464844,
      -26.38393783569336,
      -17.335159301757812
     ],
     [
-     -64.09136199951172,
-     38.273616790771484,
+     64.09136199951172,
+     -38.273616790771484,
      6.78817081451416,
      -2.5572710037231445
     ],
     [
-     -64.09136199951172,
-     38.273616790771484,
+     64.09136199951172,
+     -38.273616790771484,
      6.788171768188477,
      -2.5572710037231445
     ],
     [
-     -63.591888427734375,
-     37.72167205810547,
+     63.591888427734375,
+     -37.72167205810547,
      6.677085876464844,
      -2.4506144523620605
     ],
     [
-     -58.93809509277344,
-     32.41511535644531,
+     58.93809509277344,
+     -32.41511535644531,
      5.598999977111816,
      -1.2703441381454468
     ],
     [
-     25.36867332458496,
-     -17.985633850097656,
+     -25.36867332458496,
+     17.985633850097656,
      62.17515563964844,
      -9.688632011413574
     ],
     [
-     25.36867332458496,
-     -17.985633850097656,
+     -25.36867332458496,
+     17.985633850097656,
      62.17515563964844,
      -9.688630104064941
     ],
     [
-     24.488941192626953,
-     -16.786863327026367,
+     -24.488941192626953,
+     16.786863327026367,
      57.41863250732422,
      -7.46739387512207
     ],
     [
-     44.79909896850586,
-     17.7509822845459,
+     -44.79909896850586,
+     -17.7509822845459,
      -20.93334197998047,
      -5.369358539581299
     ],
     [
-     44.79909896850586,
-     17.750980377197266,
+     -44.79909896850586,
+     -17.750980377197266,
      -20.933340072631836,
      -5.369357109069824
     ],
     [
-     48.28723907470703,
-     20.700639724731445,
+     -48.28723907470703,
+     -20.700639724731445,
      -25.065645217895508,
      -12.17795467376709
     ],
     [
-     48.66520309448242,
-     21.005067825317383,
+     -48.66520309448242,
+     -21.005067825317383,
      -25.485830307006836,
      -12.730755805969238
     ],
     [
-     48.66520309448242,
-     21.005067825317383,
+     -48.66520309448242,
+     -21.005067825317383,
      -25.485828399658203,
      -12.730755805969238
     ],
     [
-     30.970855712890625,
-     5.68585729598999,
+     -30.970855712890625,
+     -5.68585729598999,
      -3.8522119522094727,
      30.4925594329834
     ],
     [
-     24.250104904174805,
-     -0.30637574195861816,
+     -24.250104904174805,
+     0.30637574195861816,
      4.696911334991455,
      53.80437469482422
     ]
@@ -2089,7 +2091,7 @@
    ]
   },
   "tolerance": "1e-5",
-  "notes": "signature: compute_mds_coordinates(dist_matrix float32 [N,N], n_components=4) -> float32 [N,4]. Dense path (N<=500): H = I - 1/N, B = -0.5 H D^2 H in float32, numpy.linalg.eigh (LAPACK syevd), eigenvalues sorted descending, coords = eigvecs[:, :4] * sqrt(max(eigval, 0)). SIGN CONVENTION: eigenvector signs are whatever LAPACK returns and are NOT normalised, so a port must compare each column up to a global sign flip (min(max|c_js - c_py|, max|c_js + c_py|) <= 1e-5) or compare the sign-invariant Gram matrix coords @ coords.T given here as 'gram'. N > 500 uses scipy eigsh (Lanczos) on an implicit operator; same convention, same tolerance."
+  "notes": "signature: compute_mds_coordinates(dist_matrix float32 [N,N], n_components=4, mds_sign='canonical') -> float32 [N,4]. Dense path (N<=500): H = I - 1/N, B = -0.5 H D^2 H in float32, numpy.linalg.eigh (LAPACK syevd), eigenvalues sorted descending, coords = eigvecs[:, :4] * sqrt(max(eigval, 0)). SIGN CONVENTION (mds_sign='canonical', the default): before the sqrt(eigval) scaling each kept eigenvector is flipped so that its largest-magnitude entry is positive (np.argmax(np.abs(col)): first index on ties; an all-zero column is left alone). Columns are therefore comparable EXACTLY (max|c_js - c_py| <= 1e-5) with no sign-flip allowance; the sign-invariant Gram matrix coords @ coords.T is still given as 'gram' for degenerate eigenspaces. mds_sign='lapack' keeps the solver's signs (the pre-canonical behaviour) and is not what these fixtures record. N > 500 uses scipy eigsh (Lanczos) on an implicit operator; same convention, same tolerance."
  },
  {
   "name": "example_bat_oas1_rescaled_by_L",
@@ -2456,115 +2458,116 @@
      0.0
     ]
    ],
-   "n_components": 4
+   "n_components": 4,
+   "mds_sign": "canonical"
   },
   "outputs": {
    "coords": [
     [
-     -0.07328321039676666,
-     -0.10660632699728012,
+     0.07328321039676666,
+     0.10660632699728012,
      -0.04538862034678459,
      0.10354644805192947
     ],
     [
-     -0.08071070909500122,
-     -0.13655997812747955,
+     0.08071070909500122,
+     0.13655997812747955,
      -0.06228723004460335,
      -0.005450760945677757
     ],
     [
-     -0.08675006777048111,
-     -0.15978160500526428,
+     0.08675006777048111,
+     0.15978160500526428,
      -0.07516796141862869,
      -0.04938778281211853
     ],
     [
-     -0.08675006777048111,
-     -0.15978160500526428,
+     0.08675006777048111,
+     0.15978160500526428,
      -0.07516796141862869,
      -0.04938777908682823
     ],
     [
-     -0.18259645998477936,
-     0.10904163122177124,
+     0.18259645998477936,
+     -0.10904163122177124,
      0.019339557737112045,
      -0.007285664323717356
     ],
     [
-     -0.18259645998477936,
-     0.10904163122177124,
+     0.18259645998477936,
+     -0.10904163122177124,
      0.019339554011821747,
      -0.007285669445991516
     ],
     [
-     -0.18117347359657288,
-     0.10746914148330688,
+     0.18117347359657288,
+     -0.10746914148330688,
      0.019023068249225616,
      -0.006981791462749243
     ],
     [
-     -0.16791479289531708,
-     0.09235073626041412,
+     0.16791479289531708,
+     -0.09235073626041412,
      0.015951601788401604,
      -0.0036192117258906364
     ],
     [
-     0.07227540761232376,
-     -0.0512411966919899,
+     -0.07227540761232376,
+     0.0512411966919899,
      0.17713716626167297,
      -0.027602961286902428
     ],
     [
-     0.07227540761232376,
-     -0.0512412004172802,
+     -0.07227540761232376,
+     0.0512412004172802,
      0.17713716626167297,
      -0.02760295942425728
     ],
     [
-     0.06976905465126038,
-     -0.0478258915245533,
+     -0.06976905465126038,
+     0.0478258915245533,
      0.16358582675457,
      -0.02127465046942234
     ],
     [
-     0.1276327669620514,
-     0.05057259276509285,
+     -0.1276327669620514,
+     -0.05057259276509285,
      -0.059639137238264084,
      -0.015297348611056805
     ],
     [
-     0.1276327669620514,
-     0.05057260021567345,
+     -0.1276327669620514,
+     -0.05057260021567345,
      -0.059639137238264084,
      -0.015297352336347103
     ],
     [
-     0.13757047057151794,
-     0.0589761808514595,
+     -0.13757047057151794,
+     -0.0589761808514595,
      -0.07141207158565521,
      -0.03469507023692131
     ],
     [
-     0.13864728808403015,
-     0.05984349176287651,
+     -0.13864728808403015,
+     -0.05984349176287651,
      -0.07260918617248535,
      -0.036270007491111755
     ],
     [
-     0.13864728808403015,
-     0.05984349176287651,
+     -0.13864728808403015,
+     -0.05984349176287651,
      -0.07260919362306595,
      -0.036270007491111755
     ],
     [
-     0.08823604881763458,
-     0.016199028119444847,
+     -0.08823604881763458,
+     -0.016199028119444847,
      -0.010974965989589691,
      0.08687357604503632
     ],
     [
-     0.06908860802650452,
-     -0.000872872187756002,
+     -0.06908860802650452,
+     0.000872872187756002,
      0.01338149979710579,
      0.1532890498638153
     ]
@@ -3043,7 +3046,7 @@
    ]
   },
   "tolerance": "1e-5",
-  "notes": "signature: compute_mds_coordinates(dist_matrix float32 [N,N], n_components=4) -> float32 [N,4]. Dense path (N<=500): H = I - 1/N, B = -0.5 H D^2 H in float32, numpy.linalg.eigh (LAPACK syevd), eigenvalues sorted descending, coords = eigvecs[:, :4] * sqrt(max(eigval, 0)). SIGN CONVENTION: eigenvector signs are whatever LAPACK returns and are NOT normalised, so a port must compare each column up to a global sign flip (min(max|c_js - c_py|, max|c_js + c_py|) <= 1e-5) or compare the sign-invariant Gram matrix coords @ coords.T given here as 'gram'. N > 500 uses scipy eigsh (Lanczos) on an implicit operator; same convention, same tolerance. Input is the bat_oas1 patristic matrix divided by L=351 (the >10 rescale rule)."
+  "notes": "signature: compute_mds_coordinates(dist_matrix float32 [N,N], n_components=4, mds_sign='canonical') -> float32 [N,4]. Dense path (N<=500): H = I - 1/N, B = -0.5 H D^2 H in float32, numpy.linalg.eigh (LAPACK syevd), eigenvalues sorted descending, coords = eigvecs[:, :4] * sqrt(max(eigval, 0)). SIGN CONVENTION (mds_sign='canonical', the default): before the sqrt(eigval) scaling each kept eigenvector is flipped so that its largest-magnitude entry is positive (np.argmax(np.abs(col)): first index on ties; an all-zero column is left alone). Columns are therefore comparable EXACTLY (max|c_js - c_py| <= 1e-5) with no sign-flip allowance; the sign-invariant Gram matrix coords @ coords.T is still given as 'gram' for degenerate eigenspaces. mds_sign='lapack' keeps the solver's signs (the pre-canonical behaviour) and is not what these fixtures record. N > 500 uses scipy eigsh (Lanczos) on an implicit operator; same convention, same tolerance. Input is the bat_oas1 patristic matrix divided by L=351 (the >10 rescale rule)."
  },
  {
   "name": "synthetic_euclidean_2d_points_6",
@@ -3098,45 +3101,46 @@
      0.0
     ]
    ],
-   "n_components": 4
+   "n_components": 4,
+   "mds_sign": "canonical"
   },
   "outputs": {
    "coords": [
     [
-     -2.5834367275238037,
+     2.5834367275238037,
      0.29838770627975464,
-     -0.0002157251292373985,
-     -1.2790637811121996e-05
+     0.0002157251292373985,
+     1.2790637811121996e-05
     ],
     [
-     1.6557353734970093,
+     -1.6557353734970093,
      -0.1858704686164856,
-     -0.0002621641615405679,
-     -5.865968432772206e-06
+     0.0002621641615405679,
+     5.865968432772206e-06
     ],
     [
-     -0.09928610175848007,
+     0.09928610175848007,
      -0.7367442846298218,
-     -0.00016295828390866518,
-     -3.0074465030338615e-05
+     0.00016295828390866518,
+     3.0074465030338615e-05
     ],
     [
-     1.1075392961502075,
+     -1.1075392961502075,
      0.8592446446418762,
-     -0.00016793007671367377,
-     -1.2123127817176282e-05
+     0.00016793007671367377,
+     1.2123127817176282e-05
     ],
     [
-     0.12459921091794968,
+     -0.12459921091794968,
      0.017008259892463684,
-     0.00012742419494315982,
-     -5.013625923311338e-05
+     -0.00012742419494315982,
+     5.013625923311338e-05
     ],
     [
-     -0.2051510363817215,
+     0.2051510363817215,
      -0.25202545523643494,
-     -0.00014962114801164716,
-     3.238350836909376e-05
+     0.00014962114801164716,
+     -3.238350836909376e-05
     ]
    ],
    "gram": [
@@ -3229,7 +3233,7 @@
    ]
   },
   "tolerance": "1e-5",
-  "notes": "signature: compute_mds_coordinates(dist_matrix float32 [N,N], n_components=4) -> float32 [N,4]. Dense path (N<=500): H = I - 1/N, B = -0.5 H D^2 H in float32, numpy.linalg.eigh (LAPACK syevd), eigenvalues sorted descending, coords = eigvecs[:, :4] * sqrt(max(eigval, 0)). SIGN CONVENTION: eigenvector signs are whatever LAPACK returns and are NOT normalised, so a port must compare each column up to a global sign flip (min(max|c_js - c_py|, max|c_js + c_py|) <= 1e-5) or compare the sign-invariant Gram matrix coords @ coords.T given here as 'gram'. N > 500 uses scipy eigsh (Lanczos) on an implicit operator; same convention, same tolerance. Exact Euclidean distances from 2-D points: components 3 and 4 have eigenvalue ~0 and are numerically noise-scaled (sqrt of tiny positive or clipped 0)."
+  "notes": "signature: compute_mds_coordinates(dist_matrix float32 [N,N], n_components=4, mds_sign='canonical') -> float32 [N,4]. Dense path (N<=500): H = I - 1/N, B = -0.5 H D^2 H in float32, numpy.linalg.eigh (LAPACK syevd), eigenvalues sorted descending, coords = eigvecs[:, :4] * sqrt(max(eigval, 0)). SIGN CONVENTION (mds_sign='canonical', the default): before the sqrt(eigval) scaling each kept eigenvector is flipped so that its largest-magnitude entry is positive (np.argmax(np.abs(col)): first index on ties; an all-zero column is left alone). Columns are therefore comparable EXACTLY (max|c_js - c_py| <= 1e-5) with no sign-flip allowance; the sign-invariant Gram matrix coords @ coords.T is still given as 'gram' for degenerate eigenspaces. mds_sign='lapack' keeps the solver's signs (the pre-canonical behaviour) and is not what these fixtures record. N > 500 uses scipy eigsh (Lanczos) on an implicit operator; same convention, same tolerance. Exact Euclidean distances from 2-D points: components 3 and 4 have eigenvalue ~0 and are numerically noise-scaled (sqrt of tiny positive or clipped 0)."
  },
  {
   "name": "equilateral_3_points_padding",
@@ -3251,26 +3255,27 @@
      0.0
     ]
    ],
-   "n_components": 4
+   "n_components": 4,
+   "mds_sign": "canonical"
   },
   "outputs": {
    "coords": [
     [
      0.4999999701976776,
-     0.28867512941360474,
-     -0.0,
+     -0.28867512941360474,
+     0.0,
      0.0
     ],
     [
      2.6759149879280596e-16,
-     -0.5773502588272095,
-     -0.0,
+     0.5773502588272095,
+     0.0,
      0.0
     ],
     [
      -0.4999999701976776,
-     0.28867512941360474,
-     -0.0,
+     -0.28867512941360474,
+     0.0,
      0.0
     ]
    ],
@@ -3313,6 +3318,6 @@
    ]
   },
   "tolerance": "1e-5",
-  "notes": "signature: compute_mds_coordinates(dist_matrix float32 [N,N], n_components=4) -> float32 [N,4]. Dense path (N<=500): H = I - 1/N, B = -0.5 H D^2 H in float32, numpy.linalg.eigh (LAPACK syevd), eigenvalues sorted descending, coords = eigvecs[:, :4] * sqrt(max(eigval, 0)). SIGN CONVENTION: eigenvector signs are whatever LAPACK returns and are NOT normalised, so a port must compare each column up to a global sign flip (min(max|c_js - c_py|, max|c_js + c_py|) <= 1e-5) or compare the sign-invariant Gram matrix coords @ coords.T given here as 'gram'. N > 500 uses scipy eigsh (Lanczos) on an implicit operator; same convention, same tolerance. N=3 < n_components: eigvecs has only 3 columns so the 4th is zero-padded; degenerate eigenvalues make individual columns basis-dependent, use 'gram'."
+  "notes": "signature: compute_mds_coordinates(dist_matrix float32 [N,N], n_components=4, mds_sign='canonical') -> float32 [N,4]. Dense path (N<=500): H = I - 1/N, B = -0.5 H D^2 H in float32, numpy.linalg.eigh (LAPACK syevd), eigenvalues sorted descending, coords = eigvecs[:, :4] * sqrt(max(eigval, 0)). SIGN CONVENTION (mds_sign='canonical', the default): before the sqrt(eigval) scaling each kept eigenvector is flipped so that its largest-magnitude entry is positive (np.argmax(np.abs(col)): first index on ties; an all-zero column is left alone). Columns are therefore comparable EXACTLY (max|c_js - c_py| <= 1e-5) with no sign-flip allowance; the sign-invariant Gram matrix coords @ coords.T is still given as 'gram' for degenerate eigenspaces. mds_sign='lapack' keeps the solver's signs (the pre-canonical behaviour) and is not what these fixtures record. N > 500 uses scipy eigsh (Lanczos) on an implicit operator; same convention, same tolerance. N=3 < n_components: eigvecs has only 3 columns so the 4th is zero-padded; degenerate eigenvalues make individual columns basis-dependent, use 'gram'."
  }
 ]

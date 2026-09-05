@@ -17,16 +17,16 @@
     "num_artifacts_masked": 1,
     "masked_codons_count": 19,
     "raw_metrics": {
-     "cct_p_value": 0.06605146641015569,
+     "cct_p_value": 0.06726155850662013,
      "sig_sites_p05": 15,
      "sig_sites_q10": 0,
-     "mean_lrt": 2.3470513820648193
+     "mean_lrt": 2.3411247730255127
     },
     "cleaned_metrics": {
-     "cct_p_value": 0.06706112602443015,
+     "cct_p_value": 0.06810837661880781,
      "sig_sites_p05": 15,
      "sig_sites_q10": 0,
-     "mean_lrt": 2.3342137336730957
+     "mean_lrt": 2.330158233642578
     },
     "suppressed_spurious_sites": 0,
     "artifacts": [
@@ -41,7 +41,7 @@
       "outlier_contamination_index": 0.00920679886679032,
       "outlier_aa_sequence": "GIACIRWHDSHINTEDSVK",
       "consensus_aa_sequence": "WVAAIISDGGSTYYADSVK",
-      "mean_raw_patch_lrt": 3.653223991394043
+      "mean_raw_patch_lrt": 3.6329033374786377
      }
     ],
     "elapsed_seconds": null,

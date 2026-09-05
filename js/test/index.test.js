@@ -14,7 +14,7 @@
  *      only place that loads the package the way an app does.
  *   2. THE PUBLIC SURFACE IS A COMMITMENT. `index.js` re-exports whole modules deliberately (its
  *      header says why), which means adding an export to any file under `src/preprocess/` publishes
- *      it, and deleting one breaks a pinned consumer. Listing all 179 names here turns both into a
+ *      it, and deleting one breaks a pinned consumer. Listing all 204 names here turns both into a
  *      visible diff in the pull request that causes them, rather than a discovery in `hyphaeon-app`.
  *   3. THE EXPORTS MAP IS LOAD-BEARING, not decoration. `package.json` exposes exactly `.`, so a
  *      deep import into `src/preprocess/…` must FAIL — otherwise consumers pin internal paths, and
@@ -163,6 +163,15 @@ const PUBLIC_SURFACE = [
 	'cholesky',
 	'largestEigenvalue',
 	'symmetricEigenvalues',
+	// numeric/graph.js
+	'adjacencyFromGraph',
+	'connectedComponents',
+	'cpythonIntSetOrder',
+	'degree',
+	'graphSize',
+	'greedyModularityCommunities',
+	'inducedSubgraph',
+	'numberOfEdges',
 	// stats.js
 	'cauchyCombinationP',
 	'memeSitePq',
@@ -240,6 +249,26 @@ const PUBLIC_SURFACE = [
 	'simesP',
 	'totalSelectionEnergy',
 	'variableSiteIndices',
+	// epistasis.js
+	'CoselectionGraph',
+	'computeBranchCoselectionNetwork',
+	'computeTransformerAttributions',
+	'consensusDelta',
+	'runTransformerAttributions',
+	// sectors.js
+	'REV_AA_MAP',
+	'computeSectorPermutationTest',
+	'extractEpistaticSectorsTse',
+	'float32Percentile',
+	// dms.js
+	'CANONICAL_AA_TO_CODON',
+	'DMS_MUTANTS_PER_SITE',
+	'digitalDmsRecord',
+	'dmsTargetSites',
+	'dmsWildTypeAa',
+	'resolveFocalTaxon',
+	'runDigitalDmsAnalysis',
+	'runInsilicoSelectionDms',
 	// diagnostics.js
 	'DIAGNOSTIC_CODES',
 	'DIAGNOSTIC_THRESHOLDS',

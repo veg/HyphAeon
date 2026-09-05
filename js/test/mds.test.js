@@ -6,10 +6,15 @@
  * The `symmetricEigen` cases are DataMonkey 3's (axomeme-mds.test.js), unchanged: they check
  * properties (A = VΛVᵀ, orthonormality, ascending order) that hold for any correct implementation.
  * The `computeMdsCoordinates` cases were rewritten for dataset.py:354-394: the DM3 cases that
- * asserted a sign convention ("largest-magnitude entry positive"), dependence on the PADDED matrix,
- * and all-zero output for n <= 4 pinned behaviour dataset.py does not have and were deleted. The
+ * asserted dependence on the PADDED matrix and all-zero output for n <= 4 pinned behaviour
+ * dataset.py does not have and were deleted. DM3's sign-convention case was deleted with them
+ * because dataset.py then had no convention; dataset.py has since adopted the same rule
+ * (`canonicalize_eigenvector_signs`: largest-|entry| of each kept eigenvector positive, first index
+ * on ties, before the sqrt(eigenvalue) scaling; `mds_sign="canonical"`, the default), so the
+ * `canonical sign convention` block below pins it — the rule itself, the tie-break, the ordering
+ * relative to scaling, the `{ mdsSign: 'lapack' }` escape hatch, and that the flip is exact. The
  * numeric oracle is the fixture replay (Smc6, bat_oas1 raw and rescaled, synthetic 2-D points, the
- * equilateral triangle).
+ * equilateral triangle), now compared EXACTLY per column with no sign allowance.
  */
 import { describe, it, expect } from 'vitest';
 import { symmetricEigen } from '../src/preprocess/symmetricEigen.js';
@@ -99,13 +104,14 @@ describe('symmetricEigen', () => {
 });
 
 describe('computeMdsCoordinates (dataset.py:383-394, dense path)', () => {
-	it('recovers collinear points from their distances, up to sign', () => {
+	it('recovers collinear points from their distances; canonical sign makes the first tied pivot positive', () => {
 		// Points at 0, 1, 2: B double-centres to [[1,0,-1],[0,0,0],[-1,0,1]], eigenvalue 2 with
-		// eigenvector [1,0,-1]/sqrt(2), so component 0 is ±[1, 0, -1].
+		// eigenvector [1,0,-1]/sqrt(2), so component 0 is ±[1, 0, -1]. |entries| 0 and 2 tie exactly in
+		// float32 (both 1/sqrt(2) up to rounding); np.argmax takes the FIRST, index 0, so it is +1.
 		const c = computeMdsCoordinates([0, 1, 2, 1, 0, 1, 2, 1, 0], 3, 2);
-		expect(Math.abs(c[0 * 2])).toBeCloseTo(1, 5);
+		expect(c[0 * 2]).toBeCloseTo(1, 5);
 		expect(c[1 * 2]).toBeCloseTo(0, 5);
-		expect(Math.abs(c[2 * 2])).toBeCloseTo(1, 5);
+		expect(c[2 * 2]).toBeCloseTo(-1, 5);
 		expect(Math.sign(c[0 * 2])).toBe(-Math.sign(c[2 * 2]));
 		// The second eigenvalue is zero up to float dust; sqrt of dust is emitted, not a clean 0.
 		for (const i of [0, 1, 2]) expect(Math.abs(c[i * 2 + 1])).toBeLessThan(1e-3);
@@ -161,5 +167,93 @@ describe('computeMdsCoordinates (dataset.py:383-394, dense path)', () => {
 		const pos = computeMdsCoordinates([0, 1, 2, 1, 0, 1, 2, 1, 0], 3, 2);
 		const neg = computeMdsCoordinates([0, -1, 2, -1, 0, 1, 2, 1, 0], 3, 2);
 		expect(Array.from(neg)).toEqual(Array.from(pos));
+	});
+
+	describe('canonical sign convention (dataset.py canonicalize_eigenvector_signs)', () => {
+		/** Deterministic Euclidean distance matrix over n points in 3-D (float32), row-major. */
+		function pointCloud(n, seed) {
+			let st = seed;
+			const rnd = () => ((st = (st * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff) * 2 - 1;
+			const P = [];
+			for (let i = 0; i < n; i++) P.push([rnd(), rnd() * 0.7, rnd() * 0.3]);
+			const D = new Float32Array(n * n);
+			for (let i = 0; i < n; i++)
+				for (let j = 0; j < n; j++) D[i * n + j] = Math.hypot(P[i][0] - P[j][0], P[i][1] - P[j][1], P[i][2] - P[j][2]);
+			return D;
+		}
+		const n = 14;
+		const k = 4;
+		const D = pointCloud(n, 7);
+
+		it('is the default: every column has its largest-magnitude entry positive (first index on ties)', () => {
+			for (const z of [computeMdsCoordinates(D, n, k), computeMdsCoordinates(D, n, k, { mdsSign: 'canonical' })]) {
+				for (let col = 0; col < 3; col++) {
+					let best = -1;
+					let pivot = -1;
+					for (let i = 0; i < n; i++) {
+						const v = Math.abs(z[i * k + col]);
+						if (v > best) {
+							best = v;
+							pivot = i;
+						}
+					}
+					expect(best, `column ${col} is not noise`).toBeGreaterThan(1e-3);
+					expect(z[pivot * k + col], `column ${col} pivot ${pivot}`).toBeGreaterThan(0);
+				}
+			}
+		});
+
+		it("{ mdsSign: 'lapack' } keeps the solver's signs, and canonical differs from it by exactly a per-column sign", () => {
+			const raw = computeMdsCoordinates(D, n, k, { mdsSign: 'lapack' });
+			const can = computeMdsCoordinates(D, n, k);
+			let flips = 0;
+			for (let col = 0; col < k; col++) {
+				let same = true;
+				let flipped = true;
+				for (let i = 0; i < n; i++) {
+					if (can[i * k + col] !== raw[i * k + col]) same = false;
+					if (can[i * k + col] !== -raw[i * k + col]) flipped = false;
+				}
+				expect(same || flipped, `column ${col} is bitwise the raw column up to sign`).toBe(true);
+				if (!same) flips++;
+			}
+			// tql2 happens to return a negative pivot on at least one column of this cloud; if a future
+			// eigensolver change makes all four agree the assertion below is the one to revisit.
+			expect(flips).toBeGreaterThan(0);
+		});
+
+		it('rejects an unknown mdsSign', () => {
+			expect(() => computeMdsCoordinates(D, n, k, { mdsSign: 'numpy' })).toThrow(RangeError);
+		});
+
+		it('is applied before the sqrt(eigenvalue) scaling: a zero-padded or clipped column stays all zero, never -0', () => {
+			// n = 3 < 4 components: column 3 is np.hstack zero padding; there is nothing to flip.
+			const c = computeMdsCoordinates([0, 1, 2, 1, 0, 1, 2, 1, 0], 3, 4);
+			for (let i = 0; i < 3; i++) expect(Object.is(c[i * 4 + 3], 0)).toBe(true);
+			// An all-zero distance matrix: every eigenvalue is 0, every coordinate 0 * eigvec = +0 (the
+			// reference's np.maximum(., 0) then sqrt gives 0.0 and 0.0 * negative = -0.0 in numpy too,
+			// so only the magnitude is pinned here, as in the fixture class).
+			const z = computeMdsCoordinates(new Float32Array(9), 3, 4);
+			for (const v of z) expect(Math.abs(v)).toBe(0);
+		});
+
+		it('picks the pivot on the float32-rounded eigenvector, as the reference does on float32 eigvecs', () => {
+			// Two entries whose float64 magnitudes differ by less than a float32 ULP tie after rounding;
+			// the rule must then take the first index. Build the case through the public function by
+			// checking that the pivot chosen agrees with a float32 argmax over the returned column.
+			const z = computeMdsCoordinates(D, n, k);
+			for (let col = 0; col < 3; col++) {
+				let best = -1;
+				let pivot = -1;
+				for (let i = 0; i < n; i++) {
+					const v = Math.abs(Math.fround(z[i * k + col]));
+					if (v > best) {
+						best = v;
+						pivot = i;
+					}
+				}
+				expect(z[pivot * k + col]).toBeGreaterThan(0);
+			}
+		});
 	});
 });

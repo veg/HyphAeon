@@ -36,17 +36,20 @@ anything.
 | `preprocess/patristic.js` | `compute_fast_dist_matrix` (`dataset.py:302-352`, float32, zero row for an unmatched taxon) and the `> 10` rescale (`dataset.py:678-681`) |
 | `preprocess/downsample.js` | `prune_identical_sequences` (`dataset.py:420-441`), `downsample_taxa_faith_pd` (`dataset.py:396-418`), the stride pre-selection (`dataset.py:672-673`) |
 | `preprocess/symmetricEigen.js` | the `np.linalg.eigh` call inside `compute_mds_coordinates` (`dataset.py:384`), tred2/tql2 |
-| `preprocess/mds.js` | `compute_mds_coordinates`, dense path (`dataset.py:354-394`; H and B in float32, no sign convention, no Lanczos) |
+| `preprocess/mds.js` | `compute_mds_coordinates`, dense path (`dataset.py:354-394`; H and B in float32, no Lanczos). `{mdsSign: 'canonical'}` (the default) applies the reference's sign convention — each kept eigenvector flipped so its largest-magnitude entry is positive, before the `sqrt(eigenvalue)` scaling; `'lapack'` keeps tql2's own signs. `../../MDS_SIGN.md` has the rule and what it changes |
 | `preprocess/assemble.js` | `load_alignment_and_tree` end to end (`dataset.py:523-730`) as `loadAlignmentAndTree(alignmentText, treeText, options)`, plus `siteBatch` / `siteBatches` / `batchSizeFor` for the runtime's tensor bundles |
-| `numeric/` | the kernel PLAN.md §5.1 names: `special.js` (lgamma, regularized incomplete gamma and beta, erfc, χ²/t/normal survival, hypergeometric pmf/cdf/sf, all within 1e-12 of scipy 1.16), `prng.js` (xoshiro256\*\* with splitmix64 seeding), `ranks.js` (rankdata, Pearson, Spearman, Mann–Whitney ROC-AUC), `bh.js` and `cauchy.js` (`stats.py:50-84`, float32-aware), `linalg.js` (Cholesky, eigenvalues-only tred2/tqli), `reduce.js` (numpy's pairwise summation order, which float32 reductions need to match bit for bit) |
+| `numeric/` | the kernel PLAN.md §5.1 names: `special.js` (lgamma, regularized incomplete gamma and beta, erfc, χ²/t/normal survival, hypergeometric pmf/cdf/sf, all within 1e-12 of scipy 1.16), `prng.js` (xoshiro256\*\* with splitmix64 seeding), `ranks.js` (rankdata, Pearson, Spearman, Mann–Whitney ROC-AUC), `bh.js` and `cauchy.js` (`stats.py:50-84`, float32-aware), `linalg.js` (Cholesky, eigenvalues-only tred2/tqli), `reduce.js` (numpy's pairwise summation order, which float32 reductions need to match bit for bit), `graph.js` (networkx 3.6.1 as a spec: `connected_components` and `greedy_modularity_communities` with Clauset–Newman–Moore's exact float order and `MappedQueue` tie-breaking, `G.subgraph()` view iteration, and `cpythonIntSetOrder`, CPython's set table simulated because the subgraph view iterates it and it decides sector ids) |
 | `stats.js` | `stats.py:16-48` (`pvalsFromLrtMeme`, `pvalsFromLrtSelfLiang`), re-exports of BH and CCT under the Python names, and `memeSitePq`, the exact float32 cast order `cmd_meme` writes (`cli.py:99-100`) |
 | `filter.js` | `filter.py` (`scanHypergeometricPatches`, the OCI audit, NNN masking, `runAlignmentFilter` with both forward-pass phases) and, behind `{cliVariant: true}`, the second copy of the screen in `cli.py cmd_meme --filter` |
 | `attribution.js` | `attribution.py:19-175` (`attributeSelection`: per-taxon counterfactual ΔLRT, driver ranking, epoch and adaptation mode) and the `cmd_meme` site fields |
 | `omnibus.js` | the statistical bridge of `cmd_busted` (`cli.py:424-508`: Self–Liang p, ACAT, Simes, omnibus LRT, verdict, head-output decoding) and `runBusted` over callbacks |
+| `epistasis.js` | `epistasis.py:51-222`: `consensusDelta` and `computeTransformerAttributions` (attention × non-consensus indicator) as pure functions of what the model returned, `runTransformerAttributions` over an async `{lrt, attention}` callback, `computeBranchCoselectionNetwork` (float32 cosine, Student-t p via `tSf`, global BH, CESI) and `CoselectionGraph`, an `nx.Graph` with networkx's insertion-order semantics |
+| `sectors.js` | `epistasis.py:224-445`: `computeSectorPermutationTest` (the seeded K-subset null) and `extractEpistaticSectorsTse` (communities → spectral coherence λ₁/Tr → eigenvector pruning → permutation test), over `numeric/graph.js` |
+| `dms.js` | `epistasis.py:446-628, 724-768`: `runInsilicoSelectionDms`, the 19-substitution sweep over an async `predict`, and the `run_digital_dms_analysis` record. `CANONICAL_AA_TO_CODON` is transcribed verbatim — it is a hand-written table, not the first codon per residue |
 | `evaluate.js` | `evaluation.py:28-553` over `{name, text}` pairs instead of paths, including `csv.DictReader`, `float()` and `html.unescape` semantics |
 | `writers.js` | the JSON / CSV / GraphML writers of `cli.py` and `io.py`, byte-equal to `json.dump(indent=2)`, pandas `to_csv` and networkx's lxml GraphML layout |
 | `diagnostics.js` | PLAN.md §4.3 pre-flight `diagnose()` — the 23 warning codes, thresholds with their sources, and a cost estimate; has no Python counterpart yet (§7 item 6) |
-| `index.js` | the single public entry point; `package.json`'s `exports` map exposes nothing else; `test/index.test.js` pins the 179 public names |
+| `index.js` | the single public entry point; `package.json`'s `exports` map exposes nothing else; `test/index.test.js` pins the 204 public names |
 
 Not ported, because the library cannot do them and the runtime must: HyPhy branch-length estimation
 (`dataset.py:224-287`) and TN93 distances (`dataset.py:443-521`) — `needsBranchLengths(tree)` and
@@ -67,7 +70,22 @@ const lrts = await predictSiteLrts(loaded, predict);            // clamp(min=0),
 const result = await runAlignmentFilter({ alignmentText, treeText }, predict, options);
 const attributions = await attributeSelection(loaded, predict, { minLrt: 3.84 });
 const busted = await runBusted(loaded, { predictSites, predictHead });
+
+// The epistasis pillar needs a SECOND graph output, so its callback returns a pair:
+//   predict(c, a, meta) -> Promise<{lrt: ArrayLike, attention: ArrayLike [batch * N]}>   (mean_root_attns)
+const attr = await runTransformerAttributions(loaded, predictWithAttention);
+const { sigPairs, graph } = computeBranchCoselectionNetwork(
+  attr.leafAttributions, attr.lrts, loaded.taxa, attr.consensusAas, { minSim: 0.30, N: loaded.N }
+);
+const sectors = extractEpistaticSectorsTse(graph, attr.leafAttributions, attr.lrts, attr.consensusAas, {
+  aNp: loaded.a, taxa: loaded.taxa, N: loaded.N, nPermutations: 10000, seed: 42
+});
+const plasticity = await runInsilicoSelectionDms(loaded, predict, { siteSubset: sitesOf(sectors) });
 ```
+
+The three epistasis functions chain as `run_epistatic_analysis` chains them: the flat
+`Float32Array [L*N]` one returns is a shape the next two accept, with `N` naming the axis a flat
+buffer cannot. `graph` is a `CoselectionGraph` and goes straight into the sector miner.
 
 The clamp (`torch.clamp(y, min=0)`), the float32 storage and the batching bookkeeping happen in the
 library, exactly where `filter.py` / `inference.py` do them, so the callback returns what the graph

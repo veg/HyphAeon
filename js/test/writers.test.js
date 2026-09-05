@@ -217,7 +217,13 @@ describe('hyphaeon busted writers (cli.py:549-568)', () => {
 		);
 		const nulled = e2e('busted_Smc6');
 		const line = bustedCsv([nulled]).split('\n')[1];
-		expect(line.startsWith('Smc6,20,1097,0.11831563373812454,1.0,,,3.285405158996582,,,5,,')).toBe(true);
+		// The numbers are `hyphaeon busted`'s own, under the canonical MDS sign convention the
+		// fixtures were regenerated with in Phase 2a (MDS_SIGN.md): p_ACAT 0.11831563373812454 ->
+		// 0.1179763653810807 and Omnibus_LRT 3.285405158996582 -> 3.2988662719726562 against the
+		// pre-convention run. What this pins is the FORMATTING — repr() for the floats, empty cells
+		// for the nulled neural head fields, an int for sig_sites_p05 — so the literal is refreshed
+		// with the fixture rather than the assertion loosened.
+		expect(line.startsWith('Smc6,20,1097,0.1179763653810807,1.0,,,3.2988662719726562,,,5,,')).toBe(true);
 	});
 	it('bustedJson: a bare record for one alignment, a list in batch mode', () => {
 		expect(bustedJson([ref.busted.record])).toBe(ref.busted.json_single);

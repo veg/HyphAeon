@@ -10,6 +10,8 @@
     "-t",
     "Smc6.nwk",
     "--cpu",
+    "--mds-sign",
+    "canonical",
     "-o",
     "<out.json>"
    ],
@@ -101,8 +103,8 @@
     },
     {
      "site": 11,
-     "hyphaeon_lrt": 0.17746832966804504,
-     "p_value": 0.5375999808311462,
+     "hyphaeon_lrt": 0.17740409076213837,
+     "p_value": 0.5376274585723877,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -136,8 +138,8 @@
     },
     {
      "site": 16,
-     "hyphaeon_lrt": 0.40453076362609863,
-     "p_value": 0.4569495618343353,
+     "hyphaeon_lrt": 0.40429139137268066,
+     "p_value": 0.45702221989631653,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -192,8 +194,8 @@
     },
     {
      "site": 24,
-     "hyphaeon_lrt": 0.24438928067684174,
-     "p_value": 0.5108073949813843,
+     "hyphaeon_lrt": 0.2459658682346344,
+     "p_value": 0.5102145671844482,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -206,15 +208,15 @@
     },
     {
      "site": 26,
-     "hyphaeon_lrt": 0.19991929829120636,
-     "p_value": 0.528222918510437,
+     "hyphaeon_lrt": 0.19984881579875946,
+     "p_value": 0.5282516479492188,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
     {
      "site": 27,
-     "hyphaeon_lrt": 0.10734014958143234,
-     "p_value": 0.5704642534255981,
+     "hyphaeon_lrt": 0.10679101943969727,
+     "p_value": 0.5707500576972961,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -241,8 +243,8 @@
     },
     {
      "site": 31,
-     "hyphaeon_lrt": 0.4413048028945923,
-     "p_value": 0.4460129737854004,
+     "hyphaeon_lrt": 0.4408780634403229,
+     "p_value": 0.4461374282836914,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -311,8 +313,8 @@
     },
     {
      "site": 41,
-     "hyphaeon_lrt": 0.11664789170026779,
-     "p_value": 0.5657026171684265,
+     "hyphaeon_lrt": 0.11663021147251129,
+     "p_value": 0.565711498260498,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -339,8 +341,8 @@
     },
     {
      "site": 45,
-     "hyphaeon_lrt": 0.1144012063741684,
-     "p_value": 0.5668380856513977,
+     "hyphaeon_lrt": 0.11449162662029266,
+     "p_value": 0.5667922496795654,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -430,8 +432,8 @@
     },
     {
      "site": 58,
-     "hyphaeon_lrt": 0.6491983532905579,
-     "p_value": 0.3911527395248413,
+     "hyphaeon_lrt": 0.6491303443908691,
+     "p_value": 0.3911690413951874,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -822,8 +824,8 @@
     },
     {
      "site": 114,
-     "hyphaeon_lrt": 0.5157545804977417,
-     "p_value": 0.425117164850235,
+     "hyphaeon_lrt": 0.5151919722557068,
+     "p_value": 0.42526936531066895,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -871,8 +873,8 @@
     },
     {
      "site": 121,
-     "hyphaeon_lrt": 0.6880371570587158,
-     "p_value": 0.3819856345653534,
+     "hyphaeon_lrt": 0.6881330609321594,
+     "p_value": 0.3819633424282074,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -906,15 +908,15 @@
     },
     {
      "site": 126,
-     "hyphaeon_lrt": 0.19884203374385834,
-     "p_value": 0.5286630392074585,
+     "hyphaeon_lrt": 0.19828341901302338,
+     "p_value": 0.5288916230201721,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
     {
      "site": 127,
-     "hyphaeon_lrt": 0.392476350069046,
-     "p_value": 0.46063289046287537,
+     "hyphaeon_lrt": 0.39213311672210693,
+     "p_value": 0.46073850989341736,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -1004,8 +1006,8 @@
     },
     {
      "site": 140,
-     "hyphaeon_lrt": 1.7682799100875854,
-     "p_value": 0.20653726160526276,
+     "hyphaeon_lrt": 1.76817786693573,
+     "p_value": 0.2065487802028656,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -1053,22 +1055,22 @@
     },
     {
      "site": 147,
-     "hyphaeon_lrt": 0.8638225793838501,
-     "p_value": 0.34386590123176575,
+     "hyphaeon_lrt": 0.8639389872550964,
+     "p_value": 0.3438423275947571,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
     {
      "site": 148,
-     "hyphaeon_lrt": 0.392718642950058,
-     "p_value": 0.46055835485458374,
+     "hyphaeon_lrt": 0.39265328645706177,
+     "p_value": 0.46057844161987305,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
     {
      "site": 149,
-     "hyphaeon_lrt": 0.38012850284576416,
-     "p_value": 0.46445921063423157,
+     "hyphaeon_lrt": 0.3803417682647705,
+     "p_value": 0.46439266204833984,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -1102,8 +1104,8 @@
     },
     {
      "site": 154,
-     "hyphaeon_lrt": 0.9578972458839417,
-     "p_value": 0.3254410922527313,
+     "hyphaeon_lrt": 0.958254873752594,
+     "p_value": 0.3253733813762665,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -1179,15 +1181,15 @@
     },
     {
      "site": 165,
-     "hyphaeon_lrt": 1.1351890563964844,
-     "p_value": 0.2938600778579712,
+     "hyphaeon_lrt": 1.1351299285888672,
+     "p_value": 0.2938700020313263,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
     {
      "site": 166,
-     "hyphaeon_lrt": 0.155074805021286,
-     "p_value": 0.547430157661438,
+     "hyphaeon_lrt": 0.1555292159318924,
+     "p_value": 0.5472254157066345,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -1200,8 +1202,8 @@
     },
     {
      "site": 168,
-     "hyphaeon_lrt": 0.19857162237167358,
-     "p_value": 0.5287736058235168,
+     "hyphaeon_lrt": 0.19811847805976868,
+     "p_value": 0.5289591550827026,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -1235,8 +1237,8 @@
     },
     {
      "site": 173,
-     "hyphaeon_lrt": 1.1729736328125,
-     "p_value": 0.28760597109794617,
+     "hyphaeon_lrt": 1.1689753532409668,
+     "p_value": 0.28826040029525757,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -1732,8 +1734,8 @@
     },
     {
      "site": 244,
-     "hyphaeon_lrt": 1.5463194847106934,
-     "p_value": 0.23333975672721863,
+     "hyphaeon_lrt": 1.5454939603805542,
+     "p_value": 0.23344630002975464,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -1830,8 +1832,8 @@
     },
     {
      "site": 258,
-     "hyphaeon_lrt": 1.1249356269836426,
-     "p_value": 0.2955845296382904,
+     "hyphaeon_lrt": 1.1249217987060547,
+     "p_value": 0.29558688402175903,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -1886,8 +1888,8 @@
     },
     {
      "site": 266,
-     "hyphaeon_lrt": 1.7723822593688965,
-     "p_value": 0.20607464015483856,
+     "hyphaeon_lrt": 1.770362377166748,
+     "p_value": 0.20630228519439697,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -1949,15 +1951,15 @@
     },
     {
      "site": 275,
-     "hyphaeon_lrt": 0.264692485332489,
-     "p_value": 0.5032881498336792,
+     "hyphaeon_lrt": 0.2646811902523041,
+     "p_value": 0.5032922625541687,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
     {
      "site": 276,
-     "hyphaeon_lrt": 0.13238458335399628,
-     "p_value": 0.5579736828804016,
+     "hyphaeon_lrt": 0.1326683759689331,
+     "p_value": 0.5578376650810242,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -1977,8 +1979,8 @@
     },
     {
      "site": 279,
-     "hyphaeon_lrt": 3.291477918624878,
-     "p_value": 0.09161108732223511,
+     "hyphaeon_lrt": 3.291566848754883,
+     "p_value": 0.09160681068897247,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -2243,8 +2245,8 @@
     },
     {
      "site": 317,
-     "hyphaeon_lrt": 0.06919755786657333,
-     "p_value": 0.591949999332428,
+     "hyphaeon_lrt": 0.06963712722063065,
+     "p_value": 0.5916793346405029,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -2299,8 +2301,8 @@
     },
     {
      "site": 325,
-     "hyphaeon_lrt": 0.6425137519836426,
-     "p_value": 0.3927608132362366,
+     "hyphaeon_lrt": 0.6427714228630066,
+     "p_value": 0.39269864559173584,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -2446,8 +2448,8 @@
     },
     {
      "site": 346,
-     "hyphaeon_lrt": 0.4328574538230896,
-     "p_value": 0.44848668575286865,
+     "hyphaeon_lrt": 0.4312456250190735,
+     "p_value": 0.4489612579345703,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -2502,8 +2504,8 @@
     },
     {
      "site": 354,
-     "hyphaeon_lrt": 0.2319137454032898,
-     "p_value": 0.5155541896820068,
+     "hyphaeon_lrt": 0.2320684790611267,
+     "p_value": 0.515494704246521,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -2537,15 +2539,15 @@
     },
     {
      "site": 359,
-     "hyphaeon_lrt": 0.4560330808162689,
-     "p_value": 0.44175252318382263,
+     "hyphaeon_lrt": 0.45571592450141907,
+     "p_value": 0.44184359908103943,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
     {
      "site": 360,
-     "hyphaeon_lrt": 0.6929271221160889,
-     "p_value": 0.3808521628379822,
+     "hyphaeon_lrt": 0.6917679905891418,
+     "p_value": 0.3811204433441162,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -2572,15 +2574,15 @@
     },
     {
      "site": 364,
-     "hyphaeon_lrt": 0.6487032175064087,
-     "p_value": 0.39127153158187866,
+     "hyphaeon_lrt": 0.6495775580406189,
+     "p_value": 0.39106178283691406,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
     {
      "site": 365,
-     "hyphaeon_lrt": 3.40114426612854,
-     "p_value": 0.08649101108312607,
+     "hyphaeon_lrt": 3.4045228958129883,
+     "p_value": 0.08633802086114883,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -2978,8 +2980,8 @@
     },
     {
      "site": 422,
-     "hyphaeon_lrt": 0.3412277400493622,
-     "p_value": 0.47689035534858704,
+     "hyphaeon_lrt": 0.34155043959617615,
+     "p_value": 0.47678473591804504,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -3006,15 +3008,15 @@
     },
     {
      "site": 426,
-     "hyphaeon_lrt": 0.2824540436267853,
-     "p_value": 0.4969029724597931,
+     "hyphaeon_lrt": 0.2829877734184265,
+     "p_value": 0.4967137277126312,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
     {
      "site": 427,
-     "hyphaeon_lrt": 0.8701234459877014,
-     "p_value": 0.3425920605659485,
+     "hyphaeon_lrt": 0.872308075428009,
+     "p_value": 0.34215179085731506,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -3055,15 +3057,15 @@
     },
     {
      "site": 433,
-     "hyphaeon_lrt": 1.1708897352218628,
-     "p_value": 0.2879468500614166,
+     "hyphaeon_lrt": 1.1708617210388184,
+     "p_value": 0.28795143961906433,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
     {
      "site": 434,
-     "hyphaeon_lrt": 0.8290960192680359,
-     "p_value": 0.35099443793296814,
+     "hyphaeon_lrt": 0.8278699517250061,
+     "p_value": 0.3512495160102844,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -3083,8 +3085,8 @@
     },
     {
      "site": 437,
-     "hyphaeon_lrt": 0.910414457321167,
-     "p_value": 0.3345840573310852,
+     "hyphaeon_lrt": 0.9121555089950562,
+     "p_value": 0.3342432677745819,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -3160,8 +3162,8 @@
     },
     {
      "site": 448,
-     "hyphaeon_lrt": 1.0961503982543945,
-     "p_value": 0.300489604473114,
+     "hyphaeon_lrt": 1.0961146354675293,
+     "p_value": 0.3004957437515259,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -3181,15 +3183,15 @@
     },
     {
      "site": 451,
-     "hyphaeon_lrt": 0.4139208495616913,
-     "p_value": 0.4541148245334625,
+     "hyphaeon_lrt": 0.4137563407421112,
+     "p_value": 0.4541642367839813,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
     {
      "site": 452,
-     "hyphaeon_lrt": 2.1997931003570557,
-     "p_value": 0.16347414255142212,
+     "hyphaeon_lrt": 2.2051584720611572,
+     "p_value": 0.16300326585769653,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -3237,8 +3239,8 @@
     },
     {
      "site": 459,
-     "hyphaeon_lrt": 0.47834792733192444,
-     "p_value": 0.43542003631591797,
+     "hyphaeon_lrt": 0.4796881377696991,
+     "p_value": 0.4350442886352539,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -3251,8 +3253,8 @@
     },
     {
      "site": 461,
-     "hyphaeon_lrt": 1.2188094854354858,
-     "p_value": 0.28022560477256775,
+     "hyphaeon_lrt": 1.2190028429031372,
+     "p_value": 0.2801949381828308,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -3272,8 +3274,8 @@
     },
     {
      "site": 464,
-     "hyphaeon_lrt": 0.34533408284187317,
-     "p_value": 0.47554972767829895,
+     "hyphaeon_lrt": 0.34514251351356506,
+     "p_value": 0.4756121337413788,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -3286,8 +3288,8 @@
     },
     {
      "site": 466,
-     "hyphaeon_lrt": 1.9299497604370117,
-     "p_value": 0.18912653625011444,
+     "hyphaeon_lrt": 1.9275274276733398,
+     "p_value": 0.18937541544437408,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -3307,15 +3309,15 @@
     },
     {
      "site": 469,
-     "hyphaeon_lrt": 0.298662394285202,
-     "p_value": 0.49122071266174316,
+     "hyphaeon_lrt": 0.29831019043922424,
+     "p_value": 0.49134281277656555,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
     {
      "site": 470,
-     "hyphaeon_lrt": 0.9794405102729797,
-     "p_value": 0.32139360904693604,
+     "hyphaeon_lrt": 0.9785887598991394,
+     "p_value": 0.32155248522758484,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -3447,8 +3449,8 @@
     },
     {
      "site": 489,
-     "hyphaeon_lrt": 2.063830614089966,
-     "p_value": 0.17590124905109406,
+     "hyphaeon_lrt": 2.064572811126709,
+     "p_value": 0.17583075165748596,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -3489,8 +3491,8 @@
     },
     {
      "site": 495,
-     "hyphaeon_lrt": 0.692829430103302,
-     "p_value": 0.38087478280067444,
+     "hyphaeon_lrt": 0.6961135864257812,
+     "p_value": 0.3801160156726837,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -3545,8 +3547,8 @@
     },
     {
      "site": 503,
-     "hyphaeon_lrt": 0.22759129106998444,
-     "p_value": 0.5172228217124939,
+     "hyphaeon_lrt": 0.2262028455734253,
+     "p_value": 0.5177614688873291,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -3559,8 +3561,8 @@
     },
     {
      "site": 505,
-     "hyphaeon_lrt": 0.8138826489448547,
-     "p_value": 0.3541763126850128,
+     "hyphaeon_lrt": 0.8137295842170715,
+     "p_value": 0.35420849919319153,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -3573,15 +3575,15 @@
     },
     {
      "site": 507,
-     "hyphaeon_lrt": 0.09181671589612961,
-     "p_value": 0.5787782073020935,
+     "hyphaeon_lrt": 0.09184160083532333,
+     "p_value": 0.5787644386291504,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
     {
      "site": 508,
-     "hyphaeon_lrt": 0.2380736619234085,
-     "p_value": 0.5131977796554565,
+     "hyphaeon_lrt": 0.2379131019115448,
+     "p_value": 0.5132589340209961,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -3867,8 +3869,8 @@
     },
     {
      "site": 549,
-     "hyphaeon_lrt": 0.10405531525611877,
-     "p_value": 0.5721825361251831,
+     "hyphaeon_lrt": 0.10372935980558395,
+     "p_value": 0.5723541378974915,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -3888,8 +3890,8 @@
     },
     {
      "site": 552,
-     "hyphaeon_lrt": 0.29352229833602905,
-     "p_value": 0.4930083751678467,
+     "hyphaeon_lrt": 0.29420626163482666,
+     "p_value": 0.4927697479724884,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -3923,8 +3925,8 @@
     },
     {
      "site": 557,
-     "hyphaeon_lrt": 1.3669373989105225,
-     "p_value": 0.25781798362731934,
+     "hyphaeon_lrt": 1.3668160438537598,
+     "p_value": 0.2578354775905609,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -3993,8 +3995,8 @@
     },
     {
      "site": 567,
-     "hyphaeon_lrt": 1.5381609201431274,
-     "p_value": 0.23439516127109528,
+     "hyphaeon_lrt": 1.5363961458206177,
+     "p_value": 0.23462416231632233,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -4147,8 +4149,8 @@
     },
     {
      "site": 589,
-     "hyphaeon_lrt": 0.8610628843307495,
-     "p_value": 0.3444257080554962,
+     "hyphaeon_lrt": 0.8614507913589478,
+     "p_value": 0.34434694051742554,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -4420,15 +4422,15 @@
     },
     {
      "site": 628,
-     "hyphaeon_lrt": 3.716963768005371,
-     "p_value": 0.07332535088062286,
+     "hyphaeon_lrt": 3.735490560531616,
+     "p_value": 0.0726199820637703,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
     {
      "site": 629,
-     "hyphaeon_lrt": 0.48709502816200256,
-     "p_value": 0.432976633310318,
+     "hyphaeon_lrt": 0.48619362711906433,
+     "p_value": 0.43322741985321045,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -4546,8 +4548,8 @@
     },
     {
      "site": 646,
-     "hyphaeon_lrt": 0.1371692568063736,
-     "p_value": 0.5556954145431519,
+     "hyphaeon_lrt": 0.1374986469745636,
+     "p_value": 0.5555397272109985,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -4588,8 +4590,8 @@
     },
     {
      "site": 652,
-     "hyphaeon_lrt": 0.4835701882839203,
-     "p_value": 0.43395867943763733,
+     "hyphaeon_lrt": 0.4834955036640167,
+     "p_value": 0.4339795410633087,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -4644,8 +4646,8 @@
     },
     {
      "site": 660,
-     "hyphaeon_lrt": 0.3257942199707031,
-     "p_value": 0.4819926619529724,
+     "hyphaeon_lrt": 0.32553815841674805,
+     "p_value": 0.4820781946182251,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -4700,8 +4702,8 @@
     },
     {
      "site": 668,
-     "hyphaeon_lrt": 0.34127378463745117,
-     "p_value": 0.47687527537345886,
+     "hyphaeon_lrt": 0.34040212631225586,
+     "p_value": 0.4771607220172882,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -4777,8 +4779,8 @@
     },
     {
      "site": 679,
-     "hyphaeon_lrt": 0.40317487716674805,
-     "p_value": 0.4573613405227661,
+     "hyphaeon_lrt": 0.40325427055358887,
+     "p_value": 0.45733723044395447,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -4798,8 +4800,8 @@
     },
     {
      "site": 682,
-     "hyphaeon_lrt": 0.12731721997261047,
-     "p_value": 0.5604215860366821,
+     "hyphaeon_lrt": 0.12772136926651,
+     "p_value": 0.5602250099182129,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -4819,8 +4821,8 @@
     },
     {
      "site": 685,
-     "hyphaeon_lrt": 1.6507127285003662,
-     "p_value": 0.2202875018119812,
+     "hyphaeon_lrt": 1.6500959396362305,
+     "p_value": 0.22036221623420715,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -4903,8 +4905,8 @@
     },
     {
      "site": 697,
-     "hyphaeon_lrt": 6.898143768310547,
-     "p_value": 0.014239434152841568,
+     "hyphaeon_lrt": 6.912792205810547,
+     "p_value": 0.014133290387690067,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -4931,8 +4933,8 @@
     },
     {
      "site": 701,
-     "hyphaeon_lrt": 0.3346494436264038,
-     "p_value": 0.47905266284942627,
+     "hyphaeon_lrt": 0.3348027765750885,
+     "p_value": 0.47900205850601196,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -4952,8 +4954,8 @@
     },
     {
      "site": 704,
-     "hyphaeon_lrt": 1.860870361328125,
-     "p_value": 0.19636406004428864,
+     "hyphaeon_lrt": 1.8608458042144775,
+     "p_value": 0.19636668264865875,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -5064,8 +5066,8 @@
     },
     {
      "site": 720,
-     "hyphaeon_lrt": 0.9512080550193787,
-     "p_value": 0.32671043276786804,
+     "hyphaeon_lrt": 0.9488282203674316,
+     "p_value": 0.3271634876728058,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -5106,15 +5108,15 @@
     },
     {
      "site": 726,
-     "hyphaeon_lrt": 1.3269200325012207,
-     "p_value": 0.26366373896598816,
+     "hyphaeon_lrt": 1.330378532409668,
+     "p_value": 0.2631526291370392,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
     {
      "site": 727,
-     "hyphaeon_lrt": 0.6459386348724365,
-     "p_value": 0.3919357657432556,
+     "hyphaeon_lrt": 0.6470928192138672,
+     "p_value": 0.3916582763195038,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -5365,8 +5367,8 @@
     },
     {
      "site": 763,
-     "hyphaeon_lrt": 2.081054210662842,
-     "p_value": 0.17427289485931396,
+     "hyphaeon_lrt": 2.0913827419281006,
+     "p_value": 0.17330412566661835,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -5421,8 +5423,8 @@
     },
     {
      "site": 771,
-     "hyphaeon_lrt": 0.8290960192680359,
-     "p_value": 0.35099443793296814,
+     "hyphaeon_lrt": 0.8278699517250061,
+     "p_value": 0.3512495160102844,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -5442,8 +5444,8 @@
     },
     {
      "site": 774,
-     "hyphaeon_lrt": 0.34118708968162537,
-     "p_value": 0.47690364718437195,
+     "hyphaeon_lrt": 0.34139806032180786,
+     "p_value": 0.47683459520339966,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -5456,15 +5458,15 @@
     },
     {
      "site": 776,
-     "hyphaeon_lrt": 1.0961503982543945,
-     "p_value": 0.300489604473114,
+     "hyphaeon_lrt": 1.0961146354675293,
+     "p_value": 0.3004957437515259,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
     {
      "site": 777,
-     "hyphaeon_lrt": 1.9036723375320435,
-     "p_value": 0.19184525310993195,
+     "hyphaeon_lrt": 1.9033639430999756,
+     "p_value": 0.19187740981578827,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -5561,8 +5563,8 @@
     },
     {
      "site": 791,
-     "hyphaeon_lrt": 0.48561882972717285,
-     "p_value": 0.43338748812675476,
+     "hyphaeon_lrt": 0.48784831166267395,
+     "p_value": 0.43276718258857727,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -5708,8 +5710,8 @@
     },
     {
      "site": 812,
-     "hyphaeon_lrt": 0.2108801007270813,
-     "p_value": 0.5237972736358643,
+     "hyphaeon_lrt": 0.21048998832702637,
+     "p_value": 0.5239531993865967,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -5848,15 +5850,15 @@
     },
     {
      "site": 832,
-     "hyphaeon_lrt": 0.7759289741516113,
-     "p_value": 0.36227676272392273,
+     "hyphaeon_lrt": 0.7791770696640015,
+     "p_value": 0.3615742325782776,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
     {
      "site": 833,
-     "hyphaeon_lrt": 0.5356159806251526,
-     "p_value": 0.4197966456413269,
+     "hyphaeon_lrt": 0.5361925959587097,
+     "p_value": 0.41964367032051086,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -5974,15 +5976,15 @@
     },
     {
      "site": 850,
-     "hyphaeon_lrt": 0.302263468503952,
-     "p_value": 0.48997601866722107,
+     "hyphaeon_lrt": 0.3013871908187866,
+     "p_value": 0.49027833342552185,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
     {
      "site": 851,
-     "hyphaeon_lrt": 0.6264110803604126,
-     "p_value": 0.3966723084449768,
+     "hyphaeon_lrt": 0.6283518671989441,
+     "p_value": 0.39619800448417664,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -6002,8 +6004,8 @@
     },
     {
      "site": 854,
-     "hyphaeon_lrt": 0.23530256748199463,
-     "p_value": 0.5142547488212585,
+     "hyphaeon_lrt": 0.2352314442396164,
+     "p_value": 0.5142819285392761,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -6128,8 +6130,8 @@
     },
     {
      "site": 872,
-     "hyphaeon_lrt": 0.5969763398170471,
-     "p_value": 0.4039645195007324,
+     "hyphaeon_lrt": 0.5970848798751831,
+     "p_value": 0.40393728017807007,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -6205,8 +6207,8 @@
     },
     {
      "site": 883,
-     "hyphaeon_lrt": 0.3732394278049469,
-     "p_value": 0.4666181802749634,
+     "hyphaeon_lrt": 0.3730590343475342,
+     "p_value": 0.46667495369911194,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -6415,8 +6417,8 @@
     },
     {
      "site": 913,
-     "hyphaeon_lrt": 1.1373937129974365,
-     "p_value": 0.29349082708358765,
+     "hyphaeon_lrt": 1.1362248659133911,
+     "p_value": 0.29368653893470764,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -6534,8 +6536,8 @@
     },
     {
      "site": 930,
-     "hyphaeon_lrt": 4.06926155090332,
-     "p_value": 0.06103498116135597,
+     "hyphaeon_lrt": 4.0680742263793945,
+     "p_value": 0.061072658747434616,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -6919,8 +6921,8 @@
     },
     {
      "site": 985,
-     "hyphaeon_lrt": 0.30779093503952026,
-     "p_value": 0.4880776107311249,
+     "hyphaeon_lrt": 0.30761411786079407,
+     "p_value": 0.4881381094455719,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -6940,8 +6942,8 @@
     },
     {
      "site": 988,
-     "hyphaeon_lrt": 0.8225250840187073,
-     "p_value": 0.35236427187919617,
+     "hyphaeon_lrt": 0.822310745716095,
+     "p_value": 0.3524090647697449,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -7675,8 +7677,8 @@
     },
     {
      "site": 1093,
-     "hyphaeon_lrt": 0.11782458424568176,
-     "p_value": 0.5651112794876099,
+     "hyphaeon_lrt": 0.11793496459722519,
+     "p_value": 0.5650559067726135,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     },
@@ -7703,14 +7705,14 @@
     },
     {
      "site": 1097,
-     "hyphaeon_lrt": 0.5902397036552429,
-     "p_value": 0.40566012263298035,
+     "hyphaeon_lrt": 0.5900514125823975,
+     "p_value": 0.4057076573371887,
      "q_value": 0.6666666865348816,
      "is_invariable": false
     }
    ]
   },
   "tolerance": "1e-5",
-  "notes": "`hyphaeon meme` JSON (cli.py cmd_meme). p_value/q_value are float32 casts of the float64 stats. Per-site LRT through the model is 1e-5; is_invariable exact. RHO has an embedded NEXUS tree and 710 taxa (> 500, so MDS uses the Lanczos path). Timing fields nulled (wall times are in manifest.json e2e_wall_seconds); paths reduced to basenames."
+  "notes": "`hyphaeon meme` JSON (cli.py cmd_meme). p_value/q_value are float32 casts of the float64 stats. Per-site LRT through the model is 1e-5; is_invariable exact. RHO has an embedded NEXUS tree and 710 taxa (> 500, so MDS uses the Lanczos path). MDS eigenvector signs are canonical (--mds-sign canonical: largest-|entry| of each kept eigenvector positive); the model is not sign-invariant, so a port must use the same convention. Timing fields nulled (wall times are in manifest.json e2e_wall_seconds); paths reduced to basenames."
  }
 ]

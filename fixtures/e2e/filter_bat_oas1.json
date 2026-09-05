@@ -17,16 +17,16 @@
     "num_artifacts_masked": 0,
     "masked_codons_count": 0,
     "raw_metrics": {
-     "cct_p_value": 0.4364920152853552,
+     "cct_p_value": 0.434689652288847,
      "sig_sites_p05": 5,
      "sig_sites_q10": 0,
-     "mean_lrt": 0.5723475813865662
+     "mean_lrt": 0.5728824138641357
     },
     "cleaned_metrics": {
-     "cct_p_value": 0.4364920152853552,
+     "cct_p_value": 0.434689652288847,
      "sig_sites_p05": 5,
      "sig_sites_q10": 0,
-     "mean_lrt": 0.5723475813865662
+     "mean_lrt": 0.5728824138641357
     },
     "suppressed_spurious_sites": 0,
     "artifacts": [],

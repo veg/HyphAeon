@@ -2,8 +2,8 @@
  * WHY THIS FILE EXISTS
  *
  * The numeric kernel PLAN.md §5.1 calls out ("built once, tested against scipy fixtures"): the
- * special functions, PRNG, ranks, linear algebra and the two stats.py reductions that every port
- * from stats.js onward imports. Ports code against the names re-exported here, never against the
+ * special functions, PRNG, ranks, linear algebra, the graph primitives with networkx's ordering and
+ * tie-breaking, and the two stats.py reductions that every port from stats.js onward imports. Ports code against the names re-exported here, never against the
  * files, so the kernel's layout can change without touching a port. src/index.js re-exports this
  * module in turn (the integrator's file).
  *
@@ -17,3 +17,4 @@ export * from './ranks.js'; // rankdata, pearson, spearman, rocAuc
 export * from './bh.js'; // benjaminiHochberg
 export * from './cauchy.js'; // cauchyCombination
 export * from './linalg.js'; // cholesky, symmetricEigenvalues, largestEigenvalue, symmetricEigen (re-export)
+export * from './graph.js'; // networkx 3.6.1 semantics: adjacency, subgraph views, components, greedy modularity, cpythonIntSetOrder
