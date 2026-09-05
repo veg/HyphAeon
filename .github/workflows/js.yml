@@ -6,6 +6,24 @@
 # pull request: that is the whole point of keeping the port in this repository (PLAN.md 5.5).
 # Python tests live in tests.yml; keeping the two workflows separate means a JS failure never
 # blocks an unrelated Python change and vice versa.
+#
+# THREE GATES, IN THIS ORDER, EACH CATCHING SOMETHING THE OTHERS CANNOT:
+#
+#   1. npm test              vitest: the DataMonkey 3 cases, the public-surface pins and the
+#                            fixture replays. Catches a wrong value.
+#   2. npm run typecheck     tsc --noEmit over the JSDoc types. Catches a wrong shape.
+#   3. fixture-coverage.mjs  which fixtures were actually READ by a test. Catches a fixture that
+#                            nothing replays -- the silent failure mode of PLAN.md 5.3 rule 2: a
+#                            file sits in fixtures/, Python regenerates it, and no test notices.
+#                            It runs the suite once with a tracing setup file and exits NONZERO
+#                            when any fixtures/<module>/<function>.json went unread. As of
+#                            phase-3a that is 48 of 48 files, so any drop is a regression; a NEW
+#                            fixture from scripts/gen_fixtures.py fails this step until a test
+#                            replays it, which is the intended pressure.
+#
+# Node 22 matches the app repository's runtime (veg/hyphaeon-app). The npm cache is keyed on
+# js/package-lock.json -- the only lockfile in this repository -- so a dependency bump busts it
+# and nothing else does.
 
 name: js
 
@@ -28,6 +46,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: js
@@ -51,3 +70,9 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
+
+      # Exits 1 when a fixture file is read by no test (development tool, outside the published
+      # package: js/scripts/ is not in package.json "files"). Prints the per-fixture table, so a
+      # failure names the file that lost its replay.
+      - name: Fixture coverage (every fixtures/**/*.json is replayed by a test)
+        run: node scripts/fixture-coverage.mjs

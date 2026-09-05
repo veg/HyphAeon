@@ -6,12 +6,11 @@
  * src/numeric/cauchy.js. These are the first two fixtures after the tokenizer to be replayed as a
  * plain pass (fixtures.test.js pins the manifest; this pins the numbers).
  *
- * DTYPE IS PART OF THE CASE. The fixture JSON carries no dtype, but two cases were generated from
- * float32 arrays (`float32_meme_like`, `float32_input` — gen_fixtures.py:271,291) and the Python
- * did float32 arithmetic on them (see bh.js and cauchy.js headers; measured differences 4.2e-8 and
- * 9e-8 against a float64 replay, both above the 1e-9 class). Cases whose name starts with
- * `float32` are therefore replayed with a Float32Array. If the generator ever records the dtype in
- * `inputs`, this test should switch to reading it.
+ * DTYPE IS PART OF THE CASE. Two cases were generated from float32 arrays (`float32_meme_like`,
+ * `float32_input`) and the Python did float32 arithmetic on them (see bh.js and cauchy.js headers;
+ * measured differences 4.2e-8 and 9e-8 against a float64 replay, both above the 1e-9 class). The
+ * generator records `inputs.dtype: "float32"` on those cases (gen_fixtures.py `with_dtype`; float64
+ * cases carry no dtype key), and that key, not the case name, selects the Float32Array replay.
  *
  * Tolerance: the fixture class is 1e-9 absolute; the assertion here is that AND a tighter 1e-14
  * check on the float64 cases, since BH is in PLAN.md §5.4's exact class.
@@ -30,8 +29,10 @@ function load(name) {
 	return JSON.parse(readFileSync(join(FIXTURES, name), 'utf8'));
 }
 
+const isFloat32 = (c) => c.inputs.dtype === 'float32';
+
 function inputArray(c) {
-	return c.name.startsWith('float32') ? Float32Array.from(c.inputs.pvals) : Float64Array.from(c.inputs.pvals);
+	return isFloat32(c) ? Float32Array.from(c.inputs.pvals) : Float64Array.from(c.inputs.pvals);
 }
 
 describe('fixtures/stats/benjamini_hochberg.json replay (hyphaeon/stats.py:50-70)', () => {
@@ -50,7 +51,7 @@ describe('fixtures/stats/benjamini_hochberg.json replay (hyphaeon/stats.py:50-70
 			const got = benjaminiHochberg(inputArray(c));
 			expect(got).toBeInstanceOf(Float64Array);
 			expect(got.length).toBe(c.outputs.qvals.length);
-			const tight = c.name.startsWith('float32') ? 1e-9 : 1e-14;
+			const tight = isFloat32(c) ? 1e-9 : 1e-14;
 			c.outputs.qvals.forEach((want, i) => {
 				expect(Math.abs(got[i] - want), `q[${i}]`).toBeLessThanOrEqual(tight);
 			});
@@ -86,7 +87,7 @@ describe('fixtures/stats/cauchy_combination_p.json replay (hyphaeon/stats.py:72-
 			expect(c.tolerance).toBe('1e-9');
 			const got = cauchyCombination(inputArray(c));
 			const want = c.outputs.p_cct;
-			const tight = c.name.startsWith('float32') ? 1e-9 : 1e-14;
+			const tight = isFloat32(c) ? 1e-9 : 1e-14;
 			expect(Math.abs(got - want), `got ${got} want ${want}`).toBeLessThanOrEqual(tight);
 		});
 	}

@@ -16,6 +16,7 @@ Fixture record shape (one JSON list per function):
 
     {"name": str, "inputs": {...}, "outputs": {...},
      "tolerance": "exact" | "1e-5" | "1e-6" | "1e-9" | "statistical",
+     "tolerance_relative": true, "tolerance_floor": 1.0     (MDS cases only: 1e-5 * max(floor, |compared value|))
      "notes": str}
 
 Arrays are nested lists; NaN and infinities are the strings "NaN",
@@ -121,9 +122,19 @@ def jsonable(obj: Any) -> Any:
     raise TypeError(f"cannot serialise {type(obj)!r}")
 
 
-def case(name: str, inputs: Dict[str, Any], outputs: Dict[str, Any], tolerance: str, notes: str) -> Dict[str, Any]:
+def case(name: str, inputs: Dict[str, Any], outputs: Dict[str, Any], tolerance: str, notes: str, **extra: Any) -> Dict[str, Any]:
+    """One fixture case. `extra` keys are recorded after `notes`; the one in use is the MDS class's
+    `tolerance_relative=True, tolerance_floor=1.0` (see mds_relative())."""
     assert tolerance in ("exact", "1e-5", "1e-6", "1e-9", "statistical"), tolerance
-    return {"name": name, "inputs": jsonable(inputs), "outputs": jsonable(outputs), "tolerance": tolerance, "notes": notes}
+    return {"name": name, "inputs": jsonable(inputs), "outputs": jsonable(outputs), "tolerance": tolerance, "notes": notes, **jsonable(extra)}
+
+
+# The MDS class is RELATIVE to the magnitude of the compared coordinate, floor 1: the reference forms
+# B and runs eigh in float32, so its own rounding at a coordinate of magnitude m is ~m * 6e-8, and the
+# unrescaled bat_oas1 distances give coordinates of magnitude ~60 where an absolute 1e-5 is below the
+# reference's own ULP (PHASE1A.md fixture defect 1). For everything of order 1 or less (every rescaled
+# input) the floor makes it the plain absolute 1e-5.
+MDS_RELATIVE = {"tolerance_relative": True, "tolerance_floor": 1.0}
 
 
 class Writer:
@@ -273,6 +284,15 @@ def git_head() -> str:
 # stats
 # --------------------------------------------------------------------------
 
+def with_dtype(inputs: Dict[str, Any], arr: np.ndarray) -> Dict[str, Any]:
+    """Record `inputs.dtype` for a float32 case: the Python did float32 arithmetic on it (BH, CCT) or
+    the model emitted it (LRTs), and a float64 replay misses the 1e-9 class by ~4e-8..9e-8
+    (PHASE1A.md fixture defect 2). float64 cases carry no dtype key, as before."""
+    if arr.dtype == np.float32:
+        return {**inputs, "dtype": "float32"}
+    return inputs
+
+
 def gen_stats(w: Writer) -> None:
     from hyphaeon.stats import (
         benjamini_hochberg,
@@ -302,9 +322,9 @@ def gen_stats(w: Writer) -> None:
             note = "negative LRTs are not > 0 so they take the point-mass branch"
         if name == "huge":
             note = "chi2.sf underflows to 0 for very large LRT; inf gives 0"
-        meme_cases.append(case(name, {"lrts": lrts}, {"pvals": pvals_from_lrt_meme(lrts)}, "1e-9",
+        meme_cases.append(case(name, with_dtype({"lrts": lrts}, lrts), {"pvals": pvals_from_lrt_meme(lrts)}, "1e-9",
                                ("MEME null 1/3 delta0 + 2/3 (0.45 chi2_1 + 0.55 chi2_2); LRT<=0 -> 2/3. " + note).strip()))
-        sl_cases.append(case(name, {"lrts": lrts}, {"pvals": pvals_from_lrt_self_liang(lrts)}, "1e-9",
+        sl_cases.append(case(name, with_dtype({"lrts": lrts}, lrts), {"pvals": pvals_from_lrt_self_liang(lrts)}, "1e-9",
                              ("Self-Liang null 0.5 delta0 + 0.5 chi2_1; LRT<=0 -> 1. " + note).strip()))
     w.write("stats", "pvals_from_lrt_meme", meme_cases)
     w.write("stats", "pvals_from_lrt_self_liang", sl_cases)
@@ -322,7 +342,7 @@ def gen_stats(w: Writer) -> None:
         "float32_meme_like": pvals_from_lrt_meme(rng.exponential(2.0, size=300)).astype(np.float32),
         "clip_above_one": np.array([0.9, 0.95, 1.0, 0.3]),
     }
-    bh_cases = [case(n, {"pvals": p}, {"qvals": benjamini_hochberg(p)}, "1e-9",
+    bh_cases = [case(n, with_dtype({"pvals": p}, p), {"qvals": benjamini_hochberg(p)}, "1e-9",
                      "argsort is numpy default (quicksort, unstable) but tied p give identical q so order does not matter; result clipped to [0,1]")
                 for n, p in p_sets.items()]
     w.write("stats", "benjamini_hochberg", bh_cases)
@@ -341,7 +361,7 @@ def gen_stats(w: Writer) -> None:
         "one_extreme_among_many": np.concatenate([[1e-12], np.full(999, 0.5)]),
         "float32_input": rng.random(20).astype(np.float32),
     }
-    cct_cases = [case(n, {"pvals": p}, {"p_cct": cauchy_combination_p(p)}, "1e-9",
+    cct_cases = [case(n, with_dtype({"pvals": p}, p), {"p_cct": cauchy_combination_p(p)}, "1e-9",
                       "p clipped to [1e-15, 1-1e-15] before tan((0.5-p)*pi); mean; back-transform; clip to [1e-15, 1]; empty -> 1.0")
                  for n, p in cct_sets.items()]
     w.write("stats", "cauchy_combination_p", cct_cases)
@@ -890,7 +910,8 @@ def gen_dataset(w: Writer) -> None:
 
     # --- patristic distances + MDS on the example trees
     dist_cases, mds_cases = [], []
-    mds_sig = ("signature: compute_mds_coordinates(dist_matrix float32 [N,N], n_components=4, mds_sign='canonical') -> float32 [N,4]. Dense path (N<=500): H = I - 1/N, B = -0.5 H D^2 H in float32, "
+    mds_sig = ("TOLERANCE IS RELATIVE (tolerance_relative=true, tolerance_floor=1): 1e-5 * max(1, |compared magnitude|), because the reference's float32 eigh rounds at ~6e-8 of the coordinate's magnitude and the raw bat_oas1 coordinates are ~60. "
+               "signature: compute_mds_coordinates(dist_matrix float32 [N,N], n_components=4, mds_sign='canonical') -> float32 [N,4]. Dense path (N<=500): H = I - 1/N, B = -0.5 H D^2 H in float32, "
                "numpy.linalg.eigh (LAPACK syevd), eigenvalues sorted descending, coords = eigvecs[:, :4] * sqrt(max(eigval, 0)). "
                "SIGN CONVENTION (mds_sign='canonical', the default): before the sqrt(eigval) scaling each kept eigenvector is flipped so that its largest-magnitude entry "
                "is positive (np.argmax(np.abs(col)): first index on ties; an all-zero column is left alone). Columns are therefore comparable EXACTLY (max|c_js - c_py| <= 1e-5) "
@@ -911,24 +932,24 @@ def gen_dataset(w: Writer) -> None:
                                    "d(i,j) = depth_i + depth_j - 2 depth_lca, stored float32. Tree first passed through enforce_nonzero_branch_lengths(min_len=1e-4). taxa = tree terminal order filtered to alignment names."))
             coords = compute_mds_coordinates(D, 4, mds_sign="canonical")
             mds_cases.append(case(f"example_{nwk}_raw_distances", {"dist_matrix": D, "n_components": 4, "mds_sign": "canonical"},
-                                  {"coords": coords, "gram": coords @ coords.T, "abs_coords": np.abs(coords)}, "1e-5", mds_sig))
+                                  {"coords": coords, "gram": coords @ coords.T, "abs_coords": np.abs(coords)}, "1e-5", mds_sig, **MDS_RELATIVE))
     # rescaled bat (what the pipeline actually feeds the model)
     tree, taxa, D = example_trees["bat_oas1.nwk"]
     Lb = len(next(iter(parse_alignment_sequences(str(EXAMPLES / "bat_oas1.fasta")).values()))) // 3
     Db = (D / Lb).astype(np.float32)
     coords = compute_mds_coordinates(Db, 4, mds_sign="canonical")
     mds_cases.append(case("example_bat_oas1_rescaled_by_L", {"dist_matrix": Db, "n_components": 4, "mds_sign": "canonical"}, {"coords": coords, "gram": coords @ coords.T, "abs_coords": np.abs(coords)}, "1e-5",
-                          mds_sig + f" Input is the bat_oas1 patristic matrix divided by L={Lb} (the >10 rescale rule)."))
+                          mds_sig + f" Input is the bat_oas1 patristic matrix divided by L={Lb} (the >10 rescale rule).", **MDS_RELATIVE))
     rng = np.random.default_rng(SYNTH_SEED + 5)
     pts = rng.normal(size=(6, 2))
     Ds = np.sqrt(((pts[:, None, :] - pts[None, :, :]) ** 2).sum(-1)).astype(np.float32)
     coords = compute_mds_coordinates(Ds, 4, mds_sign="canonical")
     mds_cases.append(case("synthetic_euclidean_2d_points_6", {"dist_matrix": Ds, "n_components": 4, "mds_sign": "canonical"}, {"coords": coords, "gram": coords @ coords.T, "abs_coords": np.abs(coords)}, "1e-5",
-                          mds_sig + " Exact Euclidean distances from 2-D points: components 3 and 4 have eigenvalue ~0 and are numerically noise-scaled (sqrt of tiny positive or clipped 0)."))
+                          mds_sig + " Exact Euclidean distances from 2-D points: components 3 and 4 have eigenvalue ~0 and are numerically noise-scaled (sqrt of tiny positive or clipped 0).", **MDS_RELATIVE))
     D3 = np.array([[0, 1, 1], [1, 0, 1], [1, 1, 0]], np.float32)
     coords = compute_mds_coordinates(D3, 4, mds_sign="canonical")
     mds_cases.append(case("equilateral_3_points_padding", {"dist_matrix": D3, "n_components": 4, "mds_sign": "canonical"}, {"coords": coords, "gram": coords @ coords.T, "abs_coords": np.abs(coords)}, "1e-5",
-                          mds_sig + " N=3 < n_components: eigvecs has only 3 columns so the 4th is zero-padded; degenerate eigenvalues make individual columns basis-dependent, use 'gram'."))
+                          mds_sig + " N=3 < n_components: eigvecs has only 3 columns so the 4th is zero-padded; degenerate eigenvalues make individual columns basis-dependent, use 'gram'.", **MDS_RELATIVE))
     w.write("dataset", "compute_fast_dist_matrix", dist_cases)
     w.write("dataset", "compute_mds_coordinates", mds_cases)
 
@@ -1260,7 +1281,8 @@ def gen_e2e(w: Writer, model_sha: str, only_cases: List[str] | None = None) -> N
     def wanted(name: str) -> bool:
         return only_cases is None or any(sub in name for sub in only_cases)
 
-    def run_cli(name: str, argv: List[str], notes: str, tolerance: str = "1e-5", postprocess=None, env_extra: Dict[str, str] | None = None) -> None:
+    def run_cli(name: str, argv: List[str], notes: str, tolerance: str = "1e-5", postprocess=None, env_extra: Dict[str, str] | None = None,
+                post_kwargs=None) -> None:
         if not wanted(name):
             return
         with tempfile.TemporaryDirectory() as td:
@@ -1274,7 +1296,7 @@ def gen_e2e(w: Writer, model_sha: str, only_cases: List[str] | None = None) -> N
             wall_times[name] = round(time.time() - t0, 1)
         data = null_timings(basenames(data))
         if postprocess is not None:
-            data, notes = postprocess(data, notes)
+            data, notes = postprocess(data, notes, **(post_kwargs(argv) if post_kwargs else {}))
         cmd_display = ["hyphaeon"] + [os.path.basename(x) if x.startswith("examples/") else x for x in argv] + ["-o", "<out.json>"]
         w.write("e2e", name, [case(name, {"argv": cmd_display, "model_safetensors_sha256": model_sha, "device": "cpu", "torch": penv["torch"], "hyphy": penv["hyphy"]},
                                    data, tolerance, notes + " Timing fields nulled (wall times are in manifest.json e2e_wall_seconds); paths reduced to basenames.")])
@@ -1290,7 +1312,38 @@ def gen_e2e(w: Writer, model_sha: str, only_cases: List[str] | None = None) -> N
     busted_missing = sorted(needed - present)
     BUSTED_RANDOM_FIELDS = ("predicted_gene_lrt", "selection_probability", "synonymous_rate_variation", "positive_selection_detected")
 
-    def busted_post(data, notes):
+    def busted_site_lrts(argv: List[str], env_extra: Dict[str, str] | None) -> Dict[str, Any]:
+        """`hyphaeon meme` on the busted run's inputs, with cmd_busted's own taxon cap (-s 512, cli.py:1108):
+        cmd_busted computes per-site LRTs (cli.py:454-467) but never writes them, and cmd_meme's are the same
+        forward passes on the same tokens. The caller asserts that the float32 sums reproduce the busted
+        record's omnibus_lrt and total_selection_energy bit for bit, so the equivalence is checked at
+        generation rather than assumed."""
+        meme_argv = ["meme"] + [a for a in argv[1:]] + ["-s", "512"]
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "meme.json"
+            proc = subprocess.run([hy] + meme_argv + ["-o", str(out)], cwd=REPO, env={**env, **(env_extra or {})}, capture_output=True, text=True)
+            if proc.returncode != 0 or not out.exists():
+                raise RuntimeError(f"busted_site_lrts: meme exit {proc.returncode}\n{proc.stdout[-2000:]}\n{proc.stderr[-2000:]}")
+            meme = json.load(open(out))
+        sites = meme["sites"]
+        return {"site_lrts": np.array([s["hyphaeon_lrt"] for s in sites], dtype=np.float32),
+                "is_invariable": [bool(s["is_invariable"]) for s in sites], "taxa_count": meme["taxa_count"]}
+
+    def busted_post(data, notes, sites=None):
+        if sites is not None:
+            lrts = sites["site_lrts"]
+            energy = float(np.sum(lrts))
+            omnibus = float(np.sum(np.maximum(0.0, lrts - 3.841)))
+            if sites["taxa_count"] != data["taxa"] or len(lrts) != data["sites"]:
+                raise RuntimeError(f"busted_post: meme run has {sites['taxa_count']} taxa x {len(lrts)} sites, busted {data['taxa']} x {data['sites']}")
+            if energy != data["total_selection_energy"] or omnibus != data["omnibus_lrt"]:
+                raise RuntimeError(f"busted_post: the meme LRTs do not reproduce the busted sums: energy {energy!r} vs {data['total_selection_energy']!r}, "
+                                   f"omnibus {omnibus!r} vs {data['omnibus_lrt']!r}")
+            data["site_lrts"] = lrts
+            data["is_invariable"] = sites["is_invariable"]
+            notes += (" site_lrts (float32, one per codon; invariable sites 0) and is_invariable are `hyphaeon meme` on the same inputs with cmd_busted's -s 512 cap: "
+                      "cmd_busted computes them (cli.py:454-467) but does not write them; float32 np.sum of site_lrts and of max(0, site_lrts - 3.841) reproduce "
+                      "total_selection_energy and omnibus_lrt EXACTLY (asserted when this fixture was generated), so a replay can start from these two arrays.")
         if busted_missing:
             for k in BUSTED_RANDOM_FIELDS:
                 data[k] = None
@@ -1315,8 +1368,9 @@ def gen_e2e(w: Writer, model_sha: str, only_cases: List[str] | None = None) -> N
             meme_note + " --attribute adds attributions keyed by 1-indexed site; --filter runs the cli.py copy of the hypergeometric+OCI screen (which differs slightly from filter.py: no '?' or length check on consensus codons).")
     busted_note = ("`hyphaeon busted` JSON (cli.py cmd_busted): Self-Liang site p, ACAT over variable sites, Simes over all sites, omnibus_lrt = sum max(0, lrt-3.841), "
                    "neural BustedMultiTaskHead outputs (selection_probability, predicted_gene_lrt, synonymous_rate_variation, omega proportions). Head outputs 1e-5; counts exact.")
-    run_cli("busted_Smc6", ["busted", "-a", "examples/Smc6.fasta", "-t", "examples/Smc6.nwk", "--cpu"] + MDS, busted_note, postprocess=busted_post)
-    run_cli("busted_HIV1_RT", ["busted", "-a", "examples/HIV1_RT.fasta", "-t", "examples/HIV1_RT.nwk", "--cpu"] + MDS, busted_note, postprocess=busted_post)
+    busted_sites = lambda argv: {"sites": busted_site_lrts(argv, None)}
+    run_cli("busted_Smc6", ["busted", "-a", "examples/Smc6.fasta", "-t", "examples/Smc6.nwk", "--cpu"] + MDS, busted_note, postprocess=busted_post, post_kwargs=busted_sites)
+    run_cli("busted_HIV1_RT", ["busted", "-a", "examples/HIV1_RT.fasta", "-t", "examples/HIV1_RT.nwk", "--cpu"] + MDS, busted_note, postprocess=busted_post, post_kwargs=busted_sites)
     run_cli("epistasis_Smc6_n_permutations_1000",
             ["epistasis", "-a", "examples/Smc6.fasta", "-t", "examples/Smc6.nwk", "--cpu", "--n-permutations", "1000"] + SEED + MDS,
             "`hyphaeon epistasis` JSON (epistasis.run_epistatic_analysis). CLI defaults: min_sim 0.30, min_shared 2, max_fdr 0.05, min_lrt 1.0, min_cesi 2.0 (function default, CLI has no flag), "
@@ -1343,7 +1397,8 @@ def gen_e2e(w: Writer, model_sha: str, only_cases: List[str] | None = None) -> N
             meme_note + tn93_note + " HIV1_RT has one byte-identical taxon pair; duplicate pruning removes it before the matrix is built (475 taxa here), so none of the "
                                     "1.0 imputations of fixtures/dataset/tn93_distance_matrix.json survive into this run.", env_extra=TN93_ENV)
     run_cli("busted_Smc6_tn93", ["busted", "-a", "examples/Smc6.fasta", "--use-tn93", "--cpu"] + MDS,
-            busted_note + tn93_note, postprocess=busted_post, env_extra=TN93_ENV)
+            busted_note + tn93_note, postprocess=busted_post, env_extra=TN93_ENV,
+            post_kwargs=lambda argv: {"sites": busted_site_lrts(argv, TN93_ENV)})
     run_cli("epistasis_Smc6_tn93",
             ["epistasis", "-a", "examples/Smc6.fasta", "--use-tn93", "--cpu", "--n-permutations", "1000"] + SEED + MDS,
             "`hyphaeon epistasis` JSON with the tree replaced by TN93 distances; CLI defaults as in epistasis_Smc6_n_permutations_1000 (min_sim 0.30, min_shared 2, max_fdr 0.05, "

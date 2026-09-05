@@ -104,15 +104,16 @@ const flat = (rows) => rows.flat();
 const EPS32 = 2 ** -23;
 
 /**
- * The MDS tolerance, MEASURED rather than taken from the fixture's absolute class: the reference
- * forms B and runs eigh in float32, so its own rounding at a coordinate of magnitude m is ~m * 6e-8,
- * and bat_oas1's RAW (unrescaled) distances give coordinates of magnitude ~60 — an absolute 1e-5
- * is below the reference's own ULP there. The class is therefore applied relative to the magnitude
- * of what is compared, with a floor of 1 so it is the plain absolute 1e-5 for everything of order 1
- * or less (both load_alignment_and_tree cases, Smc6, bat_oas1 rescaled).
+ * The MDS tolerance, as the fixture records it: `tolerance_relative: true, tolerance_floor: 1`
+ * (gen_fixtures.py MDS_RELATIVE) means tol * max(floor, |compared magnitude|). The reference forms
+ * B and runs eigh in float32, so its own rounding at a coordinate of magnitude m is ~m * 6e-8, and
+ * bat_oas1's RAW (unrescaled) distances give coordinates of magnitude ~60 — an absolute 1e-5 is
+ * below the reference's own ULP there. The floor of 1 makes it the plain absolute 1e-5 for
+ * everything of order 1 or less (both load_alignment_and_tree cases, Smc6, bat_oas1 rescaled).
+ * A case without the relative flag gets its absolute class.
  */
 function mdsTol(c, magnitude) {
-	return tol(c) * Math.max(1, magnitude);
+	return c.tolerance_relative ? tol(c) * Math.max(c.tolerance_floor ?? 1, magnitude) : tol(c);
 }
 
 /**
@@ -278,6 +279,9 @@ describe('dataset/compute_mds_coordinates.json', () => {
 			const k = c.inputs.n_components;
 			// The fixture records inputs.mds_sign = "canonical"; the library's default is the same rule.
 			expect(c.inputs.mds_sign).toBe('canonical');
+			// And the relative class with floor 1 (the generator's MDS_RELATIVE convention).
+			expect(c.tolerance_relative).toBe(true);
+			expect(c.tolerance_floor).toBe(1);
 			const z = computeMdsCoordinates(Float32Array.from(flat(rows)), n, k, { mdsSign: c.inputs.mds_sign });
 			const pyGram = flat(c.outputs.gram);
 			const gramMax = Math.max(...pyGram.map(Math.abs));

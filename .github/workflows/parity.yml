@@ -1,15 +1,52 @@
 # WHY THIS FILE EXISTS
 #
-# End-to-end parity between the Python reference and every other surface on the bundled examples
-# (PARITY.md; PLAN.md 3.3 and 5.4 in veg/hyphaeon-app). scripts/parity.py runs the Python CLI on
-# examples/ and compares whatever surface outputs exist under parity/<surface>/. Only the Python
-# side is produced here: the runners for node / web / mcp live in veg/hyphaeon-app, because
-# nothing in this repository runs a model outside torch (js/ is a library). Until that runner
-# publishes its outputs into this job, the node surface is reported as missing and the job
-# passes on the Python side alone; any tolerance-class violation fails the job.
+# THIS WORKFLOW RUNS THE REFERENCE SURFACE ONLY. `hyphaeon/*.py` is the reference implementation
+# of the methods; every other surface -- the library under Node, the library in headless Chromium,
+# the MCP tool -- is produced by the APPLICATION repository (veg/hyphaeon-app), because nothing in
+# this repository runs a model outside torch (js/ is a library: no onnxruntime, no I/O, PLAN.md
+# 5.5). So this job does the two things that CAN be done here, and no more:
 #
-# Python setup mirrors tests.yml (CPU torch first, then the package). The bundled
-# model.safetensors is committed, so no download and no HF token is needed.
+#   1. it runs `python -m hyphaeon.cli <analysis>` on the bundled examples -- both the tree path
+#      and, for the examples whose tree carries no branch lengths, the `--use-tn93` path (PLAN.md
+#      D22) -- and fails if a reference run fails (exit 2);
+#   2. it runs `scripts/parity.py`'s SELF-CHECK on the reference's own files: p and q recomputed
+#      from each file's own LRTs with `hyphaeon.stats` and compared to what the CLI wrote, at the
+#      1e-9 special class. That catches a change in stats.py, in the float32 cast order of
+#      cmd_meme, or in the comparator itself, and it is the only end-to-end check this repository
+#      can make alone.
+#
+# ============================ THE CONTRACT WITH veg/hyphaeon-app ============================
+#
+# The app repository owns the runners for every non-Python surface; this repository owns the
+# reference, the comparator and the tolerance classes. The contract, so neither side has to read
+# the other's CI to know what is expected:
+#
+#   * The app's runners (runtime/scripts/parity-node.mjs, its Playwright suite) write files into
+#     `parity/<surface>/<example>.<analysis>.json` of an ENGINE CHECKOUT -- the layout PARITY.md
+#     specifies: the same JSON the Python CLI writes for that analysis (Appendix B of PLAN.md),
+#     the same example stems (Smc6, bat_oas1, camelid, HIV1_RT, RHO) and analysis names (meme,
+#     busted, epistasis, dms, phenotype). Extra keys such as `provenance` are ignored, and some
+#     are read for context (the surface's own B, for the statistical class).
+#   * A run that went TREE-FREE is a different analysis of the same data from the tree reference,
+#     so it goes to the sibling directory `<surface>-tn93` and is compared against
+#     `parity/python-tn93/`, which this workflow produces below. `browser` is an alias of `web`.
+#   * The app's CI then checks out THIS repository AT THE ENGINE TAG ITS package.json PINS,
+#     installs it, and runs `python scripts/parity.py --surfaces python,node,node-tn93,...` FROM
+#     THIS REPOSITORY. The comparator, the classes and the reference runs are therefore always
+#     the ones that shipped with the engine version the app was built against; the app never
+#     carries its own copy of the classes.
+#   * A surface with no files is reported as MISSING and is not a failure unless
+#     `--strict-missing` is given -- which is why this job can ask for a `-tn93` surface it does
+#     not produce (see the note on the reference steps below) and still pass.
+#
+# `scripts/parity.py`'s docstring and PARITY.md are the authority on the classes, the statuses
+# (pass / fail / missing / redirected / incomparable / informational) and the exit codes; this
+# file deliberately does not restate them, so it cannot drift from them.
+#
+# Python setup mirrors tests.yml (CPU torch first, then the package), plus the `tn93` extra that
+# the tree-free path needs. The bundled model.safetensors is committed, so there is no download
+# and no HF token. `js/**` is deliberately NOT a trigger path: nothing in this job runs
+# JavaScript (js.yml covers the library).
 
 name: parity
 
@@ -19,8 +56,7 @@ on:
     branches: [main]
     paths:
       - 'hyphaeon/**'
-      - 'js/**'
-      - 'fixtures/**'
+      - 'examples/**'
       - 'models/**'
       - 'scripts/parity.py'
       - '.github/workflows/parity.yml'
@@ -28,6 +64,10 @@ on:
 jobs:
   parity:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      HYPHAEON_WEIGHTS: ${{ github.workspace }}/model.safetensors
+      HF_HUB_OFFLINE: "1"
 
     steps:
       - uses: actions/checkout@v4
@@ -38,31 +78,57 @@ jobs:
           python-version: "3.11"
 
       # Install CPU-only torch first (smaller than the default CUDA wheel) so
-      # the subsequent `pip install -e .[dev]` sees the requirement satisfied.
+      # the subsequent `pip install -e .` sees the requirement satisfied.
       - name: Install CPU torch
         run: pip install torch --index-url https://download.pytorch.org/whl/cpu
 
+      # [tn93] is what the tree-free runs need: dataset.compute_tn93_distance_matrix prefers a
+      # compiled `tn93` binary and falls back to this package. parity.py hides any binary from
+      # the CLI's PATH so the PACKAGE path runs, which is the path the fixtures pin and the one
+      # js/src/preprocess/tn93.js mirrors (fixtures/manifest.json: tn93_package 1.2.2).
       - name: Install package and dev dependencies
-        run: pip install -e .[dev]
+        run: pip install -e ".[dev,tn93]"
 
-      - name: Set up Node 22
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
+      - name: Record the TN93 implementation the reference will use
+        run: python -c "import importlib.metadata as m; print('tn93 package', m.version('tn93'))"
 
-      - name: Run parity (python reference; node compared when present)
-        env:
-          HYPHAEON_WEIGHTS: ${{ github.workspace }}/model.safetensors
-          HF_HUB_OFFLINE: "1"
-        run: python scripts/parity.py --examples all --surfaces python,node
+      # `--surfaces python,node-tn93` asks for a surface this repository does not produce, on
+      # purpose: the tree-free REFERENCE runs (parity/python-tn93/) are made when a -tn93 surface
+      # is requested, and the absent node-tn93 files are reported as missing, which is not a
+      # failure. The result is "the reference surface, tree and tree-free, with its self-check".
+      - name: Reference surface -- sites and gene (meme, busted; tree and --use-tn93)
+        run: |
+          python scripts/parity.py --examples all --analyses meme,busted --surfaces python,node-tn93
+          mv parity/report.json parity/report-sites.json
 
-      - name: Upload parity report
+      # Epistasis is the slow one (B = 10,000 seeded permutations per sector) and the one whose
+      # reproducibility depends on `--seed`, added in phase-2a: parity.py SKIPS the analysis
+      # when the CLI has no --seed flag, so this step is also the regression test for that flag.
+      # `--tn93-examples Smc6` adds the tree-free epistasis run that
+      # fixtures/e2e/epistasis_Smc6_tn93.json pins; `--dms-examples` defaults to Smc6 alone
+      # (19 x L forward passes).
+      - name: Reference surface -- epistasis and DMS
+        run: |
+          python scripts/parity.py --examples Smc6,bat_oas1 --analyses epistasis,dms \
+            --surfaces python,node-tn93 --tn93-examples Smc6
+          mv parity/report.json parity/report-methods.json
+
+      # Phenotype on RHO with the README Example 3 marine foreground (parity.py's default) and
+      # --permulations 0, exactly as fixtures/e2e/phenotype_RHO_marine_n_permutations_0.json.
+      - name: Reference surface -- phenotype
+        run: |
+          python scripts/parity.py --examples RHO --analyses phenotype --surfaces python,node-tn93
+          mv parity/report.json parity/report-phenotype.json
+
+      - name: Upload the reports and the reference outputs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: parity_report
           path: |
-            parity/report.json
+            parity/report-*.json
             parity/python/*.json
             parity/python/*.log
+            parity/python-tn93/*.json
+            parity/python-tn93/*.log
           if-no-files-found: error

@@ -330,15 +330,38 @@ commit.
 
 **One repository, one tag.** A tag `vX.Y.Z` publishes `hyphaeon==X.Y.Z` to PyPI and
 `@veg/hyphaeon-js@X.Y.Z` to npm from the same commit (`.github/workflows/release.yml`), with
-`models/manifest.json` attached to the GitHub release. `js/package.json` and `pyproject.toml` must
-both carry the tag's version; the release workflow refuses otherwise.
+`models/manifest.json` and `MDS_SIGN.md` attached to the GitHub release. `js/package.json` and
+`pyproject.toml` must both carry the tag's version; the release workflow refuses otherwise. Both
+registries publish over OIDC trusted publishing, so there are no tokens in this repository.
 
 ```bash
 npm install @veg/hyphaeon-js
 ```
 
+**What CI checks.** `js.yml` runs three gates on every change to `js/`, `fixtures/` or `models/`:
+`npm test` (vitest, including the fixture replays — a wrong value), `npm run typecheck` (a wrong
+shape), and `node js/scripts/fixture-coverage.mjs`, which fails when a fixture file is read by no
+test — 48 of 48 today, so a new fixture from `scripts/gen_fixtures.py` fails the build until
+something replays it. `parity.yml` runs the **reference surface only**: the Python CLI on the
+bundled examples, on the tree path and — for the examples whose tree carries no branch lengths —
+on the `--use-tn93` path (D22), plus `scripts/parity.py`'s self-check that p and q recompute from
+each file's own LRTs. The Node, browser and MCP surfaces are produced by the application
+repository's runners into `parity/<surface>/` (and `parity/<surface>-tn93/` for a tree-free run)
+and compared there with `scripts/parity.py` from this repository at the engine tag the app pins —
+the contract is written out in the header of `.github/workflows/parity.yml`.
+
+```bash
+cd js && npm ci && npm test && npm run typecheck && node scripts/fixture-coverage.mjs
+```
+
 - Parity between the Python reference and the JavaScript surfaces, the tolerance classes, and
   how to run the harness: [`PARITY.md`](PARITY.md) and `scripts/parity.py`.
+- The MDS eigenvector sign convention (`--mds-sign`, default `canonical`), what it changed and by
+  how much: [`MDS_SIGN.md`](MDS_SIGN.md).
+- **Reference bugs and quirks the port found and reproduced rather than fixed**, with the line,
+  the impact, the suggested fix and whether fixing it moves the fixtures:
+  [`UPSTREAM.md`](UPSTREAM.md). Port discipline is: fix the Python, regenerate `fixtures/`, then
+  fix the port — never the other way round.
 - Everything that runs the library, the web application, the Node runtime with the ONNX sessions,
   and the MCP server (`@veg/hyphaeon-mcp`), lives in
   [`veg/hyphaeon-app`](https://github.com/veg/hyphaeon-app), which pins this package at an exact

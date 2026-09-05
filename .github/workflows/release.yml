@@ -1,20 +1,38 @@
 # WHY THIS FILE EXISTS
 #
-# One tag releases both halves of this repository from one commit (PLAN.md D19 in
-# veg/hyphaeon-app): `hyphaeon` to PyPI and `@veg/hyphaeon-js` to npm, with models/manifest.json
-# attached to the GitHub release so the artifact hashes a given version verified against are
-# recorded next to it. The versions are checked against the tag before anything is published,
-# because a tag v1.4.0 that ships js/package.json 1.3.0 breaks the app's "pin an exact version"
-# rule silently.
+# One tag releases both halves of this repository from one commit (PLAN.md D19): `hyphaeon` to
+# PyPI and `@veg/hyphaeon-js` to npm, with `models/manifest.json` and `MDS_SIGN.md` attached to
+# the GitHub release. The app repository pins an EXACT version of the library, so the three
+# versions -- the tag, `pyproject.toml` and `js/package.json` -- have to be one number: a tag
+# v1.4.0 that ships js/package.json 1.3.0 breaks that pin silently, months later, in the consumer.
+# The verify job below refuses before anything is published.
 #
-# Credentials:
-#   - PyPI uses trusted publishing (OIDC, no secret). The PyPI project must have a trusted
-#     publisher configured for owner `veg`, repository `HyphAeon`, workflow `release.yml`,
-#     environment `pypi`.
-#   - npm uses secrets.NPM_TOKEN (an automation token) plus `--provenance`, which needs
-#     `id-token: write` and a `repository` field in js/package.json that matches this repo.
+# WHY THE MANIFEST AND MDS_SIGN.md TRAVEL WITH THE RELEASE:
+#   * models/manifest.json carries the sha256 of every ONNX graph this version's surfaces will
+#     verify before scoring (the app refuses to run on a mismatch). Attaching it to the release
+#     records, next to the version, exactly which artifacts that version means -- recoverable
+#     without a git checkout.
+#   * MDS_SIGN.md is the document a CLI user needs when their numbers move: the canonical
+#     eigenvector-sign convention changed the reference's own outputs (up to 0.59 absolute LRT on
+#     the bundled examples, 2 of 145 RHO calls at p <= 0.05), and `--mds-sign lapack` is the
+#     escape hatch. A release note that points at a file inside the tag is not enough when the
+#     question is "why did my results change".
 #
-# The MCP is not published from here; it lives in veg/hyphaeon-app.
+# CREDENTIALS: THERE ARE NO SECRETS IN THIS FILE, AND THERE MUST NOT BE.
+# Both registries publish over OIDC trusted publishing -- GitHub Actions proves the workflow's
+# identity and the registry mints a short-lived token. Nothing is stored in the repository, so a
+# leaked or rotated token cannot break or hijack a release. One-time setup, done in each
+# registry's UI by a maintainer, not here:
+#   * PyPI: project `hyphaeon` -> Publishing -> add a trusted publisher for owner `veg`,
+#     repository `HyphAeon`, workflow `release.yml`, environment `pypi`.
+#   * npm: package `@veg/hyphaeon-js` -> Settings -> Trusted publisher -> GitHub Actions, owner
+#     `veg`, repository `HyphAeon`, workflow `release.yml`. Publishing this way attaches npm
+#     provenance automatically (which is why no `--provenance` flag is passed) and needs npm
+#     >= 11.5.1, installed in the job below because Node 22 ships an older npm.
+# If a job fails with "Unable to authenticate", the trusted publisher is not configured yet --
+# configure it; do not add a token to this file.
+#
+# The MCP (@veg/hyphaeon-mcp) is NOT published from here; it lives in veg/hyphaeon-app.
 
 name: release
 
@@ -38,6 +56,8 @@ jobs:
         id: tag
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
+      # One number in three places. Both comparisons are against the tag, so a mismatch names
+      # which file is wrong rather than only that they disagree.
       - name: js/package.json version equals the tag
         run: |
           pkg=$(node -p "require('./js/package.json').version")
@@ -50,15 +70,44 @@ jobs:
           echo "tag ${{ steps.tag.outputs.version }} / pyproject.toml $py"
           test "$py" = "${{ steps.tag.outputs.version }}"
 
-      - name: models/manifest.json is present
-        run: test -f models/manifest.json
+      # The manifest is the contract every surface verifies against. If a graph was re-exported
+      # and the manifest was not regenerated (or the other way round), every consumer of this
+      # tag would refuse to load the model AFTER the release. Checking the committed bytes here
+      # costs a hashlib call and no torch.
+      - name: Release documents are present and the manifest matches the committed graphs
+        run: |
+          test -f models/manifest.json
+          test -f MDS_SIGN.md
+          python - <<'PY'
+          import hashlib, json, pathlib, sys
+          manifest = json.loads(pathlib.Path("models/manifest.json").read_text())
+          fields = {"onnx_sha256": "{name}.onnx", "busted_head_onnx_sha256": "busted_head.onnx"}
+          checked, bad = 0, []
+          for name, variant in manifest["variants"].items():
+              for field, template in fields.items():
+                  expected = variant.get(field)
+                  if not expected:
+                      continue
+                  path = pathlib.Path("models") / template.format(name=name)
+                  if not path.exists():
+                      bad.append(f"{path} named by variants.{name}.{field} is missing")
+                      continue
+                  got = hashlib.sha256(path.read_bytes()).hexdigest()
+                  checked += 1
+                  if got != expected:
+                      bad.append(f"{path}: manifest {expected[:12]}... != file {got[:12]}...")
+          print(f"checked {checked} artifact hash(es) against models/manifest.json")
+          if bad:
+              print("\n".join(bad), file=sys.stderr)
+              sys.exit(1)
+          PY
 
   pypi:
     needs: verify
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
-      id-token: write
+      id-token: write        # OIDC for PyPI trusted publishing; no token in this repository
     steps:
       - uses: actions/checkout@v4
 
@@ -79,7 +128,7 @@ jobs:
     needs: verify
     runs-on: ubuntu-latest
     permissions:
-      id-token: write
+      id-token: write        # OIDC for npm trusted publishing; provenance is attached automatically
     defaults:
       run:
         working-directory: js
@@ -94,19 +143,28 @@ jobs:
           cache: npm
           cache-dependency-path: js/package-lock.json
 
+      # Node 22 ships npm 10.x, which has no OIDC support. Trusted publishing needs >= 11.5.1.
+      - name: Use an npm that can publish over OIDC
+        run: npm install -g npm@latest && npm --version
+
       - name: Install
         run: npm ci
 
+      # The published bytes are the tested bytes: the same three gates js.yml runs.
       - name: Test
         run: npm test
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Fixture coverage
+        run: node scripts/fixture-coverage.mjs
 
       - name: Build
         run: npm run build --if-present
 
-      - name: Publish @veg/hyphaeon-js with provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --provenance --access public
+      - name: Publish @veg/hyphaeon-js (trusted publishing)
+        run: npm publish --access public
 
   github-release:
     needs: [verify, pypi, npm]
@@ -116,7 +174,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Create the release if the tag has none, then attach the manifest
+      - name: Create the release if the tag has none, then attach the manifest and MDS_SIGN.md
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -124,4 +182,4 @@ jobs:
           if ! gh release view "$tag" >/dev/null 2>&1; then
             gh release create "$tag" --title "$tag" --generate-notes
           fi
-          gh release upload "$tag" models/manifest.json --clobber
+          gh release upload "$tag" models/manifest.json MDS_SIGN.md --clobber
