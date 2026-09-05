@@ -16,8 +16,10 @@ HYPHAEON_WEIGHTS=model.safetensors HF_HUB_OFFLINE=1 python scripts/gen_fixtures.
 
 `--skip-model` skips `attribution/`, `dms/` and `e2e/` (no weights needed);
 `--skip-e2e` skips only the CLI runs; `--only <module>` (repeatable) regenerates
-one module and keeps the manifest's counts for the others. A full run takes about
-75 s on an Apple M4 Pro. Every model run is forced onto the CPU.
+one module and keeps the manifest's counts for the others; `--e2e-case <substring>`
+(repeatable) narrows an `--only e2e` run to the CLI cases whose name contains it,
+keeping the others' counts, sizes and wall times. A full run takes about 75 s on an
+Apple M4 Pro. Every model run is forced onto the CPU.
 
 `examples/camelid.nwk` has no branch lengths, so anything touching it goes through
 HyPhy's HKY85 branch-length estimation (`hyphy` must be on PATH; the version used
@@ -95,6 +97,63 @@ fixtures do not record it. Because the model is not sign-invariant, the two
 conventions give different LRTs (up to 0.59 absolute, ~1e-2 relative on the
 bundled examples); `MDS_SIGN.md` has the measurement.
 
+### TN93 and tree-free mode
+
+`--use-tn93` / `--no-tree` (and `-t tn93` / `none` / `skip`) skip the tree and take
+pairwise Tamura-Nei 93 distances straight into the MDS (`dataset.py:598-636`,
+PLAN.md D22). `compute_tn93_distance_matrix` (`dataset.py:493-571`) **prefers the
+compiled `tn93` binary** if it is on PATH:
+
+```
+tn93 -t 1.0 -l 1 -q -o distances.csv subset.fa
+```
+
+— threshold 1.0 (pairs at or above it are simply not written and are imputed
+later), minimum overlap 1 nucleotide, quiet, CSV, the binary's default ambiguity
+strategy `resolve` with `-g 1.0`. Without the binary it falls back to the Python
+`tn93` package, one pair at a time:
+
+```python
+tn = TN93()                                   # verbose 0, ignore_gaps False,
+                                              # max_ambig_fraction 1.0, minimum_overlap 500
+counts   = tn.get_counts(seq_i, seq_j, "resolve")
+nuc_freq = tn.get_nucleotide_frequency(counts)
+d        = tn.calculate_distance(counts, nuc_freq)
+```
+
+**The fixtures pin the package path**: the generator hides the binary from
+`shutil.which` (and from the CLI subprocesses' PATH) so a machine with or without
+it produces the same files. The two agree exactly — max |Δ| = 0.0 on `bat_oas1`
+and `HIV1_RT` — because the binary writes the same six significant digits the
+package rounds to and every pair it drops at its threshold is imputed back to the
+same 1.0. `manifest.json` records both versions (`environment.tn93_package`,
+`environment.tn93_binary_present_but_hidden`).
+
+Because the reference calls `get_counts` / `calculate_distance` directly, the
+package's `tn93_distance` wrapper never runs: its 500-nucleotide minimum-overlap
+test and its `"-"` sentinel are unreachable, and `dataset.py`'s `d == "-"` guard is
+dead code. Distances are float64 rounded to **six significant digits**
+(`np.format_float_positional(precision=6, unique=False, fractional=False)`); the
+matrix is float32. Tolerance class 1e-9.
+
+| file | what |
+|---|---|
+| `dataset/tn93_distance.json` | 24 pairs: identical, one transition, one transversion, gaps, terminal gaps, N, every IUPAC code, ambiguity against ambiguity, lower case, U, `?` and unmapped characters, unequal lengths, the degenerate single-base branch, the average fallback, the four match modes (`resolve` `average` `gapmm` `skip`, plus `gapmm` with `ignore_gaps`), the two inputs where Python **raises**, a real `bat_oas1` pair and the one `HIV1_RT` pair that sits at 1.0. `counts` and `nucleotide_frequency` are pinned as well so a port can localise a disagreement |
+| `dataset/tn93_distance_matrix.json` | whole matrices for `bat_oas1` (18), `Smc6` (20) and `camelid` (212); `HIV1_RT` (476) reduced to its first and last rows, extrema and saturated-pair indices (a full 476 × 476 does not fit the 2 MB cap); and four synthetic cases pinning the imputation rules and the `n <= 1` early return |
+| `dataset/load_alignment_and_tree_tn93.json` | the whole tree-free assembly for `bat_oas1` and `camelid`: taxa in alignment order, `L`, the distance matrix, MDS coordinates, the invariable mask and the token arrays (by sha256 of the row-major values joined with `,`; `bat_oas1` also carries them in full) |
+| `e2e/meme_camelid_tn93.json`, `e2e/meme_HIV1_RT_tn93.json`, `e2e/busted_Smc6_tn93.json`, `e2e/epistasis_Smc6_tn93.json` | the CLI with `--use-tn93 --mds-sign canonical` (`--seed 42` for epistasis, which also passes `--n-permutations 1000`). Only the assembly-level fields (taxon and codon counts, per-site `is_invariable`) are replayable without the model |
+
+Two things the tree-free path does **not** do: there is no `> 10` rescale (that
+rule is in the tree branch only) and there is no `enforce_nonzero_branch_lengths`.
+Taxa are `list(seq_dict.keys())` — alignment order, no tree matching.
+
+MEASURED over every pair of all five bundled alignments: **no** pair reaches
+`calculate_distance`'s degenerate 1.0 sentinel. The 1.0 entries that do appear come
+from the imputation of identical sequences (1 pair in `HIV1_RT`, 78 in `RHO`), and
+66 / 8 pairs of *different* sequences come out at distance 0 and are imputed to
+1e-4. `load_alignment_and_tree` collapses identical sequences before building the
+matrix, so a full pipeline run sees none of the 1.0s.
+
 ### Random number generators
 
 | function | RNG | seed |
@@ -119,10 +178,10 @@ reproduce a numpy stream.
 | `evaluation/` | 6 | `load_meme_json`, `load_prediction_csv`, `_roc_auc`, `_correlations`, `evaluate_files` (+ error cases) on synthetic pairs under `evaluation/inputs/` (`geneA`, `geneB`) and on `Smc6` (`examples/Smc6_results.csv` + a MEME JSON synthesised from `model_eval/_cache` with the matching 1097 sites) |
 | `epistasis/` | 3 | `compute_branch_coselection_network` on a 40×12 float32 matrix with planted co-selected sites (function defaults, CLI defaults, loose, strict); `extract_epistatic_sectors_tse` on the resulting graphs (exact with `n_permutations=0`, statistical with B = 2000, focal taxon, components fallback); `compute_sector_permutation_test` (statistical, plus exact degenerate cases) |
 | `phenotype/` | 3 | `resolve_phenotype_vector` (presets, explicit list, regex, pipe list, glob, `.*` patterns, CSV/TSV discrete and continuous under `phenotype/inputs/`); `compute_phylogenetic_covariance` on `Smc6.nwk` and `bat_oas1.nwk`; `generate_permulations` (binary and continuous, B = 200) |
-| `dataset/` | 10 | tokenizer over all 64 codons plus gaps/ambiguity/lowercase/U and the raw tables; `parse_alignment_sequences` on every `examples/*.fasta` and on synthetic PHYLIP/NEXUS/FASTA/gz files under `dataset/inputs/`; `extract_tree_from_string_or_file`; `compute_fast_dist_matrix`; `compute_mds_coordinates` (with `gram`); `load_alignment_and_tree` on Smc6 and bat_oas1 (full N×N, N×4, tokens, invariable mask, rescale flag); the > 10 rescale rule on synthetic trees; `prune_identical_sequences`; duplicates through the loader; Faith's PD downsampling (synthetic, ties, camelid 128 → 64) |
+| `dataset/` | 13 | tokenizer over all 64 codons plus gaps/ambiguity/lowercase/U and the raw tables; `parse_alignment_sequences` on every `examples/*.fasta` and on synthetic PHYLIP/NEXUS/FASTA/gz files under `dataset/inputs/`; `extract_tree_from_string_or_file`; `compute_fast_dist_matrix`; `compute_mds_coordinates` (with `gram`); `load_alignment_and_tree` on Smc6 and bat_oas1 (full N×N, N×4, tokens, invariable mask, rescale flag); the > 10 rescale rule on synthetic trees; `prune_identical_sequences`; duplicates through the loader; Faith's PD downsampling (synthetic, ties, camelid 128 → 64); the tree-free TN93 path (`tn93_distance`, `tn93_distance_matrix`, `load_alignment_and_tree_tn93` — see "TN93 and tree-free mode") |
 | `attribution/` | 1 | `attribute_selection` on bat_oas1, `min_lrt` 3.84 |
 | `dms/` | 1 | `run_insilico_selection_dms` on bat_oas1 restricted to the sites with LRT ≥ 3.84 (`target_sites` is supported), default focal taxon and `r_ferr` |
-| `e2e/` | 12 | CLI JSON: `meme` on the five bundled alignments (bat_oas1, Smc6, camelid, HIV1_RT, RHO) plus bat_oas1 with `--attribute --filter`; `busted` on Smc6 and HIV1_RT; `epistasis` on Smc6 with `--n-permutations 1000`; `phenotype` on RHO with the README marine foreground and `--n-permutations 0`; `run_alignment_filter` on bat_oas1 and camelid (the `filter` subcommand writes no JSON, so the function the CLI calls is used directly) |
+| `e2e/` | 16 | CLI JSON: `meme` on the five bundled alignments (bat_oas1, Smc6, camelid, HIV1_RT, RHO) plus bat_oas1 with `--attribute --filter`; `busted` on Smc6 and HIV1_RT; `epistasis` on Smc6 with `--n-permutations 1000`; `phenotype` on RHO with the README marine foreground and `--n-permutations 0`; `run_alignment_filter` on bat_oas1 and camelid (the `filter` subcommand writes no JSON, so the function the CLI calls is used directly); and four tree-free runs with `--use-tn93` (`meme` on camelid and HIV1_RT, `busted` and `epistasis` on Smc6) |
 
 `manifest.json` has the exact case counts and byte sizes of the last run.
 
@@ -144,3 +203,11 @@ The port replicates the Python as it is (PLAN.md §5.3 rule 3). The full list is
   `TREE x = [&R] (...)` is not recognised.
 * `cli.py cmd_meme --filter` is a second copy of the OCI logic that differs
   slightly from `filter.run_alignment_filter`.
+* `compute_tn93_distance_matrix` imputes a zero distance between two
+  **byte-identical** sequences as `max(1.0, max_d)` — the largest distance in the
+  matrix — while two *different* sequences at zero distance get 1e-4. Duplicate
+  pruning normally runs first, so it takes `prune_duplicates=False` to see it.
+* The `tn93` package **raises** where `dataset.py` expects a sentinel:
+  `math.log` of a non-positive corrected proportion (a saturated pair) →
+  `ValueError`, and `2 / sum(nucleotide_frequency)` on a pair with no overlapping
+  non-gap position → `ZeroDivisionError`. Neither is caught.

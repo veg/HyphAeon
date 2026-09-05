@@ -22,7 +22,11 @@
  * 224-445) and `dms.js` (the in-silico DMS sweep, 446-628 and 724-768). The networkx primitives the
  * middle one needs are kernel code, not method code — every consumer of a graph wants the same
  * ordering and tie-breaking — so they sit in `numeric/graph.js` and reach here through
- * `numeric/index.js`. Each module's header names its own line range.
+ * `numeric/index.js`. Each module's header names its own line range. `hyphaeon/phenotype.py` splits
+ * the same way (PLAN.md §5.1): `permulations.js` (the Brownian-motion null, lines 275-346) and
+ * `phenotype.js` (trait vector and the association driver, the rest). `preprocess/tn93.js` mirrors the
+ * `use_tn93` distance path of dataset.py (493-571) plus the tn93 package's distance, which the
+ * reference imports rather than writes; it is a leaf that assemble.js consumes (D22).
  *
  * ORDER IS DEPENDENCY ORDER, leaves first. There are no name collisions across the modules:
  * ES module linking treats two `export *` lines that export the SAME binding under one name as one
@@ -33,7 +37,8 @@
  * whole sorted surface rather than trusting the linker.
  *
  * THE CALLBACK CONVENTION. Nothing here loads a model. Functions that need the network
- * (predictSiteLrts, runAlignmentFilter, attributeSelection, runBusted) take an async
+ * (predictSiteLrts, runAlignmentFilter, attributeSelection, runBusted, runTransformerAttributions,
+ * runInsilicoSelectionDms, runPhenotypeAssociation) take an async
  * `predict(c, a, meta)` callback and apply the reference's clamp and float32 storage to what it
  * returns; the app's runtime/ supplies the onnxruntime session behind it (PLAN.md §5.5).
  */
@@ -46,12 +51,13 @@ export * from './preprocess/parse.js'; // parseAlignmentSequences + the CPython 
 export * from './preprocess/tokenizer.js'; // CODON_LIST, GENETIC_CODE, AA_MAP, CODON_TO_AA, codonToken, aaToken, tokenizeSequence
 export * from './preprocess/variability.js'; // isAaInvariable, invariableMask, isSiteVariable, siteVariability
 export * from './preprocess/tree.js'; // NewickError, parseNewickTrees, readNewick, extractTree, matchTaxa, treeTaxa, branch-length predicates
+export * from './preprocess/tn93.js'; // dataset.py:493-571 + the tn93 1.2.2 package: tn93Distance, tn93DistanceMatrix, tn93Counts, tn93SaturatedPairs, TN93_* (D22 tree-free distances; a leaf)
 // One level up.
 export * from './preprocess/patristic.js'; // rootDistances, patristicRow, patristicMatrix, computeFastDistMatrix, rescaleDistances
 export * from './preprocess/downsample.js'; // pruneIdenticalSequences, downsampleTaxaFaithPd, stridePreselect
 export * from './preprocess/mds.js'; // computeMdsCoordinates
 // The joining layer.
-export * from './preprocess/assemble.js'; // loadAlignmentAndTree, siteBatch, siteBatches, batchSizeFor
+export * from './preprocess/assemble.js'; // loadAlignmentAndTree (tree path, or tree-free TN93 under D22), siteBatch, siteBatches, batchSizeFor
 
 // ---- numeric/: the kernel (PLAN.md §5.1) --------------------------------------------------------
 export * from './numeric/index.js'; // special functions, Xoshiro256, ranks, BH, CCT, linalg, graph (networkx semantics), numpy reductions
@@ -66,4 +72,6 @@ export * from './omnibus.js'; // cli.py cmd_busted statistics: bustedStatistics,
 export * from './epistasis.js'; // epistasis.py:51-222: consensusDelta, computeTransformerAttributions, runTransformerAttributions, computeBranchCoselectionNetwork, CoselectionGraph
 export * from './sectors.js'; // epistasis.py:224-445: computeSectorPermutationTest, extractEpistaticSectorsTse, REV_AA_MAP, float32Percentile
 export * from './dms.js'; // epistasis.py:446-628, 724-768: runInsilicoSelectionDms, runDigitalDmsAnalysis, digitalDmsRecord, CANONICAL_AA_TO_CODON
+export * from './permulations.js'; // phenotype.py:275-346: computePhylogeneticCovariance, generatePermulations, findAnyByName, pyRegexSource (before phenotype.js, which imports it)
+export * from './phenotype.js'; // phenotype.py:48-274 and 347-646: PRESETS, PHENOTYPE_THRESHOLDS, resolvePhenotypeVector, runPhenotypeAssociation, parsePhenotypeTable, pyFnmatch, pyRepr*, pyFloatStr
 export * from './diagnostics.js'; // PLAN.md §4.3 pre-flight: diagnose, DIAGNOSTIC_CODES, DIAGNOSTIC_THRESHOLDS

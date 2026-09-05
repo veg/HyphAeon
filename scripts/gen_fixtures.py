@@ -56,6 +56,7 @@ Options: --only <module> (repeatable), --skip-model, --skip-e2e.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import csv
 import hashlib
 import json
@@ -72,6 +73,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import numpy as np
+from importlib.metadata import version as importlib_version
 
 REPO = Path(__file__).resolve().parent.parent
 FIXTURES = REPO / "fixtures"
@@ -199,6 +201,18 @@ def python_env() -> Dict[str, str]:
             hyphy_version = subprocess.run([hyphy, "--version"], capture_output=True, text=True, timeout=30).stdout.strip().splitlines()[0]
         except Exception:
             hyphy_version = "unknown"
+    try:
+        tn93_package = importlib_version("tn93")
+    except Exception:
+        tn93_package = None
+    tn93_bin = shutil.which("tn93")
+    tn93_binary = None
+    if tn93_bin:
+        try:
+            proc = subprocess.run([tn93_bin, "--version"], capture_output=True, text=True, timeout=30)
+            tn93_binary = (proc.stdout.strip() or proc.stderr.strip()).splitlines()[0]   # the binary prints its version on stderr
+        except Exception:
+            tn93_binary = "unknown"
     return {
         "python": platform.python_version(),
         "numpy": np.__version__,
@@ -208,7 +222,44 @@ def python_env() -> Dict[str, str]:
         "biopython": Bio.__version__,
         "platform": platform.platform(),
         "hyphy": hyphy_version,
+        # The TN93 fixtures hide the binary and pin the PACKAGE path; both are recorded so a
+        # disagreement between the two can be attributed (they measured identical here).
+        "tn93_package": tn93_package,
+        "tn93_binary_present_but_hidden": tn93_binary,
     }
+
+
+@contextlib.contextmanager
+def tn93_python_package_path():
+    """
+    Force `dataset.compute_tn93_distance_matrix` onto the Python `tn93` package by hiding the
+    compiled `tn93` binary from `shutil.which` (dataset.py:505). The binary is PREFERRED by the
+    reference, but it is not a dependency of the engine and not everyone has it, so the fixtures
+    pin the package path, which the JS port mirrors. MEASURED on this machine (tn93 binary v1.0.15
+    against tn93 package 1.2.2): the two agree exactly on bat_oas1 and HIV1_RT, max |delta| = 0.0.
+    """
+    import shutil as _shutil
+    orig = _shutil.which
+
+    def which(cmd, *args, **kwargs):
+        return None if cmd == "tn93" else orig(cmd, *args, **kwargs)
+
+    _shutil.which = which
+    try:
+        yield
+    finally:
+        _shutil.which = orig
+
+
+def path_without_tn93_binary() -> str:
+    """PATH with every directory holding a `tn93` executable removed, for the CLI subprocesses."""
+    kept = []
+    for d in os.environ.get("PATH", "").split(os.pathsep):
+        cand = os.path.join(d, "tn93") if d else "tn93"
+        if d and os.path.isfile(cand) and os.access(cand, os.X_OK):
+            continue
+        kept.append(d)
+    return os.pathsep.join(kept)
 
 
 def git_head() -> str:
@@ -985,6 +1036,160 @@ def gen_dataset(w: Writer) -> None:
         pd_cases.append(case("camelid_128_to_64_hyphy_branch_lengths_SKIPPED", {}, {"selected_taxa_via_load_alignment_and_tree": taxa64}, "exact", "hyphy not on PATH; only the pipeline result is recorded"))
     w.write("dataset", "downsample_taxa_faith_pd", pd_cases)
 
+    # ------------------------------------------------------------------
+    # TN93 (the tree-free path, PLAN.md D22)
+    # ------------------------------------------------------------------
+    from hyphaeon.dataset import compute_tn93_distance_matrix
+    from tn93.tn93 import TN93
+    import tn93 as tn93_pkg
+
+    tn = TN93()   # exactly dataset.py:541: verbose=0, ignore_gaps=False, max_ambig_fraction=1.0, minimum_overlap=500
+    tn93_version = getattr(tn93_pkg, "__version__", None) or importlib_version("tn93")
+    dist_sig = (
+        "signature (as dataset.py:544-547 composes it, NOT the package's tn93_distance wrapper): "
+        "tn = TN93(); counts = tn.get_counts(seq1, seq2, 'resolve'); freq = tn.get_nucleotide_frequency(counts); "
+        "d = tn.calculate_distance(counts, freq). Options are the TN93() constructor defaults the reference takes: "
+        "match_mode 'resolve', max_ambig_fraction 1.0, ignore_gaps False, verbose 0; minimum_overlap (500) is never "
+        f"applied because tn93_distance is not called. tn93 package {tn93_version}. float64; every returned distance is "
+        "rounded to 6 SIGNIFICANT digits (np.format_float_positional(precision=6, unique=False, fractional=False)). "
+        "counts and nucleotide_frequency are the intermediates, pinned so a port can localise a disagreement. "
+        "An 'error' output means the Python RAISES there and dataset.py does not catch it."
+    )
+
+    def tn93_case(name, seq1, seq2, note="", match_mode="resolve", ignore_gaps=False):
+        engine = tn if not ignore_gaps else TN93(ignore_gaps=True)
+        try:
+            counts = engine.get_counts(seq1, seq2, match_mode)
+            freq = engine.get_nucleotide_frequency(counts)
+            d = engine.calculate_distance(counts, freq)
+            outputs = {"counts": counts, "nucleotide_frequency": freq, "distance": float(d)}
+        except Exception as exc:
+            outputs = {"error": type(exc).__name__, "error_message": str(exc)}
+        inputs = {"seq1": seq1, "seq2": seq2, "match_mode": match_mode}
+        if ignore_gaps:
+            inputs["ignore_gaps"] = True
+        return case(name, inputs, outputs, "1e-9", dist_sig + (" " + note if note else ""))
+
+    stem = "ATGAAACCCGGGTTTACGTACGTAAACCCGGGTTTAAACCCGGGTTTAAACCCGGGTTT"
+    dist_cases_tn93 = [
+        tn93_case("identical", stem, stem, "Identical sequences: dist is exactly 0.0 (the `dist > -0.0` test at tn93.py:225 sends it to 0.0)."),
+        tn93_case("one_transition", stem, stem[:-1] + "C", "One T->C transition in the last position."),
+        tn93_case("one_transversion", stem, stem[:-1] + "A", "One T->A transversion."),
+        tn93_case("gaps_in_one", "ATG---" + stem[6:], stem[:-1] + "C", "RESOLVE counts a gap facing a base (only gap/gap is skipped, tn93.py:331) but the gap's resolutionsCount is 0.0, so the position adds nothing."),
+        tn93_case("terminal_gaps", "---" + stem[3:-3] + "---", stem, "find_terminal_gaps runs but RESOLVE never reads its result (only GAPMM with ignore_gaps does)."),
+        tn93_case("N_in_one", stem[:9] + "NNN" + stem[12:], stem[:-1] + "C", "N (4-fold) facing a base resolves to a MATCH under RESOLVE."),
+        tn93_case("iupac_every_code", "ATGRYSWKMBDHVN" + stem[14:], stem, "One of every IUPAC code: those containing the other sequence's base become matches, the others spread 1/|resolutions| over their bases."),
+        tn93_case("iupac_vs_iupac", "RYSWKMBDHVNN" + stem[12:], "YRWSMKVDHBNN" + stem[12:], "Both ambiguous: shared resolutions add 1/k to the DIAGONAL cells, otherwise the product of the weights is spread over k1 x k2 cells."),
+        tn93_case("lowercase", stem.lower(), stem[:-1] + "C", "map_character maps both cases (tn93.py:542-557)."),
+        tn93_case("uracil", stem.replace("T", "U"), stem[:-1] + "C", "U is code 4, resolving to T only; note parse_alignment_sequences already replaces U with T upstream."),
+        tn93_case("question_mark_and_unknown_char", "AT?XZ" + stem[5:], stem, "'?' and any character not in the table map to 16, which resolves to any base (tn93.py:524, 577)."),
+        tn93_case("unequal_lengths_longer_truncated", stem + "AAACCCGGG", stem, "range(min(len1, len2)): the longer sequence is simply cut, never padded."),
+        tn93_case("single_base_only", "AAAAAAAAAAAA", "AAAAAAAAAAAG", "C and T never occur, so `0 in nucleotide_frequency` takes the degenerate branch (tn93.py:199-205), not the TN93 formula."),
+        tn93_case("all_positions_resolvable_forces_average", "RRRRRRRRRRRR", "AAAAAAAAAAAA", "ambig_fraction_too_high: every non-gap position is resolvable, so with max_ambig_fraction 1.0 the pair is scored by get_counts_AVERAGE (tn93.py:293-297)."),
+        tn93_case("saturated_raises", "ATGCATGCATGCATGC", "GCTAGCTAGCTAGCTA", "SATURATED: the corrected proportion goes negative and math.log RAISES ValueError. dataset.py does not catch it, so a reference run dies here."),
+        tn93_case("no_overlap_raises", "ATGCATGC--------", "--------ATGCATGC", "No position where both are non-gap: the count matrix is empty and `2 / sum(freq)` raises ZeroDivisionError (tn93.py:190)."),
+        tn93_case("all_gap_raises", "------------", "------------", "Same ZeroDivisionError from the other direction."),
+        tn93_case("all_N_raises", "NNNNNNNNNNNN", "NNNNNNNNNNNN", "Every position resolvable -> AVERAGE -> counts spread evenly, no zero frequency, and math.log(0.0) raises."),
+    ]
+    _base = "ATGCATGCATGCATGCATGCATGCATGCATGCATGCATGC"
+    gappy1 = "--" + _base[2:20] + "RYN" + _base[23:]
+    gappy2 = _base[:5] + "YRS" + _base[8:38] + "--"
+    dist_cases_tn93 += [
+        tn93_case("mode_average", gappy1, gappy2, "match_mode='average' (tn93.py:383-431): ANY gap skips the position and an ambiguity is always spread over its resolutions, never matched first. Not the reference's mode; pinned because RESOLVE falls back to it via ambig_fraction_too_high.", match_mode="average"),
+        tn93_case("mode_gapmm", gappy1, gappy2, "match_mode='gapmm' (tn93.py:433-490): a gap facing a base is treated as an N. Not on the reference's path.", match_mode="gapmm"),
+        tn93_case("mode_gapmm_ignore_terminal_gaps", gappy1, gappy2, "match_mode='gapmm' with TN93(ignore_gaps=True): the loop runs over [first_nongap, last_nongap) where last_nongap = min(end1, end2) - 1, so the LAST non-gap position is excluded - a package quirk, replicated.", match_mode="gapmm", ignore_gaps=True),
+        tn93_case("mode_skip", gappy1, gappy2, "match_mode='skip' (tn93.py:492-518): only positions where BOTH characters are plain bases are counted. Not on the reference's path.", match_mode="skip"),
+    ]
+    ex_seqs = parse_alignment_sequences(str(EXAMPLES / "bat_oas1.fasta"))
+    ex_names = list(ex_seqs.keys())
+    dist_cases_tn93.append(tn93_case("example_bat_oas1_first_pair", ex_seqs[ex_names[0]], ex_seqs[ex_names[1]],
+                                     f"Real data, full length: examples/bat_oas1.fasta taxa '{ex_names[0]}' and '{ex_names[1]}'."))
+
+    matrix_sig = (
+        "signature: compute_tn93_distance_matrix(seq_dict, taxa, fa_path=None) -> float32 [n, n]. dataset.py:493-571. "
+        "PREFERS the compiled `tn93` binary (`tn93 -t 1.0 -l 1 -q -o out.csv in.fa`, default ambiguity strategy resolve); "
+        "these fixtures hide it so the Python `tn93` package path runs (measured identical on bat_oas1 and HIV1_RT). "
+        "Off-diagonal i<j only, mirrored; `if d is None or d == '-' or d < 0 or isnan(d): d = 1.0` (dead on this path); "
+        "then the imputation: a pair at <= 0 whose SEQUENCE STRINGS DIFFER becomes 1e-4, and a pair at <= 0 whose strings "
+        "are IDENTICAL becomes max(1.0, max_d) with max_d the pre-loop maximum (so identical sequences get the LARGEST "
+        "distance in the matrix - a reference bug, replicated); the diagonal is zeroed last. n <= 1 returns zeros."
+    )
+    matrix_cases = []
+    with tn93_python_package_path():
+        for fa in ("bat_oas1.fasta", "Smc6.fasta", "camelid.fasta"):
+            seqs = parse_alignment_sequences(str(EXAMPLES / fa))
+            taxa = list(seqs.keys())
+            D = compute_tn93_distance_matrix(seqs, taxa)
+            sat = int(sum(1 for i in range(len(taxa)) for j in range(i + 1, len(taxa)) if D[i, j] == 1.0))
+            matrix_cases.append(case(f"example_{fa}", {"alignment": fa, "taxa": taxa},
+                                     {"dist_matrix": D, "max": float(D.max()), "saturated_pairs_at_1.0": sat}, "1e-9",
+                                     matrix_sig + " taxa are list(seq_dict.keys()), the alignment order the tree-free path uses."))
+        seqs = parse_alignment_sequences(str(EXAMPLES / "HIV1_RT.fasta"))
+        taxa = list(seqs.keys())
+        Dh = compute_tn93_distance_matrix(seqs, taxa)
+        sat_pairs = [[i, j] for i in range(len(taxa)) for j in range(i + 1, len(taxa)) if Dh[i, j] == 1.0]
+        matrix_cases.append(case("example_HIV1_RT.fasta_reduced", {"alignment": "HIV1_RT.fasta", "taxa": taxa},
+                                 {"n": len(taxa), "first_row": Dh[0], "last_row": Dh[-1], "max": float(Dh.max()),
+                                  "min_off_diagonal": float(np.min(Dh[~np.eye(len(taxa), dtype=bool)])),
+                                  "saturated_pairs_index": sat_pairs, "saturated_pairs_at_1.0": len(sat_pairs)},
+                                 "1e-9", matrix_sig + " REDUCED FOR SIZE: a 476x476 matrix does not fit the 2 MB cap, so only the first and last rows, "
+                                                     "the extrema and the indices of the saturated pairs are stored; replay recomputes the whole matrix and checks those."))
+        if sat_pairs:
+            i, j = sat_pairs[0]
+            dist_cases_tn93.append(tn93_case(f"example_HIV1_RT_pair_at_the_sentinel", seqs[taxa[i]], seqs[taxa[j]],
+                                             f"The one HIV1_RT pair that sits at 1.0 in the matrix: taxa '{taxa[i]}' and '{taxa[j]}' (indices {i}, {j} in alignment order). "
+                                             "MEASURED: calculate_distance returns 0.0 for it - the two sequences are BYTE-IDENTICAL, and the 1.0 comes from the imputation "
+                                             "elif (max(1.0, max_d), dataset.py:565-568), not from saturation. Across all five bundled alignments NO pair reaches the "
+                                             "degenerate 1.0 sentinel of calculate_distance; HIV1_RT has 1 identical pair and 66 different-sequence pairs at distance 0 "
+                                             "(imputed to 1e-4), RHO has 78 and 8. load_alignment_and_tree prunes the identical ones before the matrix is built."))
+        # synthetic cases for the assembly rules
+        synth = {
+            "imputed_min_positive": ({"s1": "ATGCATGCATGCATGCATGC", "s2": "ATGCATGCATGCATGCATG-", "s3": "ATGCATGCATGCATGCTTGC"},
+                                     "s1/s2 differ only by a terminal gap, which RESOLVE counts as nothing: their distance is 0.0 but the STRINGS differ, so it is imputed to 1e-4 (dataset.py:562-564)."),
+            "identical_strings_get_the_maximum": ({"s1": "ATGCATGCATGCATGCATGC", "s2": "ATGCATGCATGCATGCATGC", "s3": "ATGCATGCATGCATGCTTGC"},
+                                                  "s1 and s2 are byte-identical: their 0.0 falls into the elif and becomes max(1.0, max_d) = 1.0, LARGER than every real distance in the matrix (dataset.py:565-568). load_alignment_and_tree prunes duplicates before this, so it needs prune_duplicates=False to be reached."),
+            "all_identical_stays_zero": ({"s1": "ATGCATGCATGCATGCATGC", "s2": "ATGCATGCATGCATGCATGC", "s3": "ATGCATGCATGCATGCATGC"},
+                                         "Every pair is 0 and the matrix never becomes non-zero, so `dist_mat.max() > 0` is False and the elif never fires: the matrix stays all zeros."),
+            "single_taxon": ({"s1": "ATGCATGCATGCATGCATGC"}, "n <= 1 returns the zero matrix without computing anything (dataset.py:502-503)."),
+        }
+        for name, (sd, note) in synth.items():
+            tx = list(sd.keys())
+            D = compute_tn93_distance_matrix(sd, tx)
+            matrix_cases.append(case(name, {"seq_dict": sd, "taxa": tx}, {"dist_matrix": D, "max": float(D.max())}, "1e-9", matrix_sig + " " + note))
+    w.write("dataset", "tn93_distance", dist_cases_tn93)
+    w.write("dataset", "tn93_distance_matrix", matrix_cases)
+
+    # --- load_alignment_and_tree(use_tn93=True): the whole tree-free assembly
+    tn93_lat_sig = (
+        "signature: load_alignment_and_tree(fa_path, nwk_path=None, max_species=None, prune_duplicates=True, use_tn93=True, mds_sign='canonical'). "
+        "dataset.py:598-636 then the shared tail: taxa = list(seq_dict.keys()) in ALIGNMENT order (no tree, no matching) -> prune identical sequences -> "
+        "L = len(first seq)//3 -> stride pre-selection when max_species -> compute_tn93_distance_matrix -> Faith's PD when still over max_species -> MDS -> tokens -> invariable. "
+        "NO `> 10` rescale and NO enforce_nonzero_branch_lengths on this path. The tn93 binary is hidden so the Python package computes the distances."
+    )
+    lat_tn93 = []
+    with tn93_python_package_path():
+        for fa in ("bat_oas1.fasta", "camelid.fasta"):
+            c, a, d, z, inv, taxa, L = load_alignment_and_tree(str(EXAMPLES / fa), None, use_tn93=True, mds_sign="canonical")
+            zc = z[0].numpy()
+            dm = d[0].numpy()
+            ct = c[:, :, 0].numpy()
+            at = a[:, :, 0].numpy()
+            token_sha = lambda arr: hashlib.sha256(",".join(str(int(v)) for v in arr.reshape(-1)).encode()).hexdigest()
+            outputs = {
+                "taxa": taxa, "L": L, "N": len(taxa), "dist_matrix": dm, "max_distance": float(dm.max()),
+                "saturated_pairs_at_1.0": int(sum(1 for i in range(len(taxa)) for j in range(i + 1, len(taxa)) if dm[i, j] == 1.0)),
+                "mds_coords": zc, "is_aa_invariable": inv, "n_invariable": int(inv.sum()),
+                "codon_tokens_sha256": token_sha(ct), "aa_tokens_sha256": token_sha(at),
+            }
+            note = tn93_lat_sig + " Tokens are pinned by the sha256 of their row-major [L, N] values joined with ',' (the full arrays would blow the 2 MB cap); taxa, L and the invariable mask are exact, distances 1e-9, mds_coords 1e-5 EXACT per column under the canonical sign convention."
+            if fa == "bat_oas1.fasta":
+                outputs["codon_tokens"] = ct
+                outputs["aa_tokens"] = at
+                outputs["mds_gram"] = zc @ zc.T
+                note += " bat_oas1 also carries the full token arrays and the sign-invariant Gram matrix; camelid omits both for size (212x212 twice does not fit the 2 MB cap)."
+            lat_tn93.append(case(f"example_{fa}", {"alignment": fa, "tree": None, "use_tn93": True, "max_species": None, "prune_duplicates": True, "mds_sign": "canonical"}, outputs, "1e-5", note))
+    w.write("dataset", "load_alignment_and_tree_tn93", lat_tn93)
+
 
 # --------------------------------------------------------------------------
 # attribution + dms (model-dependent, bat_oas1 only)
@@ -1044,7 +1249,7 @@ def gen_dms(w: Writer, model_sha: str) -> None:
 # e2e via the CLI
 # --------------------------------------------------------------------------
 
-def gen_e2e(w: Writer, model_sha: str) -> None:
+def gen_e2e(w: Writer, model_sha: str, only_cases: List[str] | None = None) -> None:
     import torch
     hy = shutil.which("hyphaeon") or str(Path(sys.executable).parent / "hyphaeon")
     env = {**os.environ, "HYPHAEON_WEIGHTS": str(MODEL_PATH), "HF_HUB_OFFLINE": "1", "PYTHONUNBUFFERED": "1"}
@@ -1052,12 +1257,17 @@ def gen_e2e(w: Writer, model_sha: str) -> None:
 
     wall_times: Dict[str, float] = {}
 
-    def run_cli(name: str, argv: List[str], notes: str, tolerance: str = "1e-5", postprocess=None) -> None:
+    def wanted(name: str) -> bool:
+        return only_cases is None or any(sub in name for sub in only_cases)
+
+    def run_cli(name: str, argv: List[str], notes: str, tolerance: str = "1e-5", postprocess=None, env_extra: Dict[str, str] | None = None) -> None:
+        if not wanted(name):
+            return
         with tempfile.TemporaryDirectory() as td:
             out = Path(td) / "out.json"
             full = [hy] + argv + ["-o", str(out)]
             t0 = time.time()
-            proc = subprocess.run(full, cwd=REPO, env=env, capture_output=True, text=True)
+            proc = subprocess.run(full, cwd=REPO, env={**env, **(env_extra or {})}, capture_output=True, text=True)
             if proc.returncode != 0 or not out.exists():
                 raise RuntimeError(f"{name}: exit {proc.returncode}\n{proc.stdout[-2000:]}\n{proc.stderr[-2000:]}")
             data = json.load(open(out))
@@ -1117,10 +1327,34 @@ def gen_e2e(w: Writer, model_sha: str) -> None:
             "`hyphaeon phenotype` JSON (phenotype.run_phenotype_association) with the README Example 3 foreground, --permulations 0 (parametric p) and --n-permutations 0 "
             "(trait sector permutation block degenerate); --seed 42 (the CLI default; seeds permulations and the sector permutation null) and --mds-sign canonical. Site stats 1e-5 through the model; p_evd/score tracks 1e-9 given identical inputs; sector membership exact.")
 
+    # --- tree-free TN93 (--use-tn93, PLAN.md D22). The compiled tn93 binary is hidden from the
+    # subprocess so the Python `tn93` package computes the distances, which is what the JS port
+    # mirrors (they measured identical here; see tn93_python_package_path).
+    TN93_ENV = {"PATH": path_without_tn93_binary()}
+    tn93_note = (
+        " TREE-FREE: --use-tn93 skips the tree entirely (dataset.py:598-636). taxa are list(seq_dict.keys()) in ALIGNMENT order "
+        "(no tree matching, no tree terminal order), the distance matrix is compute_tn93_distance_matrix (match mode 'resolve', "
+        "max_ambig_fraction 1.0, no minimum overlap) and there is no `> 10` rescale. The tn93 BINARY is hidden from this run's PATH "
+        "so the Python tn93 package path is what is pinned."
+    )
+    run_cli("meme_camelid_tn93", ["meme", "-a", "examples/camelid.fasta", "--use-tn93", "--cpu"] + MDS,
+            meme_note + tn93_note + " camelid.nwk is NOT used, so unlike meme_camelid this case does not depend on HyPhy at all.", env_extra=TN93_ENV)
+    run_cli("meme_HIV1_RT_tn93", ["meme", "-a", "examples/HIV1_RT.fasta", "--use-tn93", "--cpu"] + MDS,
+            meme_note + tn93_note + " HIV1_RT has one byte-identical taxon pair; duplicate pruning removes it before the matrix is built (475 taxa here), so none of the "
+                                    "1.0 imputations of fixtures/dataset/tn93_distance_matrix.json survive into this run.", env_extra=TN93_ENV)
+    run_cli("busted_Smc6_tn93", ["busted", "-a", "examples/Smc6.fasta", "--use-tn93", "--cpu"] + MDS,
+            busted_note + tn93_note, postprocess=busted_post, env_extra=TN93_ENV)
+    run_cli("epistasis_Smc6_tn93",
+            ["epistasis", "-a", "examples/Smc6.fasta", "--use-tn93", "--cpu", "--n-permutations", "1000"] + SEED + MDS,
+            "`hyphaeon epistasis` JSON with the tree replaced by TN93 distances; CLI defaults as in epistasis_Smc6_n_permutations_1000 (min_sim 0.30, min_shared 2, max_fdr 0.05, "
+            "min_lrt 1.0, min_cesi 2.0, min_coherence 0.50, rng_seed 42), B = 1000." + tn93_note, tolerance="statistical", env_extra=TN93_ENV)
+
     # filter: the `filter` subcommand writes only a FASTA and an audit CSV (no JSON), so the result dict is taken from
     # filter.run_alignment_filter, the function cmd_filter calls, with the CLI's default thresholds.
     from hyphaeon.filter import run_alignment_filter
     for name, fa, nwk in (("filter_bat_oas1", "bat_oas1.fasta", "bat_oas1.nwk"), ("filter_camelid", "camelid.fasta", "camelid.nwk")):
+        if not wanted(name):
+            continue
         with tempfile.TemporaryDirectory() as td:
             res = run_alignment_filter(str(EXAMPLES / fa), str(EXAMPLES / nwk), weights_path=str(MODEL_PATH), output_alignment_path=str(Path(td) / "clean.fa"),
                                        audit_csv_path=str(Path(td) / "audit.csv"), device=torch.device("cpu"), progress=False)
@@ -1148,6 +1382,7 @@ def gen_e2e(w: Writer, model_sha: str) -> None:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--only", action="append", choices=["stats", "filter", "evaluation", "epistasis", "phenotype", "dataset", "attribution", "dms", "e2e"], help="generate only these modules")
+    ap.add_argument("--e2e-case", action="append", help="within e2e, generate only the cases whose name contains one of these substrings; the manifest keeps the other cases' counts, sizes and wall times")
     ap.add_argument("--skip-model", action="store_true", help="skip attribution, dms and e2e (no weights needed)")
     ap.add_argument("--skip-e2e", action="store_true")
     args = ap.parse_args()
@@ -1169,7 +1404,7 @@ def main() -> int:
     t0 = time.time()
     steps = [("stats", lambda: gen_stats(w)), ("filter", lambda: gen_filter(w)), ("evaluation", lambda: gen_evaluation(w)),
              ("epistasis", lambda: gen_epistasis(w)), ("phenotype", lambda: gen_phenotype(w)), ("dataset", lambda: gen_dataset(w)),
-             ("attribution", lambda: gen_attribution(w, model_sha)), ("dms", lambda: gen_dms(w, model_sha)), ("e2e", lambda: gen_e2e(w, model_sha))]
+             ("attribution", lambda: gen_attribution(w, model_sha)), ("dms", lambda: gen_dms(w, model_sha)), ("e2e", lambda: gen_e2e(w, model_sha, args.e2e_case))]
     extra: Dict[str, Any] = {}
     for name, fn in steps:
         if name in wanted:
@@ -1178,10 +1413,24 @@ def main() -> int:
 
     manifest_path = FIXTURES / "manifest.json"
     manifest = json.load(open(manifest_path)) if manifest_path.exists() else {}
+    # a partial e2e run keeps the wall times of the cases it did not re-run
+    if "e2e_wall_seconds" in extra:
+        extra["e2e_wall_seconds"] = {**manifest.get("e2e_wall_seconds", {}), **extra["e2e_wall_seconds"]}
     manifest.update(extra)
-    # a partial run (--only / --skip-*) keeps the previous run's counts for the modules it did not touch
-    counts = {**manifest.get("counts", {}), **w.counts}
+    # a partial run (--only / --skip-* / --e2e-case) keeps the previous run's counts for everything
+    # it did not touch: the merge is per FUNCTION, not per module, or an --e2e-case run would drop
+    # every e2e case it did not regenerate.
+    counts = {mod: dict(fns) for mod, fns in manifest.get("counts", {}).items()}
+    for mod, fns in w.counts.items():
+        counts.setdefault(mod, {}).update(fns)
     sizes = {**manifest.get("bytes", {}), **w.bytes}
+    # and any file on disk that no run has ever counted is counted here, so the manifest always
+    # describes every fixture (js/test/fixtures.test.js checks the counts against the files).
+    for rel in sizes:
+        mod, fn = rel.split("/", 1)
+        fn = fn[: -len(".json")]
+        if fn not in counts.get(mod, {}):
+            counts.setdefault(mod, {})[fn] = len(json.load(open(FIXTURES / rel)))
     manifest.update({
         "generator": "scripts/gen_fixtures.py",
         "engine_commit": git_head(),
@@ -1205,6 +1454,11 @@ def main() -> int:
             "statistical": "Monte Carlo outputs: |p_js - p_py| <= 3*sqrt(p(1-p)/B), null moments within 2%; membership/exact fields still compared exactly",
         },
         "known_quirks": [
+            "dataset.compute_tn93_distance_matrix PREFERS the compiled `tn93` binary on PATH (`tn93 -t 1.0 -l 1 -q -o out.csv in.fa`) and falls back to the Python `tn93` package (TN93().get_counts(a, b, 'resolve') -> get_nucleotide_frequency -> calculate_distance). The fixtures hide the binary so the PACKAGE path is pinned; the two measured identical (max |delta| = 0.0) on bat_oas1 and HIV1_RT, because the binary writes the same 6 significant digits and every pair it drops at its 1.0 threshold is imputed back to 1.0.",
+            "dataset.compute_tn93_distance_matrix imputes a zero distance between two BYTE-IDENTICAL sequences as max(1.0, max_d) - the LARGEST distance in the matrix - while two different sequences at zero distance get 1e-4 (dataset.py:559-568). load_alignment_and_tree prunes identical sequences first, so it needs prune_duplicates=False to be reached.",
+            "The tn93 package RAISES rather than returning a sentinel on two inputs dataset.py does not catch: math.log of a non-positive corrected proportion (a saturated pair) -> ValueError, and `2 / sum(nucleotide_frequency)` on a pair with no overlapping non-gap position -> ZeroDivisionError. dataset.py's `if d is None or d == '-' or d < 0 or isnan(d)` guard is therefore dead code on that path.",
+            "tn93.calculate_distance falls back to a fixed 1.0 SENTINEL (not a distance) whenever some base is absent from the pairwise counts and the degenerate correction goes non-positive: 1 pair in HIV1_RT, 78 in RHO, 0 in bat_oas1/Smc6/camelid.",
+            "load_alignment_and_tree(use_tn93=True) takes taxa in ALIGNMENT order and applies no `> 10` rescale, where the tree path uses tree terminal order and rescales.",
             "cli.py cmd_busted loads BustedMultiTaskHead with strict=False; model.safetensors lacks 11 of its parameters (see busted_head_missing_keys) and torch is never seeded, so predicted_gene_lrt, selection_probability, synonymous_rate_variation, omega_3, proportion_* and positive_selection_detected differ on every run. They are nulled in fixtures/e2e/busted_*.json.",
             "dataset.load_alignment_and_tree with max_species strides taxa to at most 2*max_species BEFORE Faith's PD; for 212 camelid taxa the stride is 1 so it keeps the first 128 taxa in tree order.",
             "dataset.load_alignment_and_tree rescale rule fires on dist_mat.max() > 10.0 AFTER enforce_nonzero_branch_lengths, so a zero-length branch can tip a max of exactly 10.0 over the threshold.",

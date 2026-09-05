@@ -7,10 +7,18 @@
  * are constructive: one synthetic alignment or tree per code, built so that exactly the intended
  * rule fires, with the data fields checked against values you can count by hand. The bundled
  * examples then pin what the panel says about real inputs: bat_oas1's tree is in Mya
- * (DISTANCE_RESCALED), camelid.nwk and HIV1_RT.nwk carry no branch lengths
- * (BRANCH_LENGTHS_MISSING), Smc6's 20 primates are shallow by the 0.05 rule (SHALLOW_TREE — a
- * documented consequence of the threshold, see the module header), RHO has 710 taxa over a deep
- * mammalian tree (TAXA_OVER_CAP, DEEP_LARGE_TREE).
+ * (DISTANCE_RESCALED), camelid.nwk and HIV1_RT.nwk carry no branch lengths so both go tree-free
+ * (TREE_FREE_TN93, reason 'no_branch_lengths'), Smc6's 20 primates are shallow by the 0.05 rule
+ * (SHALLOW_TREE — a documented consequence of the threshold, see the module header), RHO has 710
+ * taxa over a deep mammalian tree (TAXA_OVER_CAP, DEEP_LARGE_TREE).
+ *
+ * D22 (tree-free TN93) rewrote three of these cases: TREE_MISSING and BRANCH_LENGTHS_MISSING are
+ * gone, replaced by the info-level TREE_FREE_TN93, and TN93_SATURATED_PAIRS is new. Because the
+ * tree-free path really computes distances, the 24-nucleotide SEQS alignment above is too short for
+ * it — eight codons saturate the TN93 formula — so the tree-free cases use LONG_SEQS (30 codons,
+ * hand-built so no pair saturates) and one case deliberately keeps a saturating input to pin the
+ * refuse branch. Distances there are TN93, so the depth-regime codes now fire on inputs that used
+ * to suppress them (camelid: DEEP_LARGE_TREE; HIV1_RT: SHALLOW_TREE).
  *
  * Every warning is checked to carry a code from DIAGNOSTIC_CODES and a valid severity, and the
  * output order is the §4.3 row order with COST_ESTIMATE last.
@@ -49,6 +57,21 @@ const fasta = (seqs = SEQS) =>
 		.map(([n, s]) => `>${n}\n${s}\n`)
 		.join('');
 const TREE6 = '((alpha:0.1,beta:0.1):0.05,(gamma:0.1,delta:0.1):0.05,(eps:0.1,zeta:0.1):0.05);';
+
+/**
+ * The same six taxa over 30 codons: TN93 needs enough overlapping, non-saturating sites to return a
+ * distance at all (tn93.js), so every tree-free case uses these. Each sequence differs from the
+ * first in a handful of positions only.
+ */
+const LONG_STEM = 'ATGGCTAAAGAATTTTGGCATCGAACCGGGTTTAAACCCGGGTTTAAACCCGGGTTTAAACCCGGGTTTAAACCCGGG';
+const LONG_SEQS = {
+	alpha: LONG_STEM + 'ATGGCTAAA',
+	beta: LONG_STEM.replace('GCTAAA', 'GGTAGA') + 'ATGGCTAAG',
+	gamma: LONG_STEM.replace('GAATTT', 'GAGTAT') + 'ATGGCCAAA',
+	delta: LONG_STEM.replace('TGGCAT', 'TGTCAC') + 'ATGGCTAGA',
+	eps: LONG_STEM.replace('ACCGGG', 'ACAGGA') + 'ATGGCAAAA',
+	zeta: LONG_STEM.replace('TTTAAACCC', 'TTCAAGCCG') + 'ATGGCTAAT'
+};
 
 const codes = (r) => r.warnings.map((w) => w.code);
 const find = (r, code) => r.warnings.find((w) => w.code === code);
@@ -264,9 +287,14 @@ describe('length, frame and stops', () => {
 		expect(w.data.fraction).toBeCloseTo(3 / 48, 12);
 	});
 
-	it('UNKNOWN_CODON_FRACTION is also computed without a tree (no model-level load)', () => {
+	it('UNKNOWN_CODON_FRACTION is also computed when the model-level load fails', () => {
+		// No tree -> tree-free TN93 (D22), and eight codons of which three are NNN/gaps saturate the
+		// formula, so the load raises exactly where the reference does and the count falls back to
+		// the light path.
 		const r = run(fasta({ ...SEQS, alpha: 'NNNNNN---AAAGAATTTTGGCATCGA'.slice(0, 24) }), null);
-		expect(find(r, 'TREE_MISSING').severity).toBe('refuse');
+		expect(find(r, 'TREE_FREE_TN93').data.reason).toBe('no_tree');
+		expect(find(r, 'TN93_SATURATED_PAIRS')).toMatchObject({ severity: 'refuse', data: { pairs: null } });
+		expect(find(r, 'TN93_SATURATED_PAIRS').data.error).toMatch(/ZeroDivisionError|expected a positive input/);
 		expect(find(r, 'UNKNOWN_CODON_FRACTION').data).toMatchObject({ unknownCodons: 3, totalCodons: 48 });
 	});
 });
@@ -323,18 +351,26 @@ describe('taxa', () => {
 });
 
 describe('tree', () => {
-	it('TREE_MISSING refuses without a tree and for the tn93/none/skip modes', () => {
-		const r = run(fasta(), null);
+	it('TREE_FREE_TN93 informs without a tree, and for the tn93/none/skip modes and useTn93 (D22)', () => {
+		const r = run(fasta(LONG_SEQS), null);
 		checkShape(r);
-		expect(find(r, 'TREE_MISSING')).toMatchObject({ severity: 'refuse', data: { recoverable: true } });
+		expect(find(r, 'TREE_FREE_TN93')).toMatchObject({
+			severity: 'info',
+			data: { reason: 'no_tree', taxaOrder: 'alignment', distances: 'tn93', matchMode: 'resolve', treeKeptForDisplay: false }
+		});
+		expect(r.ok).toBe(true);
 		expect(r.summary.treeSource).toBeNull();
-		expect(find(run(fasta(), 'TN93 '), 'TREE_MISSING').data.mode).toBe('tn93');
-		expect(find(run(fasta(), 'none'), 'TREE_MISSING').data.via).toEqual(['tn93']);
+		expect(find(run(fasta(LONG_SEQS), 'TN93 '), 'TREE_FREE_TN93').data.reason).toBe('requested');
+		expect(find(run(fasta(LONG_SEQS), 'none'), 'TREE_FREE_TN93').data.reason).toBe('requested');
+		expect(find(run(fasta(LONG_SEQS), 'skip'), 'TREE_FREE_TN93').data.reason).toBe('requested');
+		// A perfectly good tree, overridden.
+		const forced = run(fasta(LONG_SEQS), TREE6, { useTn93: true });
+		expect(find(forced, 'TREE_FREE_TN93')).toMatchObject({ severity: 'info', data: { reason: 'requested', treeKeptForDisplay: true } });
 	});
 
 	it('uses an embedded tree when no tree text is given', () => {
 		const r = run(fasta() + '\n' + TREE6 + '\n', null);
-		expect(find(r, 'TREE_MISSING')).toBeUndefined();
+		expect(find(r, 'TREE_FREE_TN93')).toBeUndefined();
 		expect(r.summary.treeSource).toBe('embedded');
 		expect(r.ok).toBe(true);
 	});
@@ -374,15 +410,19 @@ describe('tree', () => {
 		expect(find(r, 'TIPS_NOT_IN_ALIGNMENT')).toBeUndefined();
 	});
 
-	it('BRANCH_LENGTHS_MISSING warns on a topology-only tree and suppresses the depth codes', () => {
-		const r = run(fasta(), '((alpha,beta),(gamma,delta),(eps,zeta));');
+	it('TREE_FREE_TN93 takes over a topology-only tree, keeps it for display and measures the depth', () => {
+		const r = run(fasta(LONG_SEQS), '((alpha,beta),(gamma,delta),(eps,zeta));');
 		checkShape(r);
-		const w = find(r, 'BRANCH_LENGTHS_MISSING');
-		expect(w.severity).toBe('warn');
-		expect(w.data).toMatchObject({ branches: 9, missing: 9, positives: 0, recoverable: true, defaults: { missing: 1e-3, minimum: 1e-4 } });
-		expect(r.summary.medianPatristic).toBeNull();
-		expect(find(r, 'SHALLOW_TREE')).toBeUndefined();
-		expect(find(r, 'DEEP_LARGE_TREE')).toBeUndefined();
+		const w = find(r, 'TREE_FREE_TN93');
+		expect(w.severity).toBe('info');
+		expect(w.data).toMatchObject({
+			reason: 'no_branch_lengths',
+			treeKeptForDisplay: true,
+			branchLengths: { branches: 9, missing: 9, positives: 0 }
+		});
+		// The distances are now real (TN93), so the depth regime is judged instead of skipped.
+		expect(r.summary.medianPatristic).toBeGreaterThan(0);
+		expect(find(r, 'DEEP_LARGE_TREE')).toBeUndefined(); // 6 taxa, far under the 100 rule
 		expect(r.ok).toBe(true);
 	});
 
@@ -390,7 +430,8 @@ describe('tree', () => {
 		const r = run(fasta(), '((alpha:0.1,beta:-0.02):0.05,(gamma:0.1,delta:0.1):0.05,(eps:0.1,zeta:-0.5):0.05);');
 		checkShape(r);
 		expect(find(r, 'NEGATIVE_BRANCH_LENGTHS')).toMatchObject({ severity: 'warn', data: { count: 2, min: -0.5, raisedTo: 1e-4 } });
-		expect(find(r, 'BRANCH_LENGTHS_MISSING')).toBeUndefined();
+		// Some branches are positive, so the tree is still usable and the run stays tree-based.
+		expect(find(r, 'TREE_FREE_TN93')).toBeUndefined();
 	});
 
 	it('DISTANCE_RESCALED warns when the largest patristic distance exceeds 10', () => {
@@ -493,13 +534,16 @@ describe('bundled examples', () => {
 		expect(r.summary.medianPatristic).toBeCloseTo(0.3513, 3);
 	});
 
-	it('camelid: no branch lengths, so BRANCH_LENGTHS_MISSING and no depth regime', () => {
+	it('camelid: no branch lengths, so tree-free TN93, which is deep enough to warn', () => {
 		const r = diagnose({ alignmentText: readExample('camelid.fasta'), treeText: readExample('camelid.nwk') });
 		checkShape(r);
 		expect(r.ok).toBe(true);
-		expect(codes(r)).toEqual(['NON_ACGT_FRACTION', 'BRANCH_LENGTHS_MISSING', 'COST_ESTIMATE']);
-		expect(find(r, 'BRANCH_LENGTHS_MISSING').data).toMatchObject({ branches: 421, missing: 421, positives: 0 });
-		expect(r.summary).toMatchObject({ taxaInAlignment: 212, taxaUsed: 212, codons: 96, medianPatristic: null });
+		expect(codes(r)).toEqual(['NON_ACGT_FRACTION', 'TREE_FREE_TN93', 'DEEP_LARGE_TREE', 'COST_ESTIMATE']);
+		expect(find(r, 'TREE_FREE_TN93').data).toMatchObject({ reason: 'no_branch_lengths', branchLengths: { branches: 421, missing: 421, positives: 0 } });
+		expect(find(r, 'TN93_SATURATED_PAIRS')).toBeUndefined(); // no pair saturates on camelid
+		expect(r.summary).toMatchObject({ taxaInAlignment: 212, taxaUsed: 212, codons: 96, matchTier: null });
+		// TN93 distances over the whole alignment, no tree involved.
+		expect(r.summary.medianPatristic).toBeCloseTo(0.20776, 4);
 	});
 
 	it('Smc6: 20 primates read as shallow by the 0.05 rule (documented consequence)', () => {
@@ -515,7 +559,9 @@ describe('bundled examples', () => {
 		const r = diagnose({ alignmentText: readExample('HIV1_RT.fasta'), treeText: readExample('HIV1_RT.nwk') });
 		checkShape(r);
 		expect(r.ok).toBe(true);
-		expect(codes(r)).toEqual(['NON_ACGT_FRACTION', 'UNKNOWN_CODON_FRACTION', 'DUPLICATE_SEQUENCES', 'BRANCH_LENGTHS_MISSING', 'COST_ESTIMATE']);
+		expect(codes(r)).toEqual(['NON_ACGT_FRACTION', 'UNKNOWN_CODON_FRACTION', 'DUPLICATE_SEQUENCES', 'TREE_FREE_TN93', 'SHALLOW_TREE', 'COST_ESTIMATE']);
+		expect(find(r, 'TREE_FREE_TN93').data.reason).toBe('no_branch_lengths');
+		expect(r.summary.medianPatristic).toBeCloseTo(0.046269, 5);
 		expect(find(r, 'DUPLICATE_SEQUENCES').data.collapsed).toBe(1);
 		expect(r.summary).toMatchObject({ taxaInAlignment: 476, uniqueHaplotypes: 475, taxaUsed: 475, codons: 335 });
 		expect(find(r, 'COST_ESTIMATE').data.work).toBe(335 * 475 * 475);

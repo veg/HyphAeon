@@ -1,0 +1,50 @@
+[
+ {
+  "name": "busted_Smc6_tn93",
+  "inputs": {
+   "argv": [
+    "hyphaeon",
+    "busted",
+    "-a",
+    "Smc6.fasta",
+    "--use-tn93",
+    "--cpu",
+    "--mds-sign",
+    "canonical",
+    "-o",
+    "<out.json>"
+   ],
+   "model_safetensors_sha256": "0278dff092601acca959aa64bf6742ad17a38a5e6e31eabd424d6d224eea6ebd",
+   "device": "cpu",
+   "torch": "2.10.0",
+   "hyphy": "HYPHY 2.5.65(MP) for Darwin on x86_64 x86 AVX SIMD with FMA3 zlib (v1.2.12)"
+  },
+  "outputs": {
+   "alignment": "Smc6.fasta",
+   "gene": "Smc6",
+   "taxa": 20,
+   "sites": 1097,
+   "p_value_acat": 0.11763468069456134,
+   "p_value_simes": 1.0,
+   "omnibus_lrt": 3.315500259399414,
+   "predicted_gene_lrt": null,
+   "selection_probability": null,
+   "synonymous_rate_variation": null,
+   "total_selection_energy": 84.96566772460938,
+   "sig_sites_p05": 5,
+   "sig_sites_p10": 14,
+   "rate_distributions": {
+    "omega_1": 0.1,
+    "proportion_1": null,
+    "omega_2": 1.0,
+    "proportion_2": null,
+    "omega_3": null,
+    "proportion_3": null
+   },
+   "positive_selection_detected": null,
+   "elapsed_seconds": null
+  },
+  "tolerance": "1e-5",
+  "notes": "`hyphaeon busted` JSON (cli.py cmd_busted): Self-Liang site p, ACAT over variable sites, Simes over all sites, omnibus_lrt = sum max(0, lrt-3.841), neural BustedMultiTaskHead outputs (selection_probability, predicted_gene_lrt, synonymous_rate_variation, omega proportions). Head outputs 1e-5; counts exact. TREE-FREE: --use-tn93 skips the tree entirely (dataset.py:598-636). taxa are list(seq_dict.keys()) in ALIGNMENT order (no tree matching, no tree terminal order), the distance matrix is compute_tn93_distance_matrix (match mode 'resolve', max_ambig_fraction 1.0, no minimum overlap) and there is no `> 10` rescale. The tn93 BINARY is hidden from this run's PATH so the Python tn93 package path is what is pinned. NEURAL HEAD FIELDS NULLED: model.safetensors lacks these BustedMultiTaskHead parameters coral_logp.theta_steps, coral_lrt.theta_steps, coral_omega3.theta_steps, head_prop.bias, head_prop.weight, head_syn_var.0.bias, head_syn_var.0.weight, head_syn_var.2.bias, head_syn_var.2.weight, in_proj.bias, in_proj.weight so they are random on every run (strict=False, no seed); predicted_gene_lrt, selection_probability, synonymous_rate_variation, omega_3/proportion_* and positive_selection_detected (which depends on selection_probability) are therefore null here and must not be compared. omega_1/omega_2 are constants (0.10, 1.00). Timing fields nulled (wall times are in manifest.json e2e_wall_seconds); paths reduced to basenames."
+ }
+]

@@ -1,0 +1,2003 @@
+{
+ "generated_by": "js/test/data/phenotype/gen.py",
+ "numpy": "2.3.3",
+ "pandas": "3.0.5",
+ "python": "3.14.0",
+ "preset_keys": [
+  "echolocation",
+  "marine",
+  "fossorial",
+  "hibernation",
+  "longevity",
+  "high_altitude",
+  "cardenolide",
+  "dim_light"
+ ],
+ "presets": {
+  "echolocation": {
+   "title": "Mammalian Echolocation Convergence",
+   "description": "Microchiropteran bats and odontocete toothed whales.",
+   "foreground": [
+    "rhi*",
+    "hip*",
+    "myo*",
+    "pte*",
+    "mor*",
+    "min*",
+    "emb*",
+    "cra*",
+    "meg*",
+    "mol*",
+    "turTru",
+    "delLeu",
+    "orcOrc",
+    "gloMel",
+    "phaSin",
+    "graGri",
+    "neoPho",
+    "phoPho",
+    "phyCat",
+    "kogBre",
+    "kogSim",
+    "mesBid",
+    "zipCav",
+    "plaGan",
+    "iniGeo",
+    "lipVex",
+    "ponBla"
+   ],
+   "controls": [
+    "pteAle",
+    "pteRod",
+    "pteRuf",
+    "pteGig",
+    "pteVam",
+    "ptePse",
+    "bal*",
+    "megNov",
+    "eubGla",
+    "escRob"
+   ]
+  },
+  "marine": {
+   "title": "Marine Mammal Transition & Deep Diving Hypoxia",
+   "description": "Cetaceans, Pinnipeds, Sirenians, and Sea Otters.",
+   "foreground": [
+    "enhLut*",
+    "pusHis*",
+    "pusSib*",
+    "halGryp*",
+    "phoVit*",
+    "phoLar*",
+    "eriBar*",
+    "neoSch*",
+    "odoRos*",
+    "zalCal*",
+    "eumJub*",
+    "arcAus*",
+    "arcGaz*",
+    "otoFla*",
+    "mirLeo*",
+    "mirAng*",
+    "lepWed*",
+    "hydLep*",
+    "lobCar*",
+    "ommRos*",
+    "triMan*",
+    "triSen*",
+    "triInu*",
+    "dugDug*",
+    "turTru*",
+    "delLeu*",
+    "orcOrc*",
+    "gloMel*",
+    "phaSin*",
+    "graGri*",
+    "neoPho*",
+    "phoPho*",
+    "balMys*",
+    "balAcu*",
+    "balPhy*",
+    "balMus*",
+    "megNov*",
+    "eubGla*",
+    "escRob*",
+    "phyCat*",
+    "kogBre*",
+    "kogSim*",
+    "mesBid*",
+    "zipCav*",
+    "plaGan*",
+    "iniGeo*",
+    "lipVex*",
+    "ponBla*"
+   ]
+  },
+  "fossorial": {
+   "title": "Subterranean Fossoriality & Hypercapnic Hypoxia",
+   "description": "Naked mole-rats, blind mole-rats, golden moles, star-nosed moles, pocket gophers.",
+   "foreground": [
+    "hetGla*",
+    "fukDam*",
+    "cryAns*",
+    "nanGal*",
+    "nanEhr*",
+    "spaCar*",
+    "conCri*",
+    "talEur*",
+    "talOcc*",
+    "scaMos*",
+    "scaAqu*",
+    "chrAsi*",
+    "chrSta*",
+    "uroGra*",
+    "geoBur*",
+    "thoTal*",
+    "canTub*",
+    "ellLut*",
+    "ellTal*"
+   ]
+  },
+  "hibernation": {
+   "title": "True Hibernation & Metabolic Torpor",
+   "description": "Marmots, ground squirrels, dormice, tenrecs, hedgehogs, Myotis bats.",
+   "foreground": [
+    "ictTri*",
+    "uroPar*",
+    "speCit*",
+    "speDau*",
+    "marFla*",
+    "marMar*",
+    "marVan*",
+    "marMon*",
+    "gliGli*",
+    "dryNit*",
+    "musAve*",
+    "eriEur*",
+    "tenEca*",
+    "echTel*",
+    "micTal*",
+    "myoLuc*",
+    "myoDau*",
+    "myoMyo*",
+    "myoNat*",
+    "myoBra*",
+    "ursArc*"
+   ]
+  },
+  "longevity": {
+   "title": "Extreme Longevity & Peto's Paradox Centenarians",
+   "description": "Bowhead whale, naked mole-rat, Brandt's bat, elephants, humans.",
+   "foreground": [
+    "balMys*",
+    "hetGla*",
+    "myoBra*",
+    "loxAfr*",
+    "eleMax*",
+    "homSap*"
+   ]
+  },
+  "high_altitude": {
+   "title": "High-Altitude Hypoxia Adaptation",
+   "description": "Yak, Tibetan antelope, snow leopard, vicuna, pikas, chinchilla.",
+   "foreground": [
+    "bosGru*",
+    "bosMut*",
+    "panHod*",
+    "panUnc*",
+    "vicVic*",
+    "vicPac*",
+    "chiLan*",
+    "ochCur*",
+    "ochPri*",
+    "ochArg*"
+   ]
+  },
+  "cardenolide": {
+   "title": "Insect Cardenolide Resistance (ATP1a)",
+   "description": "Chrysochus, Tetraopes, Danaus (Monarch), Oncopeltus.",
+   "foreground": [
+    "chrysochus*",
+    "tetraopes*",
+    "danaus*",
+    "oncopeltus*",
+    "chrysomela*"
+   ]
+  },
+  "dim_light": {
+   "title": "Low-Light & Deep-Sea Rhodopsin Vision",
+   "description": "Deep-sea teleosts, cavefish, coelacanth, marine diving mammals.",
+   "foreground": [
+    "*eel*",
+    "*conger*",
+    "*scabbard*",
+    "*blackdragon*",
+    "*viperfish*",
+    "*loosejaw*",
+    "*lampfish*",
+    "*thornyhead*",
+    "*cavefish*",
+    "*dolphin*",
+    "*coelacanth*"
+   ]
+  }
+ },
+ "fnmatch": [
+  {
+   "name": "turtru",
+   "pattern": "turtru",
+   "match": true
+  },
+  {
+   "name": "turtru",
+   "pattern": "tur*",
+   "match": true
+  },
+  {
+   "name": "turtru",
+   "pattern": "*tru",
+   "match": true
+  },
+  {
+   "name": "turtru",
+   "pattern": "*urt*",
+   "match": true
+  },
+  {
+   "name": "turtru",
+   "pattern": "t?rtru",
+   "match": true
+  },
+  {
+   "name": "turtru",
+   "pattern": "t??tru",
+   "match": true
+  },
+  {
+   "name": "turtru",
+   "pattern": "tur**",
+   "match": true
+  },
+  {
+   "name": "turtru",
+   "pattern": "[tu]urtru",
+   "match": true
+  },
+  {
+   "name": "turtru",
+   "pattern": "[!x]urtru",
+   "match": true
+  },
+  {
+   "name": "turtru",
+   "pattern": "[]urtru",
+   "match": false
+  },
+  {
+   "name": "turtru",
+   "pattern": "[!]urtru",
+   "match": false
+  },
+  {
+   "name": "turtru",
+   "pattern": "[urtru",
+   "match": false
+  },
+  {
+   "name": "tur.tru",
+   "pattern": "tur.tru",
+   "match": true
+  },
+  {
+   "name": "turXtru",
+   "pattern": "tur.tru",
+   "match": false
+  },
+  {
+   "name": "tur+tru",
+   "pattern": "tur+tru",
+   "match": true
+  },
+  {
+   "name": "a(b)c",
+   "pattern": "a(b)c",
+   "match": true
+  },
+  {
+   "name": "a|b",
+   "pattern": "a|b",
+   "match": true
+  },
+  {
+   "name": "a",
+   "pattern": "a|b",
+   "match": false
+  },
+  {
+   "name": "enhlutken",
+   "pattern": "enhlut*",
+   "match": true
+  },
+  {
+   "name": "enhlut",
+   "pattern": "enhlut*",
+   "match": true
+  },
+  {
+   "name": "xenhlutken",
+   "pattern": "enhlut*",
+   "match": false
+  },
+  {
+   "name": "mus.eve",
+   "pattern": "mus?eve",
+   "match": true
+  },
+  {
+   "name": "",
+   "pattern": "*",
+   "match": true
+  },
+  {
+   "name": "",
+   "pattern": "",
+   "match": true
+  },
+  {
+   "name": "abc",
+   "pattern": "",
+   "match": false
+  },
+  {
+   "name": "a\\b",
+   "pattern": "a\\b",
+   "match": true
+  },
+  {
+   "name": "ab",
+   "pattern": "a[\\]b",
+   "match": false
+  }
+ ],
+ "repr_list": [
+  {
+   "items": [],
+   "repr": "[]"
+  },
+  {
+   "items": [
+    "turTru"
+   ],
+   "repr": "['turTru']"
+  },
+  {
+   "items": [
+    "turTru",
+    "balMus",
+    "balPhys"
+   ],
+   "repr": "['turTru', 'balMus', 'balPhys']"
+  },
+  {
+   "items": [
+    "^M_.*",
+    "R_sin"
+   ],
+   "repr": "['^M_.*', 'R_sin']"
+  },
+  {
+   "items": [
+    "it's"
+   ],
+   "repr": "[\"it's\"]"
+  },
+  {
+   "items": [
+    "say \"hi\""
+   ],
+   "repr": "['say \"hi\"']"
+  },
+  {
+   "items": [
+    "both ' and \""
+   ],
+   "repr": "['both \\' and \"']"
+  },
+  {
+   "items": [
+    "back\\slash"
+   ],
+   "repr": "['back\\\\slash']"
+  },
+  {
+   "items": [
+    "tab\there"
+   ],
+   "repr": "['tab\\there']"
+  },
+  {
+   "items": [
+    "new\nline"
+   ],
+   "repr": "['new\\nline']"
+  }
+ ],
+ "float_str": [
+  {
+   "value": 0.0,
+   "str": "0.0"
+  },
+  {
+   "value": -0.0,
+   "str": "-0.0"
+  },
+  {
+   "value": 1.0,
+   "str": "1.0"
+  },
+  {
+   "value": -1.0,
+   "str": "-1.0"
+  },
+  {
+   "value": 62.0,
+   "str": "62.0"
+  },
+  {
+   "value": 0.35,
+   "str": "0.35"
+  },
+  {
+   "value": 8.0,
+   "str": "8.0"
+  },
+  {
+   "value": 0.001,
+   "str": "0.001"
+  },
+  {
+   "value": 0.0001,
+   "str": "0.0001"
+  },
+  {
+   "value": 9.9e-05,
+   "str": "9.9e-05"
+  },
+  {
+   "value": 1e-05,
+   "str": "1e-05"
+  },
+  {
+   "value": 1e-06,
+   "str": "1e-06"
+  },
+  {
+   "value": 1e-07,
+   "str": "1e-07"
+  },
+  {
+   "value": 1234567890123456.0,
+   "str": "1234567890123456.0"
+  },
+  {
+   "value": 1e+16,
+   "str": "1e+16"
+  },
+  {
+   "value": 1.5e+16,
+   "str": "1.5e+16"
+  },
+  {
+   "value": 1e+21,
+   "str": "1e+21"
+  },
+  {
+   "value": 1e+22,
+   "str": "1e+22"
+  },
+  {
+   "value": 123.456,
+   "str": "123.456"
+  },
+  {
+   "value": 0.3333333333333333,
+   "str": "0.3333333333333333"
+  },
+  {
+   "value": 2.5e-08,
+   "str": "2.5e-08"
+  },
+  {
+   "value": -4.75e+17,
+   "str": "-4.75e+17"
+  }
+ ],
+ "read_csv": [
+  {
+   "name": "int_trait_column",
+   "sep": ",",
+   "text": "species,trait\nhomSap,1\npanTro,0\nmacMul,1\n",
+   "columns": [
+    "species",
+    "trait"
+   ],
+   "dtypes": [
+    "str",
+    "int64"
+   ],
+   "rows": [
+    {
+     "species": {
+      "isna": false,
+      "str": "homSap"
+     },
+     "trait": {
+      "isna": false,
+      "str": "1"
+     }
+    },
+    {
+     "species": {
+      "isna": false,
+      "str": "panTro"
+     },
+     "trait": {
+      "isna": false,
+      "str": "0"
+     }
+    },
+    {
+     "species": {
+      "isna": false,
+      "str": "macMul"
+     },
+     "trait": {
+      "isna": false,
+      "str": "1"
+     }
+    }
+   ]
+  },
+  {
+   "name": "float_trait_column",
+   "sep": ",",
+   "text": "species,trait\nhomSap,1.0\npanTro,0.0\nmacMul,1.0\n",
+   "columns": [
+    "species",
+    "trait"
+   ],
+   "dtypes": [
+    "str",
+    "float64"
+   ],
+   "rows": [
+    {
+     "species": {
+      "isna": false,
+      "str": "homSap"
+     },
+     "trait": {
+      "isna": false,
+      "str": "1.0"
+     }
+    },
+    {
+     "species": {
+      "isna": false,
+      "str": "panTro"
+     },
+     "trait": {
+      "isna": false,
+      "str": "0.0"
+     }
+    },
+    {
+     "species": {
+      "isna": false,
+      "str": "macMul"
+     },
+     "trait": {
+      "isna": false,
+      "str": "1.0"
+     }
+    }
+   ]
+  },
+  {
+   "name": "int_with_missing_becomes_float",
+   "sep": ",",
+   "text": "species,trait\nhomSap,1\npanTro,\nmacMul,1\n",
+   "columns": [
+    "species",
+    "trait"
+   ],
+   "dtypes": [
+    "str",
+    "float64"
+   ],
+   "rows": [
+    {
+     "species": {
+      "isna": false,
+      "str": "homSap"
+     },
+     "trait": {
+      "isna": false,
+      "str": "1.0"
+     }
+    },
+    {
+     "species": {
+      "isna": false,
+      "str": "panTro"
+     },
+     "trait": {
+      "isna": true,
+      "str": null
+     }
+    },
+    {
+     "species": {
+      "isna": false,
+      "str": "macMul"
+     },
+     "trait": {
+      "isna": false,
+      "str": "1.0"
+     }
+    }
+   ]
+  },
+  {
+   "name": "mixed_object_column",
+   "sep": ",",
+   "text": "species,trait\nhomSap,yes\npanTro,1\nmacMul,no\n",
+   "columns": [
+    "species",
+    "trait"
+   ],
+   "dtypes": [
+    "str",
+    "str"
+   ],
+   "rows": [
+    {
+     "species": {
+      "isna": false,
+      "str": "homSap"
+     },
+     "trait": {
+      "isna": false,
+      "str": "yes"
+     }
+    },
+    {
+     "species": {
+      "isna": false,
+      "str": "panTro"
+     },
+     "trait": {
+      "isna": false,
+      "str": "1"
+     }
+    },
+    {
+     "species": {
+      "isna": false,
+      "str": "macMul"
+     },
+     "trait": {
+      "isna": false,
+      "str": "no"
+     }
+    }
+   ]
+  },
+  {
+   "name": "na_strings",
+   "sep": ",",
+   "text": "species,trait\nhomSap,NA\npanTro,nan\nmacMul,NULL\ncalJac,None\nsaiBol,N/A\n",
+   "columns": [
+    "species",
+    "trait"
+   ],
+   "dtypes": [
+    "str",
+    "float64"
+   ],
+   "rows": [
+    {
+     "species": {
+      "isna": false,
+      "str": "homSap"
+     },
+     "trait": {
+      "isna": true,
+      "str": null
+     }
+    },
+    {
+     "species": {
+      "isna": false,
+      "str": "panTro"
+     },
+     "trait": {
+      "isna": true,
+      "str": null
+     }
+    },
+    {
+     "species": {
+      "isna": false,
+      "str": "macMul"
+     },
+     "trait": {
+      "isna": true,
+      "str": null
+     }
+    },
+    {
+     "species": {
+      "isna": false,
+      "str": "calJac"
+     },
+     "trait": {
+      "isna": true,
+      "str": null
+     }
+    },
+    {
+     "species": {
+      "isna": false,
+      "str": "saiBol"
+     },
+     "trait": {
+      "isna": true,
+      "str": null
+     }
+    }
+   ]
+  },
+  {
+   "name": "quoted_fields",
+   "sep": ",",
+   "text": "species,note\nhomSap,\"a, b\"\npanTro,\"say \"\"hi\"\"\"\n",
+   "columns": [
+    "species",
+    "note"
+   ],
+   "dtypes": [
+    "str",
+    "str"
+   ],
+   "rows": [
+    {
+     "species": {
+      "isna": false,
+      "str": "homSap"
+     },
+     "note": {
+      "isna": false,
+      "str": "a, b"
+     }
+    },
+    {
+     "species": {
+      "isna": false,
+      "str": "panTro"
+     },
+     "note": {
+      "isna": false,
+      "str": "say \"hi\""
+     }
+    }
+   ]
+  },
+  {
+   "name": "tab_separated",
+   "sep": "\t",
+   "text": "taxon\ttrait\nhomSap\t1\npanTro\t0\n",
+   "columns": [
+    "taxon",
+    "trait"
+   ],
+   "dtypes": [
+    "str",
+    "int64"
+   ],
+   "rows": [
+    {
+     "taxon": {
+      "isna": false,
+      "str": "homSap"
+     },
+     "trait": {
+      "isna": false,
+      "str": "1"
+     }
+    },
+    {
+     "taxon": {
+      "isna": false,
+      "str": "panTro"
+     },
+     "trait": {
+      "isna": false,
+      "str": "0"
+     }
+    }
+   ]
+  },
+  {
+   "name": "blank_lines_skipped",
+   "sep": ",",
+   "text": "species,trait\nhomSap,1\n\npanTro,0\n",
+   "columns": [
+    "species",
+    "trait"
+   ],
+   "dtypes": [
+    "str",
+    "int64"
+   ],
+   "rows": [
+    {
+     "species": {
+      "isna": false,
+      "str": "homSap"
+     },
+     "trait": {
+      "isna": false,
+      "str": "1"
+     }
+    },
+    {
+     "species": {
+      "isna": false,
+      "str": "panTro"
+     },
+     "trait": {
+      "isna": false,
+      "str": "0"
+     }
+    }
+   ]
+  },
+  {
+   "name": "trailing_spaces_in_values",
+   "sep": ",",
+   "text": "species,trait\n homSap ,  yes  \npanTro,no\n",
+   "columns": [
+    "species",
+    "trait"
+   ],
+   "dtypes": [
+    "str",
+    "str"
+   ],
+   "rows": [
+    {
+     "species": {
+      "isna": false,
+      "str": " homSap "
+     },
+     "trait": {
+      "isna": false,
+      "str": "  yes  "
+     }
+    },
+    {
+     "species": {
+      "isna": false,
+      "str": "panTro"
+     },
+     "trait": {
+      "isna": false,
+      "str": "no"
+     }
+    }
+   ]
+  }
+ ],
+ "resolve": [
+  {
+   "name": "preset_echolocation_substring",
+   "taxa": [
+    "homSap_293T",
+    "hg18",
+    "panTro4",
+    "panPan",
+    "macMul",
+    "aotTri_OMK",
+    "turTru",
+    "mus.eve"
+   ],
+   "kwargs": {
+    "preset": "echolocation"
+   },
+   "y": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    0.0
+   ],
+   "meta": {
+    "mode": "discrete",
+    "foreground_count": 1,
+    "background_count": 7,
+    "description": "Mammalian Echolocation Convergence (Microchiropteran bats and odontocete toothed whales.)"
+   }
+  },
+  {
+   "name": "preset_key_normalised",
+   "taxa": [
+    "homSap_293T",
+    "hg18",
+    "panTro4",
+    "panPan",
+    "macMul",
+    "aotTri_OMK",
+    "turTru",
+    "mus.eve"
+   ],
+   "kwargs": {
+    "preset": "  HIGH-ALTITUDE "
+   },
+   "y": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "meta": {
+    "mode": "discrete",
+    "foreground_count": 0,
+    "background_count": 8,
+    "description": "High-Altitude Hypoxia Adaptation (Yak, Tibetan antelope, snow leopard, vicuna, pikas, chinchilla.)"
+   }
+  },
+  {
+   "name": "preset_dim_light_star_both_ends",
+   "taxa": [
+    "Xcavefishy",
+    "dolphin",
+    "nothing"
+   ],
+   "kwargs": {
+    "preset": "dim_light"
+   },
+   "y": [
+    1.0,
+    1.0,
+    0.0
+   ],
+   "meta": {
+    "mode": "discrete",
+    "foreground_count": 2,
+    "background_count": 1,
+    "description": "Low-Light & Deep-Sea Rhodopsin Vision (Deep-sea teleosts, cavefish, coelacanth, marine diving mammals.)"
+   }
+  },
+  {
+   "name": "foreground_single_name",
+   "taxa": [
+    "homSap_293T",
+    "hg18",
+    "panTro4",
+    "panPan",
+    "macMul",
+    "aotTri_OMK",
+    "turTru",
+    "mus.eve"
+   ],
+   "kwargs": {
+    "foreground": "turTru"
+   },
+   "y": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    0.0
+   ],
+   "meta": {
+    "mode": "discrete",
+    "foreground_count": 1,
+    "background_count": 7,
+    "description": "User-specified foreground patterns: ['turTru']"
+   }
+  },
+  {
+   "name": "foreground_list_with_spaces",
+   "taxa": [
+    "homSap_293T",
+    "hg18",
+    "panTro4",
+    "panPan",
+    "macMul",
+    "aotTri_OMK",
+    "turTru",
+    "mus.eve"
+   ],
+   "kwargs": {
+    "foreground": " panTro4 , panPan "
+   },
+   "y": [
+    0.0,
+    0.0,
+    1.0,
+    1.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "meta": {
+    "mode": "discrete",
+    "foreground_count": 2,
+    "background_count": 6,
+    "description": "User-specified foreground patterns: ['panTro4', 'panPan']"
+   }
+  },
+  {
+   "name": "foreground_dot_is_regex",
+   "taxa": [
+    "homSap_293T",
+    "hg18",
+    "panTro4",
+    "panPan",
+    "macMul",
+    "aotTri_OMK",
+    "turTru",
+    "mus.eve"
+   ],
+   "kwargs": {
+    "foreground": "mus.eve"
+   },
+   "y": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "meta": {
+    "mode": "discrete",
+    "foreground_count": 1,
+    "background_count": 7,
+    "description": "User-specified foreground patterns: ['mus.eve']"
+   }
+  },
+  {
+   "name": "foreground_invalid_regex_falls_back",
+   "taxa": [
+    "homSap_293T",
+    "hg18",
+    "panTro4",
+    "panPan",
+    "macMul",
+    "aotTri_OMK",
+    "turTru",
+    "mus.eve"
+   ],
+   "kwargs": {
+    "foreground": "hg18["
+   },
+   "y": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "meta": {
+    "mode": "discrete",
+    "foreground_count": 0,
+    "background_count": 8,
+    "description": "User-specified foreground patterns: ['hg18[']"
+   }
+  },
+  {
+   "name": "foreground_case_insensitive",
+   "taxa": [
+    "homSap_293T",
+    "hg18",
+    "panTro4",
+    "panPan",
+    "macMul",
+    "aotTri_OMK",
+    "turTru",
+    "mus.eve"
+   ],
+   "kwargs": {
+    "foreground": "HOMSAP_293T"
+   },
+   "y": [
+    1.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "meta": {
+    "mode": "discrete",
+    "foreground_count": 1,
+    "background_count": 7,
+    "description": "User-specified foreground patterns: ['HOMSAP_293T']"
+   }
+  },
+  {
+   "name": "foreground_pipe_and_comma_uses_comma",
+   "taxa": [
+    "homSap_293T",
+    "hg18",
+    "panTro4",
+    "panPan",
+    "macMul",
+    "aotTri_OMK",
+    "turTru",
+    "mus.eve"
+   ],
+   "kwargs": {
+    "foreground": "panTro4|panPan,macMul"
+   },
+   "y": [
+    0.0,
+    0.0,
+    1.0,
+    1.0,
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "meta": {
+    "mode": "discrete",
+    "foreground_count": 3,
+    "background_count": 5,
+    "description": "User-specified foreground patterns: ['panTro4|panPan', 'macMul']"
+   }
+  },
+  {
+   "name": "foreground_dotstar_both_ends",
+   "taxa": [
+    "homSap_293T",
+    "hg18",
+    "panTro4",
+    "panPan",
+    "macMul",
+    "aotTri_OMK",
+    "turTru",
+    "mus.eve"
+   ],
+   "kwargs": {
+    "foreground": ".*Tro4.*"
+   },
+   "y": [
+    0.0,
+    0.0,
+    1.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "meta": {
+    "mode": "discrete",
+    "foreground_count": 1,
+    "background_count": 7,
+    "description": "User-specified foreground patterns: ['.*Tro4.*']"
+   }
+  },
+  {
+   "name": "background_is_ignored",
+   "taxa": [
+    "homSap_293T",
+    "hg18",
+    "panTro4",
+    "panPan",
+    "macMul",
+    "aotTri_OMK",
+    "turTru",
+    "mus.eve"
+   ],
+   "kwargs": {
+    "foreground": "turTru",
+    "background": "panTro4"
+   },
+   "y": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    0.0
+   ],
+   "meta": {
+    "mode": "discrete",
+    "foreground_count": 1,
+    "background_count": 7,
+    "description": "User-specified foreground patterns: ['turTru']"
+   }
+  },
+  {
+   "name": "csv_int_trait_matches",
+   "taxa": [
+    "homSap",
+    "panTro",
+    "macMul"
+   ],
+   "kwargs": {},
+   "phenotype_csv": "species,trait\nhomSap,1\npanTro,0\nmacMul,1\n",
+   "phenotype_file": "int.csv",
+   "y": [
+    1.0,
+    0.0,
+    1.0
+   ],
+   "meta": {
+    "mode": "discrete",
+    "foreground_count": 2,
+    "background_count": 1,
+    "description": "Discrete trait 'trait' from int.csv"
+   }
+  },
+  {
+   "name": "csv_float_trait_matches_nothing",
+   "taxa": [
+    "homSap",
+    "panTro",
+    "macMul"
+   ],
+   "kwargs": {},
+   "phenotype_csv": "species,trait\nhomSap,1.0\npanTro,0.0\nmacMul,1.0\n",
+   "phenotype_file": "float.csv",
+   "y": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "meta": {
+    "mode": "discrete",
+    "foreground_count": 0,
+    "background_count": 3,
+    "description": "Discrete trait 'trait' from float.csv"
+   }
+  },
+  {
+   "name": "csv_substring_fallback",
+   "taxa": [
+    "aotTri_OMK",
+    "homSap_293T"
+   ],
+   "kwargs": {},
+   "phenotype_csv": "species,trait\naotTri,yes\nhomSap,no\n",
+   "phenotype_file": "sub.csv",
+   "y": [
+    1.0,
+    0.0
+   ],
+   "meta": {
+    "mode": "discrete",
+    "foreground_count": 1,
+    "background_count": 1,
+    "description": "Discrete trait 'trait' from sub.csv"
+   }
+  },
+  {
+   "name": "csv_species_column_fallback_first_column",
+   "taxa": [
+    "homSap",
+    "panTro"
+   ],
+   "kwargs": {},
+   "phenotype_csv": "who,trait\nhomSap,yes\npanTro,no\n",
+   "phenotype_file": "nocol.csv",
+   "y": [
+    1.0,
+    0.0
+   ],
+   "meta": {
+    "mode": "discrete",
+    "foreground_count": 1,
+    "background_count": 1,
+    "description": "Discrete trait 'trait' from nocol.csv"
+   }
+  },
+  {
+   "name": "csv_continuous_unparseable_cell",
+   "taxa": [
+    "homSap",
+    "panTro",
+    "macMul"
+   ],
+   "kwargs": {
+    "continuous": true
+   },
+   "phenotype_csv": "species,mass\nhomSap,62\npanTro,oops\nmacMul,8\n",
+   "phenotype_file": "cont.csv",
+   "y": [
+    1.4042307536080614,
+    -0.8473806271772782,
+    -0.5568501264307828
+   ],
+   "meta": {
+    "mode": "continuous",
+    "foreground_count": 0,
+    "background_count": 0,
+    "description": "Continuous trait 'mass' from cont.csv"
+   }
+  },
+  {
+   "name": "csv_continuous_constant_not_scaled",
+   "taxa": [
+    "homSap",
+    "panTro"
+   ],
+   "kwargs": {
+    "continuous": true
+   },
+   "phenotype_csv": "species,mass\nhomSap,5.0\npanTro,5.0\n",
+   "phenotype_file": "const.csv",
+   "y": [
+    5.0,
+    5.0
+   ],
+   "meta": {
+    "mode": "continuous",
+    "foreground_count": 0,
+    "background_count": 0,
+    "description": "Continuous trait 'mass' from const.csv"
+   }
+  },
+  {
+   "name": "tsv_separator_from_extension",
+   "taxa": [
+    "homSap",
+    "panTro"
+   ],
+   "kwargs": {},
+   "phenotype_csv": "taxon\ttrait\nhomSap\t1\npanTro\t0\n",
+   "phenotype_file": "t.tsv",
+   "y": [
+    1.0,
+    0.0
+   ],
+   "meta": {
+    "mode": "discrete",
+    "foreground_count": 1,
+    "background_count": 1,
+    "description": "Discrete trait 'trait' from t.tsv"
+   }
+  },
+  {
+   "name": "csv_extra_foreground_tokens",
+   "taxa": [
+    "homSap",
+    "panTro"
+   ],
+   "kwargs": {
+    "foreground": "marine"
+   },
+   "phenotype_csv": "species,trait\nhomSap,marine\npanTro,land\n",
+   "phenotype_file": "tok.csv",
+   "y": [
+    1.0,
+    0.0
+   ],
+   "meta": {
+    "mode": "discrete",
+    "foreground_count": 1,
+    "background_count": 1,
+    "description": "Discrete trait 'trait' from tok.csv"
+   }
+  },
+  {
+   "name": "csv_explicit_columns",
+   "taxa": [
+    "homSap",
+    "panTro"
+   ],
+   "kwargs": {
+    "trait_col": "b",
+    "species_col": "species"
+   },
+   "phenotype_csv": "species,a,b\nhomSap,no,yes\npanTro,yes,no\n",
+   "phenotype_file": "two.csv",
+   "y": [
+    1.0,
+    0.0
+   ],
+   "meta": {
+    "mode": "discrete",
+    "foreground_count": 1,
+    "background_count": 1,
+    "description": "Discrete trait 'b' from two.csv"
+   }
+  }
+ ],
+ "resolve_errors": [
+  {
+   "name": "no_source",
+   "taxa": [
+    "a",
+    "b"
+   ],
+   "kwargs": {},
+   "error": {
+    "type": "ValueError",
+    "message": "Must provide one of --preset, --phenotype-file, or --foreground."
+   }
+  },
+  {
+   "name": "unknown_preset",
+   "taxa": [
+    "a",
+    "b"
+   ],
+   "kwargs": {
+    "preset": "nope"
+   },
+   "error": {
+    "type": "ValueError",
+    "message": "Unknown preset 'nope'. Available: ['echolocation', 'marine', 'fossorial', 'hibernation', 'longevity', 'high_altitude', 'cardenolide', 'dim_light']"
+   }
+  },
+  {
+   "name": "empty_foreground_string",
+   "taxa": [
+    "a",
+    "b"
+   ],
+   "kwargs": {
+    "foreground": ""
+   },
+   "error": {
+    "type": "ValueError",
+    "message": "Must provide one of --preset, --phenotype-file, or --foreground."
+   }
+  },
+  {
+   "name": "empty_foreground_list",
+   "taxa": [
+    "a",
+    "b"
+   ],
+   "kwargs": {
+    "foreground": []
+   },
+   "error": {
+    "type": "ValueError",
+    "message": "Must provide one of --preset, --phenotype-file, or --foreground."
+   }
+  }
+ ],
+ "find_any": [
+  {
+   "name": "plain",
+   "newick": "((a:1,b:2)ab:3,(c:4,d:5)cd:6)root;",
+   "hits": [
+    {
+     "query": "a",
+     "found": "a"
+    },
+    {
+     "query": "b",
+     "found": "b"
+    },
+    {
+     "query": "c",
+     "found": "c"
+    },
+    {
+     "query": "d",
+     "found": "d"
+    },
+    {
+     "query": "ab",
+     "found": "ab"
+    },
+    {
+     "query": "cd",
+     "found": "cd"
+    },
+    {
+     "query": "root",
+     "found": "root"
+    },
+    {
+     "query": "e",
+     "found": null
+    }
+   ]
+  },
+  {
+   "name": "dot_is_any_char",
+   "newick": "((aXc:1,abc:2)i1:3,d:4);",
+   "hits": [
+    {
+     "query": "a.c",
+     "found": "aXc"
+    },
+    {
+     "query": "abc",
+     "found": "abc"
+    },
+    {
+     "query": "aXc",
+     "found": "aXc"
+    }
+   ]
+  },
+  {
+   "name": "alternation",
+   "newick": "((a:1,b:2)i1:3,c:4);",
+   "hits": [
+    {
+     "query": "a|b",
+     "found": "a"
+    },
+    {
+     "query": "b|a",
+     "found": "a"
+    },
+    {
+     "query": "z|c",
+     "found": "c"
+    }
+   ]
+  },
+  {
+   "name": "prefix_not_matched",
+   "newick": "((ab:1,a:2)i1:3,c:4);",
+   "hits": [
+    {
+     "query": "a",
+     "found": "a"
+    },
+    {
+     "query": "ab",
+     "found": "ab"
+    },
+    {
+     "query": "a.*",
+     "found": "ab"
+    }
+   ]
+  }
+ ],
+ "covariance": [
+  {
+   "name": "balanced",
+   "newick": "((a:1,b:2)ab:3,(c:4,d:5)cd:6):0;",
+   "taxa": [
+    "a",
+    "b",
+    "c",
+    "d"
+   ],
+   "V": [
+    [
+     4.0,
+     3.0,
+     0.0,
+     0.0
+    ],
+    [
+     3.0,
+     5.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     10.0,
+     6.0
+    ],
+    [
+     0.0,
+     0.0,
+     6.0,
+     11.0
+    ]
+   ]
+  },
+  {
+   "name": "missing_taxon_diagonal_one",
+   "newick": "((a:1,b:2)ab:3,c:4):0;",
+   "taxa": [
+    "a",
+    "b",
+    "zzz"
+   ],
+   "V": [
+    [
+     4.0,
+     3.0,
+     0.0
+    ],
+    [
+     3.0,
+     5.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0
+    ]
+   ]
+  },
+  {
+   "name": "regex_name_matches_other",
+   "newick": "((aXc:1,abc:2)i1:3,d:4):0;",
+   "taxa": [
+    "a.c",
+    "abc",
+    "d"
+   ],
+   "V": [
+    [
+     1.0,
+     3.0,
+     0.0
+    ],
+    [
+     3.0,
+     5.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     4.0
+    ]
+   ]
+  },
+  {
+   "name": "internal_node_name",
+   "newick": "((a:1,b:2)i1:3,c:4):0;",
+   "taxa": [
+    "i1",
+    "a",
+    "c"
+   ],
+   "V": [
+    [
+     1.0,
+     3.0,
+     0.0
+    ],
+    [
+     3.0,
+     4.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     4.0
+    ]
+   ]
+  },
+  {
+   "name": "zero_length_branch",
+   "newick": "((a:0.0,b:0.0)i1:0.5,c:1.0):0;",
+   "taxa": [
+    "a",
+    "b",
+    "c"
+   ],
+   "V": [
+    [
+     0.5,
+     0.5,
+     0.0
+    ],
+    [
+     0.5,
+     0.5,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0
+    ]
+   ]
+  },
+  {
+   "name": "missing_branch_length",
+   "newick": "((a,b:2)i1:3,c:4):0;",
+   "taxa": [
+    "a",
+    "b",
+    "c"
+   ],
+   "V": [
+    [
+     3.0,
+     3.0,
+     0.0
+    ],
+    [
+     3.0,
+     5.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     4.0
+    ]
+   ]
+  },
+  {
+   "name": "reordered_subset",
+   "newick": "((a:1,b:2)ab:3,(c:4,d:5)cd:6):0;",
+   "taxa": [
+    "d",
+    "a",
+    "c"
+   ],
+   "V": [
+    [
+     11.0,
+     0.0,
+     6.0
+    ],
+    [
+     0.0,
+     4.0,
+     0.0
+    ],
+    [
+     6.0,
+     0.0,
+     10.0
+    ]
+   ]
+  }
+ ],
+ "permulations": {
+  "newick": "(((a:0.1,b:0.1)ab:0.2,(c:0.15,d:0.15)cd:0.15)abcd:0.1,(e:0.2,f:0.2)ef:0.2):0;",
+  "taxa": [
+   "a",
+   "b",
+   "c",
+   "d",
+   "e",
+   "f"
+  ],
+  "cases": [
+   {
+    "name": "binary_k2",
+    "y": [
+     1.0,
+     1.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "n_perm": 64,
+    "seed": 7,
+    "is_binary": true,
+    "row_sums": [
+     2.0
+    ],
+    "sorted_row_values": [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     1.0,
+     1.0
+    ],
+    "all_rows_same_multiset": true,
+    "column_means": [
+     0.296875,
+     0.34375,
+     0.375,
+     0.28125,
+     0.390625,
+     0.3125
+    ]
+   },
+   {
+    "name": "binary_k5",
+    "y": [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     0.0
+    ],
+    "n_perm": 64,
+    "seed": 7,
+    "is_binary": true,
+    "row_sums": [
+     5.0
+    ],
+    "sorted_row_values": [
+     0.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    "all_rows_same_multiset": true,
+    "column_means": [
+     0.875,
+     0.90625,
+     0.796875,
+     0.875,
+     0.765625,
+     0.78125
+    ]
+   },
+   {
+    "name": "all_zero_not_binary",
+    "y": [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "n_perm": 64,
+    "seed": 7,
+    "is_binary": false,
+    "row_sums": [
+     0.0
+    ],
+    "sorted_row_values": [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "all_rows_same_multiset": true,
+    "column_means": [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   {
+    "name": "all_one_not_binary",
+    "y": [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    "n_perm": 64,
+    "seed": 7,
+    "is_binary": false,
+    "row_sums": [
+     6.0
+    ],
+    "sorted_row_values": [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    "all_rows_same_multiset": true,
+    "column_means": [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ]
+   },
+   {
+    "name": "three_values_rank_matched",
+    "y": [
+     0.0,
+     0.5,
+     1.0,
+     0.0,
+     0.5,
+     1.0
+    ],
+    "n_perm": 64,
+    "seed": 7,
+    "is_binary": false,
+    "row_sums": [
+     3.0
+    ],
+    "sorted_row_values": [
+     0.0,
+     0.0,
+     0.5,
+     0.5,
+     1.0,
+     1.0
+    ],
+    "all_rows_same_multiset": true,
+    "column_means": [
+     0.5078125,
+     0.53125,
+     0.5234375,
+     0.46875,
+     0.5234375,
+     0.4453125
+    ]
+   },
+   {
+    "name": "continuous",
+    "y": [
+     -1.5,
+     0.25,
+     3.0,
+     -0.5,
+     0.75,
+     1.25
+    ],
+    "n_perm": 64,
+    "seed": 7,
+    "is_binary": false,
+    "row_sums": [
+     3.25
+    ],
+    "sorted_row_values": [
+     -1.5,
+     -0.5,
+     0.25,
+     0.75,
+     1.25,
+     3.0
+    ],
+    "all_rows_same_multiset": true,
+    "column_means": [
+     0.56640625,
+     0.66796875,
+     0.56640625,
+     0.5390625,
+     0.57421875,
+     0.3359375
+    ]
+   }
+  ]
+ }
+}

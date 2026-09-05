@@ -24,6 +24,15 @@ import { validateInputBundle } from '../src/preprocess/modelContract.js';
 const FASTA = '>alpha\nATGTTATCA\n>beta\nATGCTATCA\n>gamma\nATGTTAAGC\n>delta\nATGGGGTCA\n';
 const TREE = '((gamma:0.1,delta:0.2):0.05,(beta:0.3,alpha:0.15):0.02);';
 
+/** The same four taxa over 20 codons: enough overlap for TN93 not to saturate (see tn93.js). */
+const LONG_BASE = 'ATGTTATCAGGGCCCAAATTTCCCGGGAAATTTCCCGGGAAACCCTTTGGG';
+const LONG_FASTA =
+	`>alpha\n${LONG_BASE}AAACCCGGG\n` +
+	`>beta\n${LONG_BASE.replace('TTATCA', 'CTATCC')}AAACCCGGT\n` +
+	`>gamma\n${LONG_BASE.replace('GGGCCC', 'GGACCA')}AAACCCGGA\n` +
+	`>delta\n${LONG_BASE.replace('AAATTT', 'AAGTTC')}AAACCCGGC\n`;
+const LONG_TREE = '((gamma:0.1,delta:0.2):0.05,(beta:0.3,alpha:0.15):0.02);';
+
 describe('loadAlignmentAndTree', () => {
 	it('orders taxa by the TREE terminals, with no reference sequence moved to the front', () => {
 		const r = loadAlignmentAndTree(FASTA, TREE);
@@ -71,24 +80,32 @@ describe('loadAlignmentAndTree', () => {
 		expect(r.taxa).toEqual(['gamma', 'delta', 'beta', 'alpha']);
 	});
 
-	it('raises when there is no tree, no sequences, or fewer than 3 bp', () => {
-		expect(() => loadAlignmentAndTree(FASTA, null)).toThrow(/No tree specified/);
+	it('raises on an unparseable tree, no sequences, or fewer than 3 bp', () => {
+		// "no tree" no longer raises: it is the tree-free TN93 path (D22), covered in tn93.test.js.
 		expect(() => loadAlignmentAndTree(FASTA, 'not a tree')).toThrow(/Could not parse phylogenetic tree/);
 		expect(() => loadAlignmentAndTree('', TREE)).toThrow(/Could not parse any sequences/);
 		expect(() => loadAlignmentAndTree('>alpha\nAT\n>beta\nAT\n', '((alpha:0.1,beta:0.1):0.1,(x:1,y:1):1);')).toThrow(/less than 1 codon/);
 	});
 
-	it('refuses the TN93 path, which needs a binary the library cannot call', () => {
-		expect(() => loadAlignmentAndTree(FASTA, 'tn93')).toThrow(/TN93/);
-		expect(() => loadAlignmentAndTree(FASTA, TREE, { useTn93: true })).toThrow(/TN93/);
+	it('takes the tree-free TN93 path on request, in ALIGNMENT order (D22)', () => {
+		// 9 nucleotides saturate TN93, so the tree-free cases use a longer alignment; the full
+		// tree-free assembly and its fixture replay are in tn93.test.js.
+		for (const r of [loadAlignmentAndTree(LONG_FASTA, 'tn93'), loadAlignmentAndTree(LONG_FASTA, LONG_TREE, { useTn93: true })]) {
+			expect(r.taxa).toEqual(['alpha', 'beta', 'gamma', 'delta']);
+			expect(r.notices.treeFree).toEqual({ reason: 'requested', taxaOrder: 'alignment' });
+			expect(r.notices.matchTier).toBeNull();
+			expect(r.notices.distanceRescaled).toBe(false);
+			expect(r.d[0 * 4 + 1]).toBeGreaterThan(0);
+		}
 	});
 
-	it('takes the "HyPhy not found" branch for a tree without branch lengths and says so', () => {
-		const r = loadAlignmentAndTree(FASTA, '((gamma,delta),(beta,alpha));');
+	it('goes tree-free for a tree without branch lengths instead of the "HyPhy not found" branch (D22)', () => {
+		const r = loadAlignmentAndTree(LONG_FASTA, '((gamma,delta),(beta,alpha));');
 		expect(r.notices.branchLengthsMissing).toBe(true);
-		// Every branch became 1e-3: gamma-delta = 0.002, gamma-beta = 0.004.
-		expect(r.d[0 * 4 + 1]).toBe(Math.fround(0.002));
-		expect(r.d[0 * 4 + 2]).toBe(Math.fround(0.004));
+		expect(r.notices.treeFree).toEqual({ reason: 'no_branch_lengths', taxaOrder: 'alignment' });
+		// The topology is still returned for display, with its branch lengths untouched (null).
+		expect(r.tree).not.toBeNull();
+		expect(r.taxa).toEqual(['alpha', 'beta', 'gamma', 'delta']);
 	});
 
 	it('reports the length remainder it trims and unequal lengths', () => {

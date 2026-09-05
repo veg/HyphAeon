@@ -14,7 +14,7 @@
  *      only place that loads the package the way an app does.
  *   2. THE PUBLIC SURFACE IS A COMMITMENT. `index.js` re-exports whole modules deliberately (its
  *      header says why), which means adding an export to any file under `src/preprocess/` publishes
- *      it, and deleting one breaks a pinned consumer. Listing all 204 names here turns both into a
+ *      it, and deleting one breaks a pinned consumer. Listing all 232 names here turns both into a
  *      visible diff in the pull request that causes them, rather than a discovery in `hyphaeon-app`.
  *   3. THE EXPORTS MAP IS LOAD-BEARING, not decoration. `package.json` exposes exactly `.`, so a
  *      deep import into `src/preprocess/…` must FAIL — otherwise consumers pin internal paths, and
@@ -38,6 +38,9 @@ import * as ranks from '../src/numeric/ranks.js';
 import * as stats from '../src/stats.js';
 import * as evaluate from '../src/evaluate.js';
 import * as omnibus from '../src/omnibus.js';
+import * as tn93 from '../src/preprocess/tn93.js';
+import * as phenotype from '../src/phenotype.js';
+import * as permulations from '../src/permulations.js';
 
 /**
  * Every public symbol of the package, sorted. Grouped by module (first module to claim a name
@@ -111,6 +114,22 @@ const PUBLIC_SURFACE = [
 	'readNewick',
 	'stripQuotes',
 	'treeTaxa',
+	// preprocess/tn93.js
+	'TN93_FALLBACK_MAX',
+	'TN93_MATCH_MODE',
+	'TN93_MAX_AMBIG_FRACTION',
+	'TN93_MIN_POSITIVE_DISTANCE',
+	'TN93_SATURATION_SENTINEL',
+	'TN93_TABLES',
+	'ambigFractionTooHigh',
+	'canResolve',
+	'encodeSequence',
+	'tn93CalculateDistance',
+	'tn93Counts',
+	'tn93Distance',
+	'tn93DistanceMatrix',
+	'tn93NucleotideFrequency',
+	'tn93SaturatedPairs',
 	// preprocess/patristic.js
 	'computeFastDistMatrix',
 	'patristicMatrix',
@@ -269,6 +288,21 @@ const PUBLIC_SURFACE = [
 	'resolveFocalTaxon',
 	'runDigitalDmsAnalysis',
 	'runInsilicoSelectionDms',
+	// permulations.js
+	'computePhylogeneticCovariance',
+	'findAnyByName',
+	'generatePermulations',
+	'pyRegexSource',
+	// phenotype.js
+	'PHENOTYPE_THRESHOLDS',
+	'PRESETS',
+	'parsePhenotypeTable',
+	'pyFloatStr',
+	'pyFnmatch',
+	'pyReprString',
+	'pyReprStringList',
+	'resolvePhenotypeVector',
+	'runPhenotypeAssociation',
 	// diagnostics.js
 	'DIAGNOSTIC_CODES',
 	'DIAGNOSTIC_THRESHOLDS',
@@ -293,6 +327,10 @@ describe('the package entry point', () => {
 		expect(lib.loadAlignmentAndTree).toBe(assemble.loadAlignmentAndTree);
 		expect(lib.isSiteVariable).toBe(variability.isSiteVariable);
 		expect(lib.runBusted).toBe(omnibus.runBusted);
+		// Phase 3a: the tree-free distances and the phenotype pillar reach the barrel unwrapped too.
+		expect(lib.tn93DistanceMatrix).toBe(tn93.tn93DistanceMatrix);
+		expect(lib.runPhenotypeAssociation).toBe(phenotype.runPhenotypeAssociation);
+		expect(lib.generatePermulations).toBe(permulations.generatePermulations);
 	});
 
 	it('resolves the deliberately shared names to the kernel binding', () => {
@@ -334,6 +372,16 @@ describe('the package entry point', () => {
 		]);
 		// And one statistic through the method layer: an all-zero LRT vector is p = 2/3 everywhere.
 		expect(Array.from(lib.pvalsFromLrtMeme(new Float32Array(3)))).toEqual([2 / 3, 2 / 3, 2 / 3]);
+		// D22: the same alignment with NO tree goes tree-free through the barrel — TN93 distances,
+		// alignment order, the tree slot null — rather than throwing as it did before Phase 3a.
+		const treeFree = lib.loadAlignmentAndTree('>alpha\nATGTTATCA\n>beta\nATGCTATCA\n>gamma\nATGTTAAGC\n', null, {
+			maxSpecies: 8
+		});
+		expect(treeFree.tree).toBeNull();
+		expect(treeFree.notices.treeFree).toEqual({ reason: 'no_tree', taxaOrder: 'alignment' });
+		expect(treeFree.taxa).toEqual(['alpha', 'beta', 'gamma']);
+		expect(treeFree.d[1]).toBe(Math.fround(lib.tn93Distance('ATGTTATCA', 'ATGCTATCA')));
+		expect(treeFree.d[1]).toBeGreaterThan(0);
 	});
 });
 

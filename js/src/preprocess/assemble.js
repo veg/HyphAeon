@@ -27,13 +27,43 @@
  * graph takes, with the site-invariant `dist_matrix` and `mds_coords` repeated per site because the
  * graph needs materialised data where torch broadcast a [1, N, N] view.
  *
+ * THE TREE-FREE TN93 PATH (PLAN.md D22, resolved 2026-09-05), mirroring the `use_tn93` branch of
+ * `load_alignment_and_tree` (dataset.py:598-636) with the same step order. LINE NUMBERS IN THIS
+ * BLOCK ARE 61d30e3's, where the function runs 573-747; the list above is 267f5cf's:
+ *
+ *    1. taxa = list(seq_dict.keys())        ALIGNMENT ORDER, the tree is not consulted        600
+ *    2. prune_identical_sequences                                                          601-606
+ *    3. unequal-length warning; L; < 3 bp raises; `% 3` remainder reported                  608-623
+ *    4. stride pre-selection to the first 2 * max_species taxa                              625-628
+ *    5. compute_tn93_distance_matrix (float32) -> tn93.js                                       630
+ *    6. downsample_taxa_faith_pd when still > max_species                                   632-635
+ *   then the shared tail (MDS, tokens, invariable mask) exactly as the tree path.
+ *
+ * There is NO `> 10` rescale on this path: dataset.py:734-735 sits in the tree branch only, and a
+ * TN93 distance cannot exceed it anyway. There is no `enforce_nonzero_branch_lengths`, no taxon
+ * matching and no tree order — `notices.matchTier` is null and `notices.droppedTaxa` is zero.
+ *
+ * WHEN IT IS TAKEN. The reference takes it only on request (`use_tn93=True`, or `nwk_path` in
+ * "tn93" / "none" / "skip"). D22 widens that: it is also taken when there is NO TREE (the reference
+ * raises at dataset.py:647-651) and when the tree HAS NO USABLE BRANCH LENGTHS (the reference calls
+ * HyPhy at 655-668, or falls back to 1e-3/1e-4 defaults that are not distances at all). Those two
+ * are DIVERGENCES FROM THE REFERENCE, recorded in `notices.treeFree.reason` as 'no_tree' and
+ * 'no_branch_lengths' against 'requested'; the fixtures pin the requested case, which is the one
+ * Python can produce. A tree that fails to PARSE still raises, as the reference does — that is a bad
+ * input, not a missing one (diagnostics.js keeps TREE_UNPARSEABLE a warn/refuse and turns the other
+ * two into the info-level TREE_FREE_TN93). When a tree was supplied and parsed it is still returned
+ * in `tree` so a caller can draw it, but the MODEL never sees it: its branch lengths are left
+ * exactly as parsed (no `enforceNonzeroBranchLengths`), and PLAN.md D22's display topology is a
+ * neighbour-joining tree on these same distances (`nj.js`), not this one.
+ *
  * WHAT IT DELIBERATELY DOES NOT DO:
- *   - HyPhy. dataset.py:601-611 shells out to `hyphy` for a tree without branch lengths. The
- *     library cannot; it takes the reference's "HyPhy not found" branch (enforce defaults, go on)
- *     and sets `notices.branchLengthsMissing`. `needsBranchLengths` (tree.js) is the predicate; the
- *     runtime may estimate a tree and call again with it.
- *   - TN93. `use_tn93` / `nwk_path in ("tn93", "none", "skip")` (dataset.py:544-580) needs the tn93
- *     binary or package; `useTn93: true` throws.
+ *   - HyPhy. dataset.py:655-667 shells out to `hyphy` for a tree without branch lengths. The
+ *     library cannot, and under D22 it no longer needs to: that tree goes tree-free instead of
+ *     taking the reference's "HyPhy not found" branch. `notices.branchLengthsMissing` still reports
+ *     the fact; `needsBranchLengths` (tree.js) is still the predicate.
+ *   - The tn93 BINARY. dataset.py:505-537 prefers it; tn93.js is the Python package's algorithm,
+ *     which measured identical on the bundled examples (see its header).
+ *   - Neighbour joining for display (PLAN.md D22): a separate module.
  *   - Files, gzip, printing.
  *   - A reference sequence. dataset.py has none: taxa are the tree/alignment intersection in tree
  *     order and L comes from the FIRST matched taxon. `referenceName` is accepted only so a caller
@@ -64,16 +94,19 @@ import { computeMdsCoordinates } from './mds.js';
 import { codonToken, aaToken } from './tokenizer.js';
 import { invariableMask } from './variability.js';
 import { MDS_COMPONENTS, CODON_UNKNOWN } from './modelContract.js';
+import { tn93DistanceMatrix, tn93SaturatedPairs } from './tn93.js';
 
 /**
  * @typedef {{
  *   c: Int32Array, a: Int32Array, d: Float32Array, z: Float32Array,
  *   invariable: Uint8Array, taxa: string[], L: number, N: number,
  *   referenceIndex: number,
- *   tree: import('./tree.js').PhyloTree,
+ *   tree: import('./tree.js').PhyloTree|null,
  *   notices: {
  *     branchLengthsMissing: boolean,
- *     matchTier: 'exact'|'quote_stripped'|'case_insensitive',
+ *     treeFree: {reason: 'requested'|'no_tree'|'no_branch_lengths', taxaOrder: 'alignment'}|null,
+ *     tn93SaturatedPairs: number|null,
+ *     matchTier: 'exact'|'quote_stripped'|'case_insensitive'|null,
  *     droppedTaxa: {alignment: number, tree: number},
  *     duplicatesCollapsed: number,
  *     duplicateMap: Map<string, string[]>,
@@ -96,13 +129,15 @@ import { MDS_COMPONENTS, CODON_UNKNOWN } from './modelContract.js';
  *
  * @param {string} alignmentText FASTA / PHYLIP / NEXUS content
  * @param {string|null} [treeText] Newick / NEXUS tree content; null to look for a tree embedded in
- *   the alignment text
+ *   the alignment text; 'tn93' / 'none' / 'skip' request the tree-free path, as `nwk_path` does at
+ *   dataset.py:598
  * @param {{maxSpecies?: number|null, pruneDuplicates?: boolean, referenceName?: string,
- *   useTn93?: boolean}} [options]
+ *   useTn93?: boolean, tn93Options?: {matchMode?: string, maxAmbigFraction?: number,
+ *   ignoreGaps?: boolean}}} [options]
  * @returns {LoadedAlignment}
  */
 export function loadAlignmentAndTree(alignmentText, treeText = null, options = {}) {
-	const { maxSpecies = null, pruneDuplicates = true, referenceName, useTn93 = false } = options;
+	const { maxSpecies = null, pruneDuplicates = true, referenceName, useTn93 = false, tn93Options = {} } = options;
 
 	// 1. Alignment.
 	const seqDict = parseAlignmentSequences(alignmentText);
@@ -110,29 +145,31 @@ export function loadAlignmentAndTree(alignmentText, treeText = null, options = {
 		throw new Error('Could not parse any sequences from alignment');
 	}
 
-	if (useTn93 || (treeText !== null && ['tn93', 'none', 'skip'].includes(String(treeText).trim().toLowerCase()))) {
-		throw new Error(
-			'loadAlignmentAndTree: the TN93 path (dataset.py:544-580) needs the tn93 binary or package and is not in the library'
-		);
+	// 2. Tree, and the tree-free decision (D22; see the header).
+	const treeMode = treeText === null ? null : String(treeText).trim().toLowerCase();
+	const modeRequestsTn93 = treeMode !== null && ['tn93', 'none', 'skip'].includes(treeMode);
+	const requestedTn93 = useTn93 || modeRequestsTn93;
+	/** @type {import('./tree.js').PhyloTree|null} */
+	let tree = null;
+	if (!modeRequestsTn93) {
+		tree = treeText === null ? extractTree(alignmentText) : extractTree(treeText);
+		// A tree TEXT that will not parse is an error on every path, as it is in the reference
+		// (dataset.py:641-642); only its ABSENCE goes tree-free.
+		if (tree === null && treeText !== null && !requestedTn93) {
+			throw new Error('Could not parse phylogenetic tree from specified tree text');
+		}
 	}
+	const branchLengthsMissing = tree !== null && !hasNonzeroBranchLengths(tree);
+	/** @type {'requested'|'no_tree'|'no_branch_lengths'|null} */
+	const treeFreeReason = requestedTn93 ? 'requested' : tree === null ? 'no_tree' : branchLengthsMissing ? 'no_branch_lengths' : null;
 
-	// 2. Tree.
-	const tree = treeText === null ? extractTree(alignmentText) : extractTree(treeText);
-	if (tree === null) {
-		throw new Error(
-			treeText === null
-				? 'No tree specified, and no embedded phylogenetic tree found in alignment. Please provide a tree.'
-				: 'Could not parse phylogenetic tree from specified tree text'
-		);
-	}
+	if (treeFreeReason !== null) return tn93Assembly(seqDict, tree, treeFreeReason, branchLengthsMissing, { maxSpecies, pruneDuplicates, referenceName, tn93Options });
 
-	// 3. Branch lengths. Where the reference would call HyPhy, this records the fact and takes the
-	//    "HyPhy not found" branch.
-	const branchLengthsMissing = !hasNonzeroBranchLengths(tree);
-	enforceNonzeroBranchLengths(tree, 1e-4);
+	// 3. Branch lengths (a usable tree, so the reference's HyPhy branch is not reached).
+	enforceNonzeroBranchLengths(/** @type {import('./tree.js').PhyloTree} */ (tree), 1e-4);
 
 	// 4. Taxon matching.
-	const match = matchTaxa(treeTaxa(tree), seqDict.keys());
+	const match = matchTaxa(treeTaxa(/** @type {import('./tree.js').PhyloTree} */ (tree)), seqDict.keys());
 	let taxa = match.taxa;
 
 	// 5. Duplicates.
@@ -177,11 +214,122 @@ export function loadAlignmentAndTree(alignmentText, treeText = null, options = {
 		pdSubsampled = true;
 	}
 
-	// 11. MDS.
+	// 11-14. The shared tail.
+	return assembleTail(seqDict, taxa, dist, L, referenceName, tree, {
+		branchLengthsMissing,
+		treeFree: null,
+		tn93SaturatedPairs: null,
+		matchTier: match.tier,
+		droppedTaxa: { alignment: match.droppedAlignment, tree: match.droppedTree },
+		duplicatesCollapsed,
+		duplicateMap,
+		unequalLengths,
+		codonsTrimmed,
+		stridePreselected,
+		distanceRescaled: rescaled.rescaled,
+		rawDistMax: rescaled.rawMax,
+		pdSubsampled
+	});
+}
+
+/**
+ * The tree-free branch of `load_alignment_and_tree` (dataset.py:598-636): alignment-order taxa,
+ * duplicate pruning, length/frame checks, stride pre-selection, the TN93 matrix, Faith's PD. No
+ * rescale, no taxon matching, no branch-length enforcement (see the header).
+ *
+ * @param {Map<string, string>} seqDict
+ * @param {import('./tree.js').PhyloTree|null} tree kept for display only; never read here
+ * @param {'requested'|'no_tree'|'no_branch_lengths'} reason
+ * @param {boolean} branchLengthsMissing
+ * @param {{maxSpecies: number|null, pruneDuplicates: boolean, referenceName: string|undefined,
+ *   tn93Options: object}} options
+ * @returns {LoadedAlignment}
+ */
+function tn93Assembly(seqDict, tree, reason, branchLengthsMissing, { maxSpecies, pruneDuplicates, referenceName, tn93Options }) {
+	// 1. taxa = list(seq_dict.keys()) (dataset.py:600).
+	let taxa = Array.from(seqDict.keys());
+
+	// 2. Duplicates (dataset.py:601-606).
+	let duplicatesCollapsed = 0;
+	let duplicateMap = new Map();
+	if (pruneDuplicates && taxa.length > 1) {
+		const pruned = pruneIdenticalSequences(seqDict, taxa);
+		duplicateMap = pruned.dupMap;
+		if (pruned.numPruned > 0) {
+			duplicatesCollapsed = pruned.numPruned;
+			taxa = pruned.uniqueTaxa;
+		}
+	}
+
+	// 3. Lengths and frame (dataset.py:608-623).
+	const lengths = new Set(taxa.map((sp) => /** @type {string} */ (seqDict.get(sp)).length));
+	const unequalLengths = lengths.size > 1 ? Array.from(lengths) : null;
+	const rawLen = /** @type {string} */ (seqDict.get(taxa[0])).length;
+	if (rawLen < 3) {
+		throw new Error(`Alignment sequence length (${rawLen} bp) is less than 1 codon (3 bp).`);
+	}
+	const codonsTrimmed = rawLen % 3;
+	const L = Math.floor(rawLen / 3);
+
+	// 4. Stride pre-selection (dataset.py:625-628).
+	let stridePreselected = false;
+	if (maxSpecies !== null && taxa.length > maxSpecies) {
+		taxa = stridePreselect(taxa, maxSpecies);
+		stridePreselected = true;
+	}
+
+	// 5. The TN93 matrix (dataset.py:630). No `> 10` rescale on this path.
+	let dist = tn93DistanceMatrix(seqDict, taxa, tn93Options);
+	let rawDistMax = 0;
+	for (let i = 0; i < dist.length; i++) if (dist[i] > rawDistMax) rawDistMax = dist[i];
+	let saturatedPairs = tn93SaturatedPairs(dist, taxa.length);
+
+	// 6. Faith's PD (dataset.py:632-635).
+	let pdSubsampled = false;
+	if (maxSpecies !== null && taxa.length > maxSpecies) {
+		const ds = downsampleTaxaFaithPd(dist, taxa, maxSpecies);
+		dist = ds.distMat;
+		taxa = ds.taxa;
+		pdSubsampled = true;
+		saturatedPairs = tn93SaturatedPairs(dist, taxa.length);
+	}
+
+	return assembleTail(seqDict, taxa, dist, L, referenceName, tree, {
+		branchLengthsMissing,
+		treeFree: { reason, taxaOrder: 'alignment' },
+		tn93SaturatedPairs: saturatedPairs,
+		matchTier: null,
+		droppedTaxa: { alignment: 0, tree: 0 },
+		duplicatesCollapsed,
+		duplicateMap,
+		unequalLengths,
+		codonsTrimmed,
+		stridePreselected,
+		distanceRescaled: false,
+		rawDistMax,
+		pdSubsampled
+	});
+}
+
+/**
+ * The tail both paths share, dataset.py:742-747 and 749-775: MDS on the real N x N, the [L, N, 1]
+ * token arrays with the unknown / in-frame-stop counts, and the amino-acid invariable mask.
+ *
+ * @param {Map<string, string>} seqDict
+ * @param {string[]} taxa
+ * @param {Float32Array} dist
+ * @param {number} L
+ * @param {string|undefined} referenceName
+ * @param {import('./tree.js').PhyloTree|null} tree
+ * @param {Record<string, any>} notices path-specific notices; the codon counts are added here
+ * @returns {LoadedAlignment}
+ */
+function assembleTail(seqDict, taxa, dist, L, referenceName, tree, notices) {
+	// MDS.
 	const N = taxa.length;
 	const z = computeMdsCoordinates(dist, N, MDS_COMPONENTS);
 
-	// 12. Tokens.
+	// Tokens.
 	const c = new Int32Array(L * N);
 	const a = new Int32Array(L * N);
 	let unknownCodons = 0;
@@ -202,7 +350,7 @@ export function loadAlignmentAndTree(alignmentText, treeText = null, options = {
 		}
 	}
 
-	// 13. Invariable sites.
+	// Invariable sites.
 	const invariable = invariableMask(a, L, N);
 
 	return {
@@ -216,23 +364,13 @@ export function loadAlignmentAndTree(alignmentText, treeText = null, options = {
 		N,
 		referenceIndex: referenceName === undefined ? -1 : taxa.indexOf(referenceName),
 		tree,
-		notices: {
-			branchLengthsMissing,
-			matchTier: match.tier,
-			droppedTaxa: { alignment: match.droppedAlignment, tree: match.droppedTree },
-			duplicatesCollapsed,
-			duplicateMap,
-			unequalLengths,
-			codonsTrimmed,
-			stridePreselected,
-			distanceRescaled: rescaled.rescaled,
-			rawDistMax: rescaled.rawMax,
-			pdSubsampled,
+		notices: /** @type {LoadedAlignment['notices']} */ ({
+			...notices,
 			unknownCodons,
 			unknownCodonFraction: unknownCodons / Math.max(1, totalCodons),
 			inFrameStops: stopCodons,
 			totalCodons
-		}
+		})
 	};
 }
 

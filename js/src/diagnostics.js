@@ -22,7 +22,8 @@
  *   - median patristic < 0.05 -> shallow          PLAN.md §2 item 6 / §4.3 ("shallow -> suggest viral");
  *                                                the 0.05 figure is the task's, not dataset.py's.
  *                                                MEASURED on the bundled examples (dataset.py's own
- *                                                distances, after the rescale): Smc6 0.024 (20
+ *                                                distances, after the rescale, or the TN93 distances
+ *                                                on a tree-free run): Smc6 0.024 (20
  *                                                primates — it trips this), HIV1_RT 0.061, camelid
  *                                                0.284 (HyPhy lengths), bat_oas1 0.351 (rescaled from
  *                                                Mya), RHO 0.712
@@ -30,9 +31,18 @@
  *                                                taxa on deep trees"). 0.2 is a calibration choice
  *                                                from the measurements above: between the within-
  *                                                species viral panel (HIV1_RT, 0.06) and every
- *                                                cross-species panel (0.28-0.71). Skipped when the
- *                                                tree had no branch lengths (the distances are then
- *                                                dataset.py's 1e-3 defaults, not a depth).
+ *                                                cross-species panel (0.28-0.71). Skipped only when
+ *                                                a tree WITH no branch lengths is used anyway (the
+ *                                                distances are then dataset.py's 1e-3 defaults, not
+ *                                                a depth); under D22 that case goes tree-free, and
+ *                                                TN93 distances ARE a depth, so they are measured.
+ *   - TN93 saturation: any pair at the sentinel  tn93.js / dataset.py:566. A pair the TN93 formula
+ *                                                cannot resolve is reported as exactly 1.0, and a
+ *                                                pair of identical sequences is imputed to
+ *                                                max(1.0, max_d); either way it is a floor, not a
+ *                                                distance. Measured on the bundled examples after
+ *                                                the duplicate collapse the loader does first: 0
+ *                                                pairs, on all five.
  *   - unique haplotypes < 5 or mean pairwise p-distance < 0.005 -> star-like   PLAN.md §2 item 5 /
  *                                                §4.3 (issue #33); numbers from the task statement.
  *                                                Measured mean p-distances: Smc6 0.023, HIV1_RT 0.053,
@@ -59,8 +69,19 @@
  *                                                0.21 s measured model time) is ignored, and the
  *                                                browser WASM path will be recalibrated separately.
  *
- * WHAT IT DELIBERATELY DOES NOT DO: no tree estimation (HyPhy / TN93 are the runtime's, PLAN.md
- * D5/D6) — a missing tree or missing branch lengths is REPORTED with `data.recoverable`; no
+ * TREE-FREE MODE (PLAN.md D22, resolved 2026-09-05) replaced two refusals with one info: a missing
+ * tree (was TREE_MISSING, refuse) and a tree without usable branch lengths (was
+ * BRANCH_LENGTHS_MISSING, warn) are now TREE_FREE_TN93 at info level, with
+ * `data.reason` = 'no_tree' | 'no_branch_lengths' | 'requested' ('requested' being `useTn93` or a
+ * `treeText` of 'tn93' / 'none' / 'skip', which used to be TREE_MISSING too). Both codes are gone
+ * from DIAGNOSTIC_CODES; TREE_UNPARSEABLE stays a refuse, because bad tree text is a bad input
+ * rather than a missing one. In tree-free mode the taxon-matching codes (TAXA_NOT_IN_TREE,
+ * TIPS_NOT_IN_ALIGNMENT) are not emitted — the tree does not select the taxa — and the new
+ * TN93_SATURATED_PAIRS reports how many pairs came back at the saturation sentinel (and refuses
+ * when the matrix could not be computed at all, which is where the reference raises).
+ *
+ * WHAT IT DELIBERATELY DOES NOT DO: no tree estimation (HyPhy is gone with D22; TN93 distances are
+ * computed here, through `loadAlignmentAndTree`) — no
  * MEME-hit-likelihood prescreen (the XGBoost row of §4.3 lives in the app's runtime/prescreen);
  * no I/O, no printing. It never throws on bad input: every parse failure becomes a `refuse`
  * warning. It may throw on a caller error (`maxSpecies` 0, which dataset.py's stride pre-selection
@@ -76,6 +97,7 @@ import { pruneIdenticalSequences } from './preprocess/downsample.js';
 import { loadAlignmentAndTree } from './preprocess/assemble.js';
 import { codonToken } from './preprocess/tokenizer.js';
 import { MAX_SPECIES_CAP, CODON_UNKNOWN } from './preprocess/modelContract.js';
+import { TN93_MATCH_MODE, TN93_SATURATION_SENTINEL } from './preprocess/tn93.js';
 
 /** Every code `diagnose` can emit, in the order of PLAN.md §4.3's rows. */
 export const DIAGNOSTIC_CODES = Object.freeze([
@@ -91,13 +113,13 @@ export const DIAGNOSTIC_CODES = Object.freeze([
 	'TOO_FEW_TAXA',
 	'TAXA_OVER_CAP',
 	'TAXA_OVER_LIMIT',
-	'TREE_MISSING',
 	'TREE_UNPARSEABLE',
+	'TREE_FREE_TN93',
 	'TAXA_NOT_IN_TREE',
 	'TIPS_NOT_IN_ALIGNMENT',
-	'BRANCH_LENGTHS_MISSING',
 	'NEGATIVE_BRANCH_LENGTHS',
 	'DISTANCE_RESCALED',
+	'TN93_SATURATED_PAIRS',
 	'SHALLOW_TREE',
 	'DEEP_LARGE_TREE',
 	'STAR_LIKE',
@@ -304,13 +326,15 @@ export function medianOffDiagonal(d, n) {
  *   treeText?: string|null,
  *   parsed?: import('./preprocess/assemble.js').LoadedAlignment|null,
  *   maxSpecies?: number,
- *   taxaLimit?: number
+ *   taxaLimit?: number,
+ *   useTn93?: boolean
  * }} input `parsed` is an existing `loadAlignmentAndTree` result for the same texts, to avoid
  *   loading twice; when absent the model-level checks load with `maxSpecies` (the cap the model
- *   run will use, default MAX_SPECIES_CAP = 512).
+ *   run will use, default MAX_SPECIES_CAP = 512). `useTn93` forces the tree-free path even when a
+ *   usable tree is present, exactly as `loadAlignmentAndTree`'s option does (D22).
  * @returns {Diagnosis}
  */
-export function diagnose({ alignmentText, treeText = null, parsed = null, maxSpecies = MAX_SPECIES_CAP, taxaLimit = DIAGNOSTIC_THRESHOLDS.taxaLimit }) {
+export function diagnose({ alignmentText, treeText = null, parsed = null, maxSpecies = MAX_SPECIES_CAP, taxaLimit = DIAGNOSTIC_THRESHOLDS.taxaLimit, useTn93 = false }) {
 	const T = DIAGNOSTIC_THRESHOLDS;
 	/** @type {Diagnostic[]} */
 	const warnings = [];
@@ -397,21 +421,16 @@ export function diagnose({ alignmentText, treeText = null, parsed = null, maxSpe
 	// ---- Tree text, before the model-level load, so raw branch lengths can be inspected. ----
 	/** @type {import('./preprocess/tree.js').PhyloTree|null} */
 	let tree = null;
+	/** D22: why the run will use TN93 distances instead of the tree, if it will. @type {'requested'|'no_tree'|'no_branch_lengths'|null} */
+	let treeFreeReason = null;
 	const treeMode = treeText === null || treeText === undefined ? null : String(treeText).trim().toLowerCase();
+	if (useTn93) treeFreeReason = 'requested';
 	if (treeMode === null) {
 		tree = extractTree(text);
 		if (tree) summary.treeSource = 'embedded';
-		else
-			push('TREE_MISSING', 'refuse', 'No tree was given and none is embedded in the alignment; supply a Newick/NEXUS tree or estimate one.', {
-				recoverable: true,
-				via: ['hyphy-hky85', 'tn93', 'nj']
-			});
+		else if (treeFreeReason === null) treeFreeReason = 'no_tree';
 	} else if (['tn93', 'none', 'skip'].includes(treeMode)) {
-		push('TREE_MISSING', 'refuse', `Tree mode '${treeMode}' asks for TN93 distances (dataset.py:544-580), which the library does not compute.`, {
-			recoverable: true,
-			via: ['tn93'],
-			mode: treeMode
-		});
+		treeFreeReason = 'requested';
 	} else {
 		tree = extractTree(String(treeText));
 		if (tree) summary.treeSource = 'user';
@@ -419,6 +438,8 @@ export function diagnose({ alignmentText, treeText = null, parsed = null, maxSpe
 	}
 
 	let branchLengthsMissing = false;
+	/** @type {Record<string, number|null>|null} */
+	let branchStats = null;
 	if (tree) {
 		let missing = 0;
 		let negatives = 0;
@@ -440,14 +461,7 @@ export function diagnose({ alignmentText, treeText = null, parsed = null, maxSpe
 		}
 		const branches = missing + negatives + zeros + positives;
 		branchLengthsMissing = !hasNonzeroBranchLengths(tree);
-		if (branchLengthsMissing) {
-			push(
-				'BRANCH_LENGTHS_MISSING',
-				'warn',
-				`The tree has no usable branch lengths (${positives} of ${branches} branches positive); the reference estimates them with HyPhy (HKY85), otherwise uses 1e-3 for missing and 1e-4 for zero lengths.`,
-				{ branches, missing, zeros, negatives, positives, recoverable: true, via: ['hyphy-hky85', 'tn93'], defaults: { missing: 1e-3, minimum: 1e-4 } }
-			);
-		}
+		if (branchLengthsMissing && treeFreeReason === null) treeFreeReason = 'no_branch_lengths';
 		if (negatives > 0) {
 			push('NEGATIVE_BRANCH_LENGTHS', 'warn', `${negatives} branch length(s) are negative (minimum ${minLen}); they are raised to 1e-4 (dataset.py:289-300).`, {
 				count: negatives,
@@ -455,15 +469,40 @@ export function diagnose({ alignmentText, treeText = null, parsed = null, maxSpe
 				raisedTo: 1e-4
 			});
 		}
-		Object.assign(summary, { branchLengths: { branches, missing, zeros, negatives, positives, max: Number.isFinite(maxLen) ? maxLen : null } });
+		branchStats = { branches, missing, zeros, negatives, positives, max: Number.isFinite(maxLen) ? maxLen : null };
+		Object.assign(summary, { branchLengths: branchStats });
+	}
+
+	if (treeFreeReason !== null) {
+		const why =
+			treeFreeReason === 'requested'
+				? 'TN93 distances were requested'
+				: treeFreeReason === 'no_tree'
+					? 'no tree was given and none is embedded in the alignment'
+					: 'the tree has no usable branch lengths';
+		push(
+			'TREE_FREE_TN93',
+			'info',
+			`Tree-free TN93 mode will be used: ${why}. Pairwise Tamura-Nei 93 distances (match mode '${TN93_MATCH_MODE}') feed the MDS directly and every alignment sequence is kept, in alignment order${tree ? '; the tree is used for display only' : ''}.`,
+			{
+				reason: treeFreeReason,
+				taxaOrder: 'alignment',
+				distances: 'tn93',
+				matchMode: TN93_MATCH_MODE,
+				treeKeptForDisplay: tree !== null,
+				branchLengths: branchStats
+			}
+		);
 	}
 
 	// ---- Taxon matching (dataset.py:616-642) and haplotype collapse (645-650), on the light path. ----
+	// Skipped in tree-free mode: the tree does not choose the taxa there, so a tip that is missing
+	// from the alignment (or the other way round) is not a defect (D22).
 	/** @type {string[]|null} */
 	let taxa = null;
 	/** @type {string[]|null} */
 	let uniqueTaxa = null;
-	if (tree) {
+	if (tree && treeFreeReason === null) {
 		const treeNames = treeTaxa(tree);
 		try {
 			const match = matchTaxa(treeNames, names);
@@ -609,9 +648,22 @@ export function diagnose({ alignmentText, treeText = null, parsed = null, maxSpe
 	// ---- Model-level load: what the graph would actually be given. ----
 	/** @type {import('./preprocess/assemble.js').LoadedAlignment|null} */
 	let loaded = parsed ?? null;
-	const canLoad = tree !== null && taxa !== null && rawLen >= 3 && nRaw <= taxaLimit;
+	const canLoad = (treeFreeReason !== null || (tree !== null && taxa !== null)) && rawLen >= 3 && nRaw <= taxaLimit;
 	if (loaded === null && canLoad) {
-		loaded = loadAlignmentAndTree(text, treeMode === null ? null : String(treeText), { maxSpecies, pruneDuplicates: true });
+		try {
+			loaded = loadAlignmentAndTree(text, treeMode === null ? null : String(treeText), { maxSpecies, pruneDuplicates: true, useTn93 });
+		} catch (e) {
+			// The reference dies here too: `compute_tn93_distance_matrix` lets the tn93 package's
+			// ZeroDivisionError (no overlap) and math-domain ValueError (a saturated pair) propagate
+			// (dataset.py:538-557). Report it instead of throwing; every other path keeps raising.
+			if (treeFreeReason === null) throw e;
+			push('TN93_SATURATED_PAIRS', 'refuse', `The TN93 distance matrix could not be computed: ${e instanceof Error ? e.message : String(e)}`, {
+				pairs: null,
+				sentinel: TN93_SATURATION_SENTINEL,
+				reason: treeFreeReason,
+				error: e instanceof Error ? e.message : String(e)
+			});
+		}
 	}
 	let L = Math.floor(rawLen / 3);
 	let nUsed = Math.min(nUnique, maxSpecies);
@@ -634,7 +686,8 @@ export function diagnose({ alignmentText, treeText = null, parsed = null, maxSpe
 			);
 		}
 		// Issue #9: a taxon with no terminal of its name gets an all-zero row (compute_fast_dist_matrix).
-		if (loaded.N > 1) {
+		// Tree-free runs have no terminals to miss, and their imputation leaves no zero row.
+		if (loaded.N > 1 && loaded.notices.treeFree === null) {
 			const zeroRows = [];
 			for (let i = 0; i < loaded.N; i++) {
 				let allZero = true;
@@ -650,7 +703,22 @@ export function diagnose({ alignmentText, treeText = null, parsed = null, maxSpe
 				);
 			}
 		}
-		const median = loaded.notices.branchLengthsMissing ? null : medianOffDiagonal(loaded.d, loaded.N);
+		if (loaded.notices.treeFree !== null) {
+			const saturated = loaded.notices.tn93SaturatedPairs ?? 0;
+			const pairs = (loaded.N * (loaded.N - 1)) / 2;
+			if (saturated > 0) {
+				push(
+					'TN93_SATURATED_PAIRS',
+					'warn',
+					`${saturated} of ${pairs} taxon pairs (${((saturated / Math.max(1, pairs)) * 100).toFixed(1)}%) are at the TN93 saturation sentinel ${TN93_SATURATION_SENTINEL}: their divergence could not be estimated and the sentinel was substituted, so the MDS positions of those taxa are floors, not measurements.`,
+					{ pairs: saturated, totalPairs: pairs, fraction: saturated / Math.max(1, pairs), sentinel: TN93_SATURATION_SENTINEL, reason: loaded.notices.treeFree.reason }
+				);
+			}
+		}
+		// The depth regime needs real distances. Patristic distances from a tree without branch
+		// lengths are 1e-3 defaults, so they are skipped; TN93 distances are real, so tree-free runs
+		// (including the ones taken BECAUSE the tree had no lengths) are measured (D22).
+		const median = loaded.notices.branchLengthsMissing && loaded.notices.treeFree === null ? null : medianOffDiagonal(loaded.d, loaded.N);
 		summary.medianPatristic = median;
 		if (median !== null) {
 			if (median < T.shallowMedianPatristic) {

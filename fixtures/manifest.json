@@ -1,7 +1,7 @@
 {
  "generator": "scripts/gen_fixtures.py",
- "engine_commit": "cf838ab7cacd09c103f38d7a8d724f8bc73b7e2d",
- "generated_at": "2026-09-05T05:47:38-0700",
+ "engine_commit": "61d30e3efa496e96d16f4c42238670ad7afe4fa9",
+ "generated_at": "2026-09-05T09:00:51-0700",
  "model_safetensors_sha256": "0278dff092601acca959aa64bf6742ad17a38a5e6e31eabd424d6d224eea6ebd",
  "model_safetensors_bytes": 9842824,
  "environment": {
@@ -12,7 +12,9 @@
   "torch": "2.10.0",
   "biopython": "1.85",
   "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
-  "hyphy": "HYPHY 2.5.65(MP) for Darwin on x86_64 x86 AVX SIMD with FMA3 zlib (v1.2.12)"
+  "hyphy": "HYPHY 2.5.65(MP) for Darwin on x86_64 x86 AVX SIMD with FMA3 zlib (v1.2.12)",
+  "tn93_package": "1.2.2",
+  "tn93_binary_present_but_hidden": "v1.0.15"
  },
  "synthetic_seed": 20260904,
  "engine_default_rng_seed": 42,
@@ -28,6 +30,11 @@
   "statistical": "Monte Carlo outputs: |p_js - p_py| <= 3*sqrt(p(1-p)/B), null moments within 2%; membership/exact fields still compared exactly"
  },
  "known_quirks": [
+  "dataset.compute_tn93_distance_matrix PREFERS the compiled `tn93` binary on PATH (`tn93 -t 1.0 -l 1 -q -o out.csv in.fa`) and falls back to the Python `tn93` package (TN93().get_counts(a, b, 'resolve') -> get_nucleotide_frequency -> calculate_distance). The fixtures hide the binary so the PACKAGE path is pinned; the two measured identical (max |delta| = 0.0) on bat_oas1 and HIV1_RT, because the binary writes the same 6 significant digits and every pair it drops at its 1.0 threshold is imputed back to 1.0.",
+  "dataset.compute_tn93_distance_matrix imputes a zero distance between two BYTE-IDENTICAL sequences as max(1.0, max_d) - the LARGEST distance in the matrix - while two different sequences at zero distance get 1e-4 (dataset.py:559-568). load_alignment_and_tree prunes identical sequences first, so it needs prune_duplicates=False to be reached.",
+  "The tn93 package RAISES rather than returning a sentinel on two inputs dataset.py does not catch: math.log of a non-positive corrected proportion (a saturated pair) -> ValueError, and `2 / sum(nucleotide_frequency)` on a pair with no overlapping non-gap position -> ZeroDivisionError. dataset.py's `if d is None or d == '-' or d < 0 or isnan(d)` guard is therefore dead code on that path.",
+  "tn93.calculate_distance falls back to a fixed 1.0 SENTINEL (not a distance) whenever some base is absent from the pairwise counts and the degenerate correction goes non-positive: 1 pair in HIV1_RT, 78 in RHO, 0 in bat_oas1/Smc6/camelid.",
+  "load_alignment_and_tree(use_tn93=True) takes taxa in ALIGNMENT order and applies no `> 10` rescale, where the tree path uses tree terminal order and rescales.",
   "cli.py cmd_busted loads BustedMultiTaskHead with strict=False; model.safetensors lacks 11 of its parameters (see busted_head_missing_keys) and torch is never seeded, so predicted_gene_lrt, selection_probability, synonymous_rate_variation, omega_3, proportion_* and positive_selection_detected differ on every run. They are nulled in fixtures/e2e/busted_*.json.",
   "dataset.load_alignment_and_tree with max_species strides taxa to at most 2*max_species BEFORE Faith's PD; for 212 camelid taxa the stride is 1 so it keeps the first 128 taxa in tree order.",
   "dataset.load_alignment_and_tree rescale rule fires on dist_mat.max() > 10.0 AFTER enforce_nonzero_branch_lengths, so a zero-length branch can tip a max of exactly 10.0 over the threshold.",
@@ -82,7 +89,10 @@
    "rescale_rule": 4,
    "prune_identical_sequences": 4,
    "load_alignment_and_tree_duplicates": 2,
-   "downsample_taxa_faith_pd": 4
+   "downsample_taxa_faith_pd": 4,
+   "tn93_distance": 24,
+   "tn93_distance_matrix": 8,
+   "load_alignment_and_tree_tn93": 2
   },
   "attribution": {
    "attribute_selection": 1
@@ -91,6 +101,10 @@
    "run_insilico_selection_dms": 2
   },
   "e2e": {
+   "meme_camelid_tn93": 1,
+   "meme_HIV1_RT_tn93": 1,
+   "busted_Smc6_tn93": 1,
+   "epistasis_Smc6_tn93": 1,
    "meme_bat_oas1": 1,
    "meme_Smc6": 1,
    "meme_camelid": 1,
@@ -146,10 +160,17 @@
   "e2e/epistasis_Smc6_n_permutations_1000.json": 18871,
   "e2e/phenotype_RHO_marine_n_permutations_0.json": 129523,
   "e2e/filter_bat_oas1.json": 1854,
-  "e2e/filter_camelid.json": 2370
+  "e2e/filter_camelid.json": 2370,
+  "dataset/tn93_distance.json": 38906,
+  "dataset/tn93_distance_matrix.json": 1217587,
+  "dataset/load_alignment_and_tree_tn93.json": 1327333,
+  "e2e/meme_camelid_tn93.json": 18133,
+  "e2e/meme_HIV1_RT_tn93.json": 56497,
+  "e2e/busted_Smc6_tn93.json": 2582,
+  "e2e/epistasis_Smc6_tn93.json": 24426
  },
- "total_bytes": 2914569,
- "elapsed_seconds": 74.0,
+ "total_bytes": 5600033,
+ "elapsed_seconds": 30.0,
  "e2e_wall_seconds": {
   "meme_bat_oas1": 1.7,
   "meme_Smc6": 1.6,
@@ -160,7 +181,11 @@
   "busted_Smc6": 1.7,
   "busted_HIV1_RT": 17.9,
   "epistasis_Smc6_n_permutations_1000": 2.6,
-  "phenotype_RHO_marine_n_permutations_0": 8.1
+  "phenotype_RHO_marine_n_permutations_0": 8.1,
+  "meme_camelid_tn93": 3.1,
+  "meme_HIV1_RT_tn93": 25.7,
+  "busted_Smc6_tn93": 1.8,
+  "epistasis_Smc6_tn93": 2.9
  },
  "busted_head_missing_keys": [
   "coral_logp.theta_steps",

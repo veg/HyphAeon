@@ -308,9 +308,14 @@ describe('runAlignmentFilter against the reference with a fake model', () => {
 		it(`${c.name}: cmd_meme --filter (cliVariant) JSON`, async () => {
 			const input = { alignmentText: alignment, treeText: tree };
 			if (o.cmd_meme === null) {
-				// cli.py:192 hands the cleaned FASTA (no embedded tree) and args.tree=None to the loader.
+				// cli.py:192 hands the cleaned FASTA (no embedded tree) and args.tree=None to the loader,
+				// where the reference RAISES. D22 removed that failure: the re-load has no tree, so it
+				// takes the tree-free TN93 path and the filter completes. The divergence is deliberate
+				// and is the only place the JS filter outruns the Python one.
 				expect(o.cmd_meme_error).toMatch(/No tree specified/);
-				await expect(runAlignmentFilter(input, fakePredict, { cliVariant: true })).rejects.toThrow(/No tree specified/);
+				const res = await runAlignmentFilter(input, fakePredict, { cliVariant: true });
+				expect(res.cleaned).not.toBeNull();
+				expect(res.cleaned.loaded.notices.treeFree).toEqual({ reason: 'no_tree', taxaOrder: 'alignment' });
 				return;
 			}
 			const res = await runAlignmentFilter(input, fakePredict, { cliVariant: true, batchSize: 7 });
