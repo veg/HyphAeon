@@ -1004,6 +1004,37 @@ def cmd_filter(args):
     if args.csv:
         print(f"[✓] Artifact audit log written to: {args.csv}")
 
+def cmd_overlap(args):
+    """Detect overlapping reading frames (dual-coding regions) in a CDS alignment."""
+    from .overlap import detect
+    allow = [("+", 1), ("+", 2)]
+    if getattr(args, "antisense", False):
+        allow += [("-", 0), ("-", 1), ("-", 2)]
+    hits, ref = detect(args.alignment, reference=args.reference, allow=tuple(allow),
+                       min_codons=args.min_codons, max_stop_frac=args.max_stop_frac)
+    print(f"\nOverlapping-frame scan of {args.alignment} (reference={ref})")
+    if not hits:
+        print("  no alternate reading frame with an overlap signal detected")
+        return
+    print(f"  {'frame':>6}{'nt_region':>14}{'codons':>7}{'syn_in_B':>9}"
+          f"{'synB@nsA':>9}{'pos3':>6}{'dens':>6}{'call':>18}")
+    for h in hits:
+        call = "OVERLAP" if h["passes"] else (
+            "inflation-suspect" if h.get("inflation_flag") else "screen-only")
+        region = f"{h['nt_start']}-{h['nt_end']}"
+        print(f"  {h['strand']+str(h['frame']):>6}{region:>14}{h['n_codons']:>7}"
+              f"{h['syn_in_B']:>9}{str(h['synB_at_nonsynA']):>9}{h['pos3_ratio']:>6}"
+              f"{h['density_ratio']:>6}{call:>18}")
+    if getattr(args, "csv", None):
+        import csv as _csv
+        with open(args.csv, "w", newline="") as fh:
+            w = _csv.DictWriter(fh, fieldnames=list(hits[0].keys()))
+            w.writeheader(); w.writerows(hits)
+        print(f"  [csv written to {args.csv}]")
+    print("\n  Note: signature is a rapid screen; confirm candidates with per-frame "
+          "dN/dS (HyPhy FEL/MEME on each frame). A dual-frame model head is the roadmap.")
+
+
 def main():
 
     parser = argparse.ArgumentParser(
@@ -1155,6 +1186,22 @@ def main():
     from .evaluation import configure_parser as configure_evaluation_parser
     configure_evaluation_parser(eval_parser)
 
+    # 9. Overlapping reading frame (dual-coding) detection
+    olg_parser = subparsers.add_parser(
+        "overlap", aliases=["olg", "dual-coding"],
+        help="Detect overlapping reading frames (dual-coding regions) in a CDS alignment")
+    olg_parser.add_argument("-a", "--alignment", required=True,
+                            help="In-frame codon alignment (FASTA or PHYLIP[.gz])")
+    olg_parser.add_argument("-r", "--reference", default=None,
+                            help="Reference sequence id (default: hg38, else first)")
+    olg_parser.add_argument("--antisense", action="store_true",
+                            help="Also scan the antisense strand (more false positives)")
+    olg_parser.add_argument("--min-codons", type=int, default=25,
+                            help="Minimum alt-ORF length in codons (default: 25)")
+    olg_parser.add_argument("--max-stop-frac", type=float, default=0.10,
+                            help="Reject alt-ORF above this cross-species stop fraction")
+    olg_parser.add_argument("-c", "--csv", default=None, help="Optional per-frame CSV output")
+
     args = parser.parse_args()
     if args.command in ["meme", "predict", "site-selection"]:
         cmd_meme(args)
@@ -1170,6 +1217,8 @@ def main():
         cmd_disease(args)
     elif args.command in ["filter", "mask", "qc", "clean"]:
         cmd_filter(args)
+    elif args.command in ["overlap", "olg", "dual-coding"]:
+        cmd_overlap(args)
     elif args.command == "list-models":
         list_models()
     elif args.command == "evaluate":
