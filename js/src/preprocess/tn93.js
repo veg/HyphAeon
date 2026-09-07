@@ -604,7 +604,10 @@ function tn93DistanceEnc(e1, e2, options) {
  *
  * @param {Map<string, string>|Record<string, string>} sequences taxon -> aligned sequence
  * @param {string[]} taxa the rows/columns, in order
- * @param {{matchMode?: string, maxAmbigFraction?: number, ignoreGaps?: boolean}} [options]
+ * @param {{matchMode?: string, maxAmbigFraction?: number, ignoreGaps?: boolean,
+ *   pairwiseDistances?: (seqs: string[], taxa: string[]) => ArrayLike<number>}} [options]
+ *   `pairwiseDistances` replaces the per-pair computation with an external engine's raw numbers,
+ *   read at [i * n + j]; the rounding, the sentinel and dataset.py's imputation still happen here.
  * @returns {Float32Array} length taxa.length ** 2
  */
 export function tn93DistanceMatrix(sequences, taxa, options = {}) {
@@ -618,12 +621,20 @@ export function tn93DistanceMatrix(sequences, taxa, options = {}) {
 		if (typeof s !== 'string') throw new Error(`tn93DistanceMatrix: no sequence for taxon '${t}'`);
 		return s;
 	});
-	const encoded = seqs.map(encodeSequence);
+	// An external provider (the compiled tn93 through WebAssembly, dataset.py:507-537's branch when
+	// the binary is on PATH) may supply the RAW pairwise distances; everything downstream of them —
+	// the dead guard, float32 rounding, the sentinel and dataset.py's imputation — stays here, so
+	// the two engines can differ only in the numbers they compute, never in what is done with them.
+	// The callback takes the sequences in `taxa` order and returns an n*n array-like read at
+	// [i * n + j]; `null` or `undefined` for a pair means "not computed", the same as the package's
+	// own saturation answer, TN93_SATURATION_SENTINEL.
+	const provider = typeof options.pairwiseDistances === 'function' ? options.pairwiseDistances(seqs, taxa) : null;
+	const encoded = provider ? null : seqs.map(encodeSequence);
 
 	let liveMax = 0;
 	for (let i = 0; i < n; i++) {
 		for (let j = i + 1; j < n; j++) {
-			let d = tn93DistanceEnc(encoded[i], encoded[j], options);
+			let d = provider ? provider[i * n + j] : tn93DistanceEnc(encoded[i], encoded[j], options);
 			// dataset.py:552 `if d is None or d == "-" or d < 0 or np.isnan(d): d = 1.0` (dead).
 			if (d === null || d === undefined || d < 0 || Number.isNaN(d)) d = TN93_SATURATION_SENTINEL;
 			const f = Math.fround(d);
