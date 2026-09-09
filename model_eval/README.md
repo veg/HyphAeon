@@ -113,6 +113,14 @@ model_eval/
 │   ├── test_determinism.py              ← batch size, run repeatability
 │   └── test_numerical_edge_cases.py     ← all-gap, single-taxon, large N
 │
+├── phenotype/             ← can PhyloWAS detect molecular drivers of convergence?
+│   ├── mystery_gene_2.fasta             ← anonymized myoglobin codon alignment
+│   ├── tree_2.nwk                       ← anonymized mammalian species tree
+│   ├── trait.csv                        ← binary trait labels for anonymized taxa
+│   ├── taxon_anonymization_mapping.csv  ← original-to-anonymized taxon lookup
+│   ├── phenotype_results.csv            ← tabular site-level results
+│   └── phenotype_results.json           ← complete analysis results and metadata
+│
 └── reports/               ← evidence generation (not pass/fail; JSON/CSV artifacts)
     └── test_composition_baseline.py    ← AUC vs distinct-AA baseline
 ```
@@ -251,6 +259,52 @@ These tests generate JSON/CSV artifacts and write them to
 `model_eval/_artifacts/`. They do not assert thresholds because the "right"
 value is a research question, not a contract. The model team reviews the
 numbers; CI uploads them as workflow artifacts.
+
+## phenotype/
+
+The `phenotype/` fixture analyzes whether `hyphaeon phenotype` can detect amino acid
+convergence for deep-diving marine mammals in an anonymized mammalian alignment of
+Myoglobin (MB) sequences (`mystery_gene_2.fasta`, sourced from [VGP/TOGA2](https://genome.senckenberg.de/download/TOGA2/MultiCodonAlignments/)).
+`tree_2.nwk` is the corresponding anonymized species tree, and the anonymized binary `trait_status`
+values in `trait.csv` classify each taxon as a deep-diving marine mammal (1) or not (0).
+Results were obtained using 1,000 phylogenetic permulations. The current CLI invocation is:
+
+```bash
+hyphaeon phenotype \
+  -a model_eval/phenotype/mystery_gene_2.fasta \
+  -t model_eval/phenotype/tree_2.nwk \
+  -pf model_eval/phenotype/trait.csv \
+  -sc taxonomic_identifier \
+  -tc trait_status \
+  --permulations 1000
+```
+
+The run matched 863 taxa and collapsed 198 identical sequences, leaving 665
+unique haplotypes, including 18 Trait=1 haplotypes. It analyzed 186 codons and
+produced a gene-level empirical p-value of 0.004995. However, **no individual
+codon passed the requested FDR threshold of q <= 0.05**; the smallest site-level
+q-value was 0.0823. Consequently, these results do not support a statistically
+significant set of five convergent codons at that cutoff.
+
+For hypothesis generation only, the five sites with the largest positive Trait
+Directional Concordance (`rho_s`) are shown below. Residue percentages were
+calculated directly from the uncollapsed FASTA sequences matched to the trait
+file (25 Trait=1 and 838 Trait=0 taxa); percentages exclude gaps and ambiguous
+codons.
+
+| codon | rho_s | FDR q | Trait=1 amino acids | Trait=0 amino acids | biochemical interpretation |
+|------:|------:|------:|---------------------|---------------------|----------------------------|
+| 5 | 0.7919 | 0.0823 | E 68%, D 32% | D 99.5%, E 0.5% | D to E retains negative charge but lengthens the side chain |
+| 25 | 0.4779 | 0.0823 | H 52%, N 48% | N 94.7%, H 0.6% | N to H introduces a bulkier aromatic imidazole that can carry positive charge |
+| 41 | 0.4541 | 0.0823 | I 72%, V 28% | V 93.1%, I 6.9% | V to I slightly increases side-chain size and hydrophobicity |
+| 165 | 0.4539 | 0.0953 | H 88%, Q 12% | Q 92.9%, H 5.3% | Q to H replaces a neutral amide with an aromatic, titratable side chain |
+| 164 | 0.4082 | 0.1232 | F 88%, Y 12% | F 100% | mostly conserved F; the minority F to Y change adds a hydroxyl group |
+
+Taken descriptively, the candidates trend toward bulkier side chains, with two
+sites gaining histidine and therefore a titratable aromatic group. This is not
+a uniform hydrophobicity or charge shift, and it must not be treated as an
+FDR-supported convergence result. Full outputs are in
+`phenotype/phenotype_results.csv` and `phenotype/phenotype_results.json`.
 
 ## Running
 
