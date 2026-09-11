@@ -1,14 +1,14 @@
 /**
  * WHY THIS FILE EXISTS
  *
- * Mirrors `hyphaeon/attribution.py` at veg/HyphAeon 267f5cf:
+ * Mirrors `hyphaeon/attribution.py` at veg/HyphAeon reconcile/phase-5a:
  *
  *   INV_GENETIC_CODE            attribution.py:16   the token -> codon inverse of GENETIC_CODE
  *   attributeSelection          attribute_selection, attribution.py:19-175
  *   attributionSiteFields       the per-site decoration cmd_meme derives from a record
- *                               (cli.py:284-291: evolutionary_epoch, adaptation_mode, top_driver,
+ *                               (cli.py:287-294: evolutionary_epoch, adaptation_mode, top_driver,
  *                               top_mutation, attribution_details)
- *   attributionsOneIndexed      `{str(k+1): v}` as cmd_meme writes them (cli.py:307)
+ *   attributionsOneIndexed      `{str(k+1): v}` as cmd_meme writes them (cli.py:310)
  *
  * attribute_selection, step by step (line numbers of attribution.py):
  *    1. focal sites: the explicit list; else `where(base_lrts >= min_lrt)`; else every site      55-61
@@ -272,7 +272,7 @@ export async function attributeSelection(loaded, predict, options = {}) {
 }
 
 /**
- * The fields cmd_meme adds to a site entry from its attribution record (cli.py:284-291):
+ * The fields cmd_meme adds to a site entry from its attribution record (cli.py:287-294):
  * `top_driver` / `top_mutation` are the first driver (highest delta) or null when the site has no
  * non-consensus taxon.
  *
@@ -292,7 +292,7 @@ export function attributionSiteFields(rec) {
 }
 
 /**
- * `{str(k + 1): v for k, v in attributions.items()}` (cli.py:307): the records keyed by the
+ * `{str(k + 1): v for k, v in attributions.items()}` (cli.py:310): the records keyed by the
  * 1-indexed site as a string, in insertion order.
  *
  * @param {Map<number, AttributionRecord>} attributions

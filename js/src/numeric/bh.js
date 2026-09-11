@@ -1,7 +1,7 @@
 /**
  * WHY THIS FILE EXISTS
  *
- * Mirrors `benjamini_hochberg` in hyphaeon/stats.py:50-70 (at 267f5cf), line for line:
+ * Mirrors `benjamini_hochberg` in hyphaeon/stats.py:50-70 (at reconcile/phase-5a), line for line:
  *
  *     n = len(pvals); if n == 0: return []
  *     sorted_idx = np.argsort(pvals); sorted_p = pvals[sorted_idx]

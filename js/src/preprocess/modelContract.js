@@ -6,19 +6,19 @@
  * file is how a pure function can still say "the bundle you just built is not what the graph
  * accepts" before anything expensive happens.
  *
- * WHAT IT MIRRORS (all at veg/HyphAeon 267f5cf):
- *   - the token vocabularies of `hyphaeon/dataset.py:25-57` (`GENETIC_CODE`, `AA_MAP`,
+ * WHAT IT MIRRORS (all at veg/HyphAeon reconcile/phase-5a):
+ *   - the token vocabularies of `hyphaeon/dataset.py:27-59` (`GENETIC_CODE`, `AA_MAP`,
  *     `get_codon_token`, `get_aa_token`): 61 sense codons 0..60, everything else 64; 20 residues
  *     0..19, everything else 20;
- *   - the embedding sizes of `hyphaeon/model.py:248-256`: `nn.Embedding(num_tokens=66, ...)` for
+ *   - the embedding sizes of `hyphaeon/model.py:243-251`: `nn.Embedding(num_tokens=66, ...)` for
  *     codons and `nn.Embedding(23, ...)` for amino acids — the graph accepts 0..65 and 0..22, the
  *     tokenizer only ever produces 0..64 and 0..20;
- *   - the input signature of `PhyloAxialTransformer.forward` (`model.py:481-583`): `msa_codons`
+ *   - the input signature of `PhyloAxialTransformer.forward` (`model.py:476-578`): `msa_codons`
  *     [B,N,W] int64, `msa_aas` [B,N,W] int64, `dist_matrix` [B,N,N] float32, `mds_coords` [B,N,4]
- *     float32, with `dist_matrix` and `mds_coords` per-alignment (dataset.py:727-728 unsqueezes
+ *     float32, with `dist_matrix` and `mds_coords` per-alignment (dataset.py:1087-1088 unsqueezes
  *     them to [1,N,N] / [1,N,4] and the model broadcasts);
  *   - `models/manifest.json`: `taxon_cap` 512, `default_taxon_cap` 256 (also `max_species=256`
- *     in `model.py:248`), the four input names and the three output names of `export-onnx`.
+ *     in `model.py:243`), the four input names and the three output names of `export-onnx`.
  *
  * WHAT IT DELIBERATELY DOES NOT DO: it does not load a model, and it does not decide which of the
  * two output specs applies — the runtime reads `models/manifest.json` for that.
@@ -36,13 +36,13 @@
  *     table size would wrongly reject nothing and wrongly accept nothing — it is recorded because
  *     the gap between the two is a fact about the checkpoint worth knowing.
  *   - `CODON_VALID_BELOW` / `AA_VALID_BELOW` were the 2.0 model's `(c < 64) & (a < 21)` gate.
- *     `model.py:481-583` at 267f5cf has NO token gate at all; the only "validity" rule in v1.0.0 is
- *     dataset.py:721's `aa_col < 20` for the invariable-site mask. The constants are kept for the
+ *     `model.py:476-578` at reconcile/phase-5a has NO token gate at all; the only "validity" rule in v1.0.0 is
+ *     dataset.py:1081's `aa_col < 20` for the invariable-site mask. The constants are kept for the
  *     runtime (64 and 20) and now name that rule.
- *   - `MAX_SPECIES_DEFAULT` was 512. It is now 256 (`model.py:248` `max_species=256`,
+ *   - `MAX_SPECIES_DEFAULT` was 512. It is now 256 (`model.py:243` `max_species=256`,
  *     `manifest.json` `default_taxon_cap`), and `MAX_SPECIES_CAP` = 512 (`manifest.json`
- *     `taxon_cap`, `cli.py:1108` busted default) is added. dataset.py itself applies NO cap unless
- *     `max_species` is passed (`cli.py:1025` meme default None), which is what
+ *     `taxon_cap`, `cli.py:1743` busted default) is added. dataset.py itself applies NO cap unless
+ *     `max_species` is passed (`cli.py:1027` meme default None), which is what
  *     `loadAlignmentAndTree` mirrors; these two constants are for the runtime's own policy.
  *   - The long AxoMEME 2.0 handoff narrative (driver-vs-training tokenizer, MDS on the padded matrix)
  *     is gone: it described a different model and a different preprocessing; mds.js and assemble.js
@@ -53,11 +53,11 @@
  *     `OUTPUT_NAMES_V1` are unchanged.
  */
 
-/** Codon table order of `GENETIC_CODE` in dataset.py:25-33: TCAG, third position fastest. */
+/** Codon table order of `GENETIC_CODE` in dataset.py:27-35: TCAG, third position fastest. */
 export const CODON_ORDER = 'TCAG';
 
 /**
- * dataset.py:25-33 numbers the 61 sense codons 0..60 in TCAG order with the stops skipped, maps
+ * dataset.py:27-35 numbers the 61 sense codons 0..60 in TCAG order with the stops skipped, maps
  * TAA/TAG/TGA to 64, and `get_codon_token` (line 52) returns 64 for anything not in the table:
  * gaps, ambiguity codes, wrong lengths, 'U'. Tokens 61, 62, 63 and 65 are never produced.
  */
@@ -65,11 +65,11 @@ export const CODON_STOP = 64;
 export const CODON_GAP = 64;
 export const CODON_UNKNOWN = 64;
 
-/** `nn.Embedding(num_tokens=66, ...)`, model.py:248,255. The graph accepts 0..65. */
+/** `nn.Embedding(num_tokens=66, ...)`, model.py:243,255. The graph accepts 0..65. */
 export const NUM_CODON_TOKENS = 66;
 
 /**
- * dataset.py:36-39 `AA_MAP`: the 20 standard residues, alphabetical, 0..19. `get_aa_token`
+ * dataset.py:38-41 `AA_MAP`: the 20 standard residues, alphabetical, 0..19. `get_aa_token`
  * (line 55) returns 20 for a stop ('*'), a gap, ambiguity, or anything untranslatable.
  */
 export const AA_LIST = 'ACDEFGHIKLMNPQRSTVWY';
@@ -77,11 +77,11 @@ export const AA_STOP = 20;
 export const AA_GAP = 20;
 export const AA_UNKNOWN = 20;
 
-/** `nn.Embedding(23, ...)`, model.py:256. The graph accepts 0..22; the tokenizer emits 0..20. */
+/** `nn.Embedding(23, ...)`, model.py:251. The graph accepts 0..22; the tokenizer emits 0..20. */
 export const NUM_AA_TOKENS = 23;
 
 /**
- * The only validity rule in v1.0.0: dataset.py:721 `valid_aa = aa_col[aa_col < 20]` when deciding
+ * The only validity rule in v1.0.0: dataset.py:1081 `valid_aa = aa_col[aa_col < 20]` when deciding
  * whether a site is invariable. Codons have no such rule in the reference; 64 is the sense-codon
  * bound (61 sense codons occupy 0..60, and 64 is the sentinel).
  */
@@ -89,18 +89,18 @@ export const CODON_VALID_BELOW = 64;
 export const AA_VALID_BELOW = 20;
 
 /**
- * `max_species=256` in `PhyloAxialTransformer.__init__` (model.py:248) and `default_taxon_cap` in
- * models/manifest.json. dataset.py applies no cap unless asked (cli.py:1025 defaults to None).
+ * `max_species=256` in `PhyloAxialTransformer.__init__` (model.py:243) and `default_taxon_cap` in
+ * models/manifest.json. dataset.py applies no cap unless asked (cli.py:1027 defaults to None).
  */
 export const MAX_SPECIES_DEFAULT = 256;
 
-/** `taxon_cap` in models/manifest.json; `cli.py:1108` busted `--max-species` default. */
+/** `taxon_cap` in models/manifest.json; `cli.py:1743` busted `--max-species` default. */
 export const MAX_SPECIES_CAP = 512;
 
 /** dataset.py builds [L, N, 1] token tensors: one codon per site, no window. */
 export const WINDOW_SIZE_DEFAULT = 1;
 
-/** `compute_mds_coordinates(dist_mat, n_components=4)`, dataset.py:688. */
+/** `compute_mds_coordinates(dist_mat, n_components=4)`, dataset.py:1047. */
 export const MDS_COMPONENTS = 4;
 
 /**
@@ -251,7 +251,7 @@ export function validateInputBundle(bundle, shape) {
 				break;
 			}
 			if (v < 0) {
-				// dataset.py cannot produce one: enforce_nonzero_branch_lengths (dataset.py:289-300)
+				// dataset.py cannot produce one: enforce_nonzero_branch_lengths (dataset.py:511-522)
 				// raises every non-root branch to >= 1e-4 before the matrix is built. A negative
 				// distance therefore means the bundle did not come through loadAlignmentAndTree.
 				errors.push(`dist_matrix[${i}] = ${v} — negative patristic distance`);
@@ -270,11 +270,11 @@ export function validateInputBundle(bundle, shape) {
  * `[batch, something]`, so a mis-assignment would not crash.
  *
  * Shapes, from `hyphaeon/model.py`:
- *   - `lrt` — `y_lrt_soft.view(batch_size)` (model.py:582), ordinal decode applied in-graph.
+ *   - `lrt` — `y_lrt_soft.view(batch_size)` (model.py:577), ordinal decode applied in-graph.
  *   - `mean_root_attns` — `all_attns.mean(dim=(0, 2)).view(batch_size, num_species)`
- *     (model.py:476-477): the root token's attention over species, averaged across layers and heads,
+ *     (model.py:471-472): the root token's attention over species, averaged across layers and heads,
  *     indexed by the `taxa` order `loadAlignmentAndTree` returns.
- *   - `root_repr` — `x_full[:, 0, central_idx, :]` (model.py:576), embed_dim 384 for this checkpoint
+ *   - `root_repr` — `x_full[:, 0, central_idx, :]` (model.py:571), embed_dim 384 for this checkpoint
  *     (model_config.json); the input to `busted_head.onnx`.
  */
 export const OUTPUT_SPEC_V1 = Object.freeze([

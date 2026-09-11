@@ -2,7 +2,7 @@
  * WHY THIS FILE EXISTS
  *
  * The two networkx algorithms `hyphaeon/epistasis.py` calls inside `extract_epistatic_sectors_tse`
- * (epistasis.py:327-337 at cf838ab), ported with networkx's ORDERING and TIE-BREAKING, which
+ * (epistasis.py:330-340 at cf838ab), ported with networkx's ORDERING and TIE-BREAKING, which
  * PLAN.md §5.1 makes part of the specification ("greedy modularity communities (Clauset–Newman–Moore,
  * networkx semantics)"):
  *

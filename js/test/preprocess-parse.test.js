@@ -122,7 +122,7 @@ describe('extractTree edge cases (Python-computed, Bio.Phylo 1.85)', () => {
 	});
 });
 
-describe('matchTaxa, the three tiers of dataset.py:616-642 (Python-computed)', () => {
+describe('matchTaxa, the three tiers of dataset.py:974-1001 (Python-computed)', () => {
 	for (const c of DATA.match) {
 		it(c.name, () => {
 			if (c.error) {

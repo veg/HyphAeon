@@ -18,7 +18,7 @@
  *     coords = kept * np.sqrt(pos_eigvals)             # float32
  *     (pad with zero columns when n < 4)
  *
- * On the REAL n x n matrix — dataset.py:688 calls it after downsampling, with no padding.
+ * On the REAL n x n matrix — dataset.py:1047 calls it after downsampling, with no padding.
  *
  * PRECISION, DELIBERATELY: the reference forms H, D^2 and B in float32. This does the same — every
  * intermediate is rounded with Math.fround, and the two matrix products accumulate in float64 and
@@ -51,7 +51,7 @@
  * mode the two implementations agree only up to a per-column sign. It exists so a consumer
  * reproducing an old `--mds-sign lapack` Python run can at least get the same magnitudes.
  *
- * WHAT IT DELIBERATELY DOES NOT DO: the Lanczos path (dataset.py:360-381, `scipy.sparse.linalg.eigsh`
+ * WHAT IT DELIBERATELY DOES NOT DO: the Lanczos path (dataset.py:582-603, `scipy.sparse.linalg.eigsh`
  * with `k=4, which='LA', maxiter=300` for n > 500) is not implemented; this always runs dense. At the
  * app's taxon cap of 512 that leaves 501..512 taxa where the reference's answer is an iterative
  * approximation of what this computes exactly — recorded for the integrator, not a defect here.

@@ -4,8 +4,8 @@
  * Mirrors the sector-mining half of `hyphaeon/epistasis.py` at veg/HyphAeon cf838ab:
  *
  *   REV_AA_MAP                     epistasis.py:41       `{v: k for k, v in AA_MAP.items()}`
- *   computeSectorPermutationTest   compute_sector_permutation_test, epistasis.py:224-304
- *   extractEpistaticSectorsTse     extract_epistatic_sectors_tse,   epistasis.py:306-445
+ *   computeSectorPermutationTest   compute_sector_permutation_test, epistasis.py:224-307
+ *   extractEpistaticSectorsTse     extract_epistatic_sectors_tse,   epistasis.py:309-448
  *
  * The co-selection graph itself (`compute_branch_coselection_network`, epistasis.py:120-222) is
  * another module's; this file takes the graph the fixtures record — `{nodes: [[id, attrs]],
@@ -45,7 +45,7 @@
  * (numpy linear interpolation); isotropic_baseline 1/K.
  *
  * QUIRKS REPLICATED (all pinned by tests or noted in the header of test/sectors.test.js):
- *   - `max_overlap` is accepted and never read: epistasis.py:312 declares it, nothing in 306-445
+ *   - `max_overlap` is accepted and never read: epistasis.py:315 declares it, nothing in 306-445
  *     uses it (no Jaccard suppression exists in the reference). Same here.
  *   - shared_taxa / shared_branches count over the unpruned community rows (step 8).
  *   - `focal_idx` defaults to 0 but the focal fields appear only when a name matched.
@@ -288,7 +288,7 @@ function float32Std(x) {
 
 /**
  * `compute_sector_permutation_test(attributions, site_indices, observed_coherence, n_permutations=10000,
- * active_only=True, rng_seed=42)` (epistasis.py:224-304).
+ * active_only=True, rng_seed=42)` (epistasis.py:224-307).
  *
  * @param {Matrix} attributions float32 [L, N]
  * @param {ArrayLike<number>} siteIndices 0-indexed sites of the sector (K of them)
@@ -363,7 +363,7 @@ export function computeSectorPermutationTest(attributions, siteIndices, observed
 }
 
 /**
- * Spectral coherence of a set of rows (epistasis.py:349-364, one pass): the float32 eigenvalues of
+ * Spectral coherence of a set of rows (epistasis.py:352-367, one pass): the float32 eigenvalues of
  * the Gram, clamped, C = lambda_max / sum, plus |top eigenvector| for the pruning step.
  *
  * @param {Float32Array} A
@@ -397,7 +397,7 @@ function spectralCoherence(A, N, sites) {
 /**
  * `extract_epistatic_sectors_tse(G, attributions, lrts, consensus_aas, min_clique_size=3,
  * max_overlap=0.50, min_coherence=0.50, focal_taxon=None, a_np=None, taxa=None, n_permutations=10000,
- * max_perm_p=None, rng_seed=42)` (epistasis.py:306-445).
+ * max_perm_p=None, rng_seed=42)` (epistasis.py:309-448).
  *
  * @param {import('./numeric/graph.js').GraphJson | import('./numeric/graph.js').Adjacency | {adj: import('./numeric/graph.js').Adjacency}} graph
  *   the co-selection graph: nodes are 1-indexed sites, edges carry `weight`; the fixtures' JSON
@@ -425,7 +425,7 @@ export function extractEpistaticSectorsTse(graph, attributions, lrts, consensusA
 	const nPermutations = options.nPermutations ?? 10000;
 	const maxPermP = options.maxPermP ?? null;
 	const seed = options.seed ?? 42;
-	void options.maxOverlap; // epistasis.py:312 declares max_overlap and never reads it
+	void options.maxOverlap; // epistasis.py:315 declares max_overlap and never reads it
 
 	const adj = adjacencyFromGraph(graph);
 	if (numberOfEdges(adj) === 0) return [];

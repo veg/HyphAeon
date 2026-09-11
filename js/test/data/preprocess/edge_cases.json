@@ -1373,9 +1373,9 @@
      null,
      null
     ],
-    "has_nonzero_branch_lengths": false
+    "has_nonzero_branch_lengths": true
    },
-   "needs_branch_lengths": true,
+   "needs_branch_lengths": false,
    "after_enforce": {
     "terminals": [
      "A",
@@ -1464,9 +1464,9 @@
      null,
      null
     ],
-    "has_nonzero_branch_lengths": false
+    "has_nonzero_branch_lengths": true
    },
-   "needs_branch_lengths": true,
+   "needs_branch_lengths": false,
    "after_enforce": {
     "terminals": [
      "A",

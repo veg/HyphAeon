@@ -1,7 +1,7 @@
 /**
  * WHY THIS FILE EXISTS
  *
- * Mirrors hyphaeon/evaluation.py (at 267f5cf, 667 lines), the pooled evaluation of `hyphaeon meme`
+ * Mirrors hyphaeon/evaluation.py (at reconcile/phase-5a, 667 lines), the pooled evaluation of `hyphaeon meme`
  * results against HyPhy MEME: the two loaders, gene pairing, the pooled metrics and the text report.
  * PLAN.md §5.1 lists it as `evaluate`, parity class "exact to 1e-9"; the fixtures under
  * fixtures/evaluation/ replay every public function and the two error cases.

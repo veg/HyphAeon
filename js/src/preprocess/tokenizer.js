@@ -2,12 +2,12 @@
  * WHY THIS FILE EXISTS
  *
  * Mirrors the three lookup tables and the two token functions of `hyphaeon/dataset.py` at
- * veg/HyphAeon 267f5cf:
- *   - `GENETIC_CODE`  dataset.py:25-34   61 sense codons -> 0..60 in TCAG table order, stops -> 64
- *   - `AA_MAP`        dataset.py:36-39   'A'..'Y' alphabetical -> 0..19
- *   - `CODON_TO_AA`   dataset.py:41-50   the standard genetic code, stops as '*'
- *   - `get_codon_token(codon)`  dataset.py:52-53   `GENETIC_CODE.get(codon.upper(), 64)`
- *   - `get_aa_token(codon)`     dataset.py:55-57   `AA_MAP.get(CODON_TO_AA.get(codon.upper(), '-'), 20)`
+ * veg/HyphAeon reconcile/phase-5a:
+ *   - `GENETIC_CODE`  dataset.py:27-36   61 sense codons -> 0..60 in TCAG table order, stops -> 64
+ *   - `AA_MAP`        dataset.py:38-41   'A'..'Y' alphabetical -> 0..19
+ *   - `CODON_TO_AA`   dataset.py:43-52   the standard genetic code, stops as '*'
+ *   - `get_codon_token(codon)`  dataset.py:54-55   `GENETIC_CODE.get(codon.upper(), 64)`
+ *   - `get_aa_token(codon)`     dataset.py:57-59   `AA_MAP.get(CODON_TO_AA.get(codon.upper(), '-'), 20)`
  *
  * The tables are generated from the TCAG codon list and the one-letter translation string rather
  * than transcribed as 64-entry literals; `js/test/fixtures.test.js` compares the generated tables
@@ -33,7 +33,7 @@
 
 import { CODON_ORDER, CODON_UNKNOWN, AA_UNKNOWN, AA_LIST } from './modelContract.js';
 
-/** The 64 codons in TCAG table order (TTT first, GGG last), the row order of dataset.py:25-33. */
+/** The 64 codons in TCAG table order (TTT first, GGG last), the row order of dataset.py:27-35. */
 export const CODON_LIST = (() => {
 	const out = [];
 	for (const a of CODON_ORDER)
@@ -41,18 +41,18 @@ export const CODON_LIST = (() => {
 	return out;
 })();
 
-/** One amino-acid letter per codon of CODON_LIST; '*' for a stop. dataset.py:41-50 by rows. */
+/** One amino-acid letter per codon of CODON_LIST; '*' for a stop. dataset.py:43-52 by rows. */
 const TRANSLATION =
 	'FFLLSSSSYY**CC*W' + // TTx TCx TAx TGx
 	'LLLLPPPPHHQQRRRR' + // CTx CCx CAx CGx
 	'IIIMTTTTNNKKSSRR' + // ATx ACx AAx AGx
 	'VVVVAAAADDEEGGGG'; //  GTx GCx GAx GGx
 
-/** dataset.py:41-50 `CODON_TO_AA`: codon -> one-letter amino acid, stops as '*'. */
+/** dataset.py:43-52 `CODON_TO_AA`: codon -> one-letter amino acid, stops as '*'. */
 export const CODON_TO_AA = new Map(CODON_LIST.map((c, i) => [c, TRANSLATION[i]]));
 
 /**
- * dataset.py:25-33 `GENETIC_CODE`: the 61 sense codons numbered consecutively in TCAG order (a
+ * dataset.py:27-35 `GENETIC_CODE`: the 61 sense codons numbered consecutively in TCAG order (a
  * stop does not consume a number), and TAA/TAG/TGA -> 64.
  */
 export const GENETIC_CODE = (() => {
@@ -65,11 +65,11 @@ export const GENETIC_CODE = (() => {
 	return map;
 })();
 
-/** dataset.py:36-39 `AA_MAP`: 'A'..'Y' alphabetical -> 0..19. */
+/** dataset.py:38-41 `AA_MAP`: 'A'..'Y' alphabetical -> 0..19. */
 export const AA_MAP = new Map([...AA_LIST].map((a, i) => [a, i]));
 
 /**
- * `get_codon_token`, dataset.py:52-53.
+ * `get_codon_token`, dataset.py:54-55.
  *
  * @param {string} codon
  * @returns {number} 0..60 for a sense codon; 64 for a stop, a gap, ambiguity, 'U', or any other
@@ -81,7 +81,7 @@ export function codonToken(codon) {
 }
 
 /**
- * `get_aa_token`, dataset.py:55-57.
+ * `get_aa_token`, dataset.py:57-59.
  *
  * @param {string} codon
  * @returns {number} 0..19 for a translated residue; 20 for a stop or anything untranslatable
@@ -95,8 +95,8 @@ export function aaToken(codon) {
 
 /**
  * Tokenise one sequence into per-codon (codon, aa) tokens for the `len(seq) // 3` whole codons —
- * the per-site loop of dataset.py:696-708 for a single sequence whose own length sets L. A trailing
- * partial codon is dropped, matching `L = raw_len // 3` (dataset.py:666).
+ * the per-site loop of dataset.py:1055-1067 for a single sequence whose own length sets L. A trailing
+ * partial codon is dropped, matching `L = raw_len // 3` (dataset.py:1025).
  *
  * @param {string} seq nucleotides, gaps allowed
  * @returns {{codons: Uint8Array, aas: Uint8Array}}

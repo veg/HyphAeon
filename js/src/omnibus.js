@@ -1,12 +1,12 @@
 /**
  * WHY THIS FILE EXISTS
  *
- * Mirrors the statistics of `cmd_busted` in `hyphaeon/cli.py:424-508` at veg/HyphAeon 267f5cf —
+ * Mirrors the statistics of `cmd_busted` in `hyphaeon/cli.py:427-511` at veg/HyphAeon reconcile/phase-5a —
  * the alignment-wide omnibus ("BUSTED emulation") that the CLI computes per alignment once the
  * backbone has produced a site LRT and a pooled `root_repr` for every variable site, plus the
  * neural-head fields the same block derives. Line by line, in the reference's order:
  *
- *   variable_indices = np.where(~inv)[0]                                                   cli.py:424
+ *   variable_indices = np.where(~inv)[0]                                                   cli.py:427
  *   batch_size = min(adaptive(num_species), max(1, num_variable))                          429-430
  *   lrts = zeros(L, float32); lrts[variable] = clamp(y_soft, min=0)                        433, 439-446
  *   hidden_all = zeros(1, L, embed_dim); hidden_all[0, variable] = root_repr               434, 447
@@ -45,8 +45,8 @@
  *
  * WHAT IT DELIBERATELY DOES NOT DO: no model. `runBusted` is the per-alignment loop of cmd_busted
  * with the two forward passes handed to async callbacks the runtime supplies (onnxruntime lives in
- * the app's runtime/, PLAN.md §5.5). No files, no printing (the console report of cli.py:511-540
- * is presentation), no batch-directory handling (cli.py:365-408), no CSV (cli.py:548-560), no
+ * the app's runtime/, PLAN.md §5.5). No files, no printing (the console report of cli.py:514-543
+ * is presentation), no batch-directory handling (cli.py:368-411), no CSV (cli.py:551-563), no
  * `elapsed_seconds` (timing is the runtime's; the field is emitted as null, as the fixtures hold it).
  * The site LRTs themselves come from the backbone graph; `pvals_from_lrt_self_liang` is ported in
  * ./stats.js and imported here.
@@ -58,7 +58,7 @@
  *   BUSTED_ACAT_ALPHA = 0.05, BUSTED_PROB_THRESHOLD = 0.50   is_significant (484)
  *   BUSTED_SIMES_FLOOR = 1e-15                         max(1e-15, min(1.0, p_simes)) (478)
  *   BUSTED_EMBED_DIM = 384                             model_config.json embed_dim; hidden_all's
- *                                                      last axis (cli.py:434)
+ *                                                      last axis (cli.py:437)
  *
  * There was no DataMonkey 3 counterpart: DM3 has no BUSTED surface.
  */
@@ -69,17 +69,17 @@ import { float32Sum } from './numeric/reduce.js';
 import { batchSizeFor } from './preprocess/assemble.js';
 import { MDS_COMPONENTS } from './preprocess/modelContract.js';
 
-/** cli.py:464 — the two fixed omega classes of the reported mixture. */
+/** cli.py:467 — the two fixed omega classes of the reported mixture. */
 export const BUSTED_OMEGA_1 = 0.1;
 export const BUSTED_OMEGA_2 = 1.0;
-/** cli.py:483 — the per-site LRT excess that accumulates into `omnibus_lrt`. */
+/** cli.py:486 — the per-site LRT excess that accumulates into `omnibus_lrt`. */
 export const BUSTED_LRT_THRESHOLD = 3.841;
-/** cli.py:484 — the verdict rule `p_acat < 0.05 or pred_prob_pos > 0.50`. */
+/** cli.py:487 — the verdict rule `p_acat < 0.05 or pred_prob_pos > 0.50`. */
 export const BUSTED_ACAT_ALPHA = 0.05;
 export const BUSTED_PROB_THRESHOLD = 0.5;
-/** cli.py:478 — `p_simes = max(1e-15, min(1.0, p_simes))`. */
+/** cli.py:481 — `p_simes = max(1e-15, min(1.0, p_simes))`. */
 export const BUSTED_SIMES_FLOOR = 1e-15;
-/** model_config.json `embed_dim`: the width of `root_repr` and of `hidden_all` (cli.py:434). */
+/** model_config.json `embed_dim`: the width of `root_repr` and of `hidden_all` (cli.py:437). */
 export const BUSTED_EMBED_DIM = 384;
 
 /** export.py BUSTED_INPUT_NAMES / BUSTED_OUTPUT_NAMES: what busted_head.onnx takes and returns. */
@@ -94,7 +94,7 @@ export const BUSTED_HEAD_OUTPUT_NAMES = Object.freeze([
 ]);
 
 /**
- * `np.where(~inv)[0]`, cli.py:424.
+ * `np.where(~inv)[0]`, cli.py:427.
  *
  * @param {ArrayLike<number|boolean>} invariable 1/true = invariable, length L
  * @returns {Int32Array} ascending site indices of the variable sites
@@ -106,7 +106,7 @@ export function variableSiteIndices(invariable) {
 }
 
 /**
- * `float(np.sum(lrts))`, cli.py:482.
+ * `float(np.sum(lrts))`, cli.py:485.
  *
  * @param {ArrayLike<number>} lrts float32 site LRTs, length L
  * @returns {number}
@@ -116,7 +116,7 @@ export function totalSelectionEnergy(lrts) {
 }
 
 /**
- * `float(np.sum(np.maximum(0.0, lrts - 3.841)))`, cli.py:483, in float32 throughout: the scalar is
+ * `float(np.sum(np.maximum(0.0, lrts - 3.841)))`, cli.py:486, in float32 throughout: the scalar is
  * rounded to float32 first (numpy 2 promotion), each difference is a float32 subtraction, and the
  * reduction is the pairwise float32 sum.
  *
@@ -135,7 +135,7 @@ export function omnibusLrt(lrts, threshold = BUSTED_LRT_THRESHOLD) {
 }
 
 /**
- * Simes' combination, cli.py:475-478:
+ * Simes' combination, cli.py:478-481:
  *
  *     sorted_p = np.sort(pvals); ranks = np.arange(1, L + 1)
  *     p_simes = float(np.min((L / ranks) * sorted_p))
@@ -179,7 +179,7 @@ export function simesP(pvals) {
  */
 
 /**
- * The statistical bridge of cmd_busted (cli.py:469-483) from the site LRT vector and the
+ * The statistical bridge of cmd_busted (cli.py:472-486) from the site LRT vector and the
  * invariable mask: Self–Liang site p-values, ACAT over the VARIABLE sites, Simes over ALL sites,
  * significant-site counts, total selection energy and the omnibus LRT.
  *
@@ -197,10 +197,10 @@ export function bustedStatistics(lrts, invariable) {
 	const variableIndices = variableSiteIndices(invariable);
 	const numVariable = variableIndices.length;
 
-	// 4. Asymptotic mixture p-values (cli.py:469).
+	// 4. Asymptotic mixture p-values (cli.py:472).
 	const pvals = pvalsFromLrtSelfLiang(f32);
 
-	// 5. ACAT over variable sites, Simes over all (cli.py:472-478).
+	// 5. ACAT over variable sites, Simes over all (cli.py:475-481).
 	let varP = pvals;
 	if (numVariable > 0) {
 		varP = new Float64Array(numVariable);
@@ -272,7 +272,7 @@ function item(v) {
  */
 
 /**
- * cli.py:459-464 and 497-500: the record fields derived from `BustedMultiTaskHead` outputs, given
+ * cli.py:462-467 and 497-500: the record fields derived from `BustedMultiTaskHead` outputs, given
  * either the ONNX names (`pred_gene_lrt`, export.py) or the module's (`pred_lrt`). Each output may
  * be a number or a 1-element typed array (`.item()`); `omega_prop` is the 3-vector after
  * `.squeeze()`. The dead fallbacks of the reference are kept: `sqrt_lrt ** 2` (else 0.0) when
@@ -322,7 +322,7 @@ export function bustedHeadFields(head) {
 }
 
 /**
- * `is_significant = bool(p_acat < 0.05 or pred_prob_pos > 0.50)`, cli.py:484. With no head
+ * `is_significant = bool(p_acat < 0.05 or pred_prob_pos > 0.50)`, cli.py:487. With no head
  * probability (null), the verdict is `true` when the ACAT half decides and `null` otherwise — the
  * value the e2e fixtures hold for the un-reproducible head.
  *
@@ -362,7 +362,7 @@ export function bustedVerdict(pAcat, selectionProbability = null) {
  */
 
 /**
- * The per-alignment record of cmd_busted (cli.py:486-505), key for key and in the same order as
+ * The per-alignment record of cmd_busted (cli.py:489-508), key for key and in the same order as
  * the CLI's JSON, from the site LRTs, the invariable mask and (optionally) the head outputs. With
  * `head` null the neural fields are null, as fixtures/e2e/busted_*.json hold them.
  *
@@ -410,7 +410,7 @@ export function bustedRecord({ lrts, invariable, numTaxa, head = null, gene = nu
 }
 
 /**
- * The graph bundle for an ARBITRARY set of sites (`c[batch_site_idx]`, cli.py:441-443), in the
+ * The graph bundle for an ARBITRARY set of sites (`c[batch_site_idx]`, cli.py:444-446), in the
  * shape `siteBatch` (assemble.js) gives for a contiguous range: `msa_codons` / `msa_aas` as
  * BigInt64Array [b, N, 1], `dist_matrix` [b, N, N] and `mds_coords` [b, N, 4] repeated per site.
  * cmd_busted batches the variable sites, which are not contiguous.
@@ -455,20 +455,20 @@ export function gatherSiteBatch(loaded, siteIndices) {
  */
 
 /**
- * The per-alignment loop of cmd_busted (cli.py:424-484) over callbacks the runtime supplies:
+ * The per-alignment loop of cmd_busted (cli.py:427-487) over callbacks the runtime supplies:
  *
  *   - `predictSites(bundle, {siteIndices, count, N})` runs the backbone on a batch of VARIABLE
  *     sites and resolves `{lrt: [b], root_repr: [b * embedDim]}` (the graph's `lrt` and
- *     `root_repr` outputs). LRTs are clamped at 0 and stored as float32 (cli.py:445-446);
+ *     `root_repr` outputs). LRTs are clamped at 0 and stored as float32 (cli.py:448-449);
  *     `root_repr` rows are scattered into `hidden_all` [1, L, embedDim], which stays zero at
- *     invariable sites (cli.py:434, 447).
+ *     invariable sites (cli.py:437, 447).
  *   - `predictHead({root_repr, mask, dims, L, embedDim})` runs busted_head.onnx on the whole
  *     `hidden_all` with an all-false key-padding mask — cmd_busted calls the head with
- *     `mask=None` (cli.py:458), and the exported graph's `mask` input is that `None` spelled as
+ *     `mask=None` (cli.py:461), and the exported graph's `mask` input is that `None` spelled as
  *     a [1, L] boolean tensor of zeros. Pass `null` to skip the head (statistics only).
  *
  * Batches are consecutive slices of the ascending variable-site index list of at most
- * `batchSize` sites (cli.py:439-443); the reference sizes the batch by device memory
+ * `batchSize` sites (cli.py:442-446); the reference sizes the batch by device memory
  * (`compute_adaptive_safe_batch_size`), here `batchSizeFor(N)` from assemble.js unless given.
  * Batch composition changes nothing but float noise: every site is independent in the graph.
  *
@@ -524,7 +524,7 @@ export async function runBusted(loaded, model, options = {}) {
 		if (progress) progress(end, numVariable);
 	}
 
-	// 3. Neural head on the whole alignment (cli.py:457-464), mask=None.
+	// 3. Neural head on the whole alignment (cli.py:460-467), mask=None.
 	/** @type {BustedHeadOutputs|null} */
 	let head = null;
 	if (model.predictHead) {

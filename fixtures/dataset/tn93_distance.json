@@ -910,50 +910,5 @@
   },
   "tolerance": "1e-9",
   "notes": "signature (as dataset.py:544-547 composes it, NOT the package's tn93_distance wrapper): tn = TN93(); counts = tn.get_counts(seq1, seq2, 'resolve'); freq = tn.get_nucleotide_frequency(counts); d = tn.calculate_distance(counts, freq). Options are the TN93() constructor defaults the reference takes: match_mode 'resolve', max_ambig_fraction 1.0, ignore_gaps False, verbose 0; minimum_overlap (500) is never applied because tn93_distance is not called. tn93 package 1.2.2. float64; every returned distance is rounded to 6 SIGNIFICANT digits (np.format_float_positional(precision=6, unique=False, fractional=False)). counts and nucleotide_frequency are the intermediates, pinned so a port can localise a disagreement. An 'error' output means the Python RAISES there and dataset.py does not catch it. Real data, full length: examples/bat_oas1.fasta taxa 'R_ferr' and 'R_sin'."
- },
- {
-  "name": "example_HIV1_RT_pair_at_the_sentinel",
-  "inputs": {
-   "seq1": "------------------------------------------------------------------------------------------------------------NTTTGTACAGAAATGGAAAAGGAAGGGAAAATTTCAAAAATTGGGCCTGAAAATCCATACAATACTCCAGTATTTGCCATAAAGAAAAAGGACAGTACTAAATGGAGAAAATTAGTAGATTTYAGAGAGCTGAATAAGAGAACTCAAGACTTCTGGGAAGTTCAATTAGGAATACCACATCCTTCAGGGTTAAAAAAGAAAAAATCAGTAACAGTACTGGATGTGGGTGATGCATATTTTTCAGTTCCCTTAGATAAAGACTTCAGGAAGTATACTGCATTTACCATACCTAGTATAAACAATGAGACACCAGGAATCAGATATCAGTACAATGTGCTTCCACAGGGATGGAAAGGATCACCAGCARTATTCCAARSTAGCATGACAAAAATCTTAGAGCCTTTTAGAAAACAAAACCCAGACATGGTTATYTATCAATACATGGATGATTTATATGTAGGATCTGACTTAGAAATAGGGCAGCATAGAACAAAAATAGAGGARCTGAGACAGCATCTGTTGAGGTGGGGATTTACCACACCAGACAAAAAACATCAGAAAGAACCTCCATTCCTTTGGATGGGTTATGAACTCCATCCTGATAAATGGACAGTACAGCCTATAGTGCTGCCA------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------",
-   "seq2": "------------------------------------------------------------------------------------------------------------NTTTGTACAGAAATGGAAAAGGAAGGGAAAATTTCAAAAATTGGGCCTGAAAATCCATACAATACTCCAGTATTTGCCATAAAGAAAAAGGACAGTACTAAATGGAGAAAATTAGTAGATTTYAGAGAGCTGAATAAGAGAACTCAAGACTTCTGGGAAGTTCAATTAGGAATACCACATCCTTCAGGGTTAAAAAAGAAAAAATCAGTAACAGTACTGGATGTGGGTGATGCATATTTTTCAGTTCCCTTAGATAAAGACTTCAGGAAGTATACTGCATTTACCATACCTAGTATAAACAATGAGACACCAGGAATCAGATATCAGTACAATGTGCTTCCACAGGGATGGAAAGGATCACCAGCARTATTCCAARSTAGCATGACAAAAATCTTAGAGCCTTTTAGAAAACAAAACCCAGACATGGTTATYTATCAATACATGGATGATTTATATGTAGGATCTGACTTAGAAATAGGGCAGCATAGAACAAAAATAGAGGARCTGAGACAGCATCTGTTGAGGTGGGGATTTACCACACCAGACAAAAAACATCAGAAAGAACCTCCATTCCTTTGGATGGGTTATGAACTCCATCCTGATAAATGGACAGTACAGCCTATAGTGCTGCCA------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------",
-   "match_mode": "resolve"
-  },
-  "outputs": {
-   "counts": [
-    [
-     243.75,
-     0,
-     0,
-     0
-    ],
-    [
-     0,
-     107.75,
-     0,
-     0
-    ],
-    [
-     0,
-     0,
-     129.25,
-     0
-    ],
-    [
-     0,
-     0,
-     0,
-     152.25
-    ]
-   ],
-   "nucleotide_frequency": [
-    487.5,
-    215.5,
-    258.5,
-    304.5
-   ],
-   "distance": 0.0
-  },
-  "tolerance": "1e-9",
-  "notes": "signature (as dataset.py:544-547 composes it, NOT the package's tn93_distance wrapper): tn = TN93(); counts = tn.get_counts(seq1, seq2, 'resolve'); freq = tn.get_nucleotide_frequency(counts); d = tn.calculate_distance(counts, freq). Options are the TN93() constructor defaults the reference takes: match_mode 'resolve', max_ambig_fraction 1.0, ignore_gaps False, verbose 0; minimum_overlap (500) is never applied because tn93_distance is not called. tn93 package 1.2.2. float64; every returned distance is rounded to 6 SIGNIFICANT digits (np.format_float_positional(precision=6, unique=False, fractional=False)). counts and nucleotide_frequency are the intermediates, pinned so a port can localise a disagreement. An 'error' output means the Python RAISES there and dataset.py does not catch it. The one HIV1_RT pair that sits at 1.0 in the matrix: taxa 'N12619990' and 'T12619990' (indices 245, 246 in alignment order). MEASURED: calculate_distance returns 0.0 for it - the two sequences are BYTE-IDENTICAL, and the 1.0 comes from the imputation elif (max(1.0, max_d), dataset.py:565-568), not from saturation. Across all five bundled alignments NO pair reaches the degenerate 1.0 sentinel of calculate_distance; HIV1_RT has 1 identical pair and 66 different-sequence pairs at distance 0 (imputed to 1e-4), RHO has 78 and 8. load_alignment_and_tree prunes the identical ones before the matrix is built."
  }
 ]

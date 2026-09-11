@@ -7,7 +7,7 @@
  * independent accumulators over blocks of up to 128, then recursive halving on a multiple of 8.
  * In float64 the difference from a sequential sum is ~1e-16 relative and invisible at every
  * fixture class; in FLOAT32 it is not. The reference holds site LRTs as float32 arrays and reduces
- * them in float32 (cli.py:482-483 `np.sum(lrts)`, filter.py:269/385/391 `np.mean(...)`,
+ * them in float32 (cli.py:485-486 `np.sum(lrts)`, filter.py:269/385/391 `np.mean(...)`,
  * attribution.py `d.mean(axis=1)`, stats.py:78 `np.mean(np.tan(...))` on a float32 input), and a
  * float64 or sequentially-ordered sum misses the fixtures by 6e-6 (busted_Smc6
  * total_selection_energy) to 9e-8 (cauchy_combination_p float32_input) — measured with the

@@ -362,7 +362,7 @@ describe('the package entry point', () => {
 		// Site 0 is ATG / ATG / ATG — one residue, invariable.
 		// Site 1 is TTA / CTA / TTA — three codons, all Leucine, so invariable despite the change.
 		// Site 2 is TCA / TCA / AGC — a serine island: two codon families, ONE amino acid, which
-		// dataset.py:718-723 calls invariable (no TCN/AGY rule; the fixture harness settled this
+		// dataset.py:1077-1083 calls invariable (no TCN/AGY rule; the fixture harness settled this
 		// against the DataMonkey 3 port, PLAN.md §5.3).
 		expect(Array.from(loaded.invariable)).toEqual([1, 1, 1]);
 		expect(lib.siteVariability(['ATGTTATCA', 'ATGCTATCA', 'ATGTTAAGC'], 3)).toEqual([

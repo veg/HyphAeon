@@ -1,7 +1,7 @@
 /**
  * WHY THIS FILE EXISTS
  *
- * Mirrors the invariable-site rule of `hyphaeon/dataset.py:718-723` at veg/HyphAeon 267f5cf:
+ * Mirrors the invariable-site rule of `hyphaeon/dataset.py:1077-1083` at veg/HyphAeon reconcile/phase-5a:
  *
  *     is_aa_invariable = np.zeros(L, dtype=bool)
  *     for site in range(L):
@@ -11,7 +11,7 @@
  *             is_aa_invariable[site] = True
  *
  * A site is invariable iff at most one distinct amino-acid TOKEN below 20 appears in its column.
- * Stops, gaps and unknowns are all token 20 (`get_aa_token`, dataset.py:55-57) and so are not
+ * Stops, gaps and unknowns are all token 20 (`get_aa_token`, dataset.py:57-59) and so are not
  * observations; a column with nothing usable is invariable. `invariableMask` is the exact loop over
  * a [L, N, 1] token array; `isSiteVariable` / `siteVariability` are the same rule phrased over codon
  * strings for callers that have not tokenised yet.
@@ -37,7 +37,7 @@ import { aaToken } from './tokenizer.js';
 import { AA_VALID_BELOW } from './modelContract.js';
 
 /**
- * dataset.py:719-723 for one column of amino-acid tokens.
+ * dataset.py:1078-1083 for one column of amino-acid tokens.
  *
  * @param {ArrayLike<number>} aaColumn amino-acid tokens of every taxon at one site
  * @returns {boolean} true when `len(np.unique(aa_col[aa_col < 20])) <= 1`
@@ -55,7 +55,7 @@ export function isAaInvariable(aaColumn) {
 }
 
 /**
- * The whole mask of dataset.py:718-723 over a [L, N, 1] amino-acid token array (row-major, site
+ * The whole mask of dataset.py:1077-1083 over a [L, N, 1] amino-acid token array (row-major, site
  * major: element `site * N + taxon`).
  *
  * @param {ArrayLike<number>} aTokens L * N amino-acid tokens
@@ -87,7 +87,7 @@ export function isSiteVariable(codons) {
 
 /**
  * Variability flags for every site of an alignment, from aligned nucleotide strings, mirroring the
- * per-site codon slice of dataset.py:699 (`seq[site*3:(site+1)*3]`, which past a short sequence's
+ * per-site codon slice of dataset.py:1058 (`seq[site*3:(site+1)*3]`, which past a short sequence's
  * end is shorter than 3 characters and tokenises to 20).
  *
  * @param {string[]} sequences aligned nucleotide sequences, same frame

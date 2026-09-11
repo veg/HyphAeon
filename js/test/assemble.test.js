@@ -10,7 +10,7 @@
  *
  * Replaces DataMonkey 3's axomeme-assemble.test.js. Dropped with the code they tested:
  * `chooseReference` / `orderSpecies` (a reference sequence moved to index 0 — dataset.py has none),
- * "MDS on the PADDED matrix" (dataset.py:688 uses the real N), "clamps a negative distance"
+ * "MDS on the PADDED matrix" (dataset.py:1047 uses the real N), "clamps a negative distance"
  * (dataset.py has no negative distances after enforce_nonzero_branch_lengths), "Max-PD seeded at
  * the reference" (dataset.py seeds with the most distant pair), "falls back to an all-zero matrix
  * without a tree" (dataset.py raises). `batchSizeFor` and the batching cases are kept.
@@ -116,7 +116,7 @@ describe('loadAlignmentAndTree', () => {
 		expect(r.notices.droppedTaxa).toEqual({ alignment: 0, tree: 2 });
 	});
 
-	it('counts unknown codons and in-frame stops the way dataset.py:702-716 does', () => {
+	it('counts unknown codons and in-frame stops the way dataset.py:1061-1075 does', () => {
 		const r = loadAlignmentAndTree('>alpha\nATGTAANNN\n>beta\nATGTGA---\n', '((alpha:0.1,beta:0.1):0.1,(x:1,y:1):1);');
 		expect(r.notices.inFrameStops).toBe(2);
 		expect(r.notices.unknownCodons).toBe(2);

@@ -1,25 +1,26 @@
 /**
  * WHY THIS FILE EXISTS
  *
- * Mirrors `load_alignment_and_tree` of `hyphaeon/dataset.py:523-730` at veg/HyphAeon 267f5cf, end
- * to end, on strings: the tree branch (dataset.py:581-685) followed by the shared tail
- * (687-730). Step by step, with the line it mirrors:
+ * Mirrors `load_alignment_and_tree` of `hyphaeon/dataset.py:931-1144`, end to end, on strings: the
+ * tree branch (dataset.py:994-1099) followed by the shared tail (1102-1144). EVERY LINE NUMBER IN
+ * THIS FILE IS THE RECONCILED dataset.py's (branch reconcile/phase-5a); earlier revisions of this
+ * header quoted two commits' numbering side by side. Step by step, with the line it mirrors:
  *
- *    1. parse_alignment_sequences(alignment)                                      540-542
- *    2. tree: extract from `treeText`, or from the alignment text when null        582-598
- *    3. has_nonzero_branch_lengths -> (HyPhy, see below) -> enforce 1e-3 / 1e-4    600-614
- *    4. three-tier taxon matching, TREE TERMINAL ORDER, dropped counts             616-643
- *    5. prune_identical_sequences when prune_duplicates and > 1 taxon              645-650
+ *    1. parse_alignment_sequences(alignment)                                      951-952
+ *    2. tree: extract from `treeText`, or from the alignment text when null        995-1011
+ *    3. has_nonzero_branch_lengths -> (HyPhy, see below) -> enforce 1e-3 / 1e-4    1013-1027
+ *    4. three-tier taxon matching, TREE TERMINAL ORDER, dropped counts             1029-1056
+ *    5. prune_identical_sequences when prune_duplicates and > 1 taxon              1058-1063
  *    6. unequal-length warning; L = len(first taxon's sequence) // 3;
- *       < 3 bp raises; the `% 3` remainder is reported as trimmed                  652-667
- *    7. stride pre-selection to the first 2 * max_species taxa                     669-673
- *    8. compute_fast_dist_matrix (float32)                                         676
- *    9. `if dist_mat.max() > 10.0: dist_mat /= L`                                  678-681
- *   10. downsample_taxa_faith_pd when still > max_species                          683-685
- *   11. compute_mds_coordinates(dist, 4)                                           687-688
- *   12. tokens [L, N, 1] with unknown / in-frame-stop counts                       690-716
- *   13. is_aa_invariable                                                           718-723
- *   14. tensors: c, a int64 [L,N,1]; d float32 [1,N,N]; z float32 [1,N,4]          725-730
+ *       < 3 bp raises; the `% 3` remainder is reported as trimmed                  1065-1080
+ *    7. stride pre-selection to the first 2 * max_species taxa                     1082-1087
+ *    8. compute_fast_dist_matrix (float32)                                         1090
+ *    9. `if dist_mat.max() > 10.0: dist_mat /= L`                                  1092-1095
+ *   10. downsample_taxa_faith_pd when still > max_species                          1097-1099
+ *   11. compute_mds_coordinates(dist, 4, mds_sign)                                 1101-1102
+ *   12. tokens [L, N, 1] with unknown / in-frame-stop counts                       1104-1130
+ *   13. is_aa_invariable                                                           1132-1137
+ *   14. tensors: c, a int64 [L,N,1]; d float32 [1,N,N]; z float32 [1,N,4]          1139-1144
  *
  * Everything the reference PRINTS becomes a field of `notices` so the runtime can show it; nothing
  * is printed here. The tokens are returned as Int32Array (values 0..64 / 0..20) in [L, N, 1]
@@ -28,24 +29,23 @@
  * graph needs materialised data where torch broadcast a [1, N, N] view.
  *
  * THE TREE-FREE TN93 PATH (PLAN.md D22, resolved 2026-09-05), mirroring the `use_tn93` branch of
- * `load_alignment_and_tree` (dataset.py:598-636) with the same step order. LINE NUMBERS IN THIS
- * BLOCK ARE 61d30e3's, where the function runs 573-747; the list above is 267f5cf's:
+ * `load_alignment_and_tree` (dataset.py:956-993) with the same step order:
  *
- *    1. taxa = list(seq_dict.keys())        ALIGNMENT ORDER, the tree is not consulted        600
- *    2. prune_identical_sequences                                                          601-606
- *    3. unequal-length warning; L; < 3 bp raises; `% 3` remainder reported                  608-623
- *    4. stride pre-selection to the first 2 * max_species taxa                              625-628
- *    5. compute_tn93_distance_matrix (float32) -> tn93.js                                       630
- *    6. downsample_taxa_faith_pd when still > max_species                                   632-635
+ *    1. taxa = list(seq_dict.keys())        ALIGNMENT ORDER, the tree is not consulted        958
+ *    2. prune_identical_sequences                                                          959-964
+ *    3. unequal-length warning; L; < 3 bp raises; `% 3` remainder reported                  966-982
+ *    4. stride pre-selection to the first 2 * max_species taxa                              984-987
+ *    5. compute_tn93_distance_matrix (float32) -> tn93.js                                       989
+ *    6. downsample_taxa_faith_pd when still > max_species                                   991-992
  *   then the shared tail (MDS, tokens, invariable mask) exactly as the tree path.
  *
- * There is NO `> 10` rescale on this path: dataset.py:734-735 sits in the tree branch only, and a
+ * There is NO `> 10` rescale on this path: dataset.py:1094-1095 sits in the tree branch only, and a
  * TN93 distance cannot exceed it anyway. There is no `enforce_nonzero_branch_lengths`, no taxon
  * matching and no tree order — `notices.matchTier` is null and `notices.droppedTaxa` is zero.
  *
  * WHEN IT IS TAKEN. The reference takes it only on request (`use_tn93=True`, or `nwk_path` in
  * "tn93" / "none" / "skip"). D22 widens that: it is also taken when there is NO TREE (the reference
- * raises at dataset.py:647-651) and when the tree HAS NO USABLE BRANCH LENGTHS (the reference calls
+ * raises at dataset.py:1006-1010) and when the tree HAS NO USABLE BRANCH LENGTHS (the reference calls
  * HyPhy at 655-668, or falls back to 1e-3/1e-4 defaults that are not distances at all). Those two
  * are DIVERGENCES FROM THE REFERENCE, recorded in `notices.treeFree.reason` as 'no_tree' and
  * 'no_branch_lengths' against 'requested'; the fixtures pin the requested case, which is the one
@@ -57,11 +57,11 @@
  * neighbour-joining tree on these same distances (`nj.js`), not this one.
  *
  * WHAT IT DELIBERATELY DOES NOT DO:
- *   - HyPhy. dataset.py:655-667 shells out to `hyphy` for a tree without branch lengths. The
+ *   - HyPhy. dataset.py:1014-1026 shells out to `hyphy` for a tree without branch lengths. The
  *     library cannot, and under D22 it no longer needs to: that tree goes tree-free instead of
  *     taking the reference's "HyPhy not found" branch. `notices.branchLengthsMissing` still reports
  *     the fact; `needsBranchLengths` (tree.js) is still the predicate.
- *   - The tn93 BINARY. dataset.py:505-537 prefers it; tn93.js is the Python package's algorithm,
+ *   - The tn93 BINARY. dataset.py:738-784 prefers it; tn93.js is the Python package's algorithm,
  *     which measured identical on the bundled examples (see its header).
  *   - Neighbour joining for display (PLAN.md D22): a separate module.
  *   - Files, gzip, printing.
@@ -91,7 +91,7 @@ import {
 import { computeFastDistMatrix, rescaleDistances } from './patristic.js';
 import { pruneIdenticalSequences, downsampleTaxaFaithPd, stridePreselect } from './downsample.js';
 import { computeMdsCoordinates } from './mds.js';
-import { codonToken, aaToken } from './tokenizer.js';
+import { codonToken, aaToken, CODON_TO_AA } from './tokenizer.js';
 import { invariableMask } from './variability.js';
 import { MDS_COMPONENTS, CODON_UNKNOWN } from './modelContract.js';
 import { tn93DistanceMatrix, tn93SaturatedPairs } from './tn93.js';
@@ -119,6 +119,7 @@ import { tn93DistanceMatrix, tn93SaturatedPairs } from './tn93.js';
  *     unknownCodons: number,
  *     unknownCodonFraction: number,
  *     inFrameStops: number,
+ *     internalStops: {worstTaxon: string|null, worstCount: number},
  *     totalCodons: number
  *   }
  * }} LoadedAlignment
@@ -130,7 +131,7 @@ import { tn93DistanceMatrix, tn93SaturatedPairs } from './tn93.js';
  * @param {string} alignmentText FASTA / PHYLIP / NEXUS content
  * @param {string|null} [treeText] Newick / NEXUS tree content; null to look for a tree embedded in
  *   the alignment text; 'tn93' / 'none' / 'skip' request the tree-free path, as `nwk_path` does at
- *   dataset.py:598
+ *   dataset.py:956
  * @param {{maxSpecies?: number|null, pruneDuplicates?: boolean, referenceName?: string,
  *   useTn93?: boolean, tn93Options?: {matchMode?: string, maxAmbigFraction?: number,
  *   ignoreGaps?: boolean}}} [options]
@@ -154,7 +155,7 @@ export function loadAlignmentAndTree(alignmentText, treeText = null, options = {
 	if (!modeRequestsTn93) {
 		tree = treeText === null ? extractTree(alignmentText) : extractTree(treeText);
 		// A tree TEXT that will not parse is an error on every path, as it is in the reference
-		// (dataset.py:641-642); only its ABSENCE goes tree-free.
+		// (dataset.py:1000-1001); only its ABSENCE goes tree-free.
 		if (tree === null && treeText !== null && !requestedTn93) {
 			throw new Error('Could not parse phylogenetic tree from specified tree text');
 		}
@@ -233,7 +234,7 @@ export function loadAlignmentAndTree(alignmentText, treeText = null, options = {
 }
 
 /**
- * The tree-free branch of `load_alignment_and_tree` (dataset.py:598-636): alignment-order taxa,
+ * The tree-free branch of `load_alignment_and_tree` (dataset.py:956-995): alignment-order taxa,
  * duplicate pruning, length/frame checks, stride pre-selection, the TN93 matrix, Faith's PD. No
  * rescale, no taxon matching, no branch-length enforcement (see the header).
  *
@@ -246,10 +247,10 @@ export function loadAlignmentAndTree(alignmentText, treeText = null, options = {
  * @returns {LoadedAlignment}
  */
 function tn93Assembly(seqDict, tree, reason, branchLengthsMissing, { maxSpecies, pruneDuplicates, referenceName, tn93Options }) {
-	// 1. taxa = list(seq_dict.keys()) (dataset.py:600).
+	// 1. taxa = list(seq_dict.keys()) (dataset.py:958).
 	let taxa = Array.from(seqDict.keys());
 
-	// 2. Duplicates (dataset.py:601-606).
+	// 2. Duplicates (dataset.py:959-964).
 	let duplicatesCollapsed = 0;
 	let duplicateMap = new Map();
 	if (pruneDuplicates && taxa.length > 1) {
@@ -261,7 +262,7 @@ function tn93Assembly(seqDict, tree, reason, branchLengthsMissing, { maxSpecies,
 		}
 	}
 
-	// 3. Lengths and frame (dataset.py:608-623).
+	// 3. Lengths and frame (dataset.py:966-981).
 	const lengths = new Set(taxa.map((sp) => /** @type {string} */ (seqDict.get(sp)).length));
 	const unequalLengths = lengths.size > 1 ? Array.from(lengths) : null;
 	const rawLen = /** @type {string} */ (seqDict.get(taxa[0])).length;
@@ -271,20 +272,20 @@ function tn93Assembly(seqDict, tree, reason, branchLengthsMissing, { maxSpecies,
 	const codonsTrimmed = rawLen % 3;
 	const L = Math.floor(rawLen / 3);
 
-	// 4. Stride pre-selection (dataset.py:625-628).
+	// 4. Stride pre-selection (dataset.py:984-987).
 	let stridePreselected = false;
 	if (maxSpecies !== null && taxa.length > maxSpecies) {
 		taxa = stridePreselect(taxa, maxSpecies);
 		stridePreselected = true;
 	}
 
-	// 5. The TN93 matrix (dataset.py:630). No `> 10` rescale on this path.
+	// 5. The TN93 matrix (dataset.py:989). No `> 10` rescale on this path.
 	let dist = tn93DistanceMatrix(seqDict, taxa, tn93Options);
 	let rawDistMax = 0;
 	for (let i = 0; i < dist.length; i++) if (dist[i] > rawDistMax) rawDistMax = dist[i];
 	let saturatedPairs = tn93SaturatedPairs(dist, taxa.length);
 
-	// 6. Faith's PD (dataset.py:632-635).
+	// 6. Faith's PD (dataset.py:991-994).
 	let pdSubsampled = false;
 	if (maxSpecies !== null && taxa.length > maxSpecies) {
 		const ds = downsampleTaxaFaithPd(dist, taxa, maxSpecies);
@@ -312,7 +313,7 @@ function tn93Assembly(seqDict, tree, reason, branchLengthsMissing, { maxSpecies,
 }
 
 /**
- * The tail both paths share, dataset.py:742-747 and 749-775: MDS on the real N x N, the [L, N, 1]
+ * The tail both paths share, dataset.py:1102-1107 and 749-775: MDS on the real N x N, the [L, N, 1]
  * token arrays with the unknown / in-frame-stop counts, and the amino-acid invariable mask.
  *
  * @param {Map<string, string>} seqDict
@@ -353,6 +354,27 @@ function assembleTail(seqDict, taxa, dist, L, referenceName, tree, notices) {
 	// Invariable sites.
 	const invariable = invariableMask(a, L, N);
 
+	// `_warn_internal_stops(seq_dict, L, taxa)`, dataset.py:235-249, which the reference calls from
+	// both branches of `load_alignment_and_tree` (dataset.py:982 and :1080) and PRINTS. A DIFFERENT
+	// statistic from `inFrameStops` above: per taxon, over the first L-1 codons only (the terminal
+	// codon of a coding sequence is legitimately a stop), reporting the worst taxon and its count.
+	// Ties go to the first taxon in `taxa` order, as the reference's strict `>` does.
+	const internalLimit = Math.max(0, (L - 1) * 3);
+	let worstTaxon = null;
+	let worstCount = 0;
+	for (const t of taxa) {
+		const seq = seqDict.get(t) ?? '';
+		let stops = 0;
+		const limit = Math.min(seq.length, internalLimit);
+		for (let i = 0; i < limit; i += 3) {
+			if (CODON_TO_AA.get(seq.slice(i, i + 3).toUpperCase()) === '*') stops++;
+		}
+		if (stops > worstCount) {
+			worstCount = stops;
+			worstTaxon = t;
+		}
+	}
+
 	return {
 		c,
 		a,
@@ -369,6 +391,7 @@ function assembleTail(seqDict, taxa, dist, L, referenceName, tree, notices) {
 			unknownCodons,
 			unknownCodonFraction: unknownCodons / Math.max(1, totalCodons),
 			inFrameStops: stopCodons,
+			internalStops: { worstTaxon, worstCount },
 			totalCodons
 		})
 	};

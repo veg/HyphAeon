@@ -5,13 +5,13 @@
  * Function bodies unchanged; it imports nothing.
  *
  * It is the JavaScript stand-in for the one library call `hyphaeon/dataset.py` makes that has no
- * equivalent in a browser: `np.linalg.eigh(B)` inside `compute_mds_coordinates` (dataset.py:384).
+ * equivalent in a browser: `np.linalg.eigh(B)` inside `compute_mds_coordinates` (dataset.py:606).
  * `torch.linalg.eigh` has no ONNX lowering either, which is why `mds_coords` is a graph INPUT and
  * why this routine has to exist on the JS side at all rather than being folded into the model.
  *
  * ONE DIVERGENCE WORTH KNOWING BEFORE READING A PARITY REPORT: dataset.py takes a different code
  * path entirely above 500 taxa — `scipy.sparse.linalg.eigsh` on a matrix-free double-centring
- * operator, `k=4`, `which='LA'`, `maxiter=300` (dataset.py:361-378), falling back to dense eigh only
+ * operator, `k=4`, `which='LA'`, `maxiter=300` (dataset.py:583-600), falling back to dense eigh only
  * on an exception. Lanczos with a capped iteration count is an APPROXIMATION; this file is always
  * the dense QL. So above 500 taxa the two sides differ by more than eigenvector convention, and the
  * gap is a property of scipy's iteration rather than of anything here. The header below explains

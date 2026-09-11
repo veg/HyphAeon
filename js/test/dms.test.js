@@ -203,7 +203,7 @@ describe('CANONICAL_AA_TO_CODON (epistasis.py:44-49)', () => {
 	});
 });
 
-describe('resolveFocalTaxon (epistasis.py:479-486)', () => {
+describe('resolveFocalTaxon (epistasis.py:482-489)', () => {
 	const taxa = ['M_lyra', 'Beta', 'Gamma', 'delta_X'];
 	it('defaults to index 0, matches case-insensitive substrings, and takes the FIRST match', () => {
 		expect(resolveFocalTaxon(taxa)).toEqual({ index: 0, name: 'M_lyra' });
@@ -223,7 +223,7 @@ describe('resolveFocalTaxon (epistasis.py:479-486)', () => {
 	});
 });
 
-describe('dmsTargetSites (epistasis.py:467-471)', () => {
+describe('dmsTargetSites (epistasis.py:470-474)', () => {
 	it('sweeps every site when no subset is given', () => {
 		expect(dmsTargetSites(null, 4)).toEqual([0, 1, 2, 3]);
 		expect(dmsTargetSites(undefined, 2)).toEqual([0, 1]);
@@ -239,7 +239,7 @@ describe('dmsTargetSites (epistasis.py:467-471)', () => {
 	});
 });
 
-describe('dmsWildTypeAa (epistasis.py:529-536)', () => {
+describe('dmsWildTypeAa (epistasis.py:532-539)', () => {
 	// one site, N taxa: a[i] is the amino-acid token of taxon i
 	const site = (tokens) => ({ a: Int32Array.from(tokens), N: tokens.length });
 	const wt = (tokens, focal) => {
@@ -390,7 +390,7 @@ describe('runInsilicoSelectionDms against the reference with a fake model', () =
 	});
 });
 
-describe('runDigitalDmsAnalysis / digitalDmsRecord (epistasis.py:724-770)', () => {
+describe('runDigitalDmsAnalysis / digitalDmsRecord (epistasis.py:727-773)', () => {
 	const d = LOCAL.digital;
 
 	it('reproduces the reference result dict and its key order', async () => {
@@ -508,7 +508,7 @@ describe('fixture replay (fixtures/dms/run_insilico_selection_dms.json) on bat_o
 			siteSubset: fx.inputs.target_sites,
 			batchSize: fx.inputs.batch_size
 		});
-		// epistasis.py:495 runs over range(0, L) — every site, variable or not
+		// epistasis.py:498 runs over range(0, L) — every site, variable or not
 		expect(baselineSites).toEqual(Array.from({ length: loaded.L }, (_, s) => s));
 		expect(baselineSites.length).toBeGreaterThan(fx.inputs.target_sites.length);
 		// the same run with a wildly different filler for the non-swept baselines is identical

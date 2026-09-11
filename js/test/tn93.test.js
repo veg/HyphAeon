@@ -123,7 +123,7 @@ describe('dataset/tn93_distance.json', () => {
 			const freq = tn93NucleotideFrequency(counts);
 			expect(maxAbsDiff(freq, c.outputs.nucleotide_frequency)).toBeLessThanOrEqual(tol(c));
 			expect(Math.abs(tn93CalculateDistance(counts, freq) - c.outputs.distance)).toBeLessThanOrEqual(tol(c));
-			// The composition dataset.py:544-547 uses must give the same number.
+			// The composition dataset.py:791-800 uses must give the same number.
 			expect(Math.abs(tn93Distance(seq1, seq2, options) - c.outputs.distance)).toBeLessThanOrEqual(tol(c));
 		});
 	}
@@ -181,17 +181,24 @@ describe('dataset/tn93_distance_matrix.json', () => {
 		}, 60000);
 	}
 
-	it('reproduces the reference imputation rules the synthetic cases pin', () => {
+	it('reproduces the reference imputation rule the synthetic cases pin', () => {
 		const byName = Object.fromEntries(cases.map((c) => [c.name, c]));
-		// Different strings at distance 0 -> 1e-4.
-		expect(byName.imputed_min_positive.outputs.dist_matrix[0][1]).toBe(Math.fround(TN93_MIN_POSITIVE_DISTANCE));
-		// Identical strings at distance 0 -> max(1.0, max_d): the reference bug, larger than every
-		// real distance in the matrix.
-		const bug = byName.identical_strings_get_the_maximum.outputs;
-		expect(bug.dist_matrix[0][1]).toBe(TN93_SATURATION_SENTINEL);
-		expect(bug.dist_matrix[0][2]).toBeLessThan(bug.dist_matrix[0][1]);
-		// All identical -> the matrix never becomes non-zero, so nothing is imputed at all.
+		// A MEASURED zero survives, whichever kind of pair produced it. The rule these cases pinned
+		// before raised the first to 1e-4 and the second to max(1.0, max_d); the reference moved the
+		// "not written" marker to -1.0, so a measured zero is no longer mistaken for a missing entry.
+		expect(byName.distinct_sequences_at_zero_stay_zero.outputs.dist_matrix[0][1]).toBe(0);
+		const identical = byName.identical_strings_stay_zero.outputs;
+		expect(identical.dist_matrix[0][1]).toBe(0);
+		expect(identical.max).toBe(identical.dist_matrix[0][2]);
+		// All identical -> every pair is written and measures 0, so nothing is imputed.
 		expect(byName.all_identical_stays_zero.outputs.max).toBe(0);
+		// The retired floor is still exported, and nothing reaches it any more.
+		expect(TN93_MIN_POSITIVE_DISTANCE).toBe(1e-4);
+		for (const c of cases) {
+			const m = c.outputs.dist_matrix;
+			if (!m) continue;
+			for (const row of m) for (const v of row) expect(v).not.toBe(Math.fround(TN93_MIN_POSITIVE_DISTANCE));
+		}
 	});
 });
 
@@ -322,7 +329,7 @@ describe('the tn93 package tables and its two raising paths', () => {
 		expect(tn93SaturatedPairs(d, 3, 1.5)).toBe(1);
 	});
 
-	it('returns the zero matrix for a single taxon, as dataset.py:502-503 does', () => {
+	it('returns the zero matrix for a single taxon, as dataset.py:735-736 does', () => {
 		expect(Array.from(tn93DistanceMatrix(new Map([['a', 'ATGC']]), ['a']))).toEqual([0]);
 		expect(Array.from(tn93DistanceMatrix({ a: 'ATGC' }, ['a']))).toEqual([0]);
 	});

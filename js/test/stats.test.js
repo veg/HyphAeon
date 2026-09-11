@@ -12,7 +12,7 @@
  * from float32 arrays and are replayed with a Float32Array. For the two p-value functions this
  * changes nothing (scipy promotes to float64), which the replay confirms.
  *
- * The cmd_meme cast sequence (`memeSitePq`, cli.py:99-100) is checked against the e2e fixtures'
+ * The cmd_meme cast sequence (`memeSitePq`, cli.py:102-103) is checked against the e2e fixtures'
  * `p_value`/`q_value`, which ARE those float32 casts of the reference's float64 statistics: from
  * the fixture's own float32 LRTs the port must land on the same float32 p and q for every site.
  */
@@ -107,7 +107,7 @@ describe('re-exports under the Python names', () => {
 	}
 });
 
-describe('memeSitePq — the cmd_meme float32 cast sequence (cli.py:99-100)', () => {
+describe('memeSitePq — the cmd_meme float32 cast sequence (cli.py:102-103)', () => {
 	for (const name of ['meme_Smc6', 'meme_bat_oas1', 'meme_HIV1_RT', 'meme_camelid', 'meme_RHO']) {
 		it(`${name}: float32 p and q from the fixture's float32 LRTs match the CLI's written values`, () => {
 			const sites = load(`e2e/${name}.json`)[0].outputs.sites;

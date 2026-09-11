@@ -1,33 +1,33 @@
 /**
  * WHY THIS FILE EXISTS
  *
- * Mirrors `hyphaeon/filter.py` at veg/HyphAeon 267f5cf as pure functions:
+ * Mirrors `hyphaeon/filter.py` at veg/HyphAeon reconcile/phase-5a as pure functions:
  *
  *   scanHypergeometricPatches   scan_hypergeometric_patches   filter.py:52-100
  *   predictSiteLrts             the variable-site inference loop of filter.py:155-165 / 308-316,
  *                               which is `inference.predict_site_lrts` (inference.py:162-192)
- *   consensusCodons             the per-site consensus of filter.py:204-209 (cli.py:128-133)
- *   auditPatch                  the OCI attribution of one patch, filter.py:223-253 (cli.py:137-166)
- *   maskCodonSpan               the NNN masking of filter.py:272-275 (cli.py:176-178)
+ *   consensusCodons             the per-site consensus of filter.py:204-209 (cli.py:131-136)
+ *   auditPatch                  the OCI attribution of one patch, filter.py:223-253 (cli.py:140-169)
+ *   maskCodonSpan               the NNN masking of filter.py:272-275 (cli.py:179-181)
  *   runAlignmentFilter          run_alignment_filter, filter.py:102-399, both forward-pass phases
  *
  * plus, behind `{cliVariant: true}`, the SECOND copy of the OCI screen that `cli.py cmd_meme
- * --filter` carries (cli.py:111-218 at 267f5cf). The two copies differ, and the fixture notes
+ * --filter` carries (cli.py:114-221 at reconcile/phase-5a). The two copies differ, and the fixture notes
  * (fixtures/e2e/meme_bat_oas1_attribute_filter.json, manifest `known_quirks`) pin the differences:
  *
- *   1. consensus codons: cmd_meme drops only codons containing '-' or 'N' (cli.py:132);
+ *   1. consensus codons: cmd_meme drops only codons containing '-' or 'N' (cli.py:135);
  *      run_alignment_filter also drops '?' and anything not of length 3 (filter.py:208);
- *   2. the artifact rule reads `min_patch_consec` (cli.py:135, 166) — an attribute no argparse flag
+ *   2. the artifact rule reads `min_patch_consec` (cli.py:138, 166) — an attribute no argparse flag
  *      sets, so it is always 3 — and hard-codes min_oci = 0.25, alpha 0.05, min_k 3, max_span 35;
  *      only `--filter-p-thresh` (p_local) is configurable;
  *   3. the p-values it scans are float32 (`pvals_from_lrt_meme(lrts).astype(np.float32)`,
- *      cli.py:102), so `site_pvals <= 0.05` compares against float32(0.05);
- *   4. the cleaned FASTA holds only the matched `taxa` in taxa order (cli.py:186-189), where
+ *      cli.py:105), so `site_pvals <= 0.05` compares against float32(0.05);
+ *   4. the cleaned FASTA holds only the matched `taxa` in taxa order (cli.py:189-192), where
  *      run_alignment_filter writes EVERY parsed sequence in file order (filter.py:293-294);
- *   5. the cleaned re-load is given `args.tree` as is (cli.py:192): with an embedded tree and at
+ *   5. the cleaned re-load is given `args.tree` as is (cli.py:195): with an embedded tree and at
  *      least one artifact the cleaned FASTA has no tree and the loader raises — the command
  *      crashes. run_alignment_filter passes the alignment path instead (filter.py:297).
- *   6. the cleaned re-score reuses the ORIGINAL tree cache (cli.py:195-197), not the cleaned
+ *   6. the cleaned re-score reuses the ORIGINAL tree cache (cli.py:198-200), not the cleaned
  *      distances; the two are identical unless masking changed the taxon set, in which case the
  *      model fails on a shape mismatch.
  *   7. cmd_meme does not compute cct / mean-LRT metrics; its outputs are `artifacts_masked`
@@ -111,7 +111,7 @@ import { CODON_TO_AA } from './preprocess/tokenizer.js';
  *
  * `1 - cdf` is computed literally (not the survival function) so the float64 value matches the
  * reference expression. A Float32Array input compares against float32(alpha_site), as numpy does
- * for a float32 array against a Python float — the cmd_meme path (cli.py:102, 119).
+ * for a float32 array against a Python float — the cmd_meme path (cli.py:105, 119).
  *
  * @param {ArrayLike<number>} sitePvals
  * @param {{alphaSite?: number, minK?: number, maxSpan?: number, pLocalThresh?: number}} [options]
@@ -227,7 +227,7 @@ export async function predictSiteLrts(loaded, predict, options = {}) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Consensus, OCI audit, masking  (filter.py:204-275; cli.py:128-178)
+// Consensus, OCI audit, masking  (filter.py:204-275; cli.py:131-181)
 // ---------------------------------------------------------------------------------------------
 
 /**
@@ -278,7 +278,7 @@ export function consensusCodons(rawSeqs, taxa, L, options = {}) {
  */
 
 /**
- * The Outlier Contamination Index audit of one patch, filter.py:223-253 (cli.py:137-166). For
+ * The Outlier Contamination Index audit of one patch, filter.py:223-253 (cli.py:140-169). For
  * every taxon: the longest run of consecutive sites and the total count where the observed amino
  * acid and the consensus amino acid are both residues-or-stops (neither '-' nor '?';
  * `CODON_TO_AA.get(codon, '-')` so a stop '*' counts) and differ. The top taxon is
@@ -362,7 +362,7 @@ export function maskCodonSpan(chars, start, end) {
 }
 
 /**
- * `">{t}\n{seq}\n"` per entry, filter.py:293-294 / cli.py:186-189.
+ * `">{t}\n{seq}\n"` per entry, filter.py:293-294 / cli.py:189-192.
  * @param {Iterable<[string, string]>} entries
  * @returns {string}
  */
@@ -373,7 +373,7 @@ export function fastaText(entries) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// run_alignment_filter  (filter.py:102-399) and cmd_meme --filter (cli.py:111-218)
+// run_alignment_filter  (filter.py:102-399) and cmd_meme --filter (cli.py:114-221)
 // ---------------------------------------------------------------------------------------------
 
 /**
@@ -485,7 +485,7 @@ export async function runAlignmentFilter(input, predict, options = {}) {
 		lrtsRaw = await predictSiteLrts(loaded, predict, { batchSize, phase: 'baseline', onProgress });
 	}
 
-	// 3. Statistics. The cmd_meme copy casts p and q to float32 (cli.py:102-103).
+	// 3. Statistics. The cmd_meme copy casts p and q to float32 (cli.py:105-106).
 	const stats = (/** @type {Float32Array} */ lrts) => {
 		const p64 = pvalsFromLrtMeme(lrts);
 		const pvals = cliVariant ? Float32Array.from(p64) : p64;
@@ -511,7 +511,7 @@ export async function runAlignmentFilter(input, predict, options = {}) {
 	};
 	const raw = stats(lrtsRaw);
 
-	// 4. Spatial scan. cmd_meme fixes alpha 0.05 / min_k 3 / max_span 35 (cli.py:119-121).
+	// 4. Spatial scan. cmd_meme fixes alpha 0.05 / min_k 3 / max_span 35 (cli.py:122-124).
 	const patches = scanHypergeometricPatches(
 		raw.pvals,
 		cliVariant
@@ -530,7 +530,7 @@ export async function runAlignmentFilter(input, predict, options = {}) {
 	/** @type {Map<string, string[]>} */
 	const cleanedSeqs = new Map();
 	if (cliVariant) {
-		// cli.py:127: only the matched taxa, in taxa order; computed only when there are patches.
+		// cli.py:130: only the matched taxa, in taxa order; computed only when there are patches.
 		if (patches.length > 0) {
 			for (const t of taxa) {
 				const seq = rawSeqs.get(t);
@@ -542,7 +542,7 @@ export async function runAlignmentFilter(input, predict, options = {}) {
 	}
 	const consensus = patches.length > 0 || !cliVariant ? consensusCodons(rawSeqs, taxa, L, { cliVariant }) : [];
 	const effMinOci = cliVariant ? 0.25 : minOci;
-	const effMinRun = cliVariant ? 3 : minRunLength; // cli.py:135 `min_patch_consec` has no flag
+	const effMinRun = cliVariant ? 3 : minRunLength; // cli.py:138 `min_patch_consec` has no flag
 
 	for (const p of patches) {
 		if (taxa.length === 0) continue;
@@ -602,14 +602,14 @@ export async function runAlignmentFilter(input, predict, options = {}) {
 		const sequences = new Map();
 		for (const [t, chars] of cleanedSeqs) sequences.set(t, chars.join(''));
 		const text = fastaText(sequences);
-		// filter.py:297 falls back to the alignment (its embedded tree); cli.py:192 passes args.tree
+		// filter.py:297 falls back to the alignment (its embedded tree); cli.py:195 passes args.tree
 		// as is, so a null tree raises in the loader — the cmd_meme crash, reproduced.
 		const effectiveTree = cliVariant ? treeText : (treeText ?? alignmentText);
 		const loadedCl = loadAlignmentAndTree(text, effectiveTree, { maxSpecies, pruneDuplicates });
 		if (loadedCl.L !== L) {
 			throw new Error(`cleaned alignment has ${loadedCl.L} codons, expected ${L}`);
 		}
-		// cli.py:195-197 re-scores with the ORIGINAL tree cache.
+		// cli.py:198-200 re-scores with the ORIGINAL tree cache.
 		const dz = cliVariant ? { d: loaded.d, z: loaded.z } : {};
 		if (cliVariant && loadedCl.N !== loaded.N) {
 			throw new Error(

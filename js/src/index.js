@@ -51,7 +51,7 @@ export * from './preprocess/parse.js'; // parseAlignmentSequences + the CPython 
 export * from './preprocess/tokenizer.js'; // CODON_LIST, GENETIC_CODE, AA_MAP, CODON_TO_AA, codonToken, aaToken, tokenizeSequence
 export * from './preprocess/variability.js'; // isAaInvariable, invariableMask, isSiteVariable, siteVariability
 export * from './preprocess/tree.js'; // NewickError, parseNewickTrees, readNewick, extractTree, matchTaxa, treeTaxa, branch-length predicates
-export * from './preprocess/tn93.js'; // dataset.py:493-571 + the tn93 1.2.2 package: tn93Distance, tn93DistanceMatrix, tn93Counts, tn93SaturatedPairs, TN93_* (D22 tree-free distances; a leaf)
+export * from './preprocess/tn93.js'; // dataset.py:715-821 + the tn93 1.2.2 package: tn93Distance, tn93DistanceMatrix, tn93Counts, tn93SaturatedPairs, TN93_* (D22 tree-free distances; a leaf)
 // One level up.
 export * from './preprocess/patristic.js'; // rootDistances, patristicRow, patristicMatrix, computeFastDistMatrix, rescaleDistances
 export * from './preprocess/downsample.js'; // pruneIdenticalSequences, downsampleTaxaFaithPd, stridePreselect
@@ -70,8 +70,8 @@ export * from './filter.js'; // filter.py: scanHypergeometricPatches, predictSit
 export * from './attribution.js'; // attribution.py: attributeSelection, attributionSiteFields, attributionsOneIndexed, INV_GENETIC_CODE
 export * from './omnibus.js'; // cli.py cmd_busted statistics: bustedStatistics, bustedRecord, runBusted, simesP, omnibusLrt, BUSTED_*
 export * from './epistasis.js'; // epistasis.py:51-222: consensusDelta, computeTransformerAttributions, runTransformerAttributions, computeBranchCoselectionNetwork, CoselectionGraph
-export * from './sectors.js'; // epistasis.py:224-445: computeSectorPermutationTest, extractEpistaticSectorsTse, REV_AA_MAP, float32Percentile
-export * from './dms.js'; // epistasis.py:446-628, 724-768: runInsilicoSelectionDms, runDigitalDmsAnalysis, digitalDmsRecord, CANONICAL_AA_TO_CODON
-export * from './permulations.js'; // phenotype.py:275-346: computePhylogeneticCovariance, generatePermulations, findAnyByName, pyRegexSource (before phenotype.js, which imports it)
+export * from './sectors.js'; // epistasis.py:224-448: computeSectorPermutationTest, extractEpistaticSectorsTse, REV_AA_MAP, float32Percentile
+export * from './dms.js'; // epistasis.py:449-631, 724-768: runInsilicoSelectionDms, runDigitalDmsAnalysis, digitalDmsRecord, CANONICAL_AA_TO_CODON
+export * from './permulations.js'; // phenotype.py:275-374: computePhylogeneticCovariance, generatePermulations, findAnyByName, pyRegexSource (before phenotype.js, which imports it)
 export * from './phenotype.js'; // phenotype.py:48-274 and 347-646: PRESETS, PHENOTYPE_THRESHOLDS, resolvePhenotypeVector, runPhenotypeAssociation, parsePhenotypeTable, pyFnmatch, pyRepr*, pyFloatStr
 export * from './diagnostics.js'; // PLAN.md §4.3 pre-flight: diagnose, DIAGNOSTIC_CODES, DIAGNOSTIC_THRESHOLDS

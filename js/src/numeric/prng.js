@@ -3,7 +3,7 @@
  *
  * The one seeded random number generator the library uses, so that every Monte Carlo output the
  * ports produce (epistasis.py:263 `np.random.default_rng(rng_seed)` for the sector permutation
- * null; phenotype.py:318,326 `np.random.seed(seed)` / `np.random.randn(M, n_perm)` for the
+ * null; phenotype.py:346,326 `np.random.seed(seed)` / `np.random.randn(M, n_perm)` for the
  * Brownian-motion permulations) is reproducible from a recorded seed. PLAN.md §5.3 rule 5 and
  * fixtures/README.md make randomness a documented contract: the Python streams (PCG64, MT19937)
  * cannot be matched bit-for-bit, so those outputs are compared statistically (§5.4) and the

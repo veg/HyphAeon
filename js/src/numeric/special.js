@@ -4,8 +4,8 @@
  * The special functions that hyphaeon/*.py gets from scipy and that a browser does not have:
  *
  *   - `scipy.stats.chi2.sf`            stats.py:29,47 (MEME and Self–Liang mixture p-values)
- *   - `scipy.stats.t.sf`               epistasis.py:171, phenotype.py:461,579 (Student-t p-values)
- *   - `scipy.stats.norm.sf`            phenotype.py:530
+ *   - `scipy.stats.t.sf`               epistasis.py:171, phenotype.py:489,579 (Student-t p-values)
+ *   - `scipy.stats.norm.sf`            phenotype.py:558
  *   - `scipy.stats.hypergeom.cdf`      filter.py:78 (patch scan, `1 - cdf(k-1, L, K, d)`)
  *
  * Each of those is a thin wrapper over one of three classical special functions — the regularized

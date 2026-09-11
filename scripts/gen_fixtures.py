@@ -1127,13 +1127,17 @@ def gen_dataset(w: Writer) -> None:
                                      f"Real data, full length: examples/bat_oas1.fasta taxa '{ex_names[0]}' and '{ex_names[1]}'."))
 
     matrix_sig = (
-        "signature: compute_tn93_distance_matrix(seq_dict, taxa, fa_path=None) -> float32 [n, n]. dataset.py:493-571. "
-        "PREFERS the compiled `tn93` binary (`tn93 -t 1.0 -l 1 -q -o out.csv in.fa`, default ambiguity strategy resolve); "
-        "these fixtures hide it so the Python `tn93` package path runs (measured identical on bat_oas1 and HIV1_RT). "
-        "Off-diagonal i<j only, mirrored; `if d is None or d == '-' or d < 0 or isnan(d): d = 1.0` (dead on this path); "
-        "then the imputation: a pair at <= 0 whose SEQUENCE STRINGS DIFFER becomes 1e-4, and a pair at <= 0 whose strings "
-        "are IDENTICAL becomes max(1.0, max_d) with max_d the pre-loop maximum (so identical sequences get the LARGEST "
-        "distance in the matrix - a reference bug, replicated); the diagonal is zeroed last. n <= 1 returns zeros."
+        "signature: compute_tn93_distance_matrix(seq_dict, taxa, fa_path=None, threshold=100.0) -> float32 [n, n]. dataset.py:715-822. "
+        "PREFERS the compiled `tn93` binary (`tn93 -t 100.0 -l 1 -q -o out.csv in.fa`, default ambiguity strategy resolve, "
+        "retried at -t 1.0 when a stock build refuses the threshold); these fixtures hide it so the Python `tn93` package "
+        "path runs. The matrix starts at -1.0 with a zeroed diagonal, so an entry never written is outside the range of "
+        "any distance. Off-diagonal i<j only, mirrored; `calculate_distance` is wrapped in "
+        "`except (ValueError, OverflowError): d = 1.0`, then `if d is None or d == '-' or d < 0 or isnan(d): d = 1.0` "
+        "(dead on this path); then the imputation: ONLY entries still below zero are filled, with max(1.0, max_d) where "
+        "max_d is read once from the filled matrix; the diagonal is zeroed last. A MEASURED 0.0 survives as 0.0, whether "
+        "the two sequences are byte-identical or merely at distance zero. Since the package path writes every pair, "
+        "nothing is ever imputed on it; only a pair the binary omits from its CSV can be. n <= 1 returns the -1.0 matrix "
+        "with its zeroed diagonal, which for n == 1 is the zero matrix."
     )
     matrix_cases = []
     with tn93_python_package_path():
@@ -1158,20 +1162,20 @@ def gen_dataset(w: Writer) -> None:
         if sat_pairs:
             i, j = sat_pairs[0]
             dist_cases_tn93.append(tn93_case(f"example_HIV1_RT_pair_at_the_sentinel", seqs[taxa[i]], seqs[taxa[j]],
-                                             f"The one HIV1_RT pair that sits at 1.0 in the matrix: taxa '{taxa[i]}' and '{taxa[j]}' (indices {i}, {j} in alignment order). "
-                                             "MEASURED: calculate_distance returns 0.0 for it - the two sequences are BYTE-IDENTICAL, and the 1.0 comes from the imputation "
-                                             "elif (max(1.0, max_d), dataset.py:565-568), not from saturation. Across all five bundled alignments NO pair reaches the "
-                                             "degenerate 1.0 sentinel of calculate_distance; HIV1_RT has 1 identical pair and 66 different-sequence pairs at distance 0 "
-                                             "(imputed to 1e-4), RHO has 78 and 8. load_alignment_and_tree prunes the identical ones before the matrix is built."))
+                                             f"An HIV1_RT pair sitting at 1.0 in the matrix: taxa '{taxa[i]}' and '{taxa[j]}' (indices {i}, {j} in alignment order). "
+                                             "Across all five bundled alignments NO pair reaches the degenerate 1.0 sentinel of calculate_distance, and under the "
+                                             "reconciled imputation no measured zero is raised either, so this case is generated only if such a pair exists. HIV1_RT has "
+                                             "1 byte-identical pair and 66 different-sequence pairs at distance 0, RHO has 78 and 8; all of them now stay at 0.0. "
+                                             "load_alignment_and_tree prunes the identical ones before the matrix is built."))
         # synthetic cases for the assembly rules
         synth = {
-            "imputed_min_positive": ({"s1": "ATGCATGCATGCATGCATGC", "s2": "ATGCATGCATGCATGCATG-", "s3": "ATGCATGCATGCATGCTTGC"},
-                                     "s1/s2 differ only by a terminal gap, which RESOLVE counts as nothing: their distance is 0.0 but the STRINGS differ, so it is imputed to 1e-4 (dataset.py:562-564)."),
-            "identical_strings_get_the_maximum": ({"s1": "ATGCATGCATGCATGCATGC", "s2": "ATGCATGCATGCATGCATGC", "s3": "ATGCATGCATGCATGCTTGC"},
-                                                  "s1 and s2 are byte-identical: their 0.0 falls into the elif and becomes max(1.0, max_d) = 1.0, LARGER than every real distance in the matrix (dataset.py:565-568). load_alignment_and_tree prunes duplicates before this, so it needs prune_duplicates=False to be reached."),
+            "distinct_sequences_at_zero_stay_zero": ({"s1": "ATGCATGCATGCATGCATGC", "s2": "ATGCATGCATGCATGCATG-", "s3": "ATGCATGCATGCATGCTTGC"},
+                                     "s1/s2 differ only by a terminal gap, which RESOLVE counts as nothing: their distance is a MEASURED 0.0 and stays 0.0. Under the rule this replaced it was raised to 1e-4 because the strings differ."),
+            "identical_strings_stay_zero": ({"s1": "ATGCATGCATGCATGCATGC", "s2": "ATGCATGCATGCATGCATGC", "s3": "ATGCATGCATGCATGCTTGC"},
+                                                  "s1 and s2 are byte-identical and measure 0.0, which is kept. Under the rule this replaced, that zero was indistinguishable from an unwritten entry and became max(1.0, max_d) = 1.0, LARGER than every real distance in the matrix - the reference bug this repairs. load_alignment_and_tree prunes duplicates before this anyway, so it needed prune_duplicates=False to be reached."),
             "all_identical_stays_zero": ({"s1": "ATGCATGCATGCATGCATGC", "s2": "ATGCATGCATGCATGCATGC", "s3": "ATGCATGCATGCATGCATGC"},
-                                         "Every pair is 0 and the matrix never becomes non-zero, so `dist_mat.max() > 0` is False and the elif never fires: the matrix stays all zeros."),
-            "single_taxon": ({"s1": "ATGCATGCATGCATGCATGC"}, "n <= 1 returns the zero matrix without computing anything (dataset.py:502-503)."),
+                                         "Every pair measures 0 and every pair is written, so nothing is imputed: the matrix stays all zeros."),
+            "single_taxon": ({"s1": "ATGCATGCATGCATGCATGC"}, "n <= 1 returns without computing anything (dataset.py:734-735); the 1x1 matrix is its own zeroed diagonal."),
         }
         for name, (sd, note) in synth.items():
             tx = list(sd.keys())
@@ -1509,9 +1513,9 @@ def main() -> int:
             "statistical": "Monte Carlo outputs: |p_js - p_py| <= 3*sqrt(p(1-p)/B), null moments within 2%; membership/exact fields still compared exactly",
         },
         "known_quirks": [
-            "dataset.compute_tn93_distance_matrix PREFERS the compiled `tn93` binary on PATH (`tn93 -t 1.0 -l 1 -q -o out.csv in.fa`) and falls back to the Python `tn93` package (TN93().get_counts(a, b, 'resolve') -> get_nucleotide_frequency -> calculate_distance). The fixtures hide the binary so the PACKAGE path is pinned; the two measured identical (max |delta| = 0.0) on bat_oas1 and HIV1_RT, because the binary writes the same 6 significant digits and every pair it drops at its 1.0 threshold is imputed back to 1.0.",
-            "dataset.compute_tn93_distance_matrix imputes a zero distance between two BYTE-IDENTICAL sequences as max(1.0, max_d) - the LARGEST distance in the matrix - while two different sequences at zero distance get 1e-4 (dataset.py:559-568). load_alignment_and_tree prunes identical sequences first, so it needs prune_duplicates=False to be reached.",
-            "The tn93 package RAISES rather than returning a sentinel on two inputs dataset.py does not catch: math.log of a non-positive corrected proportion (a saturated pair) -> ValueError, and `2 / sum(nucleotide_frequency)` on a pair with no overlapping non-gap position -> ZeroDivisionError. dataset.py's `if d is None or d == '-' or d < 0 or isnan(d)` guard is therefore dead code on that path.",
+            "dataset.compute_tn93_distance_matrix PREFERS the compiled `tn93` binary on PATH (`tn93 -t 100.0 -l 1 -q -o out.csv in.fa`, retried at -t 1.0 on CalledProcessError for stock builds <= v1.0.15) and falls back to the Python `tn93` package (TN93().get_counts(a, b, 'resolve') -> get_nucleotide_frequency -> calculate_distance). The fixtures hide the binary so the PACKAGE path is pinned. The earlier measurement that the two agree exactly (max |delta| = 0.0 on bat_oas1 and HIV1_RT) was taken at threshold 1.0 with the old imputation and has NOT been re-taken: the binary now reports pairs it used to drop, and only it can leave an entry unwritten for the imputation to fill, so the two paths are no longer known to be identical.",
+            "dataset.compute_tn93_distance_matrix used to impute a zero distance between two BYTE-IDENTICAL sequences as max(1.0, max_d) - the LARGEST distance in the matrix - and raise two different sequences at zero distance to 1e-4. FIXED UPSTREAM: the matrix now starts at -1.0 so a measured zero is distinguishable from an entry that was never written, and only the latter is imputed (dataset.py:816-821). A measured 0.0 survives, from either kind of pair. HIV1_RT has 1 byte-identical pair and 66 different-sequence pairs at distance 0, RHO has 78 and 8; all now stay 0.0.",
+            "The tn93 package RAISES rather than returning a sentinel on two inputs: math.log of a non-positive corrected proportion (a saturated pair) -> ValueError, and `2 / sum(nucleotide_frequency)` on a pair with no overlapping non-gap position -> ZeroDivisionError. dataset.py now catches (ValueError, OverflowError) around calculate_distance and calls such a pair maximally distant (d = 1.0); ZeroDivisionError is still uncaught and still kills the run. Its `if d is None or d == '-' or d < 0 or isnan(d)` guard remains dead code on that path. No pair in the five bundled alignments raises either.",
             "tn93.calculate_distance falls back to a fixed 1.0 SENTINEL (not a distance) whenever some base is absent from the pairwise counts and the degenerate correction goes non-positive: 1 pair in HIV1_RT, 78 in RHO, 0 in bat_oas1/Smc6/camelid.",
             "load_alignment_and_tree(use_tn93=True) takes taxa in ALIGNMENT order and applies no `> 10` rescale, where the tree path uses tree terminal order and rescales.",
             "cli.py cmd_busted loads BustedMultiTaskHead with strict=False; model.safetensors lacks 11 of its parameters (see busted_head_missing_keys) and torch is never seeded, so predicted_gene_lrt, selection_probability, synonymous_rate_variation, omega_3, proportion_* and positive_selection_detected differ on every run. They are nulled in fixtures/e2e/busted_*.json.",

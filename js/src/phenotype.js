@@ -3,15 +3,15 @@
  *
  * The phenotype pillar — directional Phenotype-Genotype Association Mapping (PhyloWAS) and the
  * Phenotype-Associated Residue Signature (PARS) — mirroring `hyphaeon/phenotype.py` at
- * veg/HyphAeon 61d30e3 (tag phase-2a), PLAN.md §5.1 port 5:
+ * veg/HyphAeon reconcile/phase-5a, PLAN.md §5.1 port 5:
  *
  *   PRESETS                     phenotype.py:48-111    verbatim: the same eight keys, the same
  *                                                      species lists, in the same order
  *   resolvePhenotypeVector      resolve_phenotype_vector, phenotype.py:121-274
- *   runPhenotypeAssociation     run_phenotype_association, phenotype.py:347-646, as a pure
+ *   runPhenotypeAssociation     run_phenotype_association, phenotype.py:375-674, as a pure
  *                                                      function over an async `predict` callback
  *
- * The tree-dependent half (the Brownian covariance and the permulation draws, phenotype.py:275-346)
+ * The tree-dependent half (the Brownian covariance and the permulation draws, phenotype.py:275-374)
  * is `permulations.js`, for the reason its header gives: D22 made a tree optional, and "no tree,
  * therefore no permulations" should be a fact about which module the pipeline calls.
  *
@@ -23,7 +23,7 @@
  * is IMPORTED from `epistasis.js` rather than reimplemented, so the two attention pillars share
  * one definition of the attribution matrix — the reference does the same thing with its
  * `from .epistasis import compute_transformer_attributions` at phenotype.py:44, and sector mining
- * comes from `sectors.js` for the same reason (phenotype.py:611).
+ * comes from `sectors.js` for the same reason (phenotype.py:639).
  *
  * ---------------------------------------------------------------------------------------------
  * resolve_phenotype_vector, step by step (phenotype.py line numbers)
@@ -114,7 +114,7 @@
  *     `similarity` agrees with the reference to ~5e-7 relative rather than to the ulp.
  *   - `cesi` here is FLOAT64, unlike `epistasis.py`'s float32 cesi: `lrt_1 = float(lrts[s1])` is
  *     a Python float before it reaches `np.sqrt`, so the whole expression is double
- *     (phenotype.py:576-578). The `sim >= 0.25` and `cesi >= 1.0` gates are therefore float64
+ *     (phenotype.py:604-606). The `sim >= 0.25` and `cesi >= 1.0` gates are therefore float64
  *     comparisons and do NOT have `epistasis.py`'s float32-threshold quirk.
  *   - `np.mean(a_s[is_fg])` is a float32 pairwise mean over the gathered subvector.
  *
@@ -155,7 +155,7 @@
  *   - `description` embeds a Python list repr: `f"User-specified foreground patterns: {fg_list}"`
  *     produces `['a', 'b']` with single quotes. `pyReprStringList` reproduces `repr(list[str])`,
  *     including the switch to double quotes for a string containing an apostrophe.
- *   - `run_phenotype_association` computes `leaf_attr @ Y_perms.T` twice (phenotype.py:432, 436).
+ *   - `run_phenotype_association` computes `leaf_attr @ Y_perms.T` twice (phenotype.py:460, 436).
  *     Computed once here; numpy would have returned the same values both times.
  *   - The trait co-selection block indexes `sub_indices` in SCORE order, not site order, so
  *     `coselection_pairs`' `site_u`/`site_v` are not ordered by position and `site_u > site_v` is
@@ -275,20 +275,20 @@ export const PRESETS = Object.freeze({
  * a reader can find them. Every value is the reference's; none is tunable through the CLI.
  */
 export const PHENOTYPE_THRESHOLDS = Object.freeze({
-	/** phenotype.py:542 — a site enters the PARS bracket at rho >= 0.40 AND score >= 0.50. */
+	/** phenotype.py:570 — a site enters the PARS bracket at rho >= 0.40 AND score >= 0.50. */
 	parsMinRho: 0.4,
 	parsMinScore: 0.5,
-	/** phenotype.py:542 — at most 15 sites in the bracket. */
+	/** phenotype.py:570 — at most 15 sites in the bracket. */
 	parsMaxSites: 15,
-	/** phenotype.py:571 — a pair is recorded when its cosine exceeds 0.15. */
+	/** phenotype.py:599 — a pair is recorded when its cosine exceeds 0.15. */
 	pairMinSimilarity: 0.15,
-	/** phenotype.py:600 — and becomes a graph edge at cosine >= 0.25 and CESI >= 1.0. */
+	/** phenotype.py:628 — and becomes a graph edge at cosine >= 0.25 and CESI >= 1.0. */
 	edgeMinSimilarity: 0.25,
 	edgeMinCesi: 1.0,
-	/** phenotype.py:612-614 — the sector miner runs looser here than in the epistasis pillar. */
+	/** phenotype.py:640-642 — the sector miner runs looser here than in the epistasis pillar. */
 	sectorMinCliqueSize: 2,
 	sectorMinCoherence: 0.45,
-	/** phenotype.py:530 — the null SE floor, 1/sqrt(max(10, N)). */
+	/** phenotype.py:558 — the null SE floor, 1/sqrt(max(10, N)). */
 	evdMinTaxa: 10
 });
 
@@ -823,7 +823,7 @@ function norm64(v, lo, n) {
 }
 
 // =================================================================================================
-// run_phenotype_association  (phenotype.py:347-646)
+// run_phenotype_association  (phenotype.py:375-674)
 // =================================================================================================
 
 /**
@@ -857,7 +857,7 @@ function norm64(v, lo, n) {
  */
 
 /**
- * `run_phenotype_association(...)` (phenotype.py:347-646), everything from step 6 on: the loading,
+ * `run_phenotype_association(...)` (phenotype.py:375-674), everything from step 6 on: the loading,
  * the device and the model live outside the library (PLAN.md §5.5).
  *
  * The trait vector arrives either ready (`y`) or as `resolvePhenotypeVector` options
@@ -899,7 +899,7 @@ export async function runPhenotypeAssociation(input, predict = null, options = {
 	const N = loaded.N;
 	const L = loaded.L;
 
-	// ---- 3. the phenotype vector (phenotype.py:386-402) ----------------------------------------
+	// ---- 3. the phenotype vector (phenotype.py:414-430) ----------------------------------------
 	let y;
 	/** @type {{mode: string, foreground_count: number, background_count: number, description: string}} */
 	let meta;
@@ -923,7 +923,7 @@ export async function runPhenotypeAssociation(input, predict = null, options = {
 		throw new Error(`Insufficient foreground taxa (${fgCount}) matching criteria among ${N} taxa.`);
 	}
 
-	// ---- 5. the attribution matrix (phenotype.py:409-411), shared with the epistasis pillar ----
+	// ---- 5. the attribution matrix (phenotype.py:437-439), shared with the epistasis pillar ----
 	/** @type {TransformerAttributions} */
 	let attr;
 	if (input.attributions) attr = input.attributions;
@@ -939,7 +939,7 @@ export async function runPhenotypeAssociation(input, predict = null, options = {
 	const consAas = attr.consensusAas;
 	const aNp = loaded.a;
 
-	// ---- 6. projection onto the unit hypersphere (phenotype.py:413-417) ------------------------
+	// ---- 6. projection onto the unit hypersphere (phenotype.py:441-445) ------------------------
 	const normY = norm64(y, 0, N);
 	const yNorm = new Float64Array(N);
 	if (normY > 0) for (let i = 0; i < N; i++) yNorm[i] = y[i] / normY;
@@ -955,7 +955,7 @@ export async function runPhenotypeAssociation(input, predict = null, options = {
 	const frobNorm = normSdot32(leafAttr, 0, L * N);
 	const normSpectralRatio = frobNorm > 0 ? spectralEnergy / frobNorm : 0.0;
 
-	// ---- 6b. permulations (phenotype.py:423-443) ----------------------------------------------
+	// ---- 6b. permulations (phenotype.py:451-471) ----------------------------------------------
 	/** @type {Float64Array|null} */
 	let nullRhos = null; // [L, P]
 	/** @type {number|null} */
@@ -996,13 +996,13 @@ export async function runPhenotypeAssociation(input, predict = null, options = {
 			for (let p = 0; p < P; p++) if (nullSpectral[p] >= spectralEnergy) ge++;
 			geneP = (1.0 + ge) / (1.0 + permulations);
 		} catch {
-			// phenotype.py:441-443 — `except Exception: null_rhos = None; gene_p_perm = None`.
+			// phenotype.py:469-471 — `except Exception: null_rhos = None; gene_p_perm = None`.
 			nullRhos = null;
 			geneP = null;
 		}
 	}
 
-	// ---- 7. per-site associations (phenotype.py:447-516) ---------------------------------------
+	// ---- 7. per-site associations (phenotype.py:475-544) ---------------------------------------
 	/** @type {PhenotypeSite[]} */
 	const siteResults = [];
 	const fgBuf = new Float32Array(N);
@@ -1040,7 +1040,7 @@ export async function runPhenotypeAssociation(input, predict = null, options = {
 		const pCombined = cauchyCombination(Float64Array.of(pLrt, pAssoc));
 
 		const refAa = consAas[s];
-		// phenotype.py:481-487 — the modal valid residue among the FOREGROUND taxa.
+		// phenotype.py:509-515 — the modal valid residue among the FOREGROUND taxa.
 		counts.fill(0);
 		let nFgValid = 0;
 		for (let n = 0; n < N; n++) {
@@ -1057,7 +1057,7 @@ export async function runPhenotypeAssociation(input, predict = null, options = {
 			fgFreq = (counts[major] / nFgValid) * 100.0;
 		}
 
-		// phenotype.py:489-494 — the SAME residue's frequency in the background.
+		// phenotype.py:517-522 — the SAME residue's frequency in the background.
 		let nBgValid = 0;
 		for (let n = 0; n < N; n++) if (!isFg[n] && aNp[base + n] < 20) nBgValid++;
 		let bgFreq = 0.0;
@@ -1072,7 +1072,7 @@ export async function runPhenotypeAssociation(input, predict = null, options = {
 			bgFreq = (hits / nBgValid) * 100.0;
 		}
 
-		// phenotype.py:496-497 — float32 pairwise means over the two groups.
+		// phenotype.py:524-525 — float32 pairwise means over the two groups.
 		let nf = 0;
 		let nb = 0;
 		for (let n = 0; n < N; n++) {
@@ -1102,17 +1102,17 @@ export async function runPhenotypeAssociation(input, predict = null, options = {
 		});
 	}
 
-	// phenotype.py:518 — `sort(key=score, reverse=True)`; CPython's sort is stable and `reverse`
+	// phenotype.py:546 — `sort(key=score, reverse=True)`; CPython's sort is stable and `reverse`
 	// does not reverse ties, so equal scores keep site order. Array#sort is stable too (ES2019).
 	siteResults.sort((a, b) => b.score - a.score);
 
-	// ---- 8. Benjamini-Hochberg (phenotype.py:520-525) ------------------------------------------
+	// ---- 8. Benjamini-Hochberg (phenotype.py:548-553) ------------------------------------------
 	if (siteResults.length > 0) {
 		const q = benjaminiHochberg(Float64Array.from(siteResults, (x) => x.p_value));
 		for (let i = 0; i < siteResults.length; i++) siteResults[i].q_value = q[i];
 	}
 
-	// ---- 9. dual-track extreme-value statistics (phenotype.py:527-539) -------------------------
+	// ---- 9. dual-track extreme-value statistics (phenotype.py:555-567) -------------------------
 	const maxAssoc = siteResults.length > 0 ? siteResults[0].association_rho : 0.0;
 	const sigmaNull = 1.0 / Math.sqrt(Math.max(PHENOTYPE_THRESHOLDS.evdMinTaxa, N));
 	const zSingle = sigmaNull > 0 ? maxAssoc / sigmaNull : 0.0;
@@ -1124,7 +1124,7 @@ export async function runPhenotypeAssociation(input, predict = null, options = {
 	const scoreTrackB = normSpectralRatio;
 	const dualTrackComposite = Math.max(scoreTrackA / 10.0, scoreTrackB);
 
-	// ---- 10. the PARS bracket (phenotype.py:541-543) -------------------------------------------
+	// ---- 10. the PARS bracket (phenotype.py:569-571) -------------------------------------------
 	const topPars = [];
 	for (const x of siteResults) {
 		if (topPars.length >= PHENOTYPE_THRESHOLDS.parsMaxSites) break;
@@ -1134,7 +1134,7 @@ export async function runPhenotypeAssociation(input, predict = null, options = {
 	}
 	const compactPars = topPars.length > 0 ? `[ ${topPars.join(' - ')} ]` : '[]';
 
-	// ---- 11. trait co-selection and sectors (phenotype.py:545-621) -----------------------------
+	// ---- 11. trait co-selection and sectors (phenotype.py:573-649) -----------------------------
 	const sigTraitSites = siteResults.filter((x) => (x.q_value ?? 1.0) <= alpha && x.association_rho > 0);
 	const traitSiteIndices = sigTraitSites.map((x) => x.site - 1);
 
@@ -1156,7 +1156,7 @@ export async function runPhenotypeAssociation(input, predict = null, options = {
 		for (let i = 0; i < Kt; i++) nValidRows += validN[i];
 
 		if (nValidRows >= 2) {
-			// phenotype.py:558-561 — zeros_like, then the valid rows scaled; float32 throughout.
+			// phenotype.py:586-589 — zeros_like, then the valid rows scaled; float32 throughout.
 			const normSubA = new Float32Array(Kt * N);
 			for (let i = 0; i < Kt; i++) {
 				if (!validN[i]) continue;
@@ -1239,7 +1239,7 @@ export async function runPhenotypeAssociation(input, predict = null, options = {
 		}
 	}
 
-	// ---- the record, in phenotype.py:624-646's key order ---------------------------------------
+	// ---- the record, in phenotype.py:652-674's key order ---------------------------------------
 	return {
 		alignment: input.alignment ?? null,
 		tree: input.treePath ?? null,

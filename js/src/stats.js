@@ -1,7 +1,7 @@
 /**
  * WHY THIS FILE EXISTS
  *
- * Mirrors hyphaeon/stats.py (at 267f5cf), the four shared statistical reductions every CLI command
+ * Mirrors hyphaeon/stats.py (at reconcile/phase-5a), the four shared statistical reductions every CLI command
  * and method module calls: LRT -> p-value under the MEME mixture null (stats.py:16-32), LRT ->
  * p-value under the Self & Liang mixture null (stats.py:34-48), Benjamini-Hochberg q-values
  * (stats.py:50-70) and the Cauchy Combination Test (stats.py:72-84). The last two live in the
@@ -39,7 +39,7 @@
  *   — and BH runs ON THE FLOAT32 p (float32 arithmetic inside, see bh.js). This library returns
  *   float64 from `pvalsFromLrtMeme` as stats.py does; the app's runtime performs the rounding.
  *   `memeSitePq` below is that exact two-line cast sequence, provided so the runtime does not have
- *   to rediscover that the cast happens BEFORE BH rather than after. cmd_busted (cli.py:434) does
+ *   to rediscover that the cast happens BEFORE BH rather than after. cmd_busted (cli.py:437) does
  *   not cast: Self-Liang p-values stay float64 there.
  *
  * WHAT IT DELIBERATELY DOES NOT DO: no argument validation beyond what numpy does (a non-numeric
@@ -97,7 +97,7 @@ export function pvalsFromLrtSelfLiang(lrts) {
 }
 
 /**
- * The cmd_meme cast sequence (cli.py:99-100): p = float32(pvals_from_lrt_meme(lrt)), then
+ * The cmd_meme cast sequence (cli.py:102-103): p = float32(pvals_from_lrt_meme(lrt)), then
  * q = float32(benjamini_hochberg(p)) with BH evaluated on the float32 p (float32 arithmetic, per
  * numpy 2 promotion — see numeric/bh.js). This is what `hyphaeon meme` writes to JSON and CSV.
  *

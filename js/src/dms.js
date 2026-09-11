@@ -8,12 +8,12 @@
  * epistasis` and `hyphaeon dms`), so neither module has to import the other.
  *
  *   CANONICAL_AA_TO_CODON      epistasis.py:43-49    one sense codon per residue
- *   runInsilicoSelectionDms    run_insilico_selection_dms, epistasis.py:446-628
- *   digitalDmsRecord           the result dict of run_digital_dms_analysis, epistasis.py:759-768
- *   runDigitalDmsAnalysis      run_digital_dms_analysis, epistasis.py:724-768, steps 4-5 only
- *   resolveFocalTaxon          epistasis.py:479-486
- *   dmsTargetSites             epistasis.py:467-471
- *   dmsWildTypeAa              epistasis.py:531-536 (and its verbatim second copy, 550-555)
+ *   runInsilicoSelectionDms    run_insilico_selection_dms, epistasis.py:449-631
+ *   digitalDmsRecord           the result dict of run_digital_dms_analysis, epistasis.py:762-771
+ *   runDigitalDmsAnalysis      run_digital_dms_analysis, epistasis.py:727-771, steps 4-5 only
+ *   resolveFocalTaxon          epistasis.py:482-489
+ *   dmsTargetSites             epistasis.py:470-474
+ *   dmsWildTypeAa              epistasis.py:534-539 (and its verbatim second copy, 550-555)
  *
  * run_insilico_selection_dms, step by step (line numbers of epistasis.py):
  *    1. sites to sweep: `target_sites` int-cast, range-filtered, de-duplicated, sorted;      467-471
@@ -31,7 +31,7 @@
  *       intrinsic_plasticity = mean |delta| over the 19; mean / max / min delta; the
  *       baseline's Self-Liang p-value; the record at 567-577.
  *
- * THE SIGN OF `delta`. `delta_lrts = s_mut_lrts - baseline_lrts[s]` (epistasis.py:560) is
+ * THE SIGN OF `delta`. `delta_lrts = s_mut_lrts - baseline_lrts[s]` (epistasis.py:563) is
  * MUTANT MINUS BASELINE, the opposite of attribution.py's `delta = site_lrt - mod_lrt`. A positive
  * delta here means the substitution INCREASES the selection signal. Checked against
  * fixtures/dms/run_insilico_selection_dms.json, whose mean_delta_lrt is negative at five of six
@@ -47,7 +47,7 @@
  *     empty string is falsy in Python, so it skips the search rather than matching everything.
  *   - `run_digital_dms_analysis` reports the CALLER'S `focal_taxon` string in its result, not the
  *     taxon that was actually swept: `focal_taxon="beta"` on a taxon named `Beta` records
- *     `"beta"` (epistasis.py:764). `digitalDmsRecord` does the same.
+ *     `"beta"` (epistasis.py:767). `digitalDmsRecord` does the same.
  *   - `total_mutations` is `19 * codon_count` — every site of the alignment, whatever was swept.
  *     The standalone analysis passes no `target_sites`, so the two agree there; a caller that
  *     builds the record around a SUBSET (as `hyphaeon epistasis` does for its sector sites) still
@@ -80,17 +80,17 @@
  * asserted directly in dms.test.js (batch 64 vs 19 vs 1, deep-equal records, different call shapes).
  *
  * WHAT IT DELIBERATELY DOES NOT DO. No model, no device, no tree cache, no `torch.mps.empty_cache`
- * (epistasis.py:499-500, 613-614). No printing and no clock: the reference's ESSM bar computes
- * `mut/s` and an ETA from `time.time()` (epistasis.py:584-608), which a pure function cannot read —
+ * (epistasis.py:502-503, 613-614). No printing and no clock: the reference's ESSM bar computes
+ * `mut/s` and an ETA from `time.time()` (epistasis.py:587-611), which a pure function cannot read —
  * `options.progress` receives the counts the bar is built from and the runtime times it. No
  * `compute_adaptive_safe_batch_size`: it probes device memory (inference.py:22-57), which PLAN.md
  * §5.1 keeps in the app's runtime; `batchSize` IS that already-computed safe batch size, and its
- * default of 64 is the reference's own (`run_digital_dms_analysis(batch_size=64)`, epistasis.py:731,
+ * default of 64 is the reference's own (`run_digital_dms_analysis(batch_size=64)`, epistasis.py:734,
  * which the CPU branch passes through unchanged for any N the app caps at). Steps 1-3 of
  * run_digital_dms_analysis (device, `load_alignment_and_tree`, `load_model`) are the runtime's;
  * `runDigitalDmsAnalysis` takes the loaded bundle and a predict callback and does steps 4-5.
  *
- * REV_AA_MAP (epistasis.py:41) and `standard_aas` (epistasis.py:505) are NOT exported. The second
+ * REV_AA_MAP (epistasis.py:41) and `standard_aas` (epistasis.py:508) are NOT exported. The second
  * is character for character the `AA_LIST` that preprocess/modelContract.js already exports, and
  * both are also defined at the top of epistasis.py, phenotype.py and disease.py — four copies in
  * the reference, and exporting a fifth from here would collide with `epistasis.js` in the barrel
@@ -136,7 +136,7 @@ export const DMS_MUTANTS_PER_SITE = 19;
 const REV_AA_MAP = new Map([...AA_LIST].map((aa, i) => [i, aa]));
 
 /**
- * The focal taxon, epistasis.py:479-486: index 0 and `taxa[0]` ("consensus" when there are no
+ * The focal taxon, epistasis.py:482-489: index 0 and `taxa[0]` ("consensus" when there are no
  * taxa) unless `focalTaxon` is a non-empty string that occurs, case-insensitively, in a taxon
  * name — then the FIRST such taxon. A miss keeps the defaults and is not reported.
  *
@@ -162,7 +162,7 @@ export function resolveFocalTaxon(taxa, focalTaxon = null) {
 }
 
 /**
- * The sites to sweep, epistasis.py:467-470: `sorted(set(int(s) for s in target_sites if 0 <= s < L))`
+ * The sites to sweep, epistasis.py:470-473: `sorted(set(int(s) for s in target_sites if 0 <= s < L))`
  * when a subset is given, else every site. The range test runs on the RAW value and the cast
  * truncates toward zero, so 7.9 with L = 8 is kept as site 7 and -0.5 is dropped.
  *
@@ -182,7 +182,7 @@ export function dmsTargetSites(targetSites, L) {
 }
 
 /**
- * The wild-type residue at one site, epistasis.py:531-536. The focal taxon's amino-acid token
+ * The wild-type residue at one site, epistasis.py:534-539. The focal taxon's amino-acid token
  * when it is a residue (< 20); otherwise — a gap, an in-frame stop, an ambiguity — the site's
  * MAJORITY residue over the taxa that have one, `np.bincount(...).argmax()`, which takes the
  * LOWEST token among tied modes; 'A' when no taxon carries a residue at all.
@@ -215,7 +215,7 @@ export function dmsWildTypeAa(a, site, focalIndex, N) {
 
 /**
  * `run_insilico_selection_dms(model, c, a, tree_cache, taxa, device, focal_taxon, batch_size,
- * progress, target_sites)` — epistasis.py:446-628.
+ * progress, target_sites)` — epistasis.py:449-631.
  *
  * `loaded` supplies the codon and amino-acid tokens (`c`, `a`, Int32Array in [L, N, 1] layout),
  * the distance matrix and MDS coordinates the callback needs (`d`, `z`), `L`, `N` and `taxa`.
@@ -387,7 +387,7 @@ export async function runInsilicoSelectionDms(loaded, predict, options = {}) {
 }
 
 /**
- * The result dict of `run_digital_dms_analysis`, epistasis.py:759-768, in its key order.
+ * The result dict of `run_digital_dms_analysis`, epistasis.py:762-771, in its key order.
  *
  * `focalTaxon` is recorded as the CALLER passed it, not as the taxon that was swept, and
  * `total_mutations` is 19 * L whatever subset produced `plasticity` — both are the reference's
@@ -408,7 +408,7 @@ export function digitalDmsRecord(loaded, plasticity, options = {}) {
 	return {
 		alignment: options.alignment ?? null,
 		tree: options.tree ?? null,
-		// epistasis.py:746 `N = len(taxa)`, reported verbatim: names, not loaded.N. The reference's
+		// epistasis.py:749 `N = len(taxa)`, reported verbatim: names, not loaded.N. The reference's
 		// taxa always come from load_alignment_and_tree, so the two agree on every real input.
 		taxa_count: taxa.length,
 		codon_count: loaded.L,
@@ -420,7 +420,7 @@ export function digitalDmsRecord(loaded, plasticity, options = {}) {
 }
 
 /**
- * `run_digital_dms_analysis(alignment_path, tree_path, ...)` — epistasis.py:724-768, steps 4 and 5.
+ * `run_digital_dms_analysis(alignment_path, tree_path, ...)` — epistasis.py:727-771, steps 4 and 5.
  * Steps 1-3 (device selection, `load_alignment_and_tree`, `load_model`) are the app runtime's, so
  * this takes the loaded bundle and the predict callback and returns the same record.
  *

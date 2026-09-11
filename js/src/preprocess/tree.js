@@ -1,7 +1,7 @@
 /**
  * WHY THIS FILE EXISTS
  *
- * The tree half of `hyphaeon/dataset.py` at veg/HyphAeon 267f5cf, which the reference gets from
+ * The tree half of `hyphaeon/dataset.py` at veg/HyphAeon reconcile/phase-5a, which the reference gets from
  * Biopython and which this package reproduces without a dependency:
  *   - `Bio.Phylo.NewickIO.Parser` (Biopython 1.85, the version the fixtures were generated with):
  *     `parseNewickTrees` is `Parser.parse` (line-buffered on ';'), `readNewick` is `Phylo.read`
@@ -9,11 +9,11 @@
  *     `process_clade`'s confidence-from-label rule and the parenthesis / text-after-semicolon
  *     errors are transcribed one for one, because dataset.py catches parse errors and falls through
  *     to the next extraction strategy, so WHICH strings fail is part of the behaviour.
- *   - `extract_tree_from_string_or_file` (dataset.py:161-212), adapted to a string: the NEXUS/HyPhy
+ *   - `extract_tree_from_string_or_file` (dataset.py:366-428), adapted to a string: the NEXUS/HyPhy
  *     `TREE name = (...);` regex, then any line starting with '(' that has >= 2 '(', then the whole
  *     content; `{...}` (HyPhy tags) and `[...]` (NEXUS comments) stripped before parsing.
- *   - `has_nonzero_branch_lengths` (214-222), `enforce_nonzero_branch_lengths` (289-300).
- *   - the three-tier taxon matching of `load_alignment_and_tree` (614-642): exact, then
+ *   - `has_nonzero_branch_lengths` (430-444), `enforce_nonzero_branch_lengths` (511-522).
+ *   - the three-tier taxon matching of `load_alignment_and_tree` (972-1001): exact, then
  *     quote-stripped alignment names, then case-insensitive; matched taxa in TREE TERMINAL ORDER.
  *   - `find_clades()` / `get_terminals()` preorder (Bio.Phylo.BaseTree `_preorder_traverse`).
  *
@@ -22,11 +22,11 @@
  * length, which `enforce_nonzero_branch_lengths` treats differently from 0.0 (1e-3 vs 1e-4), so the
  * distinction has to survive parsing.
  *
- * WHAT IT DELIBERATELY DOES NOT DO: `estimate_tree_branch_lengths_hyphy` (dataset.py:224-287)
+ * WHAT IT DELIBERATELY DOES NOT DO: `estimate_tree_branch_lengths_hyphy` (dataset.py:446-509)
  * shells out to HyPhy. A library cannot. `needsBranchLengths(tree)` is the predicate the reference
  * uses to decide whether to call HyPhy (`not has_nonzero_branch_lengths`); the runtime can supply an
  * estimated tree and call `loadAlignmentAndTree` again with it. Without one, `loadAlignmentAndTree`
- * takes the reference's "HyPhy not found" branch (dataset.py:610-614): enforce 1e-3 / 1e-4 and go on.
+ * takes the reference's "HyPhy not found" branch (dataset.py:968-972): enforce 1e-3 / 1e-4 and go on.
  *
  * QUIRKS REPLICATED ON PURPOSE (pinned by fixtures/dataset/extract_tree_from_string_or_file.json):
  *   - `TREE x = [&R] (...)` is rejected: the rooting tag sits between '=' and '(' so the regex does
@@ -261,7 +261,7 @@ export function stripQuotes(name) {
 
 /**
  * `tree_taxa = [term.name.strip("'\"") for term in tree_obj.get_terminals() if term.name]`,
- * dataset.py:617. Unnamed terminals are dropped; duplicates are kept.
+ * dataset.py:975. Unnamed terminals are dropped; duplicates are kept.
  *
  * @param {PhyloTree} tree
  * @returns {string[]}
@@ -276,23 +276,36 @@ export function treeTaxa(tree) {
 }
 
 /**
- * `has_nonzero_branch_lengths`, dataset.py:214-222: at least one non-root branch, and at least half
- * of them present and strictly positive.
+ * `has_nonzero_branch_lengths`, dataset.py:430-444: at least one non-root branch, at least half of
+ * them carrying a number at all, and at least `minPosRatio` of THOSE strictly positive.
+ *
+ * The reference moved to this predicate on the dating/MRCA line; before it the rule was "at least
+ * half of ALL branches present and strictly positive" (dataset.py:214-222 at 267f5cf). The new rule
+ * is strictly more permissive — if pos/all >= 0.5 then numeric >= pos >= 0.5*all and
+ * pos/numeric >= pos/all >= 0.5 > 0.05 — so it never rejects a tree the old one accepted. The band
+ * it adds is a tree whose branches mostly carry numbers but are mostly exactly zero: a dense
+ * outbreak tree of near-identical isolates, which the reference's docstring names as the motive.
+ * Such an upload now takes the tree path rather than the tree-free TN93 one, and its zero branches
+ * are raised to 1e-4 by `enforceNonzeroBranchLengths` before the patristic matrix is built.
  *
  * @param {PhyloTree} tree
+ * @param {number} [minPosRatio]
  */
-export function hasNonzeroBranchLengths(tree) {
+export function hasNonzeroBranchLengths(tree, minPosRatio = 0.05) {
 	const branches = findClades(tree)
 		.filter((n) => n !== tree.root)
 		.map((n) => tree.branchLength[n]);
 	if (branches.length === 0) return false;
-	const pos = branches.filter((b) => b !== null && b > 0.0).length;
-	return pos > 0 && pos / branches.length >= 0.5;
+	const numeric = branches.filter((b) => b !== null);
+	if (numeric.length < branches.length * 0.5) return false;
+	const pos = numeric.filter((b) => b > 0.0).length;
+	return pos > 0 && pos / numeric.length >= minPosRatio;
 }
 
 /**
- * The condition under which dataset.py:601-611 would call HyPhy to estimate branch lengths. The
- * library cannot; the runtime decides whether to supply an estimated tree.
+ * The condition under which dataset.py:1014-1018 would call HyPhy to estimate branch lengths. The
+ * library cannot; the runtime decides whether to supply an estimated tree. It follows
+ * `hasNonzeroBranchLengths`, so it inherits the 5 % positive-ratio rule above.
  *
  * @param {PhyloTree} tree
  */
@@ -301,7 +314,7 @@ export function needsBranchLengths(tree) {
 }
 
 /**
- * `enforce_nonzero_branch_lengths`, dataset.py:289-300. Mutates and returns the tree: every non-root
+ * `enforce_nonzero_branch_lengths`, dataset.py:511-522. Mutates and returns the tree: every non-root
  * clade with `None` gets `defaultMissing`; every one below `minLen` (zero or negative included) gets
  * `minLen`. The root is untouched.
  *
@@ -335,7 +348,7 @@ function countOpen(s) {
 const TREE_COMMAND_RE = new RegExp(`tree${PY_WS}+[^=]+=${PY_WS}*(\\([^;]+;)`, 'iu');
 
 /**
- * `extract_tree_from_string_or_file`, dataset.py:161-212, for a string that is the tree text or an
+ * `extract_tree_from_string_or_file`, dataset.py:366-428, for a string that is the tree text or an
  * alignment with an embedded tree. Returns null where the Python returns None.
  *
  * @param {string} content
@@ -382,7 +395,7 @@ export function extractTree(content) {
 }
 
 /**
- * The three-tier taxon matching of `load_alignment_and_tree`, dataset.py:616-642.
+ * The three-tier taxon matching of `load_alignment_and_tree`, dataset.py:974-1001.
  *
  * Tier 1 keeps tree terminal names (quote-stripped) that are alignment names exactly; tier 2, only
  * if tier 1 is empty, maps quote-stripped ALIGNMENT names back to their originals; tier 3, only if

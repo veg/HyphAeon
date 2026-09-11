@@ -135,7 +135,7 @@ describe('json.dumps(indent=2) (pyJsonDumps)', () => {
 	});
 });
 
-describe('hyphaeon meme writers (cli.py:280-327)', () => {
+describe('hyphaeon meme writers (cli.py:283-330)', () => {
 	const d = e2e('meme_bat_oas1_attribute_filter');
 	it('memeSiteRecords rebuilds the fixture site dicts from lrt/p/q/mask and 0-based attributions', () => {
 		const attributions = new Map(Object.entries(d.attributions).map(([k, v]) => [Number(k) - 1, v]));
@@ -209,7 +209,7 @@ describe('hyphaeon meme writers (cli.py:280-327)', () => {
 	});
 });
 
-describe('hyphaeon busted writers (cli.py:549-568)', () => {
+describe('hyphaeon busted writers (cli.py:552-571)', () => {
 	it('bustedCsv columns and formats', () => {
 		expect(bustedCsv([ref.busted.record])).toBe(ref.busted.csv);
 		expect(bustedCsv([ref.busted.record]).split('\n')[0]).toBe(
@@ -232,7 +232,7 @@ describe('hyphaeon busted writers (cli.py:549-568)', () => {
 	});
 });
 
-describe('epistasis / dms / phenotype CSVs (cli.py:808-819, 898-902, 700-701)', () => {
+describe('epistasis / dms / phenotype CSVs (cli.py:810-821, 898-902, 700-701)', () => {
 	const e = e2e('epistasis_Smc6_n_permutations_1000');
 	const p = e2e('phenotype_RHO_marine_n_permutations_0');
 	it('edges are the table when present', () => {
@@ -286,7 +286,7 @@ describe('DataFrame.to_csv(index=False) dtype and quoting rules (dataFrameCsv)',
 	});
 });
 
-describe('nx.write_graphml (cli.py:821-833), lxml layout', () => {
+describe('nx.write_graphml (cli.py:823-835), lxml layout', () => {
 	for (const [name, c] of Object.entries(ref.graphml)) {
 		it(`${name}: byte-equal`, () => {
 			expect(graphml(c.edges)).toBe(c.text);

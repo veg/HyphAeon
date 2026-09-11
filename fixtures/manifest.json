@@ -1,7 +1,7 @@
 {
  "generator": "scripts/gen_fixtures.py",
- "engine_commit": "61d681a93d029349d2cabbea5e0bd179ea4b7bd6",
- "generated_at": "2026-09-05T13:47:45-0700",
+ "engine_commit": "fda67f013a2516fc74e5f3c754ce62f3b3f94d6b",
+ "generated_at": "2026-09-11T15:23:56-0700",
  "model_safetensors_sha256": "0278dff092601acca959aa64bf6742ad17a38a5e6e31eabd424d6d224eea6ebd",
  "model_safetensors_bytes": 9842824,
  "environment": {
@@ -30,9 +30,9 @@
   "statistical": "Monte Carlo outputs: |p_js - p_py| <= 3*sqrt(p(1-p)/B), null moments within 2%; membership/exact fields still compared exactly"
  },
  "known_quirks": [
-  "dataset.compute_tn93_distance_matrix PREFERS the compiled `tn93` binary on PATH (`tn93 -t 1.0 -l 1 -q -o out.csv in.fa`) and falls back to the Python `tn93` package (TN93().get_counts(a, b, 'resolve') -> get_nucleotide_frequency -> calculate_distance). The fixtures hide the binary so the PACKAGE path is pinned; the two measured identical (max |delta| = 0.0) on bat_oas1 and HIV1_RT, because the binary writes the same 6 significant digits and every pair it drops at its 1.0 threshold is imputed back to 1.0.",
-  "dataset.compute_tn93_distance_matrix imputes a zero distance between two BYTE-IDENTICAL sequences as max(1.0, max_d) - the LARGEST distance in the matrix - while two different sequences at zero distance get 1e-4 (dataset.py:559-568). load_alignment_and_tree prunes identical sequences first, so it needs prune_duplicates=False to be reached.",
-  "The tn93 package RAISES rather than returning a sentinel on two inputs dataset.py does not catch: math.log of a non-positive corrected proportion (a saturated pair) -> ValueError, and `2 / sum(nucleotide_frequency)` on a pair with no overlapping non-gap position -> ZeroDivisionError. dataset.py's `if d is None or d == '-' or d < 0 or isnan(d)` guard is therefore dead code on that path.",
+  "dataset.compute_tn93_distance_matrix PREFERS the compiled `tn93` binary on PATH (`tn93 -t 100.0 -l 1 -q -o out.csv in.fa`, retried at -t 1.0 on CalledProcessError for stock builds <= v1.0.15) and falls back to the Python `tn93` package (TN93().get_counts(a, b, 'resolve') -> get_nucleotide_frequency -> calculate_distance). The fixtures hide the binary so the PACKAGE path is pinned. The earlier measurement that the two agree exactly (max |delta| = 0.0 on bat_oas1 and HIV1_RT) was taken at threshold 1.0 with the old imputation and has NOT been re-taken: the binary now reports pairs it used to drop, and only it can leave an entry unwritten for the imputation to fill, so the two paths are no longer known to be identical.",
+  "dataset.compute_tn93_distance_matrix used to impute a zero distance between two BYTE-IDENTICAL sequences as max(1.0, max_d) - the LARGEST distance in the matrix - and raise two different sequences at zero distance to 1e-4. FIXED UPSTREAM: the matrix now starts at -1.0 so a measured zero is distinguishable from an entry that was never written, and only the latter is imputed (dataset.py:816-821). A measured 0.0 survives, from either kind of pair. HIV1_RT has 1 byte-identical pair and 66 different-sequence pairs at distance 0, RHO has 78 and 8; all now stay 0.0.",
+  "The tn93 package RAISES rather than returning a sentinel on two inputs: math.log of a non-positive corrected proportion (a saturated pair) -> ValueError, and `2 / sum(nucleotide_frequency)` on a pair with no overlapping non-gap position -> ZeroDivisionError. dataset.py now catches (ValueError, OverflowError) around calculate_distance and calls such a pair maximally distant (d = 1.0); ZeroDivisionError is still uncaught and still kills the run. Its `if d is None or d == '-' or d < 0 or isnan(d)` guard remains dead code on that path. No pair in the five bundled alignments raises either.",
   "tn93.calculate_distance falls back to a fixed 1.0 SENTINEL (not a distance) whenever some base is absent from the pairwise counts and the degenerate correction goes non-positive: 1 pair in HIV1_RT, 78 in RHO, 0 in bat_oas1/Smc6/camelid.",
   "load_alignment_and_tree(use_tn93=True) takes taxa in ALIGNMENT order and applies no `> 10` rescale, where the tree path uses tree terminal order and rescales.",
   "cli.py cmd_busted loads BustedMultiTaskHead with strict=False; model.safetensors lacks 11 of its parameters (see busted_head_missing_keys) and torch is never seeded, so predicted_gene_lrt, selection_probability, synonymous_rate_variation, omega_3, proportion_* and positive_selection_detected differ on every run. They are nulled in fixtures/e2e/busted_*.json.",
@@ -81,7 +81,7 @@
   },
   "dataset": {
    "tokenizer": 3,
-   "parse_alignment_sequences": 13,
+   "parse_alignment_sequences": 16,
    "extract_tree_from_string_or_file": 11,
    "compute_fast_dist_matrix": 2,
    "compute_mds_coordinates": 5,
@@ -90,7 +90,7 @@
    "prune_identical_sequences": 4,
    "load_alignment_and_tree_duplicates": 2,
    "downsample_taxa_faith_pd": 4,
-   "tn93_distance": 24,
+   "tn93_distance": 23,
    "tn93_distance_matrix": 8,
    "load_alignment_and_tree_tn93": 2
   },
@@ -138,7 +138,7 @@
   "phenotype/compute_phylogenetic_covariance.json": 17055,
   "phenotype/generate_permulations.json": 218594,
   "dataset/tokenizer.json": 6075,
-  "dataset/parse_alignment_sequences.json": 78559,
+  "dataset/parse_alignment_sequences.json": 187772,
   "dataset/extract_tree_from_string_or_file.json": 18474,
   "dataset/compute_fast_dist_matrix.json": 21137,
   "dataset/compute_mds_coordinates.json": 80877,
@@ -161,16 +161,16 @@
   "e2e/phenotype_RHO_marine_n_permutations_0.json": 129523,
   "e2e/filter_bat_oas1.json": 1854,
   "e2e/filter_camelid.json": 2370,
-  "dataset/tn93_distance.json": 38906,
-  "dataset/tn93_distance_matrix.json": 1217587,
+  "dataset/tn93_distance.json": 34990,
+  "dataset/tn93_distance_matrix.json": 1220785,
   "dataset/load_alignment_and_tree_tn93.json": 1327333,
   "e2e/meme_camelid_tn93.json": 18133,
   "e2e/meme_HIV1_RT_tn93.json": 56497,
   "e2e/busted_Smc6_tn93.json": 25452,
   "e2e/epistasis_Smc6_tn93.json": 24426
  },
- "total_bytes": 5656488,
- "elapsed_seconds": 45.4,
+ "total_bytes": 5764983,
+ "elapsed_seconds": 30.5,
  "e2e_wall_seconds": {
   "meme_bat_oas1": 1.7,
   "meme_Smc6": 1.6,

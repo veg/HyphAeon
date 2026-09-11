@@ -252,7 +252,7 @@ describe('generatePermulations — deterministic invariants (test/data/phenotype
 
 	it('an all-zero y is NOT binary and comes back all zeros', () => {
 		// np.unique gives ONE value, so `len(unique) == 2` is false and the rank-matching branch
-		// runs on a constant vector. The `[-0:]` slice of phenotype.py:334 is therefore never
+		// runs on a constant vector. The `[-0:]` slice of phenotype.py:362 is therefore never
 		// reached (permulations.js header, QUIRKS).
 		const tree = readNewick(newick);
 		const res = generatePermulations(new Array(M).fill(0), tree, taxa, { nPerm: 8, seed: 1 });
@@ -283,7 +283,7 @@ describe('generatePermulations — tree-free mode (PLAN.md D22)', () => {
 	it('reports a Cholesky failure rather than throwing', () => {
 		// A negative internal branch puts three of V's four leading entries at -1, so V + 1e-7 I
 		// has pivot 0 = -0.9999999 and numpy would raise LinAlgError. The reference catches that
-		// at phenotype.py:441 and drops the permulations; here it becomes a `skipped` reason.
+		// at phenotype.py:469 and drops the permulations; here it becomes a `skipped` reason.
 		const tree = readNewick('((a:0.0,b:0.0)i:-1.0,c:1.0):0;');
 		const V = computePhylogeneticCovariance(tree, ['a', 'b', 'c']);
 		expect(Array.from(V)).toEqual([-1, -1, 0, -1, -1, 0, 0, 0, 1]);

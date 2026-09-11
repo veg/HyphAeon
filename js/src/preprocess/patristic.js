@@ -1,8 +1,8 @@
 /**
  * WHY THIS FILE EXISTS
  *
- * Mirrors `compute_fast_dist_matrix` of `hyphaeon/dataset.py:302-352` at veg/HyphAeon 267f5cf,
- * plus the `> 10.0` rescale rule of `load_alignment_and_tree` (dataset.py:678-681):
+ * Mirrors `compute_fast_dist_matrix` of `hyphaeon/dataset.py:524-574` at veg/HyphAeon reconcile/phase-5a,
+ * plus the `> 10.0` rescale rule of `load_alignment_and_tree` (dataset.py:1037-1040):
  *
  *   - depths accumulated from the root in float64, `branch_length if not None else 0.0`;
  *   - `terminals = {t.name.strip("'\""): t for t in tree.get_terminals() if t.name and ... in taxa}`,
@@ -26,7 +26,7 @@
  *
  * DIVERGENCE FROM THE DATAMONKEY3 PORT (main@fac1330 src/lib/services/axomeme/patristic.js), which
  * this file replaces: DM3's `maxPdSelect` seeded Faith's PD at index 0 (AxoMEME 2.0 driver) where
- * dataset.py:406 seeds with the most distant PAIR — removed, see downsample.js. DM3 read a missing
+ * dataset.py:628 seeds with the most distant PAIR — removed, see downsample.js. DM3 read a missing
  * branch length as 0 at parse time; here it is `null` until `enforceNonzeroBranchLengths` runs, and
  * `rootDistances` applies the `else 0.0` itself. The tree shape is tree.js's (`parent` array,
  * `children`, `root`) rather than newick.js's.
@@ -35,7 +35,7 @@
 import { getTerminals, stripQuotes } from './tree.js';
 
 /**
- * Depth of every node from the root (dataset.py:312-318 `calc_depths`), float64, a missing branch
+ * Depth of every node from the root (dataset.py:534-540 `calc_depths`), float64, a missing branch
  * length contributing 0.0.
  *
  * @param {import('./tree.js').PhyloTree} tree
@@ -82,7 +82,7 @@ function ancestorMarker(nodeCount) {
 
 /**
  * One row of patristic distances: from `fromNode` to each of `toNodes`, float64, computed as
- * `depth_i + depth_j - 2.0 * depth_lca` exactly like dataset.py:348.
+ * `depth_i + depth_j - 2.0 * depth_lca` exactly like dataset.py:570.
  *
  * @param {import('./tree.js').PhyloTree} tree
  * @param {Float64Array} rootDist from rootDistances()
@@ -121,11 +121,11 @@ export function patristicMatrix(tree, nodes) {
 }
 
 /**
- * `compute_fast_dist_matrix(tree, taxa)`, dataset.py:302-352: float32 [n, n], row-major, with a
+ * `compute_fast_dist_matrix(tree, taxa)`, dataset.py:524-574: float32 [n, n], row-major, with a
  * zero row and column for any taxon that has no terminal of that (quote-stripped) name.
  *
  * @param {import('./tree.js').PhyloTree} tree already through enforceNonzeroBranchLengths, as in
- *   the reference's call order (dataset.py:614 then 676)
+ *   the reference's call order (dataset.py:972 then 676)
  * @param {string[]} taxa alignment names, in the order the rows should come out
  * @returns {Float32Array} length taxa.length ** 2
  */
@@ -160,7 +160,7 @@ export function computeFastDistMatrix(tree, taxa) {
 }
 
 /**
- * The rescale rule of dataset.py:678-681: `if dist_mat.max() > 10.0: dist_mat = dist_mat / L`
+ * The rescale rule of dataset.py:1037-1040: `if dist_mat.max() > 10.0: dist_mat = dist_mat / L`
  * on the float32 matrix. Returns a new matrix; the input is not modified.
  *
  * @param {Float32Array} dist float32 patristic matrix (any length)

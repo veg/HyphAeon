@@ -1,5 +1,5 @@
 /**
- * variability.test.js — the invariable-site rule of dataset.py:718-723.
+ * variability.test.js — the invariable-site rule of dataset.py:1077-1083.
  *
  * WHY THIS FILE EXISTS
  *
@@ -38,7 +38,7 @@ describe('isSiteVariable over codon strings', () => {
 	});
 
 	it('is FALSE for a serine island: dataset.py compares amino-acid tokens only', () => {
-		// DM3 called this variable (TCN vs AGY families). dataset.py:721 sees token 15 twice.
+		// DM3 called this variable (TCN vs AGY families). dataset.py:1081 sees token 15 twice.
 		expect(isSiteVariable(['TCA', 'AGC'])).toBe(false);
 		expect(isSiteVariable(['TCT', 'AGT'])).toBe(false);
 	});

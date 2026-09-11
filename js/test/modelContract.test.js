@@ -120,7 +120,7 @@ describe('the transcribed constants', () => {
 	});
 
 	it('sends gap, unknown and stop to ONE sentinel per stream, different between the streams', () => {
-		// dataset.py:33-57 (267f5cf): `GENETIC_CODE.get(codon, 64)` after a 61-entry sense-codon
+		// dataset.py:35-59 (reconcile/phase-5a): `GENETIC_CODE.get(codon, 64)` after a 61-entry sense-codon
 		// table, and `AA_MAP.get(aa, 20)` over the 20 residues. DataMonkey 3's port kept gap (64)
 		// and unknown (65) apart and gave the AA stream three sentinels (20/21/22); Phase 0's
 		// fixture replay settled it for dataset.py (PHASE0.md gap 1), so these are the numbers the
@@ -140,7 +140,7 @@ describe('the transcribed constants', () => {
 	});
 
 	it('sets the validity thresholds so that a GAP is not a valid observation', () => {
-		// dataset.py:721 gates variability on aa_col < 20 and forward() on c < 64. A gap is 64 / 20,
+		// dataset.py:1081 gates variability on aa_col < 20 and forward() on c < 64. A gap is 64 / 20,
 		// so it fails both — deliberately.
 		expect(CODON_VALID_BELOW).toBe(CODON_GAP);
 		expect(AA_VALID_BELOW).toBe(AA_GAP);

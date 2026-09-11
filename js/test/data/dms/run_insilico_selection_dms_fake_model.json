@@ -2011,6 +2011,6 @@
    ]
   },
   "tolerance": "exact",
-  "notes": "run_digital_dms_analysis(alignment_path, tree_path, ...) -> the result dict of epistasis.py:761-770. `focal_taxon` reports the CALLER'S string ('beta'), not the resolved taxon name ('Beta'); total_mutations is 19 * codon_count (every site is swept, target_sites is not passed); plasticity and selection_dms_plasticity are the same list object. Steps 1-3 (device, alignment load, model load) are the app runtime's in the port, so the JS takes the loaded bundle and a predict callback."
+  "notes": "run_digital_dms_analysis(alignment_path, tree_path, ...) -> the result dict of epistasis.py:764-773. `focal_taxon` reports the CALLER'S string ('beta'), not the resolved taxon name ('Beta'); total_mutations is 19 * codon_count (every site is swept, target_sites is not passed); plasticity and selection_dms_plasticity are the same list object. Steps 1-3 (device, alignment load, model load) are the app runtime's in the port, so the JS takes the loaded bundle and a predict callback."
  }
 }

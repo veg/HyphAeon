@@ -87,7 +87,7 @@ describe('patristicRow / patristicMatrix (float64)', () => {
 	});
 });
 
-describe('computeFastDistMatrix (dataset.py:302-352)', () => {
+describe('computeFastDistMatrix (dataset.py:524-574)', () => {
 	it('returns the float32 matrix in the order of the taxa given', () => {
 		const t = readNewick(SIMPLE);
 		const d = computeFastDistMatrix(t, ['C', 'A', 'B']);
@@ -136,7 +136,7 @@ describe('computeFastDistMatrix (dataset.py:302-352)', () => {
 	});
 });
 
-describe('rescaleDistances (dataset.py:678-681)', () => {
+describe('rescaleDistances (dataset.py:1037-1040)', () => {
 	it('divides by L when the maximum is strictly greater than 10', () => {
 		const r = rescaleDistances(Float32Array.from([0, 12, 12, 0]), 5);
 		expect(r.rescaled).toBe(true);

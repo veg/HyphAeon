@@ -1,27 +1,27 @@
 /**
  * WHY THIS FILE EXISTS
  *
- * The output writers of hyphaeon/cli.py and hyphaeon/io.py (at 267f5cf), as pure string builders.
+ * The output writers of hyphaeon/cli.py and hyphaeon/io.py (at reconcile/phase-5a), as pure string builders.
  * PLAN.md §5.1 lists them as the `writers` module with parity class "byte-equal after
  * canonicalisation"; this file aims one notch higher — byte-equal before canonicalisation — because
  * the Python writers are thin wrappers over three serialisers whose formatting is deterministic and
  * cheap to reproduce: `json.dump(data, f, indent=2)` (io.py:20-29), `pandas.DataFrame(records)
  * .to_csv(path, index=False)` (io.py:32-41) and `networkx.write_graphml` in its lxml form
- * (cli.py:821-833). The user-visible files are therefore identical to the reference CLI's, which is
+ * (cli.py:823-835). The user-visible files are therefore identical to the reference CLI's, which is
  * what makes `scripts/parity.py` a comparison rather than an argument.
  *
  * WHAT IT MIRRORS
  *
- *   memeSiteRecords      cli.py:280-296   the `results_list` site dicts, attribution fields folded in
- *   memeResult           cli.py:298-311   the `hyphaeon meme` JSON document
- *   memeJson             cli.py:300       write_json of that document
- *   memeCsv              cli.py:313-327   flattened site rows (5 base + 4 attribution columns)
- *   bustedJson           cli.py:549-550   one record, or the list in batch mode
- *   bustedCsv            cli.py:552-568   the `df_summary` columns Gene .. Time_ms
- *   phenotypeCsv         cli.py:700-701   DataFrame(sites)
- *   epistasisCsv         cli.py:808-819   plasticity / edges / plasticity / sectors selection
- *   graphml              cli.py:821-833   nx.Graph of str(site) nodes, edge attrs weight/cesi/shared/fdr_q
- *   dmsCsv               cli.py:898-902   DataFrame(plasticity) minus `mutant_deltas`
+ *   memeSiteRecords      cli.py:283-299   the `results_list` site dicts, attribution fields folded in
+ *   memeResult           cli.py:301-314   the `hyphaeon meme` JSON document
+ *   memeJson             cli.py:303       write_json of that document
+ *   memeCsv              cli.py:316-330   flattened site rows (5 base + 4 attribution columns)
+ *   bustedJson           cli.py:552-553   one record, or the list in batch mode
+ *   bustedCsv            cli.py:555-571   the `df_summary` columns Gene .. Time_ms
+ *   phenotypeCsv         cli.py:702-703   DataFrame(sites)
+ *   epistasisCsv         cli.py:810-821   plasticity / edges / plasticity / sectors selection
+ *   graphml              cli.py:823-835   nx.Graph of str(site) nodes, edge attrs weight/cesi/shared/fdr_q
+ *   dmsCsv               cli.py:900-904   DataFrame(plasticity) minus `mutant_deltas`
  *   resultJson           io.py:20-29      json.dump(indent=2) for any of the result dicts
  *   evaluateJson         evaluation.py:641,644  json.dumps(result, indent=2, allow_nan=False)
  *
@@ -42,7 +42,7 @@
  * key-name schema: PY_FLOAT_KEYS / PY_INT_KEYS below list every result field the Python builds
  * with `float(...)` / true division (float) or with `int(...)`, `len`, `s + 1`, a count (int),
  * read off cli.py, attribution.py:117-170, epistasis.py:196-211,419-438,569-577,760-767,
- * phenotype.py:498-515,589-605,622-644, filter.py:80-98 and evaluation.py:286-449. Numbers under
+ * phenotype.py:526-543,589-605,622-644, filter.py:80-98 and evaluation.py:286-449. Numbers under
  * a key in neither set are formatted by value (integer-valued -> int). A list or dict inherits the
  * kind of the key that holds it (`sites: [244, 279]` int, `mutant_deltas: {A: 0.3}` float).
  * Parsers cannot tell `0` from `0.0`, so this only matters for byte comparison, never for values.
@@ -577,7 +577,7 @@ export function evaluateJson(result) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// hyphaeon meme (cli.py:280-327)
+// hyphaeon meme (cli.py:283-330)
 // ---------------------------------------------------------------------------------------------
 
 /**
@@ -608,7 +608,7 @@ function attributionMap(attributions) {
 }
 
 /**
- * cli.py:280-296 — the `results_list` of per-site dicts. `attributions` is keyed by 0-based site
+ * cli.py:283-299 — the `results_list` of per-site dicts. `attributions` is keyed by 0-based site
  * index, as `attribute_selection` returns it. Attribution fields are added only for attributed
  * sites, in the Python's key order, and the whole record is attached as `attribution_details`.
  *
@@ -648,7 +648,7 @@ export function memeSiteRecords(lrts, pvals, qvals, invariable, attributions = n
 }
 
 /**
- * cli.py:298-311 — the `hyphaeon meme` JSON document as a Map-free object whose key order is the
+ * cli.py:301-314 — the `hyphaeon meme` JSON document as a Map-free object whose key order is the
  * Python's; `attributions` (0-based keys) becomes a Map keyed by the 1-based site as a string,
  * exactly `{str(k+1): v for k, v in attributions.items()}` in insertion order.
  *
@@ -687,7 +687,7 @@ export function memeResult({
 }
 
 /**
- * cli.py:300 — `write_json(args.output, {...})` for the meme document.
+ * cli.py:303 — `write_json(args.output, {...})` for the meme document.
  * @param {unknown} result  from memeResult (or any object of that shape)
  * @returns {string}
  */
@@ -699,7 +699,7 @@ const MEME_CSV_BASE = ['site', 'hyphaeon_lrt', 'p_value', 'q_value', 'is_invaria
 const MEME_CSV_ATTR = ['evolutionary_epoch', 'adaptation_mode', 'top_driver', 'top_mutation'];
 
 /**
- * cli.py:313-327 — the flattened site CSV. A row carries the four attribution columns only when
+ * cli.py:316-330 — the flattened site CSV. A row carries the four attribution columns only when
  * its site dict has `evolutionary_epoch`; the DataFrame then has those columns (empty for other
  * rows) if any site does. `attribution` overrides that inference: true forces the columns, false
  * drops them.
@@ -723,11 +723,11 @@ export function memeCsv(sites, { attribution } = {}) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// hyphaeon busted (cli.py:549-568)
+// hyphaeon busted (cli.py:552-571)
 // ---------------------------------------------------------------------------------------------
 
 /**
- * cli.py:549-550 — `write_json(args.output, batch_results if is_batch else batch_results[0])`.
+ * cli.py:552-553 — `write_json(args.output, batch_results if is_batch else batch_results[0])`.
  * `is_batch` is `len(input_files) > 1`; a caller that ran one alignment through a batch directory
  * of one file gets the bare record, as the Python does.
  *
@@ -740,7 +740,7 @@ export function bustedJson(records, { batch = records.length > 1 } = {}) {
 }
 
 /**
- * cli.py:552-568 — the `df_summary` CSV. `Omega_3`/`Prop_Positive` are read from
+ * cli.py:555-571 — the `df_summary` CSV. `Omega_3`/`Prop_Positive` are read from
  * `rate_distributions`; `Time_ms` is `elapsed_seconds * 1000`. A null `elapsed_seconds` (the e2e
  * fixtures null every timing field) gives an empty `Time_ms` cell here, where the Python would
  * raise TypeError on `None * 1000`; a real run always has the number.
@@ -770,11 +770,11 @@ export function bustedCsv(records) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// hyphaeon phenotype / epistasis / dms CSVs (cli.py:700-701, 808-819, 898-902)
+// hyphaeon phenotype / epistasis / dms CSVs (cli.py:702-703, 808-819, 898-902)
 // ---------------------------------------------------------------------------------------------
 
 /**
- * cli.py:700-701 — `write_csv(args.csv, sites)` with `sites = res["sites"]`.
+ * cli.py:702-703 — `write_csv(args.csv, sites)` with `sites = res["sites"]`.
  * @param {Array<Record<string, unknown>>} sites
  * @returns {string}
  */
@@ -783,7 +783,7 @@ export function phenotypeCsv(sites) {
 }
 
 /**
- * cli.py:808-819 — which table `hyphaeon epistasis --csv` writes: the plasticity table when the
+ * cli.py:810-821 — which table `hyphaeon epistasis --csv` writes: the plasticity table when the
  * invoking subcommand is dms/essm/digital-dms and there is any, else the edges when there are
  * any, else the plasticity, else the sectors (whose `sites` lists print as Python list literals).
  * Note that `mutant_deltas` is NOT dropped on this path (only cmd_dms drops it), so each
@@ -806,7 +806,7 @@ export function epistasisCsv(result, { command = 'epistasis' } = {}) {
 }
 
 /**
- * cli.py:898-902 — `DataFrame(plasticity).drop(columns=["mutant_deltas"])` when present.
+ * cli.py:900-904 — `DataFrame(plasticity).drop(columns=["mutant_deltas"])` when present.
  * @param {Array<Record<string, unknown>>} plasticity
  * @returns {string}
  */
@@ -815,7 +815,7 @@ export function dmsCsv(plasticity) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// nx.write_graphml (cli.py:821-833), lxml layout
+// nx.write_graphml (cli.py:823-835), lxml layout
 // ---------------------------------------------------------------------------------------------
 
 const GRAPHML_HEADER =
@@ -840,7 +840,7 @@ function xmlText(s) {
 }
 
 /**
- * cli.py:821-833 —
+ * cli.py:823-835 —
  *
  *     G = nx.Graph()
  *     for e in edges:

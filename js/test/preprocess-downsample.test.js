@@ -79,7 +79,7 @@ describe('downsampleTaxaFaithPd', () => {
 	});
 });
 
-describe('stridePreselect (dataset.py:672-673)', () => {
+describe('stridePreselect (dataset.py:1031-1032)', () => {
 	for (const c of DATA.stride) {
 		it(`n=${c.n}, max_species=${c.max_species}`, () => {
 			const taxa = Array.from({ length: c.n }, (_, i) => `t${i}`);

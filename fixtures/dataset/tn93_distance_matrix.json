@@ -391,7 +391,7 @@
    "saturated_pairs_at_1.0": 0
   },
   "tolerance": "1e-9",
-  "notes": "signature: compute_tn93_distance_matrix(seq_dict, taxa, fa_path=None) -> float32 [n, n]. dataset.py:493-571. PREFERS the compiled `tn93` binary (`tn93 -t 1.0 -l 1 -q -o out.csv in.fa`, default ambiguity strategy resolve); these fixtures hide it so the Python `tn93` package path runs (measured identical on bat_oas1 and HIV1_RT). Off-diagonal i<j only, mirrored; `if d is None or d == '-' or d < 0 or isnan(d): d = 1.0` (dead on this path); then the imputation: a pair at <= 0 whose SEQUENCE STRINGS DIFFER becomes 1e-4, and a pair at <= 0 whose strings are IDENTICAL becomes max(1.0, max_d) with max_d the pre-loop maximum (so identical sequences get the LARGEST distance in the matrix - a reference bug, replicated); the diagonal is zeroed last. n <= 1 returns zeros. taxa are list(seq_dict.keys()), the alignment order the tree-free path uses."
+  "notes": "signature: compute_tn93_distance_matrix(seq_dict, taxa, fa_path=None, threshold=100.0) -> float32 [n, n]. dataset.py:715-822. PREFERS the compiled `tn93` binary (`tn93 -t 100.0 -l 1 -q -o out.csv in.fa`, default ambiguity strategy resolve, retried at -t 1.0 when a stock build refuses the threshold); these fixtures hide it so the Python `tn93` package path runs. The matrix starts at -1.0 with a zeroed diagonal, so an entry never written is outside the range of any distance. Off-diagonal i<j only, mirrored; `calculate_distance` is wrapped in `except (ValueError, OverflowError): d = 1.0`, then `if d is None or d == '-' or d < 0 or isnan(d): d = 1.0` (dead on this path); then the imputation: ONLY entries still below zero are filled, with max(1.0, max_d) where max_d is read once from the filled matrix; the diagonal is zeroed last. A MEASURED 0.0 survives as 0.0, whether the two sequences are byte-identical or merely at distance zero. Since the package path writes every pair, nothing is ever imputed on it; only a pair the binary omits from its CSV can be. n <= 1 returns the -1.0 matrix with its zeroed diagonal, which for n == 1 is the zero matrix. taxa are list(seq_dict.keys()), the alignment order the tree-free path uses."
  },
  {
   "name": "example_Smc6.fasta",
@@ -867,7 +867,7 @@
    "saturated_pairs_at_1.0": 0
   },
   "tolerance": "1e-9",
-  "notes": "signature: compute_tn93_distance_matrix(seq_dict, taxa, fa_path=None) -> float32 [n, n]. dataset.py:493-571. PREFERS the compiled `tn93` binary (`tn93 -t 1.0 -l 1 -q -o out.csv in.fa`, default ambiguity strategy resolve); these fixtures hide it so the Python `tn93` package path runs (measured identical on bat_oas1 and HIV1_RT). Off-diagonal i<j only, mirrored; `if d is None or d == '-' or d < 0 or isnan(d): d = 1.0` (dead on this path); then the imputation: a pair at <= 0 whose SEQUENCE STRINGS DIFFER becomes 1e-4, and a pair at <= 0 whose strings are IDENTICAL becomes max(1.0, max_d) with max_d the pre-loop maximum (so identical sequences get the LARGEST distance in the matrix - a reference bug, replicated); the diagonal is zeroed last. n <= 1 returns zeros. taxa are list(seq_dict.keys()), the alignment order the tree-free path uses."
+  "notes": "signature: compute_tn93_distance_matrix(seq_dict, taxa, fa_path=None, threshold=100.0) -> float32 [n, n]. dataset.py:715-822. PREFERS the compiled `tn93` binary (`tn93 -t 100.0 -l 1 -q -o out.csv in.fa`, default ambiguity strategy resolve, retried at -t 1.0 when a stock build refuses the threshold); these fixtures hide it so the Python `tn93` package path runs. The matrix starts at -1.0 with a zeroed diagonal, so an entry never written is outside the range of any distance. Off-diagonal i<j only, mirrored; `calculate_distance` is wrapped in `except (ValueError, OverflowError): d = 1.0`, then `if d is None or d == '-' or d < 0 or isnan(d): d = 1.0` (dead on this path); then the imputation: ONLY entries still below zero are filled, with max(1.0, max_d) where max_d is read once from the filled matrix; the diagonal is zeroed last. A MEASURED 0.0 survives as 0.0, whether the two sequences are byte-identical or merely at distance zero. Since the package path writes every pair, nothing is ever imputed on it; only a pair the binary omits from its CSV can be. n <= 1 returns the -1.0 matrix with its zeroed diagonal, which for n == 1 is the zero matrix. taxa are list(seq_dict.keys()), the alignment order the tree-free path uses."
  },
  {
   "name": "example_camelid.fasta",
@@ -46463,7 +46463,7 @@
    "saturated_pairs_at_1.0": 0
   },
   "tolerance": "1e-9",
-  "notes": "signature: compute_tn93_distance_matrix(seq_dict, taxa, fa_path=None) -> float32 [n, n]. dataset.py:493-571. PREFERS the compiled `tn93` binary (`tn93 -t 1.0 -l 1 -q -o out.csv in.fa`, default ambiguity strategy resolve); these fixtures hide it so the Python `tn93` package path runs (measured identical on bat_oas1 and HIV1_RT). Off-diagonal i<j only, mirrored; `if d is None or d == '-' or d < 0 or isnan(d): d = 1.0` (dead on this path); then the imputation: a pair at <= 0 whose SEQUENCE STRINGS DIFFER becomes 1e-4, and a pair at <= 0 whose strings are IDENTICAL becomes max(1.0, max_d) with max_d the pre-loop maximum (so identical sequences get the LARGEST distance in the matrix - a reference bug, replicated); the diagonal is zeroed last. n <= 1 returns zeros. taxa are list(seq_dict.keys()), the alignment order the tree-free path uses."
+  "notes": "signature: compute_tn93_distance_matrix(seq_dict, taxa, fa_path=None, threshold=100.0) -> float32 [n, n]. dataset.py:715-822. PREFERS the compiled `tn93` binary (`tn93 -t 100.0 -l 1 -q -o out.csv in.fa`, default ambiguity strategy resolve, retried at -t 1.0 when a stock build refuses the threshold); these fixtures hide it so the Python `tn93` package path runs. The matrix starts at -1.0 with a zeroed diagonal, so an entry never written is outside the range of any distance. Off-diagonal i<j only, mirrored; `calculate_distance` is wrapped in `except (ValueError, OverflowError): d = 1.0`, then `if d is None or d == '-' or d < 0 or isnan(d): d = 1.0` (dead on this path); then the imputation: ONLY entries still below zero are filled, with max(1.0, max_d) where max_d is read once from the filled matrix; the diagonal is zeroed last. A MEASURED 0.0 survives as 0.0, whether the two sequences are byte-identical or merely at distance zero. Since the package path writes every pair, nothing is ever imputed on it; only a pair the binary omits from its CSV can be. n <= 1 returns the -1.0 matrix with its zeroed diagonal, which for n == 1 is the zero matrix. taxa are list(seq_dict.keys()), the alignment order the tree-free path uses."
  },
  {
   "name": "example_HIV1_RT.fasta_reduced",
@@ -47906,21 +47906,16 @@
     0.003096689935773611,
     0.0
    ],
-   "max": 1.0,
-   "min_off_diagonal": 1.0770800150625249e-16,
-   "saturated_pairs_index": [
-    [
-     245,
-     246
-    ]
-   ],
-   "saturated_pairs_at_1.0": 1
+   "max": 0.16896699368953705,
+   "min_off_diagonal": 0.0,
+   "saturated_pairs_index": [],
+   "saturated_pairs_at_1.0": 0
   },
   "tolerance": "1e-9",
-  "notes": "signature: compute_tn93_distance_matrix(seq_dict, taxa, fa_path=None) -> float32 [n, n]. dataset.py:493-571. PREFERS the compiled `tn93` binary (`tn93 -t 1.0 -l 1 -q -o out.csv in.fa`, default ambiguity strategy resolve); these fixtures hide it so the Python `tn93` package path runs (measured identical on bat_oas1 and HIV1_RT). Off-diagonal i<j only, mirrored; `if d is None or d == '-' or d < 0 or isnan(d): d = 1.0` (dead on this path); then the imputation: a pair at <= 0 whose SEQUENCE STRINGS DIFFER becomes 1e-4, and a pair at <= 0 whose strings are IDENTICAL becomes max(1.0, max_d) with max_d the pre-loop maximum (so identical sequences get the LARGEST distance in the matrix - a reference bug, replicated); the diagonal is zeroed last. n <= 1 returns zeros. REDUCED FOR SIZE: a 476x476 matrix does not fit the 2 MB cap, so only the first and last rows, the extrema and the indices of the saturated pairs are stored; replay recomputes the whole matrix and checks those."
+  "notes": "signature: compute_tn93_distance_matrix(seq_dict, taxa, fa_path=None, threshold=100.0) -> float32 [n, n]. dataset.py:715-822. PREFERS the compiled `tn93` binary (`tn93 -t 100.0 -l 1 -q -o out.csv in.fa`, default ambiguity strategy resolve, retried at -t 1.0 when a stock build refuses the threshold); these fixtures hide it so the Python `tn93` package path runs. The matrix starts at -1.0 with a zeroed diagonal, so an entry never written is outside the range of any distance. Off-diagonal i<j only, mirrored; `calculate_distance` is wrapped in `except (ValueError, OverflowError): d = 1.0`, then `if d is None or d == '-' or d < 0 or isnan(d): d = 1.0` (dead on this path); then the imputation: ONLY entries still below zero are filled, with max(1.0, max_d) where max_d is read once from the filled matrix; the diagonal is zeroed last. A MEASURED 0.0 survives as 0.0, whether the two sequences are byte-identical or merely at distance zero. Since the package path writes every pair, nothing is ever imputed on it; only a pair the binary omits from its CSV can be. n <= 1 returns the -1.0 matrix with its zeroed diagonal, which for n == 1 is the zero matrix. REDUCED FOR SIZE: a 476x476 matrix does not fit the 2 MB cap, so only the first and last rows, the extrema and the indices of the saturated pairs are stored; replay recomputes the whole matrix and checks those."
  },
  {
-  "name": "imputed_min_positive",
+  "name": "distinct_sequences_at_zero_stay_zero",
   "inputs": {
    "seq_dict": {
     "s1": "ATGCATGCATGCATGCATGC",
@@ -47937,11 +47932,11 @@
    "dist_matrix": [
     [
      0.0,
-     9.999999747378752e-05,
+     0.0,
      0.051993899047374725
     ],
     [
-     9.999999747378752e-05,
+     0.0,
      0.0,
      0.05485070124268532
     ],
@@ -47954,10 +47949,10 @@
    "max": 0.05485070124268532
   },
   "tolerance": "1e-9",
-  "notes": "signature: compute_tn93_distance_matrix(seq_dict, taxa, fa_path=None) -> float32 [n, n]. dataset.py:493-571. PREFERS the compiled `tn93` binary (`tn93 -t 1.0 -l 1 -q -o out.csv in.fa`, default ambiguity strategy resolve); these fixtures hide it so the Python `tn93` package path runs (measured identical on bat_oas1 and HIV1_RT). Off-diagonal i<j only, mirrored; `if d is None or d == '-' or d < 0 or isnan(d): d = 1.0` (dead on this path); then the imputation: a pair at <= 0 whose SEQUENCE STRINGS DIFFER becomes 1e-4, and a pair at <= 0 whose strings are IDENTICAL becomes max(1.0, max_d) with max_d the pre-loop maximum (so identical sequences get the LARGEST distance in the matrix - a reference bug, replicated); the diagonal is zeroed last. n <= 1 returns zeros. s1/s2 differ only by a terminal gap, which RESOLVE counts as nothing: their distance is 0.0 but the STRINGS differ, so it is imputed to 1e-4 (dataset.py:562-564)."
+  "notes": "signature: compute_tn93_distance_matrix(seq_dict, taxa, fa_path=None, threshold=100.0) -> float32 [n, n]. dataset.py:715-822. PREFERS the compiled `tn93` binary (`tn93 -t 100.0 -l 1 -q -o out.csv in.fa`, default ambiguity strategy resolve, retried at -t 1.0 when a stock build refuses the threshold); these fixtures hide it so the Python `tn93` package path runs. The matrix starts at -1.0 with a zeroed diagonal, so an entry never written is outside the range of any distance. Off-diagonal i<j only, mirrored; `calculate_distance` is wrapped in `except (ValueError, OverflowError): d = 1.0`, then `if d is None or d == '-' or d < 0 or isnan(d): d = 1.0` (dead on this path); then the imputation: ONLY entries still below zero are filled, with max(1.0, max_d) where max_d is read once from the filled matrix; the diagonal is zeroed last. A MEASURED 0.0 survives as 0.0, whether the two sequences are byte-identical or merely at distance zero. Since the package path writes every pair, nothing is ever imputed on it; only a pair the binary omits from its CSV can be. n <= 1 returns the -1.0 matrix with its zeroed diagonal, which for n == 1 is the zero matrix. s1/s2 differ only by a terminal gap, which RESOLVE counts as nothing: their distance is a MEASURED 0.0 and stays 0.0. Under the rule this replaced it was raised to 1e-4 because the strings differ."
  },
  {
-  "name": "identical_strings_get_the_maximum",
+  "name": "identical_strings_stay_zero",
   "inputs": {
    "seq_dict": {
     "s1": "ATGCATGCATGCATGCATGC",
@@ -47974,11 +47969,11 @@
    "dist_matrix": [
     [
      0.0,
-     1.0,
+     0.0,
      0.051993899047374725
     ],
     [
-     1.0,
+     0.0,
      0.0,
      0.051993899047374725
     ],
@@ -47988,10 +47983,10 @@
      0.0
     ]
    ],
-   "max": 1.0
+   "max": 0.051993899047374725
   },
   "tolerance": "1e-9",
-  "notes": "signature: compute_tn93_distance_matrix(seq_dict, taxa, fa_path=None) -> float32 [n, n]. dataset.py:493-571. PREFERS the compiled `tn93` binary (`tn93 -t 1.0 -l 1 -q -o out.csv in.fa`, default ambiguity strategy resolve); these fixtures hide it so the Python `tn93` package path runs (measured identical on bat_oas1 and HIV1_RT). Off-diagonal i<j only, mirrored; `if d is None or d == '-' or d < 0 or isnan(d): d = 1.0` (dead on this path); then the imputation: a pair at <= 0 whose SEQUENCE STRINGS DIFFER becomes 1e-4, and a pair at <= 0 whose strings are IDENTICAL becomes max(1.0, max_d) with max_d the pre-loop maximum (so identical sequences get the LARGEST distance in the matrix - a reference bug, replicated); the diagonal is zeroed last. n <= 1 returns zeros. s1 and s2 are byte-identical: their 0.0 falls into the elif and becomes max(1.0, max_d) = 1.0, LARGER than every real distance in the matrix (dataset.py:565-568). load_alignment_and_tree prunes duplicates before this, so it needs prune_duplicates=False to be reached."
+  "notes": "signature: compute_tn93_distance_matrix(seq_dict, taxa, fa_path=None, threshold=100.0) -> float32 [n, n]. dataset.py:715-822. PREFERS the compiled `tn93` binary (`tn93 -t 100.0 -l 1 -q -o out.csv in.fa`, default ambiguity strategy resolve, retried at -t 1.0 when a stock build refuses the threshold); these fixtures hide it so the Python `tn93` package path runs. The matrix starts at -1.0 with a zeroed diagonal, so an entry never written is outside the range of any distance. Off-diagonal i<j only, mirrored; `calculate_distance` is wrapped in `except (ValueError, OverflowError): d = 1.0`, then `if d is None or d == '-' or d < 0 or isnan(d): d = 1.0` (dead on this path); then the imputation: ONLY entries still below zero are filled, with max(1.0, max_d) where max_d is read once from the filled matrix; the diagonal is zeroed last. A MEASURED 0.0 survives as 0.0, whether the two sequences are byte-identical or merely at distance zero. Since the package path writes every pair, nothing is ever imputed on it; only a pair the binary omits from its CSV can be. n <= 1 returns the -1.0 matrix with its zeroed diagonal, which for n == 1 is the zero matrix. s1 and s2 are byte-identical and measure 0.0, which is kept. Under the rule this replaced, that zero was indistinguishable from an unwritten entry and became max(1.0, max_d) = 1.0, LARGER than every real distance in the matrix - the reference bug this repairs. load_alignment_and_tree prunes duplicates before this anyway, so it needed prune_duplicates=False to be reached."
  },
  {
   "name": "all_identical_stays_zero",
@@ -48028,7 +48023,7 @@
    "max": 0.0
   },
   "tolerance": "1e-9",
-  "notes": "signature: compute_tn93_distance_matrix(seq_dict, taxa, fa_path=None) -> float32 [n, n]. dataset.py:493-571. PREFERS the compiled `tn93` binary (`tn93 -t 1.0 -l 1 -q -o out.csv in.fa`, default ambiguity strategy resolve); these fixtures hide it so the Python `tn93` package path runs (measured identical on bat_oas1 and HIV1_RT). Off-diagonal i<j only, mirrored; `if d is None or d == '-' or d < 0 or isnan(d): d = 1.0` (dead on this path); then the imputation: a pair at <= 0 whose SEQUENCE STRINGS DIFFER becomes 1e-4, and a pair at <= 0 whose strings are IDENTICAL becomes max(1.0, max_d) with max_d the pre-loop maximum (so identical sequences get the LARGEST distance in the matrix - a reference bug, replicated); the diagonal is zeroed last. n <= 1 returns zeros. Every pair is 0 and the matrix never becomes non-zero, so `dist_mat.max() > 0` is False and the elif never fires: the matrix stays all zeros."
+  "notes": "signature: compute_tn93_distance_matrix(seq_dict, taxa, fa_path=None, threshold=100.0) -> float32 [n, n]. dataset.py:715-822. PREFERS the compiled `tn93` binary (`tn93 -t 100.0 -l 1 -q -o out.csv in.fa`, default ambiguity strategy resolve, retried at -t 1.0 when a stock build refuses the threshold); these fixtures hide it so the Python `tn93` package path runs. The matrix starts at -1.0 with a zeroed diagonal, so an entry never written is outside the range of any distance. Off-diagonal i<j only, mirrored; `calculate_distance` is wrapped in `except (ValueError, OverflowError): d = 1.0`, then `if d is None or d == '-' or d < 0 or isnan(d): d = 1.0` (dead on this path); then the imputation: ONLY entries still below zero are filled, with max(1.0, max_d) where max_d is read once from the filled matrix; the diagonal is zeroed last. A MEASURED 0.0 survives as 0.0, whether the two sequences are byte-identical or merely at distance zero. Since the package path writes every pair, nothing is ever imputed on it; only a pair the binary omits from its CSV can be. n <= 1 returns the -1.0 matrix with its zeroed diagonal, which for n == 1 is the zero matrix. Every pair measures 0 and every pair is written, so nothing is imputed: the matrix stays all zeros."
  },
  {
   "name": "single_taxon",
@@ -48049,6 +48044,6 @@
    "max": 0.0
   },
   "tolerance": "1e-9",
-  "notes": "signature: compute_tn93_distance_matrix(seq_dict, taxa, fa_path=None) -> float32 [n, n]. dataset.py:493-571. PREFERS the compiled `tn93` binary (`tn93 -t 1.0 -l 1 -q -o out.csv in.fa`, default ambiguity strategy resolve); these fixtures hide it so the Python `tn93` package path runs (measured identical on bat_oas1 and HIV1_RT). Off-diagonal i<j only, mirrored; `if d is None or d == '-' or d < 0 or isnan(d): d = 1.0` (dead on this path); then the imputation: a pair at <= 0 whose SEQUENCE STRINGS DIFFER becomes 1e-4, and a pair at <= 0 whose strings are IDENTICAL becomes max(1.0, max_d) with max_d the pre-loop maximum (so identical sequences get the LARGEST distance in the matrix - a reference bug, replicated); the diagonal is zeroed last. n <= 1 returns zeros. n <= 1 returns the zero matrix without computing anything (dataset.py:502-503)."
+  "notes": "signature: compute_tn93_distance_matrix(seq_dict, taxa, fa_path=None, threshold=100.0) -> float32 [n, n]. dataset.py:715-822. PREFERS the compiled `tn93` binary (`tn93 -t 100.0 -l 1 -q -o out.csv in.fa`, default ambiguity strategy resolve, retried at -t 1.0 when a stock build refuses the threshold); these fixtures hide it so the Python `tn93` package path runs. The matrix starts at -1.0 with a zeroed diagonal, so an entry never written is outside the range of any distance. Off-diagonal i<j only, mirrored; `calculate_distance` is wrapped in `except (ValueError, OverflowError): d = 1.0`, then `if d is None or d == '-' or d < 0 or isnan(d): d = 1.0` (dead on this path); then the imputation: ONLY entries still below zero are filled, with max(1.0, max_d) where max_d is read once from the filled matrix; the diagonal is zeroed last. A MEASURED 0.0 survives as 0.0, whether the two sequences are byte-identical or merely at distance zero. Since the package path writes every pair, nothing is ever imputed on it; only a pair the binary omits from its CSV can be. n <= 1 returns the -1.0 matrix with its zeroed diagonal, which for n == 1 is the zero matrix. n <= 1 returns without computing anything (dataset.py:734-735); the 1x1 matrix is its own zeroed diagonal."
  }
 ]

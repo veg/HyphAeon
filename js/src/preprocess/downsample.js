@@ -1,25 +1,25 @@
 /**
  * WHY THIS FILE EXISTS
  *
- * Mirrors the two taxon-reduction steps of `hyphaeon/dataset.py` at veg/HyphAeon 267f5cf:
- *   - `prune_identical_sequences(seq_dict, taxa)` (dataset.py:420-441): byte-identical duplicates
+ * Mirrors the two taxon-reduction steps of `hyphaeon/dataset.py` at veg/HyphAeon reconcile/phase-5a:
+ *   - `prune_identical_sequences(seq_dict, taxa)` (dataset.py:642-663): byte-identical duplicates
  *     collapse onto the FIRST taxon (in the given order) carrying that sequence; returns the unique
  *     taxa in first-seen order, `dup_map` representative -> [duplicates], and the count pruned.
  *     Byte-identical only: 'atgaaa' != 'ATGAAA' at this level (parsing upper-cased earlier) and a
  *     gapped variant is distinct.
- *   - `downsample_taxa_faith_pd(dist_mat, taxa, max_species)` (dataset.py:396-418): farthest-point
+ *   - `downsample_taxa_faith_pd(dist_mat, taxa, max_species)` (dataset.py:618-640): farthest-point
  *     traversal seeded with the most distant PAIR — `np.unravel_index(np.argmax(dist_mat))`, the
  *     first maximum in row-major order — then repeatedly the argmax of the running min-distance
  *     vector (first index on ties). Returns `(sub_dist_mat, selected_taxa)` in SELECTION order, or
  *     the inputs unchanged when `max_species >= n` or `max_species <= 0`.
- *   - the stride pre-selection of `load_alignment_and_tree` (dataset.py:670-674): before the
+ *   - the stride pre-selection of `load_alignment_and_tree` (dataset.py:1029-1033): before the
  *     distance matrix is built, `taxa = taxa[::max(1, n // (2 * max_species))][:2 * max_species]`
  *     — for fewer than 4 * max_species taxa this simply keeps the FIRST 2 * max_species in tree
  *     order (pinned by the camelid case of fixtures/dataset/downsample_taxa_faith_pd.json).
  *
  * QUIRKS REPLICATED ON PURPOSE:
  *   - `max_species == 1` returns TWO taxa: the seed pair is placed before the loop
- *     `for _ in range(2, max_species)` runs (dataset.py:405-411).
+ *     `for _ in range(2, max_species)` runs (dataset.py:627-633).
  *   - An all-zero distance matrix (or one whose remaining entries are all zero) re-selects index 0
  *     — selected taxa can REPEAT, because a selected index has min-distance 0 and argmax of all
  *     zeros is 0. Not deduplicated; the reference feeds the duplicates to the model.
@@ -44,7 +44,7 @@ function seqOf(seqDict, name) {
 }
 
 /**
- * `prune_identical_sequences`, dataset.py:420-441.
+ * `prune_identical_sequences`, dataset.py:642-663.
  *
  * @param {Map<string, string>|Record<string, string>} seqDict
  * @param {string[]} taxa
@@ -75,7 +75,7 @@ function argmax(a) {
 }
 
 /**
- * `downsample_taxa_faith_pd`, dataset.py:396-418.
+ * `downsample_taxa_faith_pd`, dataset.py:618-640.
  *
  * @param {Float32Array} distMat row-major n x n, float32 (the reference's dtype; comparisons and
  *   minima are taken on float32 values)
@@ -120,7 +120,7 @@ export function downsampleTaxaFaithPd(distMat, taxa, maxSpecies) {
 
 /**
  * `taxa[::stride][:max_species * 2]` with `stride = max(1, len(taxa) // (max_species * 2))`,
- * dataset.py:672-673. Only called by the reference when `len(taxa) > max_species`.
+ * dataset.py:1031-1032. Only called by the reference when `len(taxa) > max_species`.
  *
  * @param {string[]} taxa
  * @param {number} maxSpecies

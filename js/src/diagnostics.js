@@ -4,15 +4,15 @@
  * The one implementation of the "Before you run" checks of PLAN.md §4.3, run by the browser panel
  * and by the server's `/validate`, so both produce the same `warnings[]` codes (PLAN.md §2 hard
  * truth 4: "one implementation of the checks, run before the model on every surface"). It mirrors
- * no single Python function — `hyphaeon/dataset.py` at 267f5cf PRINTS its diagnostics from inside
+ * no single Python function — `hyphaeon/dataset.py` at reconcile/phase-5a PRINTS its diagnostics from inside
  * `load_alignment_and_tree` (the notices at lines 606-614, 634-638, 648-650, 656, 665, 706-712) and
  * PLAN.md §7 item 6 asks upstream for a `diagnose()` that returns them; this is that function on
  * the JS side, built on the dataset mirror (parse.js, tree.js, downsample.js, assemble.js) so the
  * numbers it reports are the numbers the model would then be given.
  *
  * EVERY THRESHOLD, WITH ITS SOURCE (DIAGNOSTIC_THRESHOLDS below):
- *   - unknown codons > 5 %                      dataset.py:706-709 (`frac_unk > 0.05`)
- *   - max patristic distance > 10.0 -> rescaled  dataset.py:678-681
+ *   - unknown codons > 5 %                      dataset.py:1065-1068 (`frac_unk > 0.05`)
+ *   - max patristic distance > 10.0 -> rescaled  dataset.py:1037-1040
  *   - taxa < 3 -> refuse                         PLAN.md §4.3 (issue #7, the 2-taxon bug); dataset.py
  *                                                itself accepts any N >= 1
  *   - taxa > cap -> PD subsampling               MAX_SPECIES_CAP = 512 (models/manifest.json
@@ -36,7 +36,7 @@
  *                                                distances are then dataset.py's 1e-3 defaults, not
  *                                                a depth); under D22 that case goes tree-free, and
  *                                                TN93 distances ARE a depth, so they are measured.
- *   - TN93 saturation: any pair at the sentinel  tn93.js / dataset.py:566. A pair the TN93 formula
+ *   - TN93 saturation: any pair at the sentinel  tn93.js / dataset.py:812. A pair the TN93 formula
  *                                                cannot resolve is reported as exactly 1.0, and a
  *                                                pair of identical sequences is imputed to
  *                                                max(1.0, max_d); either way it is a floor, not a
@@ -128,8 +128,8 @@ export const DIAGNOSTIC_CODES = Object.freeze([
 
 /** The thresholds, each documented in the header. */
 export const DIAGNOSTIC_THRESHOLDS = Object.freeze({
-	unknownCodonFraction: 0.05, // dataset.py:707
-	distanceRescaleMax: 10.0, // dataset.py:680
+	unknownCodonFraction: 0.05, // dataset.py:1066
+	distanceRescaleMax: 10.0, // dataset.py:1039
 	minTaxa: 3, // PLAN.md §4.3, issue #7
 	taxaCap: MAX_SPECIES_CAP, // 512
 	taxaLimit: 1000, // PLAN.md §3.5
@@ -360,7 +360,7 @@ export function diagnose({ alignmentText, treeText = null, parsed = null, maxSpe
 		return { ok: !sorted.some((w) => w.severity === 'refuse'), warnings: sorted, summary };
 	};
 
-	// ---- Alignment: format and parse (dataset.py:540-542 raises on an empty parse). ----
+	// ---- Alignment: format and parse (dataset.py:787-789 raises on an empty parse). ----
 	/** @type {Map<string, string>} */
 	let seqDict;
 	try {
@@ -463,7 +463,7 @@ export function diagnose({ alignmentText, treeText = null, parsed = null, maxSpe
 		branchLengthsMissing = !hasNonzeroBranchLengths(tree);
 		if (branchLengthsMissing && treeFreeReason === null) treeFreeReason = 'no_branch_lengths';
 		if (negatives > 0) {
-			push('NEGATIVE_BRANCH_LENGTHS', 'warn', `${negatives} branch length(s) are negative (minimum ${minLen}); they are raised to 1e-4 (dataset.py:289-300).`, {
+			push('NEGATIVE_BRANCH_LENGTHS', 'warn', `${negatives} branch length(s) are negative (minimum ${minLen}); they are raised to 1e-4 (dataset.py:511-522).`, {
 				count: negatives,
 				min: minLen,
 				raisedTo: 1e-4
@@ -495,7 +495,7 @@ export function diagnose({ alignmentText, treeText = null, parsed = null, maxSpe
 		);
 	}
 
-	// ---- Taxon matching (dataset.py:616-642) and haplotype collapse (645-650), on the light path. ----
+	// ---- Taxon matching (dataset.py:974-1001) and haplotype collapse (645-650), on the light path. ----
 	// Skipped in tree-free mode: the tree does not choose the taxa there, so a tip that is missing
 	// from the alignment (or the other way round) is not a defect (D22).
 	/** @type {string[]|null} */
@@ -561,7 +561,7 @@ export function diagnose({ alignmentText, treeText = null, parsed = null, maxSpe
 		});
 	}
 
-	// ---- Lengths and frame (dataset.py:652-667 takes L from the FIRST matched taxon). ----
+	// ---- Lengths and frame (dataset.py:1011-1026 takes L from the FIRST matched taxon). ----
 	const first = /** @type {string} */ (seqDict.get((taxa ?? names)[0]));
 	const rawLen = first.length;
 	const lengthSet = new Set((taxa ?? names).map((n) => /** @type {string} */ (seqDict.get(n)).length));
@@ -576,7 +576,7 @@ export function diagnose({ alignmentText, treeText = null, parsed = null, maxSpe
 	}
 	const notMultiple = (taxa ?? names).filter((n) => /** @type {string} */ (seqDict.get(n)).length % 3 !== 0);
 	if (rawLen < 3) {
-		push('LENGTH_NOT_MULTIPLE_OF_3', 'refuse', `The first sequence is ${rawLen} bp, shorter than one codon (dataset.py:661 raises).`, {
+		push('LENGTH_NOT_MULTIPLE_OF_3', 'refuse', `The first sequence is ${rawLen} bp, shorter than one codon (dataset.py:1020 raises).`, {
 			length: rawLen,
 			remainder: rawLen % 3,
 			sequences: notMultiple.length
@@ -585,7 +585,7 @@ export function diagnose({ alignmentText, treeText = null, parsed = null, maxSpe
 		push(
 			'LENGTH_NOT_MULTIPLE_OF_3',
 			'warn',
-			`${notMultiple.length} sequence(s) have a length that is not a multiple of 3; the first taxon's ${rawLen % 3} trailing nucleotide(s) are trimmed (dataset.py:664-667).`,
+			`${notMultiple.length} sequence(s) have a length that is not a multiple of 3; the first taxon's ${rawLen % 3} trailing nucleotide(s) are trimmed (dataset.py:1023-1026).`,
 			{ sequences: notMultiple.length, names: cap(notMultiple), remainder: rawLen % 3, trimmedNucleotides: rawLen % 3 }
 		);
 	}
@@ -640,7 +640,7 @@ export function diagnose({ alignmentText, treeText = null, parsed = null, maxSpe
 		push(
 			'TAXA_OVER_CAP',
 			'info',
-			`${nUnique} unique taxa exceed the cap of ${maxSpecies}; Faith's PD subsampling keeps ${maxSpecies}${nUnique > 2 * maxSpecies ? ` after a stride pre-selection to ${2 * maxSpecies}` : ''} (dataset.py:669-685).`,
+			`${nUnique} unique taxa exceed the cap of ${maxSpecies}; Faith's PD subsampling keeps ${maxSpecies}${nUnique > 2 * maxSpecies ? ` after a stride pre-selection to ${2 * maxSpecies}` : ''} (dataset.py:1028-1044).`,
 			{ taxa: nUnique, cap: maxSpecies, used: maxSpecies, stridePreselect: nUnique > 2 * maxSpecies }
 		);
 	}
@@ -655,7 +655,7 @@ export function diagnose({ alignmentText, treeText = null, parsed = null, maxSpe
 		} catch (e) {
 			// The reference dies here too: `compute_tn93_distance_matrix` lets the tn93 package's
 			// ZeroDivisionError (no overlap) and math-domain ValueError (a saturated pair) propagate
-			// (dataset.py:538-557). Report it instead of throwing; every other path keeps raising.
+			// (dataset.py:785-810). Report it instead of throwing; every other path keeps raising.
 			if (treeFreeReason === null) throw e;
 			push('TN93_SATURATED_PAIRS', 'refuse', `The TN93 distance matrix could not be computed: ${e instanceof Error ? e.message : String(e)}`, {
 				pairs: null,
@@ -681,7 +681,7 @@ export function diagnose({ alignmentText, treeText = null, parsed = null, maxSpe
 			push(
 				'DISTANCE_RESCALED',
 				'warn',
-				`The largest patristic distance is ${loaded.notices.rawDistMax.toPrecision(4)} (> ${T.distanceRescaleMax}): branch lengths look like a chronogram or mutation counts rather than substitutions per site; distances were divided by ${L} (dataset.py:678-681).`,
+				`The largest patristic distance is ${loaded.notices.rawDistMax.toPrecision(4)} (> ${T.distanceRescaleMax}): branch lengths look like a chronogram or mutation counts rather than substitutions per site; distances were divided by ${L} (dataset.py:1037-1040).`,
 				{ rawMax: loaded.notices.rawDistMax, threshold: T.distanceRescaleMax, dividedBy: L }
 			);
 		}
@@ -738,7 +738,7 @@ export function diagnose({ alignmentText, treeText = null, parsed = null, maxSpe
 			}
 		}
 	} else {
-		// No model-level load: count unknown codons the way dataset.py:690-704 does, over the taxa we have.
+		// No model-level load: count unknown codons the way dataset.py:1049-1063 does, over the taxa we have.
 		for (const n of uniqueTaxa) {
 			const s = /** @type {string} */ (seqDict.get(n));
 			for (let site = 0; site < L; site++) {
@@ -754,7 +754,7 @@ export function diagnose({ alignmentText, treeText = null, parsed = null, maxSpe
 		push(
 			'UNKNOWN_CODON_FRACTION',
 			'warn',
-			`${unknownCodons}/${totalCodons} (${(unknownFraction * 100).toFixed(1)}%) codons contain gaps, ambiguities or unrecognised bases (> ${T.unknownCodonFraction * 100}%, dataset.py:706-709).`,
+			`${unknownCodons}/${totalCodons} (${(unknownFraction * 100).toFixed(1)}%) codons contain gaps, ambiguities or unrecognised bases (> ${T.unknownCodonFraction * 100}%, dataset.py:1065-1068).`,
 			{ unknownCodons, totalCodons, fraction: unknownFraction, threshold: T.unknownCodonFraction }
 		);
 	}

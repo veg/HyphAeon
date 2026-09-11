@@ -5,7 +5,7 @@
  *
  * The `symmetricEigen` cases are DataMonkey 3's (axomeme-mds.test.js), unchanged: they check
  * properties (A = VΛVᵀ, orthonormality, ascending order) that hold for any correct implementation.
- * The `computeMdsCoordinates` cases were rewritten for dataset.py:354-394: the DM3 cases that
+ * The `computeMdsCoordinates` cases were rewritten for dataset.py:576-616: the DM3 cases that
  * asserted dependence on the PADDED matrix and all-zero output for n <= 4 pinned behaviour
  * dataset.py does not have and were deleted. DM3's sign-convention case was deleted with them
  * because dataset.py then had no convention; dataset.py has since adopted the same rule
@@ -103,7 +103,7 @@ describe('symmetricEigen', () => {
 	});
 });
 
-describe('computeMdsCoordinates (dataset.py:383-394, dense path)', () => {
+describe('computeMdsCoordinates (dataset.py:605-616, dense path)', () => {
 	it('recovers collinear points from their distances; canonical sign makes the first tied pivot positive', () => {
 		// Points at 0, 1, 2: B double-centres to [[1,0,-1],[0,0,0],[-1,0,1]], eigenvalue 2 with
 		// eigenvector [1,0,-1]/sqrt(2), so component 0 is ±[1, 0, -1]. |entries| 0 and 2 tie exactly in

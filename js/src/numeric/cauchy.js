@@ -1,7 +1,7 @@
 /**
  * WHY THIS FILE EXISTS
  *
- * Mirrors `cauchy_combination_p` in hyphaeon/stats.py:72-84 (at 267f5cf), line for line:
+ * Mirrors `cauchy_combination_p` in hyphaeon/stats.py:72-84 (at reconcile/phase-5a), line for line:
  *
  *     if len(pvals) == 0: return 1.0
  *     p_clipped = np.clip(pvals, 1e-15, 1.0 - 1e-15)

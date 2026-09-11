@@ -4,16 +4,16 @@
  * The two dense linear-algebra calls the ports need beyond the MDS eigendecomposition that
  * preprocess/symmetricEigen.js already provides:
  *
- *   - `np.linalg.cholesky(V + 1e-7 * np.eye(M))`   phenotype.py:323 (Brownian-motion permulations)
- *   - `np.linalg.eigvalsh(cov)[:, -1]`               epistasis.py:280 (largest eigenvalue of each
+ *   - `np.linalg.cholesky(V + 1e-7 * np.eye(M))`   phenotype.py:351 (Brownian-motion permulations)
+ *   - `np.linalg.eigvalsh(cov)[:, -1]`               epistasis.py:283 (largest eigenvalue of each
  *     K × K Gram matrix in the vectorised permutation null, batches of ≤ 25,000) and
- *     `np.linalg.eigvalsh(cov2)` at epistasis.py:361 (spectral coherence λ₁ / Tr)
+ *     `np.linalg.eigvalsh(cov2)` at epistasis.py:364 (spectral coherence λ₁ / Tr)
  *
  * `symmetricEigen` (tred2 + tql2, eigenvectors included) is re-exported here so the numeric kernel
  * is the single import for linear algebra; `symmetricEigenvalues` is the eigenvalues-only variant
  * (Householder without accumulating the transformation, then the same implicit-shift QL on the
  * tridiagonal) and `largestEigenvalue` is its last entry. Measured on 2,000 random 20 × 20 Gram
- * matrices (K = 20 sites, N = 12 taxa, the epistasis.py:279 shape): 45 ms for the eigenvalues-only
+ * matrices (K = 20 sites, N = 12 taxa, the epistasis.py:282 shape): 45 ms for the eigenvalues-only
  * path against 79 ms for the full decomposition (1.7×), ~22 µs per matrix, so a 25,000-draw batch
  * costs ~0.6 s; the two paths agree to 2.1e-15 relative to the spectral radius, and against
  * numpy's `eigvalsh` on the 3 × 3 … 30 × 30 test matrices both are within 1e-12·ρ(A) (the test
@@ -21,7 +21,7 @@
  *
  * WHAT IT DELIBERATELY DOES NOT DO. No batching or einsum: the epistasis port forms each Gram
  * matrix and calls `largestEigenvalue` per draw. No `np.maximum(·, 0)` — the clamps at
- * epistasis.py:281,361 belong to the caller. Cholesky throws on a non-positive-definite input the
+ * epistasis.py:284,361 belong to the caller. Cholesky throws on a non-positive-definite input the
  * way `np.linalg.cholesky` raises LinAlgError; the ridge is the caller's.
  *
  * The routines are Numerical Recipes 3rd ed. `tred2`/`tqli` with `yesvecs = false`, transcribed

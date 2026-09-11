@@ -14,7 +14,7 @@
  *   CoselectionGraph                     the `nx.Graph` the network returns, with networkx's
  *                                                             insertion-order semantics
  *
- * Sector mining (extract_epistatic_sectors_tse, compute_sector_permutation_test, epistasis.py:224-445)
+ * Sector mining (extract_epistatic_sectors_tse, compute_sector_permutation_test, epistasis.py:224-448)
  * and the DMS driver are NOT here; they are `sectors.js` / `dms.js` and consume the graph this file
  * builds (its shape is documented at CoselectionGraph below).
  *

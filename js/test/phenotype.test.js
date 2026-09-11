@@ -25,9 +25,9 @@
  * and one sector — and NOTHING from the model: the 349 x 655 attention matrix and the 349 LRTs
  * that produced them are not in the file, and neither is the alignment's token matrix. So this
  * file checks everything that is a function of the recorded columns, which is most of
- * phenotype.py:498-621:
+ * phenotype.py:526-649:
  *
- *   - the record's key order and the report's shape (phenotype.py:624-646)
+ *   - the record's key order and the report's shape (phenotype.py:652-674)
  *   - `phenotype_meta`, recomputed from `argv`'s `-fg` string over the 655 taxa that
  *     `examples/RHO.fasta` yields after duplicate pruning — the pillar's whole trait resolution
  *   - per site: `score`, `p_value` (ACAT of `p_lrt` and `p_assoc`), `q_value` (BH over the sorted
@@ -391,7 +391,7 @@ describe('runPhenotypeAssociation — the whole driver against a deterministic f
 		expect(Math.abs(gk - Math.round(gk))).toBeLessThan(1e-9);
 	});
 
-	it('tree-free: with no tree the permulation branch is skipped, as phenotype.py:426 does', async () => {
+	it('tree-free: with no tree the permulation branch is skipped, as phenotype.py:454 does', async () => {
 		const c = fake.cases.find((x) => x.name === 'permulations_200');
 		const got = await runPhenotypeAssociation(
 			{ loaded, taxa: fake.taxa, attention, lrt, tree: null, phenotype: { foreground: c.inputs.foreground } },
@@ -467,7 +467,7 @@ describe('fixtures/e2e/phenotype_RHO_marine_n_permutations_0.json', () => {
 	const N = out.taxa_count;
 	const L = out.codon_count;
 
-	it('the report has the reference key order (phenotype.py:624-646)', () => {
+	it('the report has the reference key order (phenotype.py:652-674)', () => {
 		expect(Object.keys(out)).toEqual([
 			'alignment', 'tree', 'taxa_count', 'codon_count', 'phenotype_meta', 'spectral_energy',
 			'norm_spectral_ratio', 'max_assoc', 'p_evd_length_adjusted', 'score_track_a', 'score_track_b',
@@ -480,7 +480,7 @@ describe('fixtures/e2e/phenotype_RHO_marine_n_permutations_0.json', () => {
 		expect(Object.keys(fake.cases[0].outputs)).toEqual(Object.keys(out));
 	});
 
-	it('site records carry the reference keys in order (phenotype.py:499-515 plus q_value)', () => {
+	it('site records carry the reference keys in order (phenotype.py:527-543 plus q_value)', () => {
 		for (const s of out.sites) {
 			expect(Object.keys(s)).toEqual([
 				'site', 'ref_aa', 'derived_aa', 'hyphaeon_lrt', 'p_lrt', 'attribution_norm', 'fg_mean_attn',
@@ -629,7 +629,7 @@ describe('fixtures/e2e/phenotype_RHO_marine_n_permutations_0.json', () => {
 			expect(p.lrt_u).toBe(byS.get(p.site_u).hyphaeon_lrt);
 			expect(p.lrt_v).toBe(byS.get(p.site_v).hyphaeon_lrt);
 		}
-		// QUIRK (phenotype.py:552): sub_indices is in SCORE order, so the pair (u, v) is not
+		// QUIRK (phenotype.py:580): sub_indices is in SCORE order, so the pair (u, v) is not
 		// ordered by position — the first recorded pair is (325, 83).
 		expect(out.coselection_pairs[0].site_u).toBe(325);
 		expect(out.coselection_pairs[0].site_v).toBe(83);

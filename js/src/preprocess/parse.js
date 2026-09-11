@@ -1,7 +1,7 @@
 /**
  * WHY THIS FILE EXISTS
  *
- * Mirrors `parse_alignment_sequences` of `hyphaeon/dataset.py:59-159` at veg/HyphAeon 267f5cf —
+ * Mirrors `parse_alignment_sequences` of `hyphaeon/dataset.py:252-364` at veg/HyphAeon reconcile/phase-5a —
  * the FASTA / PHYLIP / NEXUS alignment reader — on a string the caller has already read. The
  * three format branches, in the reference's detection order:
  *   1. PHYLIP (lines 68-93): first non-empty line is exactly two integer tokens. Then, per
@@ -26,7 +26,7 @@
  * Python does NOT see a leading '>' and falls to the NEXUS branch. The `py*` helpers below are the
  * reference's semantics and are exported for tree.js, which needs the same ones.
  *
- * WHAT IT DELIBERATELY DOES NOT DO: no file or gzip handling (dataset.py:63-66). The runtime reads
+ * WHAT IT DELIBERATELY DOES NOT DO: no file or gzip handling (dataset.py:256-259). The runtime reads
  * and decompresses; this takes text.
  *
  * QUIRKS REPLICATED ON PURPOSE (dataset.py bugs, pinned by fixtures/dataset/parse_alignment_sequences.json):
@@ -164,7 +164,7 @@ function finishSeq(s) {
 }
 
 /**
- * `parse_alignment_sequences`, dataset.py:59-159, on already-read text.
+ * `parse_alignment_sequences`, dataset.py:252-364, on already-read text.
  *
  * @param {string} fullText the alignment file's content (already decompressed)
  * @returns {Map<string, string>} name -> upper-cased sequence with U -> T, in file order
@@ -222,9 +222,9 @@ export function parseAlignmentSequences(fullText) {
 				if (currId !== null) seqDict.set(currId, finishSeq(currChunks.join('')));
 				const toks = pySplit(lStrip.slice(1));
 				if (toks.length === 0) {
-					// dataset.py:107 `l_strip[1:].split()[0]` on an empty list.
+					// dataset.py:312 `l_strip[1:].split()[0]` on an empty list.
 					throw new Error(
-						"parseAlignmentSequences: FASTA header line with no name (dataset.py:107 raises IndexError: list index out of range)"
+						"parseAlignmentSequences: FASTA header line with no name (dataset.py:312 raises IndexError: list index out of range)"
 					);
 				}
 				currId = pyStripChars(toks[0], '\'"');

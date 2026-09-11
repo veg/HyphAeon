@@ -5,19 +5,19 @@
  * Tamura-Nei 1993 distances replace the patristic matrix and feed the MDS directly. This file
  * mirrors TWO sources, because the reference does not compute TN93 itself — it shells out:
  *
- *   A. `hyphaeon/dataset.py:493-571` (`compute_tn93_distance_matrix`) at veg/HyphAeon 61d30e3:
- *      the matrix assembly, the sentinel and the imputation rules.
- *   B. the `tn93` PyPI package, version 1.2.2, `tn93/tn93.py` (the fallback dataset.py:538-557
+ *   A. `hyphaeon/dataset.py:715-821` (`compute_tn93_distance_matrix`) on the reconciled line
+ *      (branch reconcile/phase-5a): the matrix assembly, the sentinel and the imputation rule.
+ *   B. the `tn93` PyPI package, version 1.2.2, `tn93/tn93.py` (the fallback dataset.py:785-810
  *      imports as `from tn93.tn93 import TN93`): the distance itself.
  *
- * PLAN.md §5.1 cites `dataset.py:443-521, 544-580`; those were the line numbers at the commit the
- * plan was written against. At 61d30e3 the same code is at 493-571 (the function) and 598-636 (the
- * `use_tn93` branch of `load_alignment_and_tree`, mirrored in assemble.js).
+ * EVERY dataset.py LINE NUMBER IN THIS FILE IS THE RECONCILED FILE'S. For the record, the same code
+ * was at 443-521 / 544-580 when PLAN.md §5.1 was written and at 493-571 (the function) plus 598-636
+ * (the `use_tn93` branch of `load_alignment_and_tree`, mirrored in assemble.js) at 61d30e3.
  *
  * ============================ WHAT THE REFERENCE ACTUALLY CALLS ============================
  *
- * dataset.py:505 `tn93_bin = shutil.which("tn93")`. If the COMPILED tn93 binary is on PATH the
- * reference uses it (dataset.py:507-537):
+ * dataset.py:738 `tn93_bin = shutil.which("tn93")`. If the COMPILED tn93 binary is on PATH the
+ * reference uses it (dataset.py:740-784):
  *
  *     tn93 -t 1.0 -l 1 -q -o distances.csv subset.fa
  *
@@ -28,7 +28,7 @@
  * threshold, or below the overlap) stays 0.0 and is caught by the imputation below.
  *
  * Only when the binary is absent (or its run raised) does the Python package run, one pair at a
- * time (dataset.py:538-557):
+ * time (dataset.py:785-810):
  *
  *     tn = TN93()                                       # verbose=0, ignore_gaps=False,
  *                                                       # max_ambig_fraction=1.0, minimum_overlap=500
@@ -41,7 +41,7 @@
  * 1.0, ignore_gaps False, and NO minimum-overlap test — the reference calls `get_counts` /
  * `calculate_distance` directly and never goes through `tn93_distance` (tn93.py:152-179), so the
  * package's 500-nucleotide `minimum_overlap` and its `"-"` sentinel are unreachable from here (the
- * `d == "-"` guard at dataset.py:552 is dead code). MEASURED (2026-09-05, tn93 binary v1.0.15 vs
+ * `d == "-"` guard at dataset.py:805 is dead code). MEASURED (2026-09-05, tn93 binary v1.0.15 vs
  * tn93 package 1.2.2, both through `compute_tn93_distance_matrix`): the two paths agree EXACTLY —
  * max |Δ| = 0.0 — on examples/bat_oas1.fasta and examples/HIV1_RT.fasta, because the binary writes
  * 6 significant digits (the same rounding the package applies, below) and every pair it drops at
@@ -103,11 +103,10 @@
  * BASE FREQUENCIES ARE PER PAIR, from that pair's own counts — never global, never from the whole
  * alignment. GAPS contribute nothing (weight 0). The `0 in freq` branch is the package's own
  * degenerate fallback and is NOT the TN93 formula; it is where the SATURATION SENTINEL 1.0 comes
- * from. MEASURED over every pair of all five bundled alignments: NO pair reaches it — the 1.0
- * entries that do appear in a matrix come from the imputation below. What the examples do produce
- * is distance 0.0 between distinct sequences (66 pairs in HIV1_RT, 8 in RHO; imputed to 1e-4) and
- * between byte-identical ones (1 pair in HIV1_RT, 78 in RHO; imputed to max(1.0, max_d), which is
- * the bug below — `load_alignment_and_tree` prunes those pairs before the matrix is built).
+ * from. MEASURED over every pair of all five bundled alignments: NO pair reaches it. What the
+ * examples do produce is distance 0.0 between distinct sequences (66 pairs in HIV1_RT, 8 in RHO)
+ * and between byte-identical ones (1 pair in HIV1_RT, 78 in RHO; `load_alignment_and_tree` prunes
+ * those pairs before the matrix is built). Under the imputation rule below all of them stay 0.0.
  *
  * `round6` is `self.round` (tn93.py:309-311):
  * `np.format_float_positional(x, precision=6, unique=False, fractional=False, trim="k")` — SIX
@@ -119,30 +118,42 @@
  * PRECISION: every count and every distance is float64 (Python floats), so `tn93Distance` is
  * float64 and the fixture class is 1e-9 — MEASURED max |Δ| = 0 against the reference on every
  * fixture case and every matrix entry, because that six-digit rounding removes the last bits where
- * the two languages' `log` could differ. The MATRIX is `np.zeros((n, n), dtype=np.float32)`
- * (dataset.py:501), so each stored value is rounded to float32 with Math.fround — matching the
+ * the two languages' `log` could differ. The MATRIX is `np.full((n, n), -1.0, dtype=np.float32)`
+ * (dataset.py:732), so each stored value is rounded to float32 with Math.fround — matching the
  * dtype `compute_mds_coordinates` then squares and double-centres in float32.
  *
- * ============================ THE MATRIX (dataset.py:493-571) ============================
+ * ============================ THE MATRIX (dataset.py:715-821) ============================
  *
- *   - n <= 1: the zero matrix, no distances computed (dataset.py:502-503).
+ *   - the matrix starts at -1.0 with a zeroed diagonal: -1.0 marks an entry NOT WRITTEN, which is
+ *     outside the range of any distance, so a measured 0.0 is distinguishable from a missing one.
+ *   - n <= 1: that matrix is returned as it is, no distances computed (dataset.py:734-735).
  *   - off-diagonal, i < j only, mirrored into [j][i].
  *   - `if d is None or d == "-" or d < 0 or np.isnan(d): d = 1.0` — `calculate_distance` returns
  *     neither None, "-" nor NaN on this path and clamps negatives to 0.0, so this guard is dead;
- *     it is replicated anyway.
- *   - IMPUTATION (dataset.py:559-568), after every pair is scored:
- *         max_d = dist.max() if dist.max() > 0 else 0.1
- *         for i < j:
- *             if dist[i][j] <= 0 and seq_i != seq_j:      dist[i][j] = 1e-4
- *             elif dist[i][j] <= 0 and dist.max() > 0:    dist[i][j] = max(1.0, max_d)
- *     The `elif` is reachable only when the two RAW SEQUENCE STRINGS are byte-identical, so
- *     IDENTICAL SEQUENCES ARE GIVEN THE LARGEST DISTANCE IN THE MATRIX (at least 1.0) — a bug
- *     (task issue list), replicated. `load_alignment_and_tree` prunes identical sequences before
- *     calling this (dataset.py:601-606), so it only fires with `prune_duplicates=False` or when the
- *     duplicate pair survives pruning. `dist.max()` inside the loop is LIVE (it sees the 1e-4
- *     already written), while `max_d` is the value from BEFORE the loop; both are reproduced.
- *     When every pair is 0 (one sequence repeated) nothing is written and the matrix stays zero.
- *   - the diagonal is zeroed last (dataset.py:570).
+ *     it is replicated anyway. dataset.py:795-799 additionally wraps the call in
+ *     `except (ValueError, OverflowError): d = 1.0` for math-domain errors on very short or
+ *     saturated pairs; Math.log returns NaN where CPython raises, so those pairs reach the same
+ *     1.0 through the isNaN arm of the same guard.
+ *   - IMPUTATION (dataset.py:816-821), after every pair is scored:
+ *         np.fill_diagonal(dist_mat, 0.0)
+ *         missing = (dist_mat < 0.0)
+ *         max_d = dist_mat.max() if dist_mat.max() > 0 else 1.0
+ *         dist_mat[missing] = max(1.0, max_d)
+ *     Only UNWRITTEN entries are imputed, and only the compiled-binary path can leave one (a pair
+ *     the binary omitted from its CSV); the package path this library implements writes every pair,
+ *     so on it nothing is ever imputed. `max_d` is read ONCE, from the filled matrix — there is no
+ *     live re-read any more, because nothing is written before the maximum is taken.
+ *   - the diagonal is zeroed last (dataset.py:821).
+ *
+ *   UPSTREAM FIX FOLLOWED, NOT A LOCAL IMPROVEMENT. The rule this replaced could not tell a genuine
+ *   zero from a missing entry, because the matrix started at 0.0: it raised a zero distance between
+ *   DISTINCT sequences to 1e-4, and gave BYTE-IDENTICAL sequences `max(1.0, max_d)` — the largest
+ *   distance in the matrix, which this file previously flagged as a bug and replicated. The
+ *   reference repaired it by moving the sentinel out of the value range. Both quirks are therefore
+ *   gone, TN93_MIN_POSITIVE_DISTANCE is unreachable, and TN93_FALLBACK_MAX is 1.0 rather than 0.1.
+ *   On the bundled examples this changes up to 35 entries of HIV1_RT's matrix (34 of them by 1e-4,
+ *   one identical pair by ~1.0, and that one is pruned before the matrix is built in a default run)
+ *   and none of camelid's, bat_oas1's or Smc6's.
  *
  * WHAT IT DELIBERATELY DOES NOT DO:
  *   - The compiled binary. There is no subprocess in the library; `tn93DistanceMatrix` is always the
@@ -209,7 +220,7 @@ const RESOLUTION_COUNTS = Object.freeze([
 /** The tn93 character code of the gap, `map_character[45]` (tn93.py:525). */
 const GAP = 17;
 
-/** The ambiguity strategy `dataset.py:544` asks for. */
+/** The ambiguity strategy `dataset.py:791` asks for. */
 export const TN93_MATCH_MODE = 'resolve';
 
 /** `TN93(max_ambig_fraction=1.0)`, the constructor default the reference takes (tn93.py:136). */
@@ -217,16 +228,38 @@ export const TN93_MAX_AMBIG_FRACTION = 1.0;
 
 /**
  * The value `calculate_distance` returns for a pair it cannot resolve (tn93.py:205, the `0 in
- * nucleotide_frequency` branch) and the floor `compute_tn93_distance_matrix` imputes with
- * (dataset.py:566). A distance EQUAL to it is a saturation sentinel, not a measurement.
+ * nucleotide_frequency` branch), the value the reference's dead guard substitutes, and the floor
+ * `compute_tn93_distance_matrix` imputes an unwritten entry with (dataset.py:819-820,
+ * `max(1.0, max_d)`). A distance EQUAL to it is a saturation sentinel, not a measurement.
  */
 export const TN93_SATURATION_SENTINEL = 1.0;
 
-/** dataset.py:562 — what a zero distance between two DIFFERENT sequence strings becomes. */
+/**
+ * DEPRECATED, and no longer reachable. It was the floor for a zero distance between two DIFFERENT
+ * sequence strings, under the imputation rule the reference replaced (see the matrix section of the
+ * header). A measured 0.0 is now kept as 0.0, so nothing is imputed to this value. Still exported
+ * because the export list is a stated commitment and callers may pin it.
+ */
 export const TN93_MIN_POSITIVE_DISTANCE = 1e-4;
 
-/** dataset.py:560 — `max_d` when the whole matrix is still zero. */
-export const TN93_FALLBACK_MAX = 0.1;
+/** dataset.py:818 — `max_d` when the whole matrix is still zero. */
+export const TN93_FALLBACK_MAX = 1.0;
+
+/**
+ * dataset.py:732 — the value `np.full((n, n), -1.0)` leaves in an entry that was never written,
+ * which dataset.py:817's `missing = (dist_mat < 0.0)` then imputes. Module-private on purpose: it is
+ * an internal marker, never a distance a caller should see or compare against.
+ */
+const TN93_MISSING_SENTINEL = -1.0;
+
+/**
+ * dataset.py:719 `threshold: float = 100.0` — the reporting cutoff the reference hands the compiled
+ * binary (`-t 100.0`, retried at 1.0 when a stock build refuses it), so that divergent pairs are not
+ * omitted from a deep alignment. It reaches an external `pairwiseDistances` engine and nothing else:
+ * the package path this library implements computes every pair and has no cutoff. Module-private
+ * because it is not a distance and not part of the export contract.
+ */
+const TN93_REPORTING_THRESHOLD = 100.0;
 
 /**
  * `[self.map_character[ord(c)] for c in seq]`. Python indexes a 256-entry list, so a character
@@ -579,7 +612,7 @@ export function tn93CalculateDistance(counts, freq) {
 }
 
 /**
- * One pairwise TN93 distance, float64, exactly as `dataset.py:544-547` composes the package:
+ * One pairwise TN93 distance, float64, exactly as `dataset.py:791-800` composes the package:
  * `get_counts` -> `get_nucleotide_frequency` -> `calculate_distance`. The package's
  * `tn93_distance` wrapper (with its minimum-overlap test) is deliberately not used.
  *
@@ -599,21 +632,28 @@ function tn93DistanceEnc(e1, e2, options) {
 }
 
 /**
- * `compute_tn93_distance_matrix(seq_dict, taxa)`, dataset.py:493-571: the float32 [n, n] matrix,
- * row-major, with the reference's dead guard, imputation rules and zeroed diagonal.
+ * `compute_tn93_distance_matrix(seq_dict, taxa)`, dataset.py:715-821: the float32 [n, n] matrix,
+ * row-major, with the reference's dead guard, imputation rule and zeroed diagonal.
  *
  * @param {Map<string, string>|Record<string, string>} sequences taxon -> aligned sequence
  * @param {string[]} taxa the rows/columns, in order
- * @param {{matchMode?: string, maxAmbigFraction?: number, ignoreGaps?: boolean,
- *   pairwiseDistances?: (seqs: string[], taxa: string[]) => ArrayLike<number>}} [options]
+ * @param {{matchMode?: string, maxAmbigFraction?: number, ignoreGaps?: boolean, threshold?: number,
+ *   pairwiseDistances?: (seqs: string[], taxa: string[], threshold: number) => ArrayLike<number>}} [options]
  *   `pairwiseDistances` replaces the per-pair computation with an external engine's raw numbers,
  *   read at [i * n + j]; the rounding, the sentinel and dataset.py's imputation still happen here.
+ *   `threshold` is dataset.py:719's reporting cutoff, handed to that engine because only it has a
+ *   cutoff; the package path this library implements computes every pair and ignores it.
  * @returns {Float32Array} length taxa.length ** 2
  */
 export function tn93DistanceMatrix(sequences, taxa, options = {}) {
 	const get = sequences instanceof Map ? (/** @type {string} */ t) => sequences.get(t) : (/** @type {string} */ t) => sequences[t];
 	const n = taxa.length;
 	const dist = new Float32Array(n * n);
+	// dataset.py:732-733 `np.full((n, n), -1.0)` then a zeroed diagonal: an entry still negative after
+	// scoring was never written, which is what dataset.py:817 imputes. A MEASURED 0.0 is a measurement
+	// and survives.
+	dist.fill(TN93_MISSING_SENTINEL);
+	for (let i = 0; i < n; i++) dist[i * n + i] = 0.0;
 	if (n <= 1) return dist;
 
 	const seqs = taxa.map((t) => {
@@ -621,45 +661,44 @@ export function tn93DistanceMatrix(sequences, taxa, options = {}) {
 		if (typeof s !== 'string') throw new Error(`tn93DistanceMatrix: no sequence for taxon '${t}'`);
 		return s;
 	});
-	// An external provider (the compiled tn93 through WebAssembly, dataset.py:507-537's branch when
+	// An external provider (the compiled tn93 through WebAssembly, dataset.py:740-784's branch when
 	// the binary is on PATH) may supply the RAW pairwise distances; everything downstream of them —
 	// the dead guard, float32 rounding, the sentinel and dataset.py's imputation — stays here, so
 	// the two engines can differ only in the numbers they compute, never in what is done with them.
 	// The callback takes the sequences in `taxa` order and returns an n*n array-like read at
-	// [i * n + j]; `null` or `undefined` for a pair means "not computed", the same as the package's
-	// own saturation answer, TN93_SATURATION_SENTINEL.
-	const provider = typeof options.pairwiseDistances === 'function' ? options.pairwiseDistances(seqs, taxa) : null;
+	// [i * n + j]; `null` or `undefined` for a pair means "not written", exactly as a pair the binary
+	// omitted from its CSV leaves dataset.py's matrix at -1.0, and is imputed below. It is NOT the
+	// package's saturation answer, and at threshold 100.0 the two are different numbers.
+	const provider =
+		typeof options.pairwiseDistances === 'function'
+			? options.pairwiseDistances(seqs, taxa, options.threshold ?? TN93_REPORTING_THRESHOLD)
+			: null;
 	const encoded = provider ? null : seqs.map(encodeSequence);
 
-	let liveMax = 0;
+	let maxD = 0;
 	for (let i = 0; i < n; i++) {
 		for (let j = i + 1; j < n; j++) {
 			let d = provider ? provider[i * n + j] : tn93DistanceEnc(encoded[i], encoded[j], options);
-			// dataset.py:552 `if d is None or d == "-" or d < 0 or np.isnan(d): d = 1.0` (dead).
-			if (d === null || d === undefined || d < 0 || Number.isNaN(d)) d = TN93_SATURATION_SENTINEL;
+			if (d === null || d === undefined) continue; // never written; left at the sentinel
+			// dataset.py:805 `if d is None or d == "-" or d < 0 or np.isnan(d): d = 1.0` (dead on the
+			// package path), and dataset.py:795-799's `except (ValueError, OverflowError): d = 1.0`,
+			// which the isNaN arm covers because Math.log returns NaN where CPython raises.
+			if (d < 0 || Number.isNaN(d)) d = TN93_SATURATION_SENTINEL;
 			const f = Math.fround(d);
 			dist[i * n + j] = f;
 			dist[j * n + i] = f;
-			if (f > liveMax) liveMax = f;
+			if (f > maxD) maxD = f;
 		}
 	}
 
-	// dataset.py:560 `max_d = float(dist_mat.max()) if dist_mat.max() > 0 else 0.1`, taken ONCE.
-	const maxD = liveMax > 0 ? liveMax : TN93_FALLBACK_MAX;
+	// dataset.py:816-821: the diagonal is zeroed first (it already is), `missing` is every entry still
+	// below zero, and `max_d` is read ONCE from the filled matrix.
+	const fill = Math.fround(Math.max(TN93_SATURATION_SENTINEL, maxD > 0 ? maxD : TN93_FALLBACK_MAX));
 	for (let i = 0; i < n; i++) {
 		for (let j = i + 1; j < n; j++) {
-			const d = dist[i * n + j];
-			if (d <= 0.0 && seqs[i] !== seqs[j]) {
-				const v = Math.fround(TN93_MIN_POSITIVE_DISTANCE);
-				dist[i * n + j] = v;
-				dist[j * n + i] = v;
-				// `dist_mat.max()` in the elif is re-read from the live matrix, so track it.
-				if (v > liveMax) liveMax = v;
-			} else if (d <= 0.0 && liveMax > 0) {
-				const v = Math.fround(Math.max(TN93_SATURATION_SENTINEL, maxD));
-				dist[i * n + j] = v;
-				dist[j * n + i] = v;
-				if (v > liveMax) liveMax = v;
+			if (dist[i * n + j] < 0.0) {
+				dist[i * n + j] = fill;
+				dist[j * n + i] = fill;
 			}
 		}
 	}
@@ -669,10 +708,16 @@ export function tn93DistanceMatrix(sequences, taxa, options = {}) {
 
 /**
  * How many unordered pairs sit exactly at the saturation sentinel (PLAN.md D22's report line, and
- * diagnostics.js's TN93_SATURATED_PAIRS). Equality is exact: those pairs were never measured —
- * they come from `calculate_distance`'s `0 in nucleotide_frequency` fallback, from the reference's
- * `d < 0 or isnan` guard, or from the `max(1.0, max_d)` imputation. A pair whose TN93 distance
- * happens to exceed 1.0 by measurement is NOT counted.
+ * diagnostics.js's TN93_SATURATED_PAIRS). Equality is exact: such a pair was never measured — it
+ * comes from `calculate_distance`'s `0 in nucleotide_frequency` fallback or from the reference's
+ * `d < 0 or isnan` guard. A pair whose TN93 distance exceeds 1.0 by measurement is not counted.
+ *
+ * CAVEAT since the reference moved to the -1.0 missing sentinel: an entry that was never written is
+ * imputed to `max(1.0, max_d)`, which equals this sentinel only while nothing in the matrix exceeds
+ * 1.0. On the package path this library implements no entry is ever unwritten, so the count is exact
+ * there; a caller supplying `pairwiseDistances` from an engine with a reporting cutoff — and the
+ * reference's cutoff is now 100.0, so measured distances above 1.0 are reported rather than dropped
+ * — can have imputed entries this does not count. Pass an explicit `sentinel` in that case.
  *
  * @param {ArrayLike<number>} dist row-major n x n
  * @param {number} n
