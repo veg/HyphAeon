@@ -10,7 +10,7 @@ hosted on Hugging Face at `datamonkey/hyphaeon`, or a local checkpoint passed
 via `HYPHAEON_WEIGHTS`). It asks: *does this model, as shipped, behave correctly
 with respect to its phylogenetic inputs?*
 
-It is black-box with respect to training: it does not import `train.py`, does
+It is black-box with respect to training: it does not import `training/train.py`, does
 not depend on any particular training script, and re-evaluates whatever weights
 are currently published. When the model team pushes new weights to HF, these
 tests re-run against them automatically.
@@ -36,12 +36,11 @@ posteriors from the neural model. The paper calls this "Mode II:
 Selection-Informed" and contrasts it with "Mode I: Raw Mutation Baseline"
 (binary substitution counting).
 
-**The repo implements Mode I. The paper describes Mode II.** Mode II is not
-implemented in this repo. The `tests/methods/` suite tests what IS
-implemented (Mode I). When Mode II is implemented, its tests would belong
-here in `model_eval/` because they would depend on the neural model's
-per-branch output — output that the current model cannot produce reliably
-(see the xfailed invariance gates below).
+**Mode II is implemented** in the main codebase (`hyphaeon/phenotype.py`), which
+uses continuous Transformer Attribution Vectors (multi-head phylogenetic
+attention attributions and branch projections) rather than binary substitution
+counts. Mode I (raw mutation baseline) is used here in `model_eval/` as a
+baseline comparison. The `tests/` suite tests both modes.
 
 ## What this is NOT
 
@@ -63,8 +62,7 @@ per-branch output — output that the current model cannot produce reliably
 
 - Real HyphAeon weights, resolved in this order:
   1. `HYPHAEON_WEIGHTS` env var pointing to a local `.pt` or `.safetensors` checkpoint.
-  2. Hugging Face download (`datamonkey/hyphaeon`, default variant). Requires
-     `HF_TOKEN` while the repo is gated. Cached locally after first download.
+  2. Hugging Face download (`datamonkey/hyphaeon`, default variant). Cached locally after first download.
 - Python deps: `pip install -e .[model_eval]` (installs `pytest` and
   `scikit-learn`, on top of the base package's torch/biopython/numpy/scipy).
 - Example data in `examples/` (shipped with the repo).
@@ -281,5 +279,5 @@ does not collect `model_eval/`.
 
 A separate workflow, `.github/workflows/model_eval.yml`, runs this suite on
 `workflow_dispatch` and on changes to `model_eval/`, `hyphaeon/model.py`, or
-`hyphaeon/dataset.py`. It does not run on every push. It requires the
-`HF_TOKEN` secret (for weight download) and uploads report artifacts.
+`hyphaeon/dataset.py`. It does not run on every push. It requires
+network access for weight download and uploads report artifacts.

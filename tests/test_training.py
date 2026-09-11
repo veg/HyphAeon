@@ -8,7 +8,7 @@ import torch
 
 from hyphaeon.model import PhyloAxialTransformer, decode_soft_ordinal_lrt
 from hyphaeon.training_data import TRAINING_SCHEMA_VERSION
-from train import iter_site_indices, load_initial_checkpoint, train_epoch
+from training.train import iter_site_indices, load_initial_checkpoint, train_epoch
 
 
 def make_gene(site_count, taxon_count, targets=None, eligible=None, gene_name="gene"):
@@ -197,7 +197,7 @@ def test_training_cli_runs_two_epochs_from_checkpoint(tmp_path):
     result = subprocess.run(
         [
             sys.executable,
-            "train.py",
+            "training/train.py",
             "--data_dir",
             str(data_dir),
             "--init_checkpoint",

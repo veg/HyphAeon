@@ -14,6 +14,7 @@ import pytest
 import torch
 
 from hyphaeon.model import BustedMultiTaskHead, PhyloAxialTransformer
+from hyphaeon.cli import _IS_DEV
 
 
 # ---------------------------------------------------------------------------
@@ -85,6 +86,7 @@ class TestBustedMultiTaskHead:
 # BUSTED CLI — end-to-end with dummy weights
 # ---------------------------------------------------------------------------
 
+@pytest.mark.skipif(not _IS_DEV, reason="busted subcommand is gated behind dev mode")
 class TestBustedCLI:
     def test_busted_single_alignment(self, examples_dir, dummy_weights, tmp_path):
         fa = os.path.join(examples_dir, "Smc6.fasta")

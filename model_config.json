@@ -10,9 +10,7 @@
   "pillars": {
     "pillar1_meme": "Site-level episodic diversifying selection",
     "pillar2_epistasis": "3D epistatic co-evolution & contact recovery",
-    "pillar3_digital_dms": "Compensated pathogenic deviations & in silico sweeps",
-    "pillar4_busted": "Alignment-wide omnibus selection & SRV filtering",
-    "pillar5_absrel": "Branch-site lineage-specific episodic selection bursts"
+    "pillar3_digital_dms": "Compensated pathogenic deviations & in silico sweeps"
   },
-  "version": "1.0.0"
+  "version": "0.1.0"
 }

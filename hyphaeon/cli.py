@@ -20,6 +20,9 @@ import scipy.stats as stats
 import torch
 import networkx as nx
 
+_IS_DEV = (Path(__file__).resolve().parent.parent / ".git").exists() or \
+          os.environ.get("HYPHAEON_DEV", "0").lower() in ("1", "true")
+
 from .model import PhyloAxialTransformer, BustedMultiTaskHead
 from .dataset import load_alignment_and_tree, resolve_mds_sign, MDS_SIGN_ENV, MDS_SIGN_MODES
 from .weights import (
@@ -73,11 +76,11 @@ def cmd_meme(args):
     print(f"[*] Hardware device selected: {device.type.upper()}")
 
     try:
-        model = load_model(weights=args.weights, variant=args.model_variant, device=device)
+        model = load_model(weights=args.weights, variant=args.variant, device=device)
     except RuntimeError as e:
         print(f"[!] {e}")
         sys.exit(1)
-    weights_path = resolve_weights_path(weights=args.weights, variant=args.model_variant)
+    weights_path = resolve_weights_path(weights=args.weights, variant=args.variant)
     print(f"[*] Loading HyphAeon model from: {weights_path}")
 
     print(f"[*] Parsing Alignment: {args.alignment}")
@@ -595,8 +598,7 @@ def list_models():
     except Exception as e:
         print(f"[!] Could not fetch model list from Hugging Face: {e}")
         if "401" in str(e) or "Unauthorized" in str(e):
-            print("    The model repo may be gated. Set HF_TOKEN env var to authenticate.")
-            print("    Get a token at: https://huggingface.co/settings/tokens")
+            print("    Could not authenticate with Hugging Face. If accessing a private repo, set HF_TOKEN env var.")
         return
 
     if not variants:
@@ -1054,7 +1056,7 @@ def cmd_temporal(args):
         output_prefix=prefix,
         bandwidth=getattr(args, "bandwidth", None),
         num_time_points=getattr(args, "time_points", 250),
-        n_permutations=getattr(args, "permutations", 1000),
+        n_permutations=getattr(args, "n_permutations", 1000),
         perm_alpha=getattr(args, "perm_alpha", 0.05),
         min_r2_fpca=getattr(args, "min_r2", 0.35),
         tau_peak=getattr(args, "tau_peak", 1e-4),
@@ -1663,28 +1665,30 @@ def cmd_autoclock(args):
 
 def main():
 
+    from . import __version__
     parser = argparse.ArgumentParser(
         prog="hyphaeon",
         description="HyphAeon: Ultra-Fast Neural Selection Inference, Phenotype-Genotype Mapping, and Epistatic Sector Mining",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
+    parser.add_argument("--version", action="version", version=f"hyphaeon {__version__}")
     subparsers = parser.add_subparsers(dest="command", help="Available subcommands")
 
     # 1. MEME Subcommand
     pred_parser = subparsers.add_parser("meme", aliases=["predict", "site-selection"], help="Run episodic positive selection inference (HyphAeon Transformer)")
     pred_parser.add_argument("-a", "--alignment", required=True, help="Path to in-frame codon FASTA or NEXUS alignment")
     pred_parser.add_argument("-t", "--tree", required=False, default=None, help="Path to Newick/NEXUS phylogenetic tree (optional if embedded, or if --no-tree/--use-tn93 is set)")
-    pred_parser.add_argument("--no-tree", action="store_true", help="Skip phylogenetic tree and estimate pairwise evolutionary distances directly from alignment using TN93")
-    pred_parser.add_argument("--use-tn93", action="store_true", help="Estimate pairwise distances directly from alignment using TN93 (skips tree)")
-    pred_parser.add_argument("-w", "--weights", default=DEFAULT_WEIGHTS_ENV, help="Path to local model weights file (overrides HF download). Can also be set via HYPHAEON_WEIGHTS env var.")
-    pred_parser.add_argument("--model-variant", default=DEFAULT_VARIANT_ENV, help=f"Model variant to download from Hugging Face (default: {DEFAULT_VARIANT})")
-    pred_parser.add_argument("-b", "--batch-size", type=int, default=None, help="Site batch size (default: auto-selected; very large values may be capped to a hardware-safe threshold to prevent GPU OOM)")
+    pred_parser.add_argument("--no-tree", action="store_true", help="Skip phylogenetic tree and estimate pairwise evolutionary distances directly from alignment using TN93 (alias: --use-tn93)")
+    pred_parser.add_argument("--use-tn93", action="store_true", help="Alias for --no-tree: estimate pairwise distances directly from alignment using TN93")
+    pred_parser.add_argument("-w", "--weights", default=DEFAULT_WEIGHTS_ENV, help="Path to local model weights file (overrides Hugging Face download). Can also be set via HYPHAEON_WEIGHTS env var.")
+    pred_parser.add_argument("--model-variant", dest="variant", default=DEFAULT_VARIANT_ENV, help=f"Model variant to download from Hugging Face (default: {DEFAULT_VARIANT})")
+    pred_parser.add_argument("-b", "--batch-size", type=int, default=None, help="Site batch size (default: adaptive; very large values may be capped to a hardware-safe threshold to prevent GPU OOM)")
     pred_parser.add_argument("-s", "--max-species", type=int, default=None, help="Maximum number of species to include (PD downsampling)")
     pred_parser.add_argument("--no-prune-duplicates", action="store_true", help="Disable automatic collapsing of 100%% identical sequence duplicates")
     pred_parser.add_argument("--mds-sign", choices=MDS_SIGN_MODES, default=MDS_SIGN_DEFAULT, help=MDS_SIGN_HELP)
     pred_parser.add_argument("-o", "--output", help="Optional path to output JSON results")
     pred_parser.add_argument("-c", "--csv", help="Optional path to output CSV results")
-    pred_parser.add_argument("--cpu", action="store_true", help="Force CPU inference")
+    pred_parser.add_argument("--cpu", action="store_true", help="Force CPU execution")
     pred_parser.add_argument("--filter", action="store_true", help="Enable automated dual-stage alignment error detection and surgical outlier masking (Hypergeometric Patch + Counterfactual Attribution)")
     pred_parser.add_argument("--filter-out-aln", help="Optional path to export cleaned in-frame codon FASTA alignment")
     pred_parser.add_argument("--filter-p-thresh", type=float, default=0.01, help="Hypergeometric local patch p-value threshold (default: 0.01)")
@@ -1695,11 +1699,11 @@ def main():
     # 2. Phenotype Subcommand (PhyloWAS)
     pheno_parser = subparsers.add_parser("phenotype", aliases=["phylowas", "trait"], help="Run directional phenotype-genotype association & PARS signature extraction")
     pheno_parser.add_argument("-a", "--alignment", required=True, help="Path to in-frame codon FASTA or NEXUS alignment")
-    pheno_parser.add_argument("-t", "--tree", default=None, help="Optional Newick/NEXUS phylogenetic tree (optional if embedded, or if --no-tree/--use-tn93 is set)")
-    pheno_parser.add_argument("--no-tree", action="store_true", help="Skip phylogenetic tree and estimate pairwise evolutionary distances directly from alignment using TN93")
-    pheno_parser.add_argument("--use-tn93", action="store_true", help="Estimate pairwise distances directly from alignment using TN93 (skips tree)")
-    pheno_parser.add_argument("-w", "--weights", default=DEFAULT_WEIGHTS_ENV, help="Path to local model weights file (overrides HF download)")
-    pheno_parser.add_argument("--model-variant", dest="variant", default=DEFAULT_VARIANT_ENV, help=f"Model variant to download from HF (default: {DEFAULT_VARIANT})")
+    pheno_parser.add_argument("-t", "--tree", default=None, help="Path to Newick/NEXUS phylogenetic tree (optional if embedded, or if --no-tree/--use-tn93 is set)")
+    pheno_parser.add_argument("--no-tree", action="store_true", help="Skip phylogenetic tree and estimate pairwise evolutionary distances directly from alignment using TN93 (alias: --use-tn93)")
+    pheno_parser.add_argument("--use-tn93", action="store_true", help="Alias for --no-tree: estimate pairwise distances directly from alignment using TN93")
+    pheno_parser.add_argument("-w", "--weights", default=DEFAULT_WEIGHTS_ENV, help="Path to local model weights file (overrides Hugging Face download). Can also be set via HYPHAEON_WEIGHTS env var.")
+    pheno_parser.add_argument("--model-variant", dest="variant", default=DEFAULT_VARIANT_ENV, help=f"Model variant to download from Hugging Face (default: {DEFAULT_VARIANT})")
     pheno_parser.add_argument("-p", "--preset", choices=list(PRESETS.keys()), help=f"Curated phenotype preset: {', '.join(PRESETS.keys())}")
     pheno_parser.add_argument("-fg", "--foreground", help="Inline comma-separated list or regex pattern of foreground species")
     pheno_parser.add_argument("-bg", "--background", help="Optional explicit list of background control species")
@@ -1721,10 +1725,11 @@ def main():
     # 3. Epistasis Subcommand (Branch Co-Selection & Sectors)
     epi_parser = subparsers.add_parser("epistasis", aliases=["coselection", "sector", "network"], help="Run phylogenetic branch co-selection and epistatic sector mining")
     epi_parser.add_argument("-a", "--alignment", required=True, help="Path to in-frame codon FASTA or NEXUS alignment")
-    epi_parser.add_argument("-t", "--tree", default=None, help="Optional Newick/NEXUS phylogenetic tree (optional if embedded, or if --no-tree/--use-tn93 is set)")
-    epi_parser.add_argument("--no-tree", action="store_true", help="Skip phylogenetic tree and estimate pairwise evolutionary distances directly from alignment using TN93")
-    epi_parser.add_argument("--use-tn93", action="store_true", help="Estimate pairwise distances directly from alignment using TN93 (skips tree)")
-    epi_parser.add_argument("-w", "--weights", default=DEFAULT_WEIGHTS_ENV, help="Path to local model weights file (overrides HF download)")
+    epi_parser.add_argument("-t", "--tree", default=None, help="Path to Newick/NEXUS phylogenetic tree (optional if embedded, or if --no-tree/--use-tn93 is set)")
+    epi_parser.add_argument("--no-tree", action="store_true", help="Skip phylogenetic tree and estimate pairwise evolutionary distances directly from alignment using TN93 (alias: --use-tn93)")
+    epi_parser.add_argument("--use-tn93", action="store_true", help="Alias for --no-tree: estimate pairwise distances directly from alignment using TN93")
+    epi_parser.add_argument("-w", "--weights", default=DEFAULT_WEIGHTS_ENV, help="Path to local model weights file (overrides Hugging Face download). Can also be set via HYPHAEON_WEIGHTS env var.")
+    epi_parser.add_argument("--model-variant", dest="variant", default=DEFAULT_VARIANT_ENV, help=f"Model variant to download from Hugging Face (default: {DEFAULT_VARIANT})")
     epi_parser.add_argument("--focal-taxon", help="Focal taxon for in silico Selection DMS sweep (default: auto/consensus)")
     epi_parser.add_argument("--min-sim", type=float, default=0.30, help="Pairwise cosine similarity threshold for co-selection edges")
     epi_parser.add_argument("--min-shared", type=int, default=2, help="Minimum shared mutated phylogenetic branches")
@@ -1746,34 +1751,36 @@ def main():
     # 4. Digital DMS / ESSM Subcommand
     dms_parser = subparsers.add_parser("dms", aliases=["essm", "digital-dms"], help="Run in silico Selection Deep Mutational Scanning (Digital DMS / ESSM)")
     dms_parser.add_argument("-a", "--alignment", required=True, help="Path to in-frame codon FASTA or NEXUS alignment")
-    dms_parser.add_argument("-t", "--tree", default=None, help="Optional Newick/NEXUS phylogenetic tree (optional if embedded, or if --no-tree/--use-tn93 is set)")
-    dms_parser.add_argument("--no-tree", action="store_true", help="Skip phylogenetic tree and estimate pairwise evolutionary distances directly from alignment using TN93")
-    dms_parser.add_argument("--use-tn93", action="store_true", help="Estimate pairwise distances directly from alignment using TN93 (skips tree)")
-    dms_parser.add_argument("-w", "--weights", default=DEFAULT_WEIGHTS_ENV, help="Path to local model weights file (overrides HF download)")
+    dms_parser.add_argument("-t", "--tree", default=None, help="Path to Newick/NEXUS phylogenetic tree (optional if embedded, or if --no-tree/--use-tn93 is set)")
+    dms_parser.add_argument("--no-tree", action="store_true", help="Skip phylogenetic tree and estimate pairwise evolutionary distances directly from alignment using TN93 (alias: --use-tn93)")
+    dms_parser.add_argument("--use-tn93", action="store_true", help="Alias for --no-tree: estimate pairwise distances directly from alignment using TN93")
+    dms_parser.add_argument("-w", "--weights", default=DEFAULT_WEIGHTS_ENV, help="Path to local model weights file (overrides Hugging Face download). Can also be set via HYPHAEON_WEIGHTS env var.")
+    dms_parser.add_argument("--model-variant", dest="variant", default=DEFAULT_VARIANT_ENV, help=f"Model variant to download from Hugging Face (default: {DEFAULT_VARIANT})")
     dms_parser.add_argument("--focal-taxon", help="Focal taxon for in silico Selection DMS sweep (default: auto/consensus)")
     dms_parser.add_argument("--mds-sign", choices=MDS_SIGN_MODES, default=MDS_SIGN_DEFAULT, help=MDS_SIGN_HELP)
     dms_parser.add_argument("--cpu", action="store_true", help="Force CPU execution")
     dms_parser.add_argument("-o", "--output", help="Optional path to output JSON results")
     dms_parser.add_argument("-c", "--csv", help="Optional path to output CSV results")
 
-    # 5. BUSTED Omnibus Subcommand
-    busted_parser = subparsers.add_parser("busted", aliases=["omnibus", "gene-selection"], help="Run alignment-wide omnibus episodic selection inference (BUSTED / BUSTED+S emulation)")
-    busted_parser.add_argument("-a", "--alignment", default=None, help="Path to single in-frame codon alignment or comma-separated list")
-    busted_parser.add_argument("-d", "--dir", default=None, help="Path to directory containing alignment files for high-throughput batch processing")
-    busted_parser.add_argument("--pattern", default="*.aln,*.fa,*.fasta,*.nex,*.fna", help="Comma-separated glob patterns to match in --dir (default: *.aln,*.fa,*.fasta,*.nex,*.fna)")
-    busted_parser.add_argument("-t", "--tree", default=None, help="Optional Newick/NEXUS phylogenetic tree (optional if embedded, or if --no-tree/--use-tn93 is set)")
-    busted_parser.add_argument("--no-tree", action="store_true", help="Skip phylogenetic tree and estimate pairwise evolutionary distances directly from alignment using TN93")
-    busted_parser.add_argument("--use-tn93", action="store_true", help="Estimate pairwise distances directly from alignment using TN93 (skips tree)")
-    busted_parser.add_argument("--tree-suffix", default=".raxml.bestTree", help="Suffix to append to alignment filename to locate matching tree (default: .raxml.bestTree)")
-    busted_parser.add_argument("--tree-dir", default=None, help="Optional directory containing corresponding phylogenetic trees")
-    busted_parser.add_argument("-w", "--weights", default=DEFAULT_WEIGHTS_ENV, help="Path to local model weights file (overrides HF download)")
-    busted_parser.add_argument("--model-variant", dest="variant", default=DEFAULT_VARIANT_ENV, help=f"Model variant to download from HF (default: {DEFAULT_VARIANT})")
-    busted_parser.add_argument("-s", "--max-species", type=int, default=512, help="Maximum number of taxa (Farthest-Point Traversal subsampling if exceeded)")
-    busted_parser.add_argument("--mds-sign", choices=MDS_SIGN_MODES, default=MDS_SIGN_DEFAULT, help=MDS_SIGN_HELP)
-    busted_parser.add_argument("-b", "--batch-size", type=int, default=None, help="Number of codon sites to process in parallel (default: adaptive; very large values may be capped to a hardware-safe threshold to prevent GPU OOM)")
-    busted_parser.add_argument("--cpu", action="store_true", help="Force CPU execution")
-    busted_parser.add_argument("-o", "--output", help="Optional path to output JSON results")
-    busted_parser.add_argument("-c", "--csv", help="Optional path to output CSV results")
+    # 5. BUSTED Omnibus Subcommand (dev-only, not in preprint)
+    if _IS_DEV:
+        busted_parser = subparsers.add_parser("busted", aliases=["omnibus", "gene-selection"], help="Run alignment-wide omnibus episodic selection inference (BUSTED / BUSTED+S emulation)")
+        busted_parser.add_argument("-a", "--alignment", default=None, help="Path to single in-frame codon alignment or comma-separated list")
+        busted_parser.add_argument("-d", "--dir", default=None, help="Path to directory containing alignment files for high-throughput batch processing")
+        busted_parser.add_argument("--pattern", default="*.aln,*.fa,*.fasta,*.nex,*.fna", help="Comma-separated glob patterns to match in --dir (default: *.aln,*.fa,*.fasta,*.nex,*.fna)")
+        busted_parser.add_argument("-t", "--tree", default=None, help="Path to Newick/NEXUS phylogenetic tree (optional if embedded, or if --no-tree/--use-tn93 is set)")
+        busted_parser.add_argument("--no-tree", action="store_true", help="Skip phylogenetic tree and estimate pairwise evolutionary distances directly from alignment using TN93 (alias: --use-tn93)")
+        busted_parser.add_argument("--use-tn93", action="store_true", help="Alias for --no-tree: estimate pairwise distances directly from alignment using TN93")
+        busted_parser.add_argument("--tree-suffix", default=".raxml.bestTree", help="Suffix to append to alignment filename to locate matching tree (default: .raxml.bestTree)")
+        busted_parser.add_argument("--tree-dir", default=None, help="Optional directory containing corresponding phylogenetic trees")
+        busted_parser.add_argument("-w", "--weights", default=DEFAULT_WEIGHTS_ENV, help="Path to local model weights file (overrides Hugging Face download). Can also be set via HYPHAEON_WEIGHTS env var.")
+        busted_parser.add_argument("--model-variant", dest="variant", default=DEFAULT_VARIANT_ENV, help=f"Model variant to download from Hugging Face (default: {DEFAULT_VARIANT})")
+        busted_parser.add_argument("-s", "--max-species", type=int, default=512, help="Maximum number of taxa (Farthest-Point Traversal subsampling if exceeded)")
+        busted_parser.add_argument("--mds-sign", choices=MDS_SIGN_MODES, default=MDS_SIGN_DEFAULT, help=MDS_SIGN_HELP)
+        busted_parser.add_argument("-b", "--batch-size", type=int, default=None, help="Site batch size (default: adaptive; very large values may be capped to a hardware-safe threshold to prevent GPU OOM)")
+        busted_parser.add_argument("--cpu", action="store_true", help="Force CPU execution")
+        busted_parser.add_argument("-o", "--output", help="Optional path to output JSON results")
+        busted_parser.add_argument("-c", "--csv", help="Optional path to output CSV results")
 
     # 6. Disease Pathogenicity Subcommand
     disease_parser = subparsers.add_parser("disease", aliases=["pathogenicity", "variant", "clinvar"], help="Predict disease variant effect and pathogenicity using HyphAeon Transformer")
@@ -1781,9 +1788,9 @@ def main():
     disease_parser.add_argument("-m", "--mutations", required=True, help="List of mutations ('R175H,G245S'), CSV file, or Parquet path")
     disease_parser.add_argument("--canonical-seq", default=None, help="Optional canonical human reference sequence or FASTA path")
     disease_parser.add_argument("--human-taxon", default=None, help="Name of human reference taxon in alignment (default: auto-detected)")
-    disease_parser.add_argument("-w", "--weights", default=DEFAULT_WEIGHTS_ENV, help="Path to local model weights file (overrides HF download)")
-    disease_parser.add_argument("--model-variant", dest="variant", default=DEFAULT_VARIANT_ENV, help=f"Model variant to download from HF (default: {DEFAULT_VARIANT})")
-    disease_parser.add_argument("-b", "--batch-size", type=int, default=None, help="Batch size for site processing (default: adaptive hardware budget; very large values may be capped to a hardware-safe threshold to prevent GPU OOM)")
+    disease_parser.add_argument("-w", "--weights", default=DEFAULT_WEIGHTS_ENV, help="Path to local model weights file (overrides Hugging Face download). Can also be set via HYPHAEON_WEIGHTS env var.")
+    disease_parser.add_argument("--model-variant", dest="variant", default=DEFAULT_VARIANT_ENV, help=f"Model variant to download from Hugging Face (default: {DEFAULT_VARIANT})")
+    disease_parser.add_argument("-b", "--batch-size", type=int, default=None, help="Site batch size (default: adaptive; very large values may be capped to a hardware-safe threshold to prevent GPU OOM)")
     disease_parser.add_argument("--cpu", action="store_true", help="Force CPU execution")
     disease_parser.add_argument("-o", "--output", help="Optional path to output JSON results")
     disease_parser.add_argument("-c", "--csv", help="Optional path to output CSV results")
@@ -1791,14 +1798,14 @@ def main():
     # 7. Alignment Filtering / Surgical Masking Subcommand
     filter_parser = subparsers.add_parser("filter", aliases=["mask", "qc", "clean"], help="Run automated alignment quality control, spatial artifact detection, and surgical masking")
     filter_parser.add_argument("-a", "--alignment", required=True, help="Path to in-frame codon FASTA or NEXUS alignment")
-    filter_parser.add_argument("-t", "--tree", default=None, help="Optional Newick/NEXUS phylogenetic tree (optional if embedded, or if --no-tree/--use-tn93 is set)")
-    filter_parser.add_argument("--no-tree", action="store_true", help="Skip phylogenetic tree and estimate pairwise evolutionary distances directly from alignment using TN93")
-    filter_parser.add_argument("--use-tn93", action="store_true", help="Estimate pairwise distances directly from alignment using TN93 (skips tree)")
-    filter_parser.add_argument("-w", "--weights", default=DEFAULT_WEIGHTS_ENV, help="Path to local model weights file (overrides HF download)")
-    filter_parser.add_argument("--model-variant", dest="variant", default=DEFAULT_VARIANT_ENV, help=f"Model variant to download from HF (default: {DEFAULT_VARIANT})")
+    filter_parser.add_argument("-t", "--tree", default=None, help="Path to Newick/NEXUS phylogenetic tree (optional if embedded, or if --no-tree/--use-tn93 is set)")
+    filter_parser.add_argument("--no-tree", action="store_true", help="Skip phylogenetic tree and estimate pairwise evolutionary distances directly from alignment using TN93 (alias: --use-tn93)")
+    filter_parser.add_argument("--use-tn93", action="store_true", help="Alias for --no-tree: estimate pairwise distances directly from alignment using TN93")
+    filter_parser.add_argument("-w", "--weights", default=DEFAULT_WEIGHTS_ENV, help="Path to local model weights file (overrides Hugging Face download). Can also be set via HYPHAEON_WEIGHTS env var.")
+    filter_parser.add_argument("--model-variant", dest="variant", default=DEFAULT_VARIANT_ENV, help=f"Model variant to download from Hugging Face (default: {DEFAULT_VARIANT})")
     filter_parser.add_argument("-o", "--output", help="Path to write the cleaned, surgically masked alignment (FASTA format)")
     filter_parser.add_argument("-c", "--csv", help="Optional path to write artifact audit log (CSV format)")
-    filter_parser.add_argument("-b", "--batch-size", type=int, default=None, help="Site batch size (default: adaptive hardware budget)")
+    filter_parser.add_argument("-b", "--batch-size", type=int, default=None, help="Site batch size (default: adaptive; very large values may be capped to a hardware-safe threshold to prevent GPU OOM)")
     filter_parser.add_argument("-s", "--max-species", type=int, default=None, help="Maximum number of taxa to include (PD downsampling)")
     filter_parser.add_argument("--mds-sign", choices=MDS_SIGN_MODES, default=MDS_SIGN_DEFAULT, help=MDS_SIGN_HELP)
     filter_parser.add_argument("--alpha-site", type=float, default=0.05, help="Site significance threshold for cluster scanning (default: 0.05)")
@@ -1818,16 +1825,16 @@ def main():
         help="Run continuous temporal selection regression, two-stage filtering, and dynamic wave decomposition"
     )
     temp_parser.add_argument("-a", "--alignment", required=True, help="Path to in-frame codon FASTA or NEXUS alignment")
-    temp_parser.add_argument("-t", "--tree", default=None, help="Optional Newick/NEXUS phylogenetic tree (optional if embedded, or if --no-tree/--use-tn93 is set)")
-    temp_parser.add_argument("--no-tree", action="store_true", help="Skip phylogenetic tree and estimate pairwise evolutionary distances directly from alignment using TN93")
-    temp_parser.add_argument("--use-tn93", action="store_true", help="Estimate pairwise distances directly from alignment using TN93 (skips tree)")
+    temp_parser.add_argument("-t", "--tree", default=None, help="Path to Newick/NEXUS phylogenetic tree (optional if embedded, or if --no-tree/--use-tn93 is set)")
+    temp_parser.add_argument("--no-tree", action="store_true", help="Skip phylogenetic tree and estimate pairwise evolutionary distances directly from alignment using TN93 (alias: --use-tn93)")
+    temp_parser.add_argument("--use-tn93", action="store_true", help="Alias for --no-tree: estimate pairwise distances directly from alignment using TN93")
     temp_parser.add_argument("-d", "--dates", default=None, help="Path to Nextstrain Auspice JSON, metadata CSV/TSV, or omitted to auto-extract timestamps from FASTA headers")
     temp_parser.add_argument("--date-col", default=None, help="Column name for sample collection date in metadata CSV/TSV")
     temp_parser.add_argument("--strain-col", default=None, help="Column name for taxon / strain identifier in metadata CSV/TSV")
     temp_parser.add_argument("--root-taxon", default=None, help="Reference taxon to use as ancestral root founder (default: consensus of earliest 5%% sampled taxa)")
     temp_parser.add_argument("-bw", "--bandwidth", type=float, default=None, help="Gaussian kernel smoothing bandwidth in years (default: auto ~5%% of timespan)")
     temp_parser.add_argument("-o", "--output", help="Output file prefix for results (<prefix>_sites_summary.csv, _curves.csv, _waves.csv, _summary.json)")
-    temp_parser.add_argument("-B", "--permutations", type=int, default=1000, help="Number of date-shuffling permutations for Stage 2 empirical p-values (default: 1000)")
+    temp_parser.add_argument("-B", "--n-permutations", dest="n_permutations", type=int, default=1000, help="Number of date-shuffling permutations for Stage 2 empirical p-values (default: 1000)")
     temp_parser.add_argument("--perm-alpha", type=float, default=0.05, help="FDR significance cutoff for Stage 2 permutation test (default: 0.05)")
     temp_parser.add_argument("--min-r2", type=float, default=0.35, help="Minimum dynamic wave alignment R^2 threshold for confirmed sweeps (default: 0.35)")
     temp_parser.add_argument("--tau-peak", type=float, default=1e-4, help="Stage 1 peak selection intensity energy floor (default: 1e-4)")
@@ -1837,20 +1844,21 @@ def main():
     temp_parser.add_argument("--sweep-mode", choices=["episodic", "fixation", "auto"], default="auto", help="'episodic': positive velocity max(0,da/dt) (viral turnover). 'fixation': cumulative amplitude shift a(t)-a(t0) (experimental-evolution permanent fixation). 'auto': fixation when --time-units!=years, else episodic (default: auto)")
     temp_parser.add_argument("--keep-duplicates", action="store_true", help="Do not collapse identical longitudinal clones before regression (auto-enabled when --time-units!=years)")
     temp_parser.add_argument("--plot", action="store_true", help="Generate publication-grade 4-panel PDF and PNG figures")
-    temp_parser.add_argument("-w", "--weights", default=DEFAULT_WEIGHTS_ENV, help="Path to local model weights file (overrides HF download)")
-    temp_parser.add_argument("--model-variant", dest="variant", default=DEFAULT_VARIANT_ENV, help=f"Model variant to download from HF (default: {DEFAULT_VARIANT})")
-    temp_parser.add_argument("-b", "--batch-size", type=int, default=None, help="Site batch size (default: adaptive hardware budget)")
+    temp_parser.add_argument("-w", "--weights", default=DEFAULT_WEIGHTS_ENV, help="Path to local model weights file (overrides Hugging Face download). Can also be set via HYPHAEON_WEIGHTS env var.")
+    temp_parser.add_argument("--model-variant", dest="variant", default=DEFAULT_VARIANT_ENV, help=f"Model variant to download from Hugging Face (default: {DEFAULT_VARIANT})")
+    temp_parser.add_argument("-b", "--batch-size", type=int, default=None, help="Site batch size (default: adaptive; very large values may be capped to a hardware-safe threshold to prevent GPU OOM)")
     temp_parser.add_argument("-s", "--max-species", type=int, default=None, help="Maximum number of taxa to include")
     temp_parser.add_argument("--cpu", action="store_true", help="Force CPU execution")
 
-    # 10. Pooled HyphAeon-vs-MEME evaluation
-    eval_parser = subparsers.add_parser(
-        "evaluate",
-        help="Evaluate folders of site predictions against matched HyPhy MEME results",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-    from .evaluation import configure_parser as configure_evaluation_parser
-    configure_evaluation_parser(eval_parser)
+    # 10. Pooled HyphAeon-vs-MEME evaluation (dev-only, not in preprint)
+    if _IS_DEV:
+        eval_parser = subparsers.add_parser(
+            "evaluate",
+            help="Evaluate folders of site predictions against matched HyPhy MEME results",
+            formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        )
+        from .evaluation import configure_parser as configure_evaluation_parser
+        configure_evaluation_parser(eval_parser)
 
     # 8. ONNX export (backbone: lrt / mean_root_attns / root_repr; BUSTED head; manifest.json)
     export_parser = subparsers.add_parser(
@@ -1867,12 +1875,13 @@ def main():
         help="Recover well-supported phylogenetic splits via spectral graph bisection of cross-taxa attention and MDS geometry"
     )
     splits_parser.add_argument("-a", "--alignment", required=True, help="Path to in-frame codon FASTA or NEXUS alignment")
-    splits_parser.add_argument("-t", "--tree", default=None, help="Optional Newick/NEXUS phylogenetic tree (optional if embedded, or if --no-tree/--use-tn93 is set)")
-    splits_parser.add_argument("--no-tree", action="store_true", help="Skip phylogenetic tree and estimate pairwise evolutionary distances directly from alignment using TN93")
-    splits_parser.add_argument("--use-tn93", action="store_true", help="Estimate pairwise distances directly from alignment using TN93 (skips tree)")
+    splits_parser.add_argument("-t", "--tree", default=None, help="Path to Newick/NEXUS phylogenetic tree (optional if embedded, or if --no-tree/--use-tn93 is set)")
+    splits_parser.add_argument("--no-tree", action="store_true", help="Skip phylogenetic tree and estimate pairwise evolutionary distances directly from alignment using TN93 (alias: --use-tn93)")
+    splits_parser.add_argument("--use-tn93", action="store_true", help="Alias for --no-tree: estimate pairwise distances directly from alignment using TN93")
+    splits_parser.add_argument("-w", "--weights", default=DEFAULT_WEIGHTS_ENV, help="Path to local model weights file (overrides Hugging Face download). Can also be set via HYPHAEON_WEIGHTS env var.")
+    splits_parser.add_argument("--model-variant", dest="variant", default=DEFAULT_VARIANT_ENV, help=f"Model variant to download from Hugging Face (default: {DEFAULT_VARIANT})")
     splits_parser.add_argument("--min-clade-size", type=int, default=2, help="Minimum clade size to continue recursive bisection (default: 2)")
     splits_parser.add_argument("--max-depth", type=int, default=10, help="Maximum tree hierarchy depth (default: 10)")
-    splits_parser.add_argument("-w", "--weights", default=DEFAULT_WEIGHTS_ENV, help="Path to local model weights file")
     splits_parser.add_argument("--cpu", action="store_true", help="Force CPU execution")
     splits_parser.add_argument("-o", "--output", help="Optional path to output derived hierarchical Newick tree (.nwk)")
     splits_parser.add_argument("-c", "--csv", help="Optional path to output split clade membership table (.csv)")

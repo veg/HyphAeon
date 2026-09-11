@@ -54,7 +54,7 @@ from .alignment import (
     ReferenceGuidedCodonThreader,
 )
 
-__version__ = "1.0.0"
+__version__ = "0.1.1"
 __all__ = [
     "PhyloAxialTransformer",
     "load_alignment_and_tree",

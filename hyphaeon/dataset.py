@@ -232,6 +232,22 @@ def parse_beast_xml(filepath: Union[str, Path]) -> Dict[str, Any]:
         'taxa': list(reconciled_seqs.keys())
     }
 
+def _warn_internal_stops(seq_dict: Dict[str, str], L: int, taxa: List[str]) -> None:
+    """Warn if any sequence has internal stop codons, which may indicate a frameshift."""
+    worst_taxon = None
+    worst_stops = 0
+    internal_limit = max(0, (L - 1) * 3)
+    for t in taxa:
+        seq = seq_dict.get(t, "")
+        stops = sum(1 for i in range(0, min(len(seq), internal_limit), 3)
+                    if CODON_TO_AA.get(seq[i:i+3].upper(), '') == '*')
+        if stops > worst_stops:
+            worst_stops = stops
+            worst_taxon = t
+    if worst_stops >= 1:
+        print(f"[!] Warning: {worst_stops} internal stop codon(s) found in '{worst_taxon}'. "
+              f"This may indicate a frameshift or pseudogene. "
+              f"Verify that the alignment is in-frame (codon-aligned).")
 
 def parse_alignment_sequences(filepath: str) -> Dict[str, str]:
     """
@@ -963,6 +979,7 @@ def load_alignment_and_tree(
             print(f"[!] Notice: Alignment length ({raw_len} bp) is not divisible by 3. Trimming {raw_len % 3} trailing nucleotide(s).")
         
         L = raw_len // 3
+        _warn_internal_stops(seq_dict, L, taxa)
 
         # Fast pre-downsampling for massive sequence collections (N > 300)
         if max_species is not None and len(taxa) > max_species:
@@ -1060,6 +1077,7 @@ def load_alignment_and_tree(
             print(f"[!] Notice: Alignment length ({raw_len} bp) is not divisible by 3. Trimming {raw_len % 3} trailing nucleotide(s).")
         
         L = raw_len // 3
+        _warn_internal_stops(seq_dict, L, taxa)
         n_taxa = len(taxa)
 
         # 5. Fast pre-downsampling for massive sequence collections (N > 300)

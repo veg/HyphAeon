@@ -17,7 +17,6 @@ import pytest
 
 import hyphaeon.epistasis as epistasis
 from hyphaeon.epistasis import compute_adaptive_safe_batch_size
-from hyphaeon.cli import determine_adaptive_batch_size
 
 CPU = torch.device("cpu")
 
@@ -137,34 +136,6 @@ class TestComputeAdaptiveSafeBatchSize:
         got = compute_adaptive_safe_batch_size(200, user_batch_size=bad, device=CPU)
         assert got == adaptive
         assert got >= 1
-
-
-class TestDeterminAdaptiveShim:
-    """The deprecated determine_adaptive_batch_size shim must still behave."""
-
-    def test_shim_delegates_and_matches_core_when_below_sites(self, fixed_budget):
-        """Shim result == core result when the batch is <= total_sites."""
-        fixed_budget(3.0e9)
-        total_sites = 100000  # large, so clamp does not bind
-        core = compute_adaptive_safe_batch_size(20, device=CPU)
-        shim = determine_adaptive_batch_size(20, total_sites, CPU)
-        assert shim == min(core, total_sites) == core
-
-    def test_shim_caps_at_total_sites(self, fixed_budget):
-        """The shim must still clamp the batch at total_sites (regression)."""
-        bs = determine_adaptive_batch_size(20, 5, CPU)
-        assert bs == 5
-
-    def test_shim_user_override_still_capped_at_total_sites(self, fixed_budget):
-        """User override larger than total sites is clamped (regression)."""
-        bs = determine_adaptive_batch_size(20, 50, CPU, user_batch_size=1000)
-        assert bs == 50
-
-    def test_shim_user_override_respected_when_below_sites(self, fixed_budget):
-        """A modest user override under the safety threshold survives the shim."""
-        fixed_budget(8.0e9)
-        bs = determine_adaptive_batch_size(20, 1000, CPU, user_batch_size=64)
-        assert bs == 64
 
 
 class TestCallSiteClampInvariant:

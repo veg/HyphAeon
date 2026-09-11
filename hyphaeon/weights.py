@@ -127,7 +127,7 @@ def resolve_weights_path(
     except Exception as e:
         raise RuntimeError(
             f"Could not download weights from Hugging Face ({e}). "
-            f"Set HF_TOKEN env var (see .env.example) or specify --weights /path/to/checkpoint."
+            f"Specify --weights /path/to/checkpoint or set HYPHAEON_WEIGHTS env var."
         ) from e
 
 

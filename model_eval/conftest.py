@@ -56,7 +56,7 @@ def _resolve_weights():
     except Exception as e:
         return None, (
             f"weights unavailable: {e}. Set HYPHAEON_WEIGHTS to a local "
-            f".pt/.safetensors checkpoint, or set HF_TOKEN for Hugging Face download."
+            f".pt/.safetensors checkpoint, or ensure network access for Hugging Face download."
         )
 
 
@@ -75,7 +75,7 @@ def weights_info():
     """Return (path, source_label); skip if weights unavailable."""
     if not WEIGHTS_AVAILABLE:
         pytest.skip(f"HyphAeon weights not available ({_WEIGHTS_SOURCE}). "
-                    f"Set HYPHAEON_WEIGHTS or HF_TOKEN to run model_eval tests.")
+                    f"Set HYPHAEON_WEIGHTS or ensure network access to run model_eval tests.")
     return _WEIGHTS_PATH, _WEIGHTS_SOURCE
 
 

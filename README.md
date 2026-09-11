@@ -20,29 +20,24 @@
 ---
 
 > [!TIP]
-> **Migrating from HyPhy?** See our comprehensive [**HyPhy to HyphAeon Migration Guide**](MIGRATION_GUIDE.md) for direct method-by-method translations (`hyphy meme` → `hyphaeon meme`, `busted` → `hyphaeon busted`, `contrast-fel` → `hyphaeon phenotype`, `prime` → `hyphaeon dms`) and biological recipes categorized by empirical data regime.
+> **Migrating from HyPhy?** See our comprehensive [**HyPhy to HyphAeon Migration Guide**](MIGRATION_GUIDE.md) for direct method-by-method translations (`hyphy meme` → `hyphaeon meme`, `contrast-fel` → `hyphaeon phenotype`, `prime` → `hyphaeon dms`) and biological recipes categorized by empirical data regime.
 
 ## 🚀 Key Capabilities & Unified Commands
 
-HyphAeon integrates five complementary phylogenetic deep learning and geometric
-projection engines, plus a pooled MEME concordance workflow:
+HyphAeon integrates six complementary phylogenetic deep learning and geometric
+projection engines:
 
 1. **`hyphaeon meme` (Site-Level Diversifying Selection)**:
-   Neural episodic positive selection inference (>100× faster than standard numerical MLE and codon-MCMC models like HyPhy MEME/FEL) using Tree-RoPE 4D geometric branch embeddings and axial tree attention.
+   Neural episodic positive selection inference (100×–1,100× faster than standard numerical MLE and codon-MCMC models like HyPhy MEME/FEL; see ARCHITECTURE.md for detailed benchmarks) using Tree-RoPE 4D geometric branch embeddings and axial tree attention.
 2. **`hyphaeon epistasis` (3D Co-Evolution & Epistatic Sectors)**:
    Multi-scale epistatic sector mining implementing phylogenetic branch attribution, exact tree hypergeometric tests, Jaccard overlap suppression, contact map recovery (C<sub>β</sub>–C<sub>β</sub> < 8 Å), and vectorized Monte Carlo permutation significance testing (`--n-permutations`, `--max-perm-p`).
 3. **`hyphaeon dms` (Digital Deep Mutational Scanning & CPDs)**:
    In silico Selection Deep Mutational Scanning. Performs high-throughput sweeps of all 19 alternative amino acids across every codon position in seconds, calculating the **Epistatic Selection Sensitivity Matrix (ESSM)**, Intrinsic Mutational Plasticity (E<sub>i,i</sub>), and de novo predicting compensatory partners (s<sub>comp</sub>) that rescue human disease mutations (Compensated Pathogenic Deviations).
-4. **`hyphaeon busted` (Alignment-Wide Omnibus Selection)**:
-   Multi-query cross-attention pooling head that evaluates whole-gene episodic selection and filters Synonymous Rate Variation (SRV) false positives in milliseconds.
-5. **`hyphaeon phenotype` (PhyloWAS)**:
+4. **`hyphaeon phenotype` (PhyloWAS)**:
    Directional phenotype-genotype association mapping on the unit hypersphere S<sup>M-1</sup>. Computes spectral trait energies (Ψ<sub>Spectral</sub>), exact sequenced-taxa null scaling p-values, Benjamini-Hochberg FDR q-values, **Phenotype-Associated Residue Signatures (PARS)**, macromolecular trait sector permutation testing (`--n-permutations`, `--max-perm-p`), and gene-level Brownian motion liability permulations (`--permulations`).
-6. **`hyphaeon evaluate` (HyPhy MEME Concordance)**:
-   Dataset-level evaluation of HyphAeon site predictions against matched HyPhy
-   MEME results, with site pooling across genes and machine-readable metrics.
-7. **`hyphaeon temporal` (Continuous Surveillance Dynamics & Sweep Velocity)**:
+5. **`hyphaeon temporal` (Continuous Surveillance Dynamics & Sweep Velocity)**:
    Time-resolved episodic selection tracking using continuous logistic trajectory regression, positive sweep velocity v<sub>s</sub>(t) = max(0, d/dt â<sub>s</sub>(t)), Dynamic Time Warping (DTW) wave decomposition, and temporal SVD factor loadings. See the [**Temporal Analysis Operational Guide**](TEMPORAL_ANALYSIS_GUIDE.md).
-8. **`hyphaeon splits` (Spectral Graph Bisection & Tree-Free Clade Discovery)**:
+6. **`hyphaeon splits` (Spectral Graph Bisection & Tree-Free Clade Discovery)**:
    Recovers well-supported phylogenetic macro-clades and deep hierarchical bipartitions by fusing pairwise continuous 4D MDS geometry with discrete cross-taxa attention maps. Delivers up to 28× speedups over traditional ML tree search without requiring pre-computed phylogenies. See the [**Spectral Splits & Benchmarking Report**](SPECTRAL_SPLITS_BENCHMARK.md).
 9. **`hyphaeon dating` (Molecular Clock Calibration & t_MRCA Dating)**:
    Heterochronous molecular clock calibration, ancestor dating, automated adaptive ridge regularization (`--tune-ridge` via fast spectral PRESS LOOCV), and non-linear clock model adjudication (Restricted Cubic Splines). Implements centered root-to-tip OLS (TempEst emulation), time-decay weighted consensus rooting, and HyphAeon Attention-Derived PGLS ($\boldsymbol{\Sigma} = \mathbf{A}_{\text{fused}} + \lambda\mathbf{I}$) resolving phylogenetic pseudoreplication. Replicates landmark studies such as Bette Korber et al. (Science 2000) dating the ancestor of HIV-1 group M to ~1931 in seconds. See the [**Molecular Clock & Dating Guide**](DATING_GUIDE.md).
@@ -76,17 +71,26 @@ You can always install a specific PyTorch build before installing HyphAeon if
 none of the above defaults suit your system (e.g. a particular CUDA version,
 a custom wheel, or a CPU-only build on a server without GPU).
 
+> [!NOTE]
+> **Model weights** are downloaded automatically from [Hugging Face](https://huggingface.co/datamonkey/hyphaeon)
+> on first use (cached in `~/.cache/hyphaeon/`). No authentication or token is
+> required. Use `--model-variant viral` to select the viral-tuned variant, or
+> `--weights /path/to/checkpoint` to use a local file.
+
 ---
 
 ## 📂 Included Benchmark Datasets
 
-All example alignments and phylogenetic trees required to reproduce these analyses are bundled directly in the `examples/` directory:
-
-The repository bundles canonical historical and pandemic outbreak benchmarks in `examples/`:
+All example alignments and phylogenetic trees required to reproduce these analyses are bundled
+directly in `examples/`, including the canonical historical and pandemic outbreak benchmarks:
 
 | Dataset | Alignment | Tree / Coordinates | Taxa | Sites | Scientific Significance |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **HIV-1 Reverse Transcriptase** | [`examples/HIV1_RT.fasta`](examples/HIV1_RT.fasta) | [`examples/HIV1_RT.nwk`](examples/HIV1_RT.nwk) | 52 | 335 | Canonical benchmark for positive selection, TAM-1/TAM-2 antagonistic pathways, and Q151M MDR complexes. |
+| **HIV-1 RT** | [`examples/HIV1_RT.fasta`](examples/HIV1_RT.fasta) | [`examples/HIV1_RT.nwk`](examples/HIV1_RT.nwk) | 476 | 335 | Retroviral Reverse Transcriptase polymerase domain (drug resistance & epistasis). |
+| **Rhodopsin** | [`examples/RHO.fasta`](examples/RHO.fasta) | Auto (TN93) | 710 | 349 | Mammalian Rhodopsin visual pigments (deep-sea diving sensory adaptation). No tree file provided; uses TN93 distance estimation. |
+| **Smc6** | [`examples/Smc6.fasta`](examples/Smc6.fasta) | [`examples/Smc6.nwk`](examples/Smc6.nwk) | 20 | 1,097 | Primate Smc6 structural maintenance of chromosomes (antiviral host restriction). |
+| **Bat OAS1** | [`examples/bat_oas1.fasta`](examples/bat_oas1.fasta) | [`examples/bat_oas1.nwk`](examples/bat_oas1.nwk) | 18 | 351 | Chiropteran OAS1 2'-5'-oligoadenylate synthetase (innate immunity escape). |
+| **Camelid VHH** | [`examples/camelid.fasta`](examples/camelid.fasta) | [`examples/camelid.nwk`](examples/camelid.nwk) | 212 | 96 | Camelid single-domain antibody heavy-chain variable domain (antigenic diversity). Used for integration testing; no dedicated example section. |
 | **HIV-1 gp160 (Korber 2000)** | [`examples/korber_env_gp160.fasta`](examples/korber_env_gp160.fasta) | Tree-Free / Consensus | 143 | 981 | Bette Korber et al. (Science 2000) landmark molecular clock dataset (1959–1997 HIV-1 group M). |
 | **Avian Flu H5N1 (Lemey 2009)** | [`examples/H5N1_HA_geo.fasta`](examples/H5N1_HA_geo.fasta) | [`examples/H5N1_HA.nwk`](examples/H5N1_HA.nwk) | 98 | 566 | Lemey et al. (PLoS Comput Biol 2009) benchmark discrete phylogeography across 7 Chinese provinces. |
 | **Pandemic H1N1 (Fraser 2009)** | [`examples/H1N1_2009_pandemic.fasta`](examples/H1N1_2009_pandemic.fasta) | [`examples/H1N1_2009_pandemic.nwk`](examples/H1N1_2009_pandemic.nwk) | 100 | 1701 | Fraser et al. (Science 2009) landmark phylodynamics and early growth rate benchmark ($R_0$ estimation). |
@@ -188,92 +192,7 @@ hyphaeon meme -a examples/Smc6.fasta -t examples/Smc6.nwk --filter --filter-out-
 
 ---
 
-### Example 5: Evaluate predictions against HyPhy MEME
-
-`hyphaeon evaluate` compares the site-level output of `hyphaeon meme` with
-HyPhy MEME used as the reference. Here, "true" means concordant with MEME; it
-does not imply independently established biological ground truth.
-
-#### Evaluate folders of genes
-
-Prediction and MEME files are paired by their exact gene-name stem:
-`Gene1.csv` matches `Gene1.MEME.json`. All matched sites from all genes are
-pooled before calculating metrics—metrics are not calculated per gene and then
-averaged.
-
-```bash
-hyphaeon evaluate \
-  --predictions-dir /path/to/hyphaeon_predictions/ \
-  --meme-dir /path/to/meme_results/ \
-  --output pooled_metrics.json
-```
-
-#### Evaluate one gene
-
-Pass a matched pair directly with `--prediction` and `--meme-result`:
-
-```bash
-hyphaeon evaluate \
-  --prediction /path/to/Gene1.csv \
-  --meme-result /path/to/Gene1.MEME.json \
-  --output Gene1_metrics.json
-```
-
-The filename stems must match. Directory flags and direct-file flags cannot be
-mixed in the same invocation.
-
-#### Metrics and classification rules
-
-| Output | Definition |
-| :--- | :--- |
-| Total sites | Number of site IDs shared by the matched prediction/MEME pairs. |
-| Pearson r | Pearson correlation between HyphAeon `hyphaeon_lrt` and MEME LRT over all pooled evaluated sites. |
-| Spearman ρ | Spearman rank correlation between the same pooled LRT values. |
-| ROC-AUC at α | MEME `p-value <= alpha` supplies the binary reference label; continuous HyphAeon `hyphaeon_lrt` supplies the ranking score. |
-| PPV at α | TP / (TP + FP), where MEME and HyphAeon calls both use `p_value <= alpha`. |
-| FPR at α | FP / (FP + TN), where MEME and HyphAeon calls both use `p_value <= alpha`. |
-
-A true positive is a site called significant by both MEME and HyphAeon. A true
-negative is a site called non-significant by both. The JSON report includes the
-full TP, FP, TN, and FN counts used for PPV and FPR.
-
-All matched sites are evaluated by default. Use `--variable-only` to exclude
-HyphAeon rows marked `is_invariable`; total-site counts still include those
-rows. Negative MEME LRT numerical artifacts are clamped to zero and reported
-as a warning.
-
-#### Output and input validation
-
-The default standard output is a compact report (illustrative values shown):
-
-```text
-Matched genes: 2
-Total sites: 450
-Evaluated sites: 450 (all matched sites)
-Pearson r (LRT): 0.412345
-Spearman rho (LRT): 0.501234
-
-Metric                 p <= 0.05    p <= 0.10
-ROC-AUC                  0.731000      0.749000
-PPV                      0.420000      0.465000
-FPR                      0.083000      0.121000
-```
-
-Use `--format json` for JSON on standard output or `--output FILE.json` to
-write the detailed report. The JSON includes input paths, aggregate counts,
-correlations, threshold metrics, both confusion matrices, per-gene counts, and
-warnings. Undefined metrics—for example, ROC-AUC when MEME has only one class—
-are represented as JSON `null`.
-
-By default, unmatched genes or unequal site sets stop evaluation to prevent
-silent misalignment. Folder mode supports `--allow-unmatched` to ignore genes
-without a counterpart. Both modes support `--allow-site-mismatch` to use the
-site intersection and report dropped counts. Custom filename conventions can
-be supplied with `--prediction-suffix` and `--meme-suffix`.
-
----
-
-### Example 6: Spectral Graph Bisection & Tree-Free Phylogenetic Splits (`hyphaeon splits`)
+### Example 5: Spectral Graph Bisection & Tree-Free Phylogenetic Splits (`hyphaeon splits`)
 
 ```bash
 # Basic Tree-Free Macro-Split Discovery (Outputs Newick Tree & Clade CSV)
@@ -395,7 +314,7 @@ Guangdong        HongKong          0.14639       0.40     0.4426    1.0000      
 Prepare one alignment and one official HyPhy MEME JSON result per gene. Trees may be supplied as matching Newick files or embedded in the alignments:
 
 ```bash
-python scripts/build_training_npz.py \
+python training/build_training_npz.py \
   --alignment_dir /path/to/training_alignments/ \
   --tree_dir /path/to/trees/ \
   --meme_dir /path/to/meme_results/ \
@@ -405,7 +324,7 @@ python scripts/build_training_npz.py \
 ### 2. Fine-tune the foundation model
 
 ```bash
-python train.py \
+python training/train.py \
   --data_dir /path/to/training_npz/ \
   --epochs 30 \
   --batch_size 1 \
@@ -423,14 +342,14 @@ python train.py \
 
 | Command | Action | Description |
 | :--- | :--- | :--- |
-| `hyphaeon meme` | Site-Level Selection | Fast per-codon LRT & selection rate prediction (>10,000× faster than MLE). |
-| `hyphaeon evaluate` | MEME Concordance | Pooled ROC-AUC, LRT correlations, PPV, and FPR for folders or a single matched gene. |
+| `hyphaeon meme` | Site-Level Selection | Fast per-codon LRT & selection rate prediction (100×–1,100× faster than MLE). |
 | `hyphaeon epistasis` | 3D Epistatic Sectors | Co-selection networks, hypergeometric tree overlaps, and Monte Carlo sector permutations. |
 | `hyphaeon dms` | Digital DMS | 19-AA in silico perturbation sweeps and Compensated Pathogenic Deviation mapping. |
-| `hyphaeon busted` | Alignment Omnibus | Alignment-wide episodic selection testing and SRV false-positive filtering. |
 | `hyphaeon phenotype`| Directional PhyloWAS | Directional trait mapping on the unit hypersphere, trait sector permutations, and liability permulations. |
 | `hyphaeon temporal` | Dynamic Surveillance | Continuous logistic trajectory regression, sweep velocity, DTW waves, and temporal SVD. |
 | `hyphaeon splits` | Spectral Bisection | Tree-free phylogenetic macro-splits via cross-taxa attention and MDS graph Laplacian. |
+| `hyphaeon disease` | Pathogenicity Prediction | Predict disease variant effects and pathogenicity using HyphAeon attention attributions. |
+| `hyphaeon filter` | Alignment QC | Automated alignment error detection and surgical masking of anomalous regions. |
 | `hyphaeon dating` | Molecular Clock & MRCA | Heterochronous root-to-tip OLS, Attention PGLS, and latent manifold variance collapse. |
 
 ### Key Command Arguments:

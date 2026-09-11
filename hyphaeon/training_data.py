@@ -291,7 +291,7 @@ def build_training_directory(
         warnings.warn(
             f"Output directory contains {len(unexpected_archives)} NPZ archive(s) "
             f"that are not outputs of the current alignment set: {preview}. "
-            "train.py will include every .npz in --data_dir; remove these files "
+            "training/train.py will include every .npz in --data_dir; remove these files "
             "or use a clean output directory if they should not be trained on.",
             UserWarning,
             stacklevel=2,

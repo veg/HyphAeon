@@ -18,7 +18,6 @@ HyPhy decomposes molecular evolution into modular Batch Language scripts (`.bf`)
 graph LR
     subgraph "Classical HyPhy (Iterative Numerical MLE)"
         H_MEME["hyphy meme<br/><i>(Episodic site selection)</i>"]
-        H_BUSTED["hyphy busted<br/><i>(Gene-wide omnibus test)</i>"]
         H_CONTRAST["hyphy contrast-fel<br/><i>(Phenotype/clade contrast)</i>"]
         H_PRIME["hyphy prime<br/><i>(Biophysical property shifts)</i>"]
         H_ABSREL["hyphy absrel<br/><i>(Lineage-specific bursts)</i>"]
@@ -27,7 +26,6 @@ graph LR
 
     subgraph "HyphAeon (Geometric Axial Transformer)"
         A_MEME["hyphaeon meme<br/><i>(--attribute, --filter)</i>"]
-        A_BUSTED["hyphaeon busted<br/><i>(Cross-attention pooled)</i>"]
         A_PHENO["hyphaeon phenotype<br/><i>(PhyloWAS on S^(M-1))</i>"]
         A_DMS["hyphaeon dms<br/><i>(In silico ESSM & CPDs)</i>"]
         A_EPI["hyphaeon epistasis<br/><i>(Spectral sector mining)</i>"]
@@ -35,7 +33,6 @@ graph LR
     end
 
     H_MEME -->|100x speedup + counterfactuals| A_MEME
-    H_BUSTED -->|Instant SRV-filtered pooling| A_BUSTED
     H_CONTRAST -->|Directional hypersphere projection| A_PHENO
     H_PRIME -->|High-throughput digital DMS| A_DMS
     H_ABSREL -->|Lineage attribution & epoch timing| A_MEME
@@ -84,23 +81,7 @@ HyphAeon achieves the same biological objective through mechanistic feature attr
 
 ---
 
-### 1.3 Alignment-Wide Omnibus Selection: Replacing BUSTED
-
-```bash
-# Classical HyPhy: Branch-Site Unrestricted Statistical Test for Episodic Diversification
-hyphy busted --alignment data.fasta --tree data.nwk --srv Yes --output busted.json
-
-# HyphAeon Equivalent: Cross-Attention Pooled Omnibus Testing
-hyphaeon busted -a data.fasta -t data.nwk -o hyphaeon_busted.json
-```
-
-HyPhy BUSTED evaluates whether an entire gene has experienced episodic positive selection across any site and any branch, employing an unconstrained 3-rate distribution for $\omega$. Failing to account for synonymous rate variation (SRV) severely inflates BUSTED false positives; running with `--srv Yes` remedies this by incorporating a bivariate $(d_N, d_S)$ distribution, but at the cost of steep computational overhead from two-dimensional numerical quadrature.
-
-HyphAeon deploys a dedicated cross-attention pooling head trained directly to integrate gene-wide selection dynamics while filtering synonymous rate variation artifacts. The model outputs the alignment-wide LRT, an omnibus $p$-value, and the predicted fraction of sites under selection ($\omega_3$ weight) instantaneously. Because the neural feature representations decouple synonymous conservation from non-synonymous acceleration, HyphAeon maintains strict false positive control under pervasive SRV without numerical quadrature.
-
----
-
-### 1.4 Phenotype & Clade Association: Replacing Contrast-FEL
+### 1.3 Phenotype & Clade Association: Replacing Contrast-FEL
 
 ```bash
 # Classical HyPhy: Contrast-FEL (Two-phenotype branch comparison)
@@ -123,7 +104,7 @@ HyphAeon generalizes clade comparisons to high-dimensional directional genotype-
 
 ---
 
-### 1.5 Biophysical Property Constraints: Replacing PRIME
+### 1.4 Biophysical Property Constraints: Replacing PRIME
 
 ```bash
 # Classical HyPhy: Property-Informed Model of Evolution
@@ -139,7 +120,7 @@ HyphAeon formulates biophysical constraint discovery through comprehensive digit
 
 ---
 
-### 1.6 Inter-Site Co-Evolution: Replacing Bayesian Graphical Models / Spidermonkey
+### 1.5 Inter-Site Co-Evolution: Replacing Bayesian Graphical Models / Spidermonkey
 
 ```bash
 # Classical HyPhy: Spidermonkey / BGM
@@ -163,7 +144,7 @@ HyphAeon tackles inter-site co-evolution through end-to-end phylogenetic branch 
 
 ---
 
-### 1.7 Tree-Free Estimation: Bypassing Phylogenetic Reconstruction Bottlenecks
+### 1.6 Tree-Free Estimation: Bypassing Phylogenetic Reconstruction Bottlenecks
 
 ```bash
 # Classical HyPhy Workflow: Requires pre-computed tree
@@ -180,7 +161,7 @@ HyphAeon provides a native tree-free execution pathway (`--no-tree` or `--use-tn
 
 ---
 
-### 1.8 Automated Alignment Artifact Filtering
+### 1.7 Automated Alignment Artifact Filtering
 
 ```bash
 # Classical Workflow: External heuristics or manual masking
@@ -214,8 +195,7 @@ graph TD
     Q1 -->|"Co-evolution & drug resistance sectors"| A3["<b>3. Epistatic Sector Mining</b><br/><code>hyphaeon epistasis --n-permutations 10000</code>"]
     Q1 -->|"Disease variants & compensatory rescue"| A4["<b>4. Digital DMS & CPD Rescue</b><br/><code>hyphaeon dms</code>"]
     Q1 -->|"Variant sweep tracking & wave velocity"| A5["<b>5. Longitudinal Surveillance</b><br/><code>hyphaeon temporal --min-r2 0.35</code>"]
-    Q1 -->|"Gene-wide selection vs SRV artifacts"| A6["<b>6. Omnibus Selection Testing</b><br/><code>hyphaeon busted</code>"]
-    Q1 -->|"Massive alignments without reliable trees"| A7["<b>7. Ultra-Fast Tree-Free Scanning</b><br/><code>hyphaeon meme --no-tree</code>"]
+    Q1 -->|"Massive alignments without reliable trees"| A6["<b>6. Ultra-Fast Tree-Free Scanning</b><br/><code>hyphaeon meme --no-tree</code>"]
 ```
 
 ---
@@ -340,26 +320,7 @@ hyphaeon temporal \
 
 ---
 
-### 2.6 Question 6: Testing Gene-Wide Selection Without Synonymous Rate Variation False Positives
-
-* **Biological Objective**: You want to test whether an entire gene family or viral open reading frame exhibits evidence of positive selection across its evolutionary history, but the gene is subject to strong RNA secondary structure constraints or GC-content gradients that cause synonymous substitution rates to vary drastically across sites.
-* **Input Data**: A multi-species codon alignment (`family.fasta`) and tree (`family.nwk`).
-
-```bash
-hyphaeon busted \
-  -a examples/bat_oas1.fasta \
-  -t examples/bat_oas1.nwk \
-  -o bat_oas1_busted.json
-```
-
-* **What HyphAeon Delivers**:
-  1. A gene-wide likelihood ratio test statistic and omnibus asymptotic $p$-value evaluated via multi-query cross-attention pooling.
-  2. Estimated fraction of sites in the third selection class ($\omega_3$ component weight).
-  3. Complete protection against synonymous rate variation (SRV) false positives, delivering in milliseconds what requires hours of numerical quadrature under classical models.
-
----
-
-### 2.7 Question 7: Selection Analysis on 50,000+ Sequences Without Tree Reconstruction
+### 2.6 Question 6: Selection Analysis on 50,000+ Sequences Without Tree Reconstruction
 
 * **Biological Objective**: You have an alignment of 25,000 to 100,000 viral or bacterial sequences collected during an outbreak. Inferring a reliable maximum-likelihood tree with IQ-TREE or RAxML would take days or weeks of compute time, and the resulting bifurcating tree would contain thousands of zero-length branches and unresolved polytomies. You need immediate, tree-free episodic selection inference.
 * **Input Data**: A large FASTA alignment (`outbreak_100k.fasta`) without a phylogenetic tree.
@@ -386,7 +347,6 @@ hyphaeon meme \
 | **Episodic Site Selection** | `hyphy meme -a A.fa -t T.nwk` | `hyphaeon meme -a A.fa -t T.nwk` | $O(L \cdot N) \rightarrow O(L + N)$ | `results.json`, `results.csv` |
 | **Lineage Attribution** | `hyphy absrel -a A.fa -t T.nwk` | `hyphaeon meme --attribute` | $O(B \cdot L \cdot N) \rightarrow O(L \cdot K)$ | JSON `attribution` dict |
 | **Alignment Artifact Scrubbing** | External scripts / manual | `hyphaeon meme --filter` | Ad-hoc $\rightarrow$ $O(L)$ exact | `cleaned.fasta`, JSON |
-| **Gene Omnibus Test** | `hyphy busted --srv Yes` | `hyphaeon busted -a A.fa -t T.nwk` | $O(Q \cdot N) \rightarrow O(1)$ pool | `busted.json` |
 | **Trait Association (PhyloWAS)** | `hyphy contrast-fel` | `hyphaeon phenotype -fg "sp1,sp2"` | $O(C \cdot L \cdot N) \rightarrow O(L \cdot M)$ | `pheno_sites.csv`, PARS |
 | **Trait Permulations** | External R scripts | `hyphaeon phenotype --permulations B` | Slow $\rightarrow$ Vectorized tensor | Empirical $p_{\text{gene}}$ |
 | **3D Epistasis & Sectors** | `hyphy spidermonkey` | `hyphaeon epistasis --n-permutations B` | Combinatorial $\rightarrow$ Spectral | `edges.csv`, `network.graphml` |
