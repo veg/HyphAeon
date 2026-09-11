@@ -34,10 +34,14 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 from scipy.linalg import eigh
-from sklearn.cluster import SpectralClustering, KMeans
-from sklearn.manifold import MDS
-import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
+# scikit-learn and matplotlib are imported where they are used, not here. hyphaeon/__init__.py
+# imports this module unconditionally, so a module-scope import of either makes `import hyphaeon`
+# fail in any environment that has only the declared base dependencies -- including the ONNX export
+# and the parity harness, which never plot and never cluster. Neither package is declared in
+# [project.dependencies], and matplotlib is in no extra at all, so `pip install -e ".[all]"` did not
+# help. KMeans is needed by evaluate_model_selection, calibrate_optimal_communities and
+# deconvolve_node; MDS, pyplot and gridspec only by the two --plot-gated plot_diagnostics methods.
+# (SpectralClustering was imported here and never referenced anywhere in the file.)
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
@@ -470,6 +474,8 @@ class AutoClockDeconvolution:
         """
         Evaluate candidate clock models K in [1, max_k] using joint AICc, BIC, and topological eigengaps.
         """
+        from sklearn.cluster import KMeans
+
         n = len(self.taxa)
         effective_max_k = min(self.max_k, max(1, n // self.min_cluster_size))
 
@@ -657,6 +663,8 @@ class AutoClockDeconvolution:
 
     def calibrate_optimal_communities(self) -> None:
         """Calibrate final independent ChronAeon molecular clocks for optimal communities."""
+        from sklearn.cluster import KMeans
+
         n = len(self.taxa)
         k_opt = self.optimal_k
 
@@ -811,6 +819,7 @@ class AutoClockDeconvolution:
         """Generate publication-grade diagnostic figure."""
         import matplotlib.pyplot as plt
         import matplotlib.gridspec as gridspec
+        from sklearn.manifold import MDS
         from scipy.spatial import ConvexHull
 
         if output_path is None:
@@ -1354,6 +1363,8 @@ class HierarchicalAutoClock:
         parent_r2: Optional[float] = None,
     ) -> Dict[str, Any]:
         """Recursively evaluates a node using the 5 principled stopping criteria."""
+        from sklearn.cluster import KMeans
+
         indent = "  " * depth
         n_c = len(taxa_subset)
         dates_c = np.array([self.dates_map[t] for t in taxa_subset])
@@ -1686,6 +1697,7 @@ class HierarchicalAutoClock:
           (C) Calibrated Evolutionary Substitution Rates (mu) with 95% Confidence Intervals
           (D) Root-to-Tip Residual Distributions by Leaf Community
         """
+        import matplotlib.pyplot as plt
         import matplotlib.gridspec as gridspec
 
         if self.classified_df is None or self.classified_df.empty:
