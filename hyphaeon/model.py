@@ -117,11 +117,6 @@ class PhyloRowAttention(nn.Module):
 
         scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(self.head_dim)
 
-        # Sequence Density Invariant Softmax Normalization
-        if padding_mask is not None:
-            active_counts = (~padding_mask).sum(dim=-1, keepdim=True).clamp(min=1.0).float()
-            density_scale = torch.log(active_counts / 256.0).unsqueeze(-1).unsqueeze(-1)
-            scores = scores + density_scale
 
         # Pure Continuous-Time Markov Transition Probability Tree Kernel
         # P_ij(d) = eps0 + (1 - eps0) * exp(-lambda_h * d_ij)

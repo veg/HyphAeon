@@ -1,0 +1,247 @@
+genome_id,genome_name,collection_date,collection_year,genome_length,is_root
+2697049.107626,Severe acute respiratory syndrome coronavirus 2 Wuhan-Hu-1,2019-12-26,2019,29903,True
+2697049.9093986,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-USAFSAM-RS133/2020,2020-09-08,2020,29816,False
+2697049.9093525,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-USAFSAM-RS166/2020,2020-12-14,2020,29743,False
+2697049.9239619,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/humans/USA/WA-PHL-028404/2020,2020-10-16,2020,29744,False
+2697049.9239620,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/humans/USA/WA-PHL-028406/2020,2020-10-21,2020,29776,False
+2697049.9239623,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/humans/USA/WA-PHL-028433/2020,2020-11-23,2020,29636,False
+2697049.9239624,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/humans/USA/WA-PHL-028436/2020,2020-11-23,2020,29758,False
+2697049.9239622,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/humans/USA/WA-PHL-028467/2020,2020-12-11,2020,29779,False
+2697049.9239627,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/humans/USA/WA-PHL-028626/2020,2020-05-26,2020,29719,False
+2697049.9239631,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/humans/USA/WA-PHL-028753/2020,2020-07-08,2020,29748,False
+2697049.9239632,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/humans/USA/WA-PHL-028757/2020,2020-07-09,2020,29773,False
+2697049.9239630,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/humans/USA/WA-PHL-028944/2020,2020-03-20,2020,29777,False
+2697049.9239633,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/humans/USA/WA-PHL-028970/2020,2020-09-05,2020,29758,False
+2697049.9239635,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/humans/USA/WA-PHL-029389/2020,2020-12-21,2020,29572,False
+2697049.9240005,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/humans/USA/WA-PHL-030499/2020,2020-04-18,2020,29777,False
+2697049.9240003,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/humans/USA/WA-PHL-030503/2020,2020-04-23,2020,29777,False
+2697049.3069149,Severe acute respiratory syndrome coronavirus 2 strain SARS-CoV-2/human/USA/CA-CDPH-1002005318/2020 strain SARS-CoV-2/Human/USA/CA-CDPH-1002005318/2020,2020-10-23,2020,29865,False
+2697049.3069154,Severe acute respiratory syndrome coronavirus 2 strain SARS-CoV-2/human/USA/CA-CDPH-1002005321/2020 strain SARS-CoV-2/Human/USA/CA-CDPH-1002005321/2020,2020-11-17,2020,29798,False
+2697049.3069163,Severe acute respiratory syndrome coronavirus 2 strain SARS-CoV-2/human/USA/CA-CDPH-1002005326/2020 strain SARS-CoV-2/Human/USA/CA-CDPH-1002005326/2020,2020-10-23,2020,29798,False
+2697049.3069165,Severe acute respiratory syndrome coronavirus 2 strain SARS-CoV-2/human/USA/CA-CDPH-1002005327/2020 strain SARS-CoV-2/Human/USA/CA-CDPH-1002005327/2020,2020-11-30,2020,29865,False
+2697049.3069169,Severe acute respiratory syndrome coronavirus 2 strain SARS-CoV-2/human/USA/CA-CDPH-1002005329/2020 strain SARS-CoV-2/Human/USA/CA-CDPH-1002005329/2020,2020-11-25,2020,29803,False
+2697049.3069171,Severe acute respiratory syndrome coronavirus 2 strain SARS-CoV-2/human/USA/CA-CDPH-1002005330/2020 strain SARS-CoV-2/Human/USA/CA-CDPH-1002005330/2020,2020-11-23,2020,29798,False
+2697049.3069175,Severe acute respiratory syndrome coronavirus 2 strain SARS-CoV-2/human/USA/CA-CDPH-1002005332/2020 strain SARS-CoV-2/Human/USA/CA-CDPH-1002005332/2020,2020-11-27,2020,29798,False
+2697049.3069177,Severe acute respiratory syndrome coronavirus 2 strain SARS-CoV-2/human/USA/CA-CDPH-1002005333/2020 strain SARS-CoV-2/Human/USA/CA-CDPH-1002005333/2020,2020-11-06,2020,29827,False
+2697049.3069181,Severe acute respiratory syndrome coronavirus 2 strain SARS-CoV-2/human/USA/CA-CDPH-1002005335/2020 strain SARS-CoV-2/Human/USA/CA-CDPH-1002005335/2020,2020-11-06,2020,29798,False
+2697049.3069183,Severe acute respiratory syndrome coronavirus 2 strain SARS-CoV-2/human/USA/CA-CDPH-1002005336/2020 strain SARS-CoV-2/Human/USA/CA-CDPH-1002005336/2020,2020-11-06,2020,29815,False
+2697049.3069184,Severe acute respiratory syndrome coronavirus 2 strain SARS-CoV-2/human/USA/CA-CDPH-1002005337/2020 strain SARS-CoV-2/Human/USA/CA-CDPH-1002005337/2020,2020-11-09,2020,29865,False
+2697049.3069187,Severe acute respiratory syndrome coronavirus 2 strain SARS-CoV-2/human/USA/CA-CDPH-1002005338/2020 strain SARS-CoV-2/Human/USA/CA-CDPH-1002005338/2020,2020-11-06,2020,29798,False
+2697049.3069189,Severe acute respiratory syndrome coronavirus 2 strain SARS-CoV-2/human/USA/CA-CDPH-1002005339/2020 strain SARS-CoV-2/Human/USA/CA-CDPH-1002005339/2020,2020-11-05,2020,29865,False
+2697049.3069194,Severe acute respiratory syndrome coronavirus 2 strain SARS-CoV-2/human/USA/CA-CDPH-1002005342/2020 strain SARS-CoV-2/Human/USA/CA-CDPH-1002005342/2020,2020-11-06,2020,29825,False
+2697049.3069199,Severe acute respiratory syndrome coronavirus 2 strain SARS-CoV-2/human/USA/CA-CDPH-1002005344/2020 strain SARS-CoV-2/Human/USA/CA-CDPH-1002005344/2020,2020-11-06,2020,29883,False
+2697049.3069201,Severe acute respiratory syndrome coronavirus 2 strain SARS-CoV-2/human/USA/CA-CDPH-1002005345/2020 strain SARS-CoV-2/Human/USA/CA-CDPH-1002005345/2020,2020-11-06,2020,29827,False
+2697049.3069203,Severe acute respiratory syndrome coronavirus 2 strain SARS-CoV-2/human/USA/CA-CDPH-1002005346/2020 strain SARS-CoV-2/Human/USA/CA-CDPH-1002005346/2020,2020-11-06,2020,29798,False
+2697049.3069205,Severe acute respiratory syndrome coronavirus 2 strain SARS-CoV-2/human/USA/CA-CDPH-1002005347/2020 strain SARS-CoV-2/Human/USA/CA-CDPH-1002005347/2020,2020-11-06,2020,29833,False
+2697049.3069207,Severe acute respiratory syndrome coronavirus 2 strain SARS-CoV-2/human/USA/CA-CDPH-1002005348/2020 strain SARS-CoV-2/Human/USA/CA-CDPH-1002005348/2020,2020-11-06,2020,29830,False
+2697049.3069209,Severe acute respiratory syndrome coronavirus 2 strain SARS-CoV-2/human/USA/CA-CDPH-1002005349/2020 strain SARS-CoV-2/Human/USA/CA-CDPH-1002005349/2020,2020-11-06,2020,29797,False
+2697049.8707256,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WVCU635229/2021,2021-09,2021,29504,False
+2697049.7510875,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-UNM-21075568/2021,2021-09-09,2021,29810,False
+2697049.7510881,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-UNM-21078706/2021,2021-09-14,2021,29810,False
+2697049.7510882,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-UNM-21078719/2021,2021-09-14,2021,29810,False
+2697049.7510880,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-UNM-21078726/2021,2021-09-14,2021,29810,False
+2697049.7240165,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-UNM-21083385/2021,2021-09-18,2021,29809,False
+2697049.7240166,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-UNM-21083386/2021,2021-09-18,2021,29807,False
+2697049.7240167,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-UNM-21083398/2021,2021-09-20,2021,29813,False
+2697049.7240168,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-UNM-21083411/2021,2021-09-17,2021,29810,False
+2697049.7240173,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-UNM-21083448/2021,2021-09-17,2021,29810,False
+2697049.7240175,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-UNM-21083449/2021,2021-09-17,2021,29808,False
+2697049.7240174,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-UNM-21083451/2021,2021-09-19,2021,29806,False
+2697049.7240179,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-UNM-21083455/2021,2021-09-18,2021,29808,False
+2697049.7240181,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-UNM-21083461/2021,2021-09-03,2021,29808,False
+2697049.7240180,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-UNM-21083462/2021,2021-09-03,2021,29805,False
+2697049.7240182,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-UNM-21083463/2021,2021-09-02,2021,29809,False
+2697049.7240183,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-UNM-21083464/2021,2021-09-07,2021,29807,False
+2697049.7240186,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-UNM-21083467/2021,2021-09-06,2021,29815,False
+2697049.7240188,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-UNM-21083468/2021,2021-09-07,2021,29808,False
+2697049.7240187,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-UNM-21083469/2021,2021-09-08,2021,29814,False
+2697049.7240189,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-UNM-21083474/2021,2021-09-09,2021,29807,False
+2697049.7240190,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-UNM-21083476/2021,2021-09-07,2021,29813,False
+2697049.7240191,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-UNM-21083481/2021,2021-09-07,2021,29791,False
+2697049.7240192,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-UNM-21083485/2021,2021-09-07,2021,29809,False
+2697049.7240194,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-UNM-21083589/2021,2021-08-05,2021,29808,False
+2697049.7240196,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-UNM-21083590/2021,2021-08-03,2021,29810,False
+2697049.7240198,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-UNM-21083591/2021,2021-08-04,2021,29810,False
+2697049.7240197,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-UNM-21083592/2021,2021-08-04,2021,29810,False
+2697049.7240200,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-UNM-21083593/2021,2021-08-03,2021,29809,False
+2697049.7240199,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-UNM-21083594/2021,2021-08-04,2021,29811,False
+2697049.7240201,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-UNM-21083595/2021,2021-07-30,2021,29810,False
+2697049.7240202,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-UNM-21083596/2021,2021-08-02,2021,29810,False
+2697049.7240203,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-UNM-21083597/2021,2021-08-06,2021,29810,False
+2697049.7240206,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-UNM-21083600/2021,2021-07-29,2021,29810,False
+2697049.7240210,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WY-UNM-21083602/2021,2021-08-05,2021,29809,False
+2697049.10129421,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/IA-UW-22011094950/2022,2022-01-10,2022,29501,False
+2697049.10129423,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/OH-UW-22010357251/2022,2022-01-03,2022,29518,False
+2697049.10129425,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/OH-UW-22010541595/2022,2022-01-05,2022,29501,False
+2697049.10129426,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WA-UW-22010512038/2022,2022-01-05,2022,29501,False
+2697049.10133583,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/GBR/EDB60235/2022,2022-04-24,2022,29483,False
+2697049.10133585,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/GBR/EDB57770/2022,2022-04-07,2022,29483,False
+2697049.10133590,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/GBR/EDB45632/2022,2022-02-16,2022,29777,False
+2697049.10133591,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/GBR/EDB40084/2022,2022-01-19,2022,29777,False
+2697049.10133592,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/GBR/EDB38456/2022,2022-01-12,2022,29777,False
+2697049.10134000,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/NY-NYCPHL-016762/2022,2022-12-29,2022,29726,False
+2697049.10134001,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/NY-NYCPHL-016761/2022,2022-12-22,2022,29725,False
+2697049.10134003,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/NY-NYCPHL-016760/2022,2022-12-22,2022,29656,False
+2697049.10134004,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/NY-NYCPHL-016759/2022,2022-12-28,2022,29726,False
+2697049.10134005,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/NY-NYCPHL-016758/2022,2022-12-28,2022,29726,False
+2697049.10134006,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/NY-NYCPHL-016756/2022,2022-12-22,2022,29726,False
+2697049.10134007,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/NY-NYCPHL-016757/2022,2022-12-22,2022,29726,False
+2697049.10134008,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/NY-NYCPHL-016754/2022,2022-12-29,2022,29726,False
+2697049.10134009,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/NY-NYCPHL-016755/2022,2022-12-22,2022,29726,False
+2697049.10134010,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/NY-NYCPHL-016753/2022,2022-12-22,2022,29726,False
+2697049.10134011,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/NY-NYCPHL-016751/2022,2022-12-22,2022,29723,False
+2697049.10134012,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/NY-NYCPHL-016752/2022,2022-12-22,2022,29726,False
+2697049.10134013,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/NY-NYCPHL-016750/2022,2022-12-22,2022,29726,False
+2697049.10134015,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/NY-NYCPHL-016749/2022,2022-12-22,2022,29726,False
+2697049.10134207,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/NY-NYCPHL-016543/2022,2022-12-29,2022,29726,False
+2697049.10134208,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/NY-NYCPHL-016541/2022,2022-12-29,2022,29723,False
+2697049.10134209,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/NY-NYCPHL-016540/2022,2022-12-29,2022,29726,False
+2697049.10134210,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/NY-NYCPHL-016539/2022,2022-12-29,2022,29726,False
+2697049.10134212,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/NY-NYCPHL-016537/2022,2022-12-28,2022,29726,False
+2697049.10134214,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/NY-NYCPHL-016536/2022,2022-12-29,2022,29720,False
+2697049.10134215,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/NY-NYCPHL-016534/2022,2022-12-28,2022,29726,False
+2697049.10134217,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/NY-NYCPHL-016531/2022,2022-12-30,2022,29726,False
+2697049.10134218,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/NY-NYCPHL-016530/2022,2022-12-30,2022,29729,False
+2697049.10134219,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/NY-NYCPHL-016532/2022,2022-12-29,2022,29726,False
+2697049.10134220,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/NY-NYCPHL-016529/2022,2022-12-30,2022,29726,False
+2697049.10134222,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/NY-NYCPHL-016527/2022,2022-12-28,2022,29720,False
+2697049.10379884,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/MYS/2304049/2023,2023-04,2023,29649,False
+2697049.10379886,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/MYS/2312173/2023,2023-12,2023,29706,False
+2697049.10379888,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/MYS/2312169/2023,2023-12,2023,29770,False
+2697049.10379893,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/MYS/2312160/2023,2023-12,2023,29649,False
+2697049.10379897,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/MYS/2311153/2023,2023-11,2023,29706,False
+2697049.10379890,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/MYS/2312166/2023,2023-12,2023,29750,False
+2697049.10379892,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/MYS/2312162/2023,2023-12,2023,29706,False
+2697049.10379891,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/MYS/2312165/2023,2023-12,2023,29706,False
+2697049.10379895,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/MYS/2311156/2023,2023-11,2023,29741,False
+2697049.10379894,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/MYS/2311157/2023,2023-11,2023,29706,False
+2697049.10379903,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/MYS/2311124/2023,2023-11,2023,29649,False
+2697049.10379896,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/MYS/2311155/2023,2023-11,2023,29741,False
+2697049.10379889,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/MYS/2312168/2023,2023-12,2023,29755,False
+2697049.10379900,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/MYS/2311149/2023,2023-11,2023,29753,False
+2697049.10379898,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/MYS/2311152/2023,2023-11,2023,29759,False
+2697049.10379902,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/MYS/2311137/2023,2023-11,2023,29750,False
+2697049.10379907,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/MYS/2305079/2023,2023-05,2023,29744,False
+2697049.10379909,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/MYS/2305066/2023,2023-05,2023,29751,False
+2697049.10379904,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/MYS/2311115/2023,2023-11,2023,29753,False
+2697049.10379915,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/MYS/2303023/2023,2023-03,2023,29742,False
+2697049.10379912,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/MYS/2304050/2023,2023-04,2023,29649,False
+2697049.10379913,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/MYS/2304048/2023,2023-04,2023,29668,False
+2697049.10379908,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/MYS/2305073/2023,2023-05,2023,29747,False
+2697049.10379901,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/MYS/2311141/2023,2023-11,2023,29750,False
+2697049.10379910,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/MYS/2305058/2023,2023-05,2023,29778,False
+2697049.10379911,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/MYS/2304051/2023,2023-04,2023,29781,False
+2697049.10379914,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/MYS/2304045/2023,2023-04,2023,29751,False
+2697049.10379905,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/MYS/2311113/2023,2023-11,2023,29751,False
+2697049.10379906,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/MYS/2305080/2023,2023-05,2023,29750,False
+2697049.10379899,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/MYS/2311151/2023,2023-11,2023,29754,False
+2697049.8715334,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WV137284/2023,2023-08-07,2023,29445,False
+2697049.8715333,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WV137285/2023,2023-08-06,2023,29759,False
+2697049.8715065,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WV137286/2023,2023-08-03,2023,29459,False
+2697049.8715067,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WV137287/2023,2023-08-01,2023,29761,False
+2697049.8715066,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/WV137288/2023,2023-08-12,2023,29737,False
+2697049.10128768,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/MS-MSPHL-0362/2024,2024-09-09,2024,29866,False
+2697049.10128769,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/MS-MSPHL-0360/2024,2024-08-27,2024,29868,False
+2697049.10128770,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/MS-MSPHL-0359/2024,2024-08-27,2024,29868,False
+2697049.10128771,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/MS-MSPHL-0355/2024,2024-08-23,2024,29859,False
+2697049.10128772,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/MS-MSPHL-0352/2024,2024-08-22,2024,29868,False
+2697049.10128773,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/MS-MSPHL-0350/2024,2024-08-21,2024,29866,False
+2697049.10128774,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/MS-MSPHL-0349/2024,2024-08-21,2024,29868,False
+2697049.10128775,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/MS-MSPHL-0347/2024,2024-08-21,2024,29868,False
+2697049.10128776,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/RUS/P745/2024,2024-04-15,2024,29815,False
+2697049.10128777,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/RUS/P742/2024,2024-04-09,2024,29815,False
+2697049.10128778,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/RUS/P739/2024,2024-04-08,2024,29815,False
+2697049.10128779,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/RUS/P741/2024,2024-04-08,2024,29815,False
+2697049.10128780,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/RUS/P736/2024,2024-04-08,2024,29815,False
+2697049.10128781,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/RUS/P738/2024,2024-04-09,2024,29815,False
+2697049.10128783,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/RUS/P735/2024,2024-04-08,2024,29815,False
+2697049.10128784,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/RUS/P733/2024,2024-04-08,2024,29815,False
+2697049.10128786,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/RUS/P732/2024,2024-04-08,2024,29815,False
+2697049.10128787,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/RUS/P730/2024,2024-04-08,2024,29815,False
+2697049.10128788,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/RUS/P727/2024,2024-04-02,2024,29806,False
+2697049.10128789,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/RUS/P729/2024,2024-04-08,2024,29815,False
+2697049.10128790,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/RUS/P728/2024,2024-04-08,2024,29815,False
+2697049.10128792,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/RUS/P724/2024,2024-04-02,2024,29815,False
+2697049.10128794,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/RUS/P723/2024,2024-04-02,2024,29815,False
+2697049.10128795,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/RUS/P720/2024,2024-04-02,2024,29815,False
+2697049.10128798,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/RUS/P717/2024,2024-04-01,2024,29815,False
+2697049.10128799,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/RUS/P718/2024,2024-04-02,2024,29803,False
+2697049.10128801,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/RUS/P715/2024,2024-04-01,2024,29815,False
+2697049.10128802,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/RUS/P713/2024,2024-04-01,2024,29815,False
+2697049.10128803,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/RUS/P714/2024,2024-04-01,2024,29815,False
+2697049.10128805,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/RUS/P709/2024,2024-04-01,2024,29684,False
+2697049.10128806,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/RUS/P710/2024,2024-04-01,2024,29815,False
+2697049.10128811,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/RUS/P704/2024,2024-03-26,2024,29684,False
+2697049.10128812,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/RUS/P703/2024,2024-03-26,2024,29684,False
+2697049.10128813,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/RUS/P702/2024,2024-03-25,2024,29684,False
+2697049.10128815,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/RUS/P699/2024,2024-03-26,2024,29684,False
+2697049.10363689,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/AUT/MUW1864814/2025,2025-11-24,2025,29704,False
+2697049.10363690,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/AUT/MUW1852550/2025,2025-10-03,2025,29791,False
+2697049.10363694,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/AUT/MUW1856888/2025,2025-10-23,2025,29790,False
+2697049.10363697,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/AUT/MUW1869628/2025,2025-12-12,2025,29788,False
+2697049.10364629,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/IRQ/DUHAGO_2025/2025,2025-02-05,2025,29411,False
+2697049.10364920,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/DC-CDC-9403705-001/2025,2025-09-09,2025,29697,False
+2697049.10364922,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/DC-CDC-9403706-001/2025,2025-09-10,2025,29697,False
+2697049.10364925,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/DC-CDC-9403708-001/2025,2025-09-02,2025,29697,False
+2697049.10364929,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/DC-CDC-9403703-001/2025,2025-09-03,2025,29689,False
+2697049.10364932,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/DC-CDC-9403699-001/2025,2025-09-09,2025,29697,False
+2697049.10364935,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/DC-CDC-9403704-001/2025,2025-09-04,2025,29688,False
+2697049.10364937,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/DC-CDC-9403701-001/2025,2025-09-04,2025,29689,False
+2697049.10364940,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/DC-CDC-9403700-001/2025,2025-09-04,2025,29689,False
+2697049.10364981,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/DC-CDC-9403702-001/2025,2025-09-07,2025,29697,False
+2697049.10366921,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/Un-DHSS-1309/2025,2025-09-07,2025,29649,False
+2697049.10367759,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/DC-LC1139726/2025,2025-08-06,2025,29598,False
+2697049.10367820,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/DC-LC1139562/2025,2025-07-19,2025,29690,False
+2697049.10367963,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/DC-LC1139280/2025,2025-06-25,2025,29690,False
+2697049.10367995,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/DC-LC1139232/2025,2025-06-27,2025,29691,False
+2697049.10368290,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/DC-LC1140594/2025,2025-08-12,2025,29689,False
+2697049.10368309,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/DC-LC1140580/2025,2025-08-09,2025,29691,False
+2697049.10368583,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/DC-LC1137971/2025,2025-05-01,2025,29687,False
+2697049.10369068,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/DC-LC1138433/2025,2025-05-23,2025,29594,False
+2697049.10369805,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/LAO/LOMWRU-2037/2025,2025-07-08,2025,29481,False
+2697049.10369812,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/LAO/LOMWRU-2030/2025,2025-06-24,2025,29553,False
+2697049.10369821,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/LAO/LOMWRU-2025/2025,2025-07-25,2025,29546,False
+2697049.10369826,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/Japan/RB25-002-65/2025,2025-02-17,2025,29747,False
+2697049.10369830,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/Japan/RB25-002-81/2025,2025-07-17,2025,29750,False
+2697049.10369831,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/Japan/RB25-002-82/2025,2025-03-12,2025,29751,False
+2697049.10369833,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/Japan/RB25-002-94/2025,2025-07-30,2025,29751,False
+2697049.10369834,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/Japan/RB25-002-93/2025,2025-03-10,2025,29751,False
+2697049.10369838,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/Japan/RB25-002-66/2025,2025-09-29,2025,29751,False
+2697049.10369843,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/Japan/RB25-002-84/2025,2025-07-22,2025,29750,False
+2697049.10369847,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/Japan/RB25-002-69/2025,2025-09-25,2025,29751,False
+2697049.10369848,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/Japan/RB25-002-85/2025,2025-03-10,2025,29751,False
+2697049.10379516,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/GU_8859/2026,2026-05-22,2026,29426,False
+2697049.10379510,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/PR-CVL-034330/2026,2026-06-01,2026,29703,False
+2697049.10379523,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/PR-CVL-034321/2026,2026-05-12,2026,29706,False
+2697049.10379528,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/PR-CVL-034322/2026,2026-05-18,2026,29706,False
+2697049.10379509,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/PR-CVL-034329/2026,2026-06-09,2026,29694,False
+2697049.10379524,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/PR-CVL-034324/2026,2026-05-19,2026,29706,False
+2697049.10379511,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/PR-CVL-034328/2026,2026-06-06,2026,29751,False
+2697049.10379518,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/GU_8814/2026,2026-05-19,2026,29702,False
+2697049.10379515,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/GU_8852/2026,2026-05-21,2026,29702,False
+2697049.10379527,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/PR-CVL-034326/2026,2026-06-01,2026,29740,False
+2697049.10379521,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/GU_8855/2026,2026-05-21,2026,29703,False
+2697049.10379520,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/GU_8851/2026,2026-05-21,2026,29702,False
+2697049.10379517,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/GU_8806/2026,2026-05-18,2026,29705,False
+2697049.10379522,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/PR-CVL-034323/2026,2026-05-19,2026,29706,False
+2697049.10379519,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/PR-CVL-034325/2026,2026-05-21,2026,29706,False
+2697049.10379526,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/PR-CVL-034327/2026,2026-06-08,2026,29756,False
+2697049.10379513,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/GU_8884/2026,2026-05-26,2026,29693,False
+2697049.10379525,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/GU_8847/2026,2026-05-20,2026,29645,False
+2697049.10379512,Severe acute respiratory syndrome coronavirus 2 SARS-CoV-2/human/USA/PR-CVL-034331/2026,2026-06-03,2026,29763,False
+2697049.10379863,Severe acute respiratory syndrome coronavirus 2,2026-02-04,2026,29862,False
+2697049.10379869,Severe acute respiratory syndrome coronavirus 2,2026-02-04,2026,29862,False
+2697049.10379870,Severe acute respiratory syndrome coronavirus 2,2026-02-03,2026,29853,False
+2697049.10379853,Severe acute respiratory syndrome coronavirus 2,2026-02-08,2026,29861,False
+2697049.10379858,Severe acute respiratory syndrome coronavirus 2,2026-02-06,2026,29853,False
+2697049.10379872,Severe acute respiratory syndrome coronavirus 2,2026-02-05,2026,29853,False
+2697049.10379878,Severe acute respiratory syndrome coronavirus 2,2026-02-03,2026,29853,False
+2697049.10379865,Severe acute respiratory syndrome coronavirus 2,2026-01-31,2026,29862,False
+2697049.10379873,Severe acute respiratory syndrome coronavirus 2,2026-02-05,2026,29862,False
+2697049.10379866,Severe acute respiratory syndrome coronavirus 2,2026-02-04,2026,29862,False
+2697049.10379882,Severe acute respiratory syndrome coronavirus 2,2026-01-30,2026,29869,False
+2697049.10379880,Severe acute respiratory syndrome coronavirus 2,2026-01-29,2026,29854,False
+2697049.10379881,Severe acute respiratory syndrome coronavirus 2,2026-02-01,2026,29871,False
+2697049.10379874,Severe acute respiratory syndrome coronavirus 2,2026-02-05,2026,29862,False
+2697049.10379879,Severe acute respiratory syndrome coronavirus 2,2026-01-30,2026,29862,False
+2697049.10379876,Severe acute respiratory syndrome coronavirus 2,2026-01-30,2026,29853,False

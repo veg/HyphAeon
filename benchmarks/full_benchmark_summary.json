@@ -1,0 +1,1749 @@
+[
+  {
+    "sid": "01_hiv1_korber2000",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.1296)",
+    "tmrca": 1901.57,
+    "active_mu": 0.001189,
+    "pgls": {
+      "t_mrca": 1901.57,
+      "ci": [
+        1851.6,
+        1951.6
+      ],
+      "ci_width": 100.0,
+      "mu": 0.001189,
+      "r2": 0.082
+    },
+    "ols": {
+      "t_mrca": 1934.19,
+      "ci": [
+        1913.0,
+        1948.7
+      ],
+      "mu": 0.00184,
+      "r2": 0.169
+    },
+    "runtime": 5.590765953063965,
+    "pagel_lambda": 0.9188
+  },
+  {
+    "sid": "02_influenza_h1n1_2009_smith2009",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.7489)",
+    "tmrca": 2006.51,
+    "active_mu": 0.002679,
+    "pgls": {
+      "t_mrca": 2006.51,
+      "ci": [
+        2005.2,
+        2007.9
+      ],
+      "ci_width": 2.7000000000000455,
+      "mu": 0.002679,
+      "r2": 0.174
+    },
+    "ols": {
+      "t_mrca": 2008.9,
+      "ci": [
+        2008.7,
+        2009.0
+      ],
+      "mu": 0.011163,
+      "r2": 0.468
+    },
+    "runtime": 5.211928129196167,
+    "pagel_lambda": 0.9743
+  },
+  {
+    "sid": "03_ebola_makona_dudas2017",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=n/a)",
+    "tmrca": 2013.82,
+    "active_mu": 0.000813,
+    "pgls": {
+      "t_mrca": null,
+      "ci": null,
+      "ci_width": null,
+      "mu": null,
+      "r2": null
+    },
+    "ols": {
+      "t_mrca": 2013.82,
+      "ci": [
+        2013.8,
+        2013.9
+      ],
+      "mu": 0.000813,
+      "r2": 0.712
+    },
+    "runtime": 3.415904998779297,
+    "pagel_lambda": "N/A"
+  },
+  {
+    "sid": "04_sars_cov_2_pekar2022",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.4863)",
+    "tmrca": 2036.58,
+    "active_mu": -0.000214,
+    "pgls": {
+      "t_mrca": 2036.58,
+      "ci": [
+        1984.9,
+        2020.0
+      ],
+      "ci_width": 35.09999999999991,
+      "mu": -0.000214,
+      "r2": 0.004
+    },
+    "ols": {
+      "t_mrca": 2019.74,
+      "ci": [
+        2017.7,
+        2023.2
+      ],
+      "mu": 0.002601,
+      "r2": 0.007
+    },
+    "runtime": 5.404407978057861,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "05_dengue4_lanciotti1997",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.1080)",
+    "tmrca": 1928.47,
+    "active_mu": 0.000799,
+    "pgls": {
+      "t_mrca": 1928.47,
+      "ci": [
+        1916.1,
+        1940.9
+      ],
+      "ci_width": 24.800000000000182,
+      "mu": 0.000799,
+      "r2": 0.827
+    },
+    "ols": {
+      "t_mrca": 1934.24,
+      "ci": [
+        1899.8,
+        1948.1
+      ],
+      "mu": 0.000915,
+      "r2": 0.747
+    },
+    "runtime": 3.2745320796966553,
+    "pagel_lambda": 0.9741
+  },
+  {
+    "sid": "06_measles_pomeroy2008",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.9837)",
+    "tmrca": 1865.7,
+    "active_mu": 0.000437,
+    "pgls": {
+      "t_mrca": 1865.7,
+      "ci": [
+        1832.2,
+        1899.2
+      ],
+      "ci_width": 67.0,
+      "mu": 0.000437,
+      "r2": 0.248
+    },
+    "ols": {
+      "t_mrca": 1936.81,
+      "ci": [
+        1913.1,
+        1953.0
+      ],
+      "mu": 0.000837,
+      "r2": 0.411
+    },
+    "runtime": 5.734679698944092,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "07_hcv_1a_pybus2001",
+    "status": "SKIPPED_ISOCHRONOUS",
+    "model": "GLS (Published Prior)",
+    "tmrca": 1871.77,
+    "ci_mrca": [
+      1860.0,
+      1885.0
+    ],
+    "ci_width": 25.0,
+    "mu": 0.002,
+    "runtime": 0.18,
+    "pagel_lambda": 1.0
+  },
+  {
+    "sid": "08_rabies_bourhy2008",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.1673)",
+    "tmrca": 712.54,
+    "active_mu": 0.000144,
+    "pgls": {
+      "t_mrca": 712.54,
+      "ci": [
+        571.1,
+        853.9
+      ],
+      "ci_width": 282.79999999999995,
+      "mu": 0.000144,
+      "r2": 0.094
+    },
+    "ols": {
+      "t_mrca": 781.4,
+      "ci": [
+        -263.8,
+        1185.8
+      ],
+      "mu": 0.000156,
+      "r2": 0.005
+    },
+    "runtime": 78.7025351524353,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "09_zika_americas_faria2016",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.8502)",
+    "tmrca": 1989.42,
+    "active_mu": 0.000364,
+    "pgls": {
+      "t_mrca": 1989.42,
+      "ci": [
+        1965.3,
+        2013.1
+      ],
+      "ci_width": 47.799999999999955,
+      "mu": 0.000364,
+      "r2": 0.05
+    },
+    "ols": {
+      "t_mrca": 2010.79,
+      "ci": [
+        2006.0,
+        2013.3
+      ],
+      "mu": 0.001491,
+      "r2": 0.215
+    },
+    "runtime": 5.7131547927856445,
+    "pagel_lambda": 0.9234
+  },
+  {
+    "sid": "10_mumps_hn_bedford2020",
+    "status": "SUCCESS",
+    "model": "Restricted Spline (rate deceleration (0.47x) detected: F=16.56, p=0.0001, \u0394AIC=+14.5)",
+    "tmrca": 1893.07,
+    "active_mu": 0.000331,
+    "pgls": {
+      "t_mrca": 1854.86,
+      "ci": [
+        1842.8,
+        1866.9
+      ],
+      "ci_width": 24.100000000000136,
+      "mu": 0.000246,
+      "r2": 0.427
+    },
+    "ols": {
+      "t_mrca": 1918.95,
+      "ci": [
+        1913.8,
+        1924.2
+      ],
+      "mu": 0.000414,
+      "r2": 0.824
+    },
+    "runtime": 11.832619905471802,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "11_avian_influenza_h5n1_lycett2016",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.5169)",
+    "tmrca": 1989.27,
+    "active_mu": 0.003092,
+    "pgls": {
+      "t_mrca": 1989.27,
+      "ci": [
+        1985.4,
+        1993.1
+      ],
+      "ci_width": 7.699999999999818,
+      "mu": 0.003092,
+      "r2": 0.3
+    },
+    "ols": {
+      "t_mrca": 1995.52,
+      "ci": [
+        1995.1,
+        1996.0
+      ],
+      "mu": 0.005992,
+      "r2": 0.912
+    },
+    "runtime": 5.679166078567505,
+    "pagel_lambda": 0.9743
+  },
+  {
+    "sid": "12_west_nile_pybus2012",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.5659)",
+    "tmrca": 1979.96,
+    "active_mu": 0.000468,
+    "pgls": {
+      "t_mrca": 1979.96,
+      "ci": [
+        1972.0,
+        1987.9
+      ],
+      "ci_width": 15.900000000000091,
+      "mu": 0.000468,
+      "r2": 0.253
+    },
+    "ols": {
+      "t_mrca": 1997.86,
+      "ci": [
+        1996.9,
+        1998.5
+      ],
+      "mu": 0.001937,
+      "r2": 0.571
+    },
+    "runtime": 6.181958198547363,
+    "pagel_lambda": 0.9596
+  },
+  {
+    "sid": "13_h1n1_frozen_outlier_worobey2014",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.4816)",
+    "tmrca": 1855.54,
+    "active_mu": 0.001915,
+    "pgls": {
+      "t_mrca": 1855.54,
+      "ci": [
+        1789.5,
+        1918.2
+      ],
+      "ci_width": 128.70000000000005,
+      "mu": 0.001915,
+      "r2": 0.408
+    },
+    "ols": {
+      "t_mrca": 1910.44,
+      "ci": [
+        1897.6,
+        1918.4
+      ],
+      "mu": 0.003093,
+      "r2": 0.644
+    },
+    "runtime": 3.2769248485565186,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "14_yellow_fever_faria2018",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.0029)",
+    "tmrca": 2016.03,
+    "active_mu": 0.004204,
+    "pgls": {
+      "t_mrca": 2016.03,
+      "ci": [
+        2014.9,
+        2017.0
+      ],
+      "ci_width": 2.099999999999909,
+      "mu": 0.004204,
+      "r2": 0.051
+    },
+    "ols": {
+      "t_mrca": 2016.91,
+      "ci": [
+        2016.8,
+        2016.9
+      ],
+      "mu": 0.028121,
+      "r2": 0.439
+    },
+    "runtime": 4.7548277378082275,
+    "pagel_lambda": 0.9965
+  },
+  {
+    "sid": "15_mers_cov_dudas2018",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.2537)",
+    "tmrca": 1999.16,
+    "active_mu": 0.00047,
+    "pgls": {
+      "t_mrca": 1999.16,
+      "ci": [
+        1992.4,
+        2005.9
+      ],
+      "ci_width": 13.5,
+      "mu": 0.00047,
+      "r2": 0.41
+    },
+    "ols": {
+      "t_mrca": 2006.3,
+      "ci": [
+        1999.6,
+        2008.7
+      ],
+      "mu": 0.00075,
+      "r2": 0.499
+    },
+    "runtime": 3.529963970184326,
+    "pagel_lambda": 0.9424
+  },
+  {
+    "sid": "16_chikungunya_faria2016",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.1780)",
+    "tmrca": 1504.67,
+    "active_mu": 7.6e-05,
+    "pgls": {
+      "t_mrca": 1504.67,
+      "ci": [
+        1234.6,
+        1774.7
+      ],
+      "ci_width": 540.1000000000001,
+      "mu": 7.6e-05,
+      "r2": 0.241
+    },
+    "ols": {
+      "t_mrca": 1916.49,
+      "ci": [
+        1834.4,
+        1941.8
+      ],
+      "mu": 0.000539,
+      "r2": 0.273
+    },
+    "runtime": 3.34802508354187,
+    "pagel_lambda": 0.9905
+  },
+  {
+    "sid": "17_enterovirus_d68_dyrdak2019",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.8937)",
+    "tmrca": 1983.31,
+    "active_mu": 0.003935,
+    "pgls": {
+      "t_mrca": 1983.31,
+      "ci": [
+        1977.1,
+        1989.5
+      ],
+      "ci_width": 12.400000000000091,
+      "mu": 0.003935,
+      "r2": 0.609
+    },
+    "ols": {
+      "t_mrca": 1988.06,
+      "ci": [
+        1986.6,
+        1989.1
+      ],
+      "mu": 0.004826,
+      "r2": 0.96
+    },
+    "runtime": 3.1982781887054443,
+    "pagel_lambda": 0.9767
+  },
+  {
+    "sid": "18_canine_parvovirus_shackelton2005",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.1386)",
+    "tmrca": 1424.96,
+    "active_mu": 1.8e-05,
+    "pgls": {
+      "t_mrca": 1424.96,
+      "ci": [
+        353.4,
+        1997.5
+      ],
+      "ci_width": 1644.1,
+      "mu": 1.8e-05,
+      "r2": 0.008
+    },
+    "ols": {
+      "t_mrca": 1993.86,
+      "ci": [
+        1989.0,
+        1997.1
+      ],
+      "mu": 0.000601,
+      "r2": 0.326
+    },
+    "runtime": 4.3886940479278564,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "19_mpox_clade_iib_isidro2022",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.9639)",
+    "tmrca": 2011.97,
+    "active_mu": 0.000524,
+    "pgls": {
+      "t_mrca": 2011.97,
+      "ci": [
+        2008.1,
+        2015.9
+      ],
+      "ci_width": 7.800000000000182,
+      "mu": 0.000524,
+      "r2": 0.408
+    },
+    "ols": {
+      "t_mrca": 2016.95,
+      "ci": [
+        2015.3,
+        2018.1
+      ],
+      "mu": 0.000936,
+      "r2": 0.576
+    },
+    "runtime": 4.850721120834351,
+    "pagel_lambda": 0.9737
+  },
+  {
+    "sid": "20_hepatitis_b_zehender2014",
+    "status": "SUCCESS",
+    "model": "Restricted Spline (rate deceleration (-0.18x) detected: F=11.36, p=0.0009, \u0394AIC=+9.2)",
+    "tmrca": 1948.48,
+    "active_mu": 0.000457,
+    "pgls": {
+      "t_mrca": 1640.07,
+      "ci": [
+        1236.4,
+        1997.5
+      ],
+      "ci_width": 761.0999999999999,
+      "mu": 6.9e-05,
+      "r2": 0.019
+    },
+    "ols": {
+      "t_mrca": 1982.34,
+      "ci": [
+        1964.8,
+        1988.9
+      ],
+      "mu": 0.00099,
+      "r2": 0.285
+    },
+    "runtime": 5.030984401702881,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "21_rsv_a_tan2012",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.0317)",
+    "tmrca": 1793.68,
+    "active_mu": 0.000203,
+    "pgls": {
+      "t_mrca": 1793.68,
+      "ci": [
+        1679.0,
+        1908.3
+      ],
+      "ci_width": 229.29999999999995,
+      "mu": 0.000203,
+      "r2": 0.206
+    },
+    "ols": {
+      "t_mrca": 1949.88,
+      "ci": [
+        1943.4,
+        1971.0
+      ],
+      "mu": 0.000818,
+      "r2": 0.42
+    },
+    "runtime": 3.139413833618164,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "22_rsv_b_trento2010",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.2243)",
+    "tmrca": 1895.79,
+    "active_mu": 0.000308,
+    "pgls": {
+      "t_mrca": 1895.79,
+      "ci": [
+        1857.9,
+        1933.7
+      ],
+      "ci_width": 75.79999999999995,
+      "mu": 0.000308,
+      "r2": 0.367
+    },
+    "ols": {
+      "t_mrca": 1969.7,
+      "ci": [
+        1959.6,
+        2001.1
+      ],
+      "mu": 0.000794,
+      "r2": 0.674
+    },
+    "runtime": 3.624467134475708,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "23_lassa_virus_andersen2015",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.5729)",
+    "tmrca": 1728.68,
+    "active_mu": 0.001465,
+    "pgls": {
+      "t_mrca": 1728.68,
+      "ci": [
+        1648.0,
+        1809.4
+      ],
+      "ci_width": 161.4000000000001,
+      "mu": 0.001465,
+      "r2": 0.406
+    },
+    "ols": {
+      "t_mrca": 1974.75,
+      "ci": [
+        1938.3,
+        1987.2
+      ],
+      "mu": 0.012468,
+      "r2": 0.181
+    },
+    "runtime": 3.5534369945526123,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "24_marburg_towner2006",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.3380)",
+    "tmrca": 715.78,
+    "active_mu": 0.000203,
+    "pgls": {
+      "t_mrca": 715.78,
+      "ci": [
+        -786.2,
+        1980.5
+      ],
+      "ci_width": 2766.7,
+      "mu": 0.000203,
+      "r2": 0.043
+    },
+    "ols": {
+      "t_mrca": 1822.93,
+      "ci": [
+        -1843.3,
+        4132.6
+      ],
+      "mu": 0.001675,
+      "r2": 0.051
+    },
+    "runtime": 3.5346968173980713,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "25_influenza_b_bedford2015",
+    "status": "SUCCESS",
+    "model": "Restricted Spline (rate acceleration (3.03x) detected: F=24.54, p=0.0000, \u0394AIC=+20.0)",
+    "tmrca": 1923.51,
+    "active_mu": 0.000659,
+    "pgls": {
+      "t_mrca": 1952.89,
+      "ci": [
+        1943.0,
+        1962.7
+      ],
+      "ci_width": 19.700000000000045,
+      "mu": 0.001235,
+      "r2": 0.692
+    },
+    "ols": {
+      "t_mrca": 1972.55,
+      "ci": [
+        1964.1,
+        1981.5
+      ],
+      "mu": 0.001769,
+      "r2": 0.912
+    },
+    "runtime": 3.738063097000122,
+    "pagel_lambda": 0.9955
+  },
+  {
+    "sid": "26_avian_influenza_h7n9_su2015",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.5468)",
+    "tmrca": 1948.44,
+    "active_mu": 0.003482,
+    "pgls": {
+      "t_mrca": 1948.44,
+      "ci": [
+        1882.4,
+        2013.5
+      ],
+      "ci_width": 131.0999999999999,
+      "mu": 0.003482,
+      "r2": 0.038
+    },
+    "ols": {
+      "t_mrca": 1993.24,
+      "ci": [
+        1965.0,
+        2003.3
+      ],
+      "mu": 0.011466,
+      "r2": 0.191
+    },
+    "runtime": 4.566896915435791,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "27_japanese_encephalitis_schuh2014",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.2972)",
+    "tmrca": 665.45,
+    "active_mu": 6.9e-05,
+    "pgls": {
+      "t_mrca": 665.45,
+      "ci": [
+        -5569.2,
+        1971.4
+      ],
+      "ci_width": 7540.6,
+      "mu": 6.9e-05,
+      "r2": 0.005
+    },
+    "ols": {
+      "t_mrca": 1979.21,
+      "ci": [
+        1973.5,
+        1984.8
+      ],
+      "mu": 0.004702,
+      "r2": 0.75
+    },
+    "runtime": 3.1466898918151855,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "28_dengue1_allicock2012",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.3282)",
+    "tmrca": 1894.48,
+    "active_mu": 0.000779,
+    "pgls": {
+      "t_mrca": 1894.48,
+      "ci": [
+        1853.7,
+        1935.2
+      ],
+      "ci_width": 81.5,
+      "mu": 0.000779,
+      "r2": 0.339
+    },
+    "ols": {
+      "t_mrca": 1912.12,
+      "ci": [
+        1844.7,
+        1939.4
+      ],
+      "mu": 0.000856,
+      "r2": 0.222
+    },
+    "runtime": 3.5382602214813232,
+    "pagel_lambda": 0.9986
+  },
+  {
+    "sid": "29_dengue2_twiddy2002",
+    "status": "SUCCESS",
+    "model": "Restricted Spline (rate deceleration (0.27x) detected: F=13.78, p=0.0004, \u0394AIC=+11.1)",
+    "tmrca": 1962.45,
+    "active_mu": 0.002592,
+    "pgls": {
+      "t_mrca": 1915.75,
+      "ci": [
+        1888.9,
+        1942.6
+      ],
+      "ci_width": 53.69999999999982,
+      "mu": 0.001089,
+      "r2": 0.401
+    },
+    "ols": {
+      "t_mrca": 1893.61,
+      "ci": [
+        1430.0,
+        1939.6
+      ],
+      "mu": 0.000858,
+      "r2": 0.204
+    },
+    "runtime": 3.56074595451355,
+    "pagel_lambda": 0.9982
+  },
+  {
+    "sid": "30_dengue3_araujo2009",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.7326)",
+    "tmrca": 1923.3,
+    "active_mu": 0.000659,
+    "pgls": {
+      "t_mrca": 1923.3,
+      "ci": [
+        1902.0,
+        1944.6
+      ],
+      "ci_width": 42.59999999999991,
+      "mu": 0.000659,
+      "r2": 0.525
+    },
+    "ols": {
+      "t_mrca": 1944.13,
+      "ci": [
+        1935.6,
+        1955.0
+      ],
+      "mu": 0.000861,
+      "r2": 0.702
+    },
+    "runtime": 3.149822950363159,
+    "pagel_lambda": 0.9729
+  },
+  {
+    "sid": "31_parvovirus_b19_norja2006",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=n/a)",
+    "tmrca": 1970.31,
+    "active_mu": 0.000365,
+    "pgls": {
+      "t_mrca": 1970.31,
+      "ci": [
+        1924.4,
+        2013.5
+      ],
+      "ci_width": 89.09999999999991,
+      "mu": 0.000365,
+      "r2": 0.056
+    },
+    "ols": {
+      "t_mrca": 2002.05,
+      "ci": [
+        1961.3,
+        2010.1
+      ],
+      "mu": 0.000941,
+      "r2": 0.331
+    },
+    "runtime": 3.7058229446411133,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "32_sars_cov_1_zhao2004",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.0730)",
+    "tmrca": 2002.3,
+    "active_mu": 0.002643,
+    "pgls": {
+      "t_mrca": 2002.3,
+      "ci": [
+        2001.1,
+        2003.3
+      ],
+      "ci_width": 2.2000000000000455,
+      "mu": 0.002643,
+      "r2": 0.207
+    },
+    "ols": {
+      "t_mrca": 2003.1,
+      "ci": [
+        2003.0,
+        2003.2
+      ],
+      "mu": 0.005678,
+      "r2": 0.929
+    },
+    "runtime": 3.2452609539031982,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "33_hcov_oc43_vijgen2005",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.4366)",
+    "tmrca": 3688.12,
+    "active_mu": -2.3e-05,
+    "pgls": {
+      "t_mrca": 3688.12,
+      "ci": [
+        -22571.5,
+        1985.0
+      ],
+      "ci_width": 24556.5,
+      "mu": -2.3e-05,
+      "r2": 0.0
+    },
+    "ols": {
+      "t_mrca": 1965.58,
+      "ci": [
+        1920.5,
+        1978.3
+      ],
+      "mu": 0.001259,
+      "r2": 0.173
+    },
+    "runtime": 3.7537999153137207,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "34_enterovirus_a71_tee2010",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.0057)",
+    "tmrca": 1996.82,
+    "active_mu": 0.002792,
+    "pgls": {
+      "t_mrca": 1996.82,
+      "ci": [
+        1990.5,
+        2003.2
+      ],
+      "ci_width": 12.700000000000045,
+      "mu": 0.002792,
+      "r2": 0.449
+    },
+    "ols": {
+      "t_mrca": 1999.36,
+      "ci": [
+        1993.7,
+        2002.7
+      ],
+      "mu": 0.003287,
+      "r2": 0.77
+    },
+    "runtime": 3.1536402702331543,
+    "pagel_lambda": 0.2877
+  },
+  {
+    "sid": "35_crimean_congo_carroll2010",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.4751)",
+    "tmrca": -7419.19,
+    "active_mu": 2.3e-05,
+    "pgls": {
+      "t_mrca": -7419.19,
+      "ci": [
+        -51943.2,
+        1956.0
+      ],
+      "ci_width": 53899.2,
+      "mu": 2.3e-05,
+      "r2": 0.002
+    },
+    "ols": {
+      "t_mrca": 1711.79,
+      "ci": [
+        -467.4,
+        3407.9
+      ],
+      "mu": 0.000735,
+      "r2": 0.086
+    },
+    "runtime": 3.6140100955963135,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "36_human_metapneumovirus_degraaf2008",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.3636)",
+    "tmrca": 1752.05,
+    "active_mu": 0.000547,
+    "pgls": {
+      "t_mrca": 1752.05,
+      "ci": [
+        1482.8,
+        2002.5
+      ],
+      "ci_width": 519.7,
+      "mu": 0.000547,
+      "r2": 0.073
+    },
+    "ols": {
+      "t_mrca": 1994.89,
+      "ci": [
+        1886.1,
+        2097.5
+      ],
+      "mu": 0.006252,
+      "r2": 0.081
+    },
+    "runtime": 3.293551206588745,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "37_rift_valley_fever_bird2007",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.4377)",
+    "tmrca": 1091.55,
+    "active_mu": 2.6e-05,
+    "pgls": {
+      "t_mrca": 1091.55,
+      "ci": [
+        -719.0,
+        1970.5
+      ],
+      "ci_width": 2689.5,
+      "mu": 2.6e-05,
+      "r2": 0.015
+    },
+    "ols": {
+      "t_mrca": 1934.6,
+      "ci": [
+        1893.5,
+        1954.8
+      ],
+      "mu": 0.000349,
+      "r2": 0.625
+    },
+    "runtime": 3.5768191814422607,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "38_canine_distemper_ke2015",
+    "status": "SUCCESS",
+    "model": "Restricted Spline (rate deceleration (0.03x) detected: F=6.99, p=0.0096, \u0394AIC=+5.0)",
+    "tmrca": 1805.63,
+    "active_mu": 0.000727,
+    "pgls": {
+      "t_mrca": 1550.16,
+      "ci": [
+        1306.7,
+        1793.6
+      ],
+      "ci_width": 486.89999999999986,
+      "mu": 0.000309,
+      "r2": 0.133
+    },
+    "ols": {
+      "t_mrca": 1901.43,
+      "ci": [
+        250.7,
+        3942.2
+      ],
+      "mu": 0.001363,
+      "r2": 0.082
+    },
+    "runtime": 4.133466958999634,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "39_poliovirus_type1_jorba2008",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.2035)",
+    "tmrca": -3495.39,
+    "active_mu": 4.1e-05,
+    "pgls": {
+      "t_mrca": -3495.39,
+      "ci": [
+        -23800.0,
+        1990.5
+      ],
+      "ci_width": 25790.5,
+      "mu": 4.1e-05,
+      "r2": 0.003
+    },
+    "ols": {
+      "t_mrca": 1916.88,
+      "ci": [
+        1776.7,
+        1962.2
+      ],
+      "mu": 0.002335,
+      "r2": 0.417
+    },
+    "runtime": 4.69765305519104,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "40_sudan_ebolavirus_carroll2013",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.5832)",
+    "tmrca": 32550.97,
+    "active_mu": -1e-06,
+    "pgls": {
+      "t_mrca": 32550.97,
+      "ci": [
+        -6097225.5,
+        1976.5
+      ],
+      "ci_width": 6099202.0,
+      "mu": -1e-06,
+      "r2": 0.0
+    },
+    "ols": {
+      "t_mrca": 1830.1,
+      "ci": [
+        1581.4,
+        2703.5
+      ],
+      "mu": 5.5e-05,
+      "r2": 0.003
+    },
+    "runtime": 3.0714759826660156,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "41_norovirus_gii4_siebenga2009",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.0615)",
+    "tmrca": 1975.22,
+    "active_mu": 0.001948,
+    "pgls": {
+      "t_mrca": 1975.22,
+      "ci": [
+        1940.8,
+        2009.5
+      ],
+      "ci_width": 68.70000000000005,
+      "mu": 0.001948,
+      "r2": 0.141
+    },
+    "ols": {
+      "t_mrca": 2007.13,
+      "ci": [
+        2004.0,
+        2008.8
+      ],
+      "mu": 0.013944,
+      "r2": 0.563
+    },
+    "runtime": 3.170527935028076,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "42_rotavirus_a_vp7_matthijnssens2010",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.9409)",
+    "tmrca": 1779.1,
+    "active_mu": 0.001809,
+    "pgls": {
+      "t_mrca": 1779.1,
+      "ci": [
+        717.3,
+        2012.8
+      ],
+      "ci_width": 1295.5,
+      "mu": 0.001809,
+      "r2": 0.01
+    },
+    "ols": {
+      "t_mrca": 2008.19,
+      "ci": [
+        1944.1,
+        2014.2
+      ],
+      "mu": 0.034916,
+      "r2": 0.224
+    },
+    "runtime": 3.097710132598877,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "43_hepatitis_e_purdy2010",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.5808)",
+    "tmrca": 1951.08,
+    "active_mu": 0.004529,
+    "pgls": {
+      "t_mrca": 1951.08,
+      "ci": [
+        1675.5,
+        2016.5
+      ],
+      "ci_width": 341.0,
+      "mu": 0.004529,
+      "r2": 0.022
+    },
+    "ols": {
+      "t_mrca": 2006.64,
+      "ci": [
+        1923.7,
+        2014.8
+      ],
+      "mu": 0.025604,
+      "r2": 0.244
+    },
+    "runtime": 3.070902109146118,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "44_nipah_virus_lo_presti2016",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.4620)",
+    "tmrca": 1904.62,
+    "active_mu": 0.000371,
+    "pgls": {
+      "t_mrca": 1904.62,
+      "ci": [
+        1794.4,
+        1998.5
+      ],
+      "ci_width": 204.0999999999999,
+      "mu": 0.000371,
+      "r2": 0.133
+    },
+    "ols": {
+      "t_mrca": 1985.75,
+      "ci": [
+        1408.4,
+        1995.8
+      ],
+      "mu": 0.002018,
+      "r2": 0.53
+    },
+    "runtime": 3.0985708236694336,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "45_hendra_virus_marsh2012",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.4576)",
+    "tmrca": 2192.19,
+    "active_mu": -0.000445,
+    "pgls": {
+      "t_mrca": 2192.19,
+      "ci": [
+        1724.6,
+        2006.5
+      ],
+      "ci_width": 281.9000000000001,
+      "mu": -0.000445,
+      "r2": 0.03
+    },
+    "ols": {
+      "t_mrca": 1994.18,
+      "ci": [
+        1896.5,
+        2039.7
+      ],
+      "mu": 0.000671,
+      "r2": 0.009
+    },
+    "runtime": 3.2583260536193848,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "46_hcov_nl63_pyrc2007",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.8146)",
+    "tmrca": 1945.6,
+    "active_mu": 0.000192,
+    "pgls": {
+      "t_mrca": 1945.6,
+      "ci": [
+        1747.8,
+        2018.5
+      ],
+      "ci_width": 270.70000000000005,
+      "mu": 0.000192,
+      "r2": 0.031
+    },
+    "ols": {
+      "t_mrca": 2011.48,
+      "ci": [
+        1939.4,
+        2105.2
+      ],
+      "mu": 0.001155,
+      "r2": 0.045
+    },
+    "runtime": 3.3271241188049316,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "47_hcov_229e_pfefferle2009",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.4363)",
+    "tmrca": 2009.29,
+    "active_mu": 0.000685,
+    "pgls": {
+      "t_mrca": 2009.29,
+      "ci": [
+        1998.0,
+        2019.5
+      ],
+      "ci_width": 21.5,
+      "mu": 0.000685,
+      "r2": 0.252
+    },
+    "ols": {
+      "t_mrca": 2017.93,
+      "ci": [
+        2012.6,
+        2019.6
+      ],
+      "mu": 0.002337,
+      "r2": 0.429
+    },
+    "runtime": 3.484166145324707,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "48_rhinovirus_a_palmenberg2009",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.2505)",
+    "tmrca": 1898.12,
+    "active_mu": 0.005514,
+    "pgls": {
+      "t_mrca": 1898.12,
+      "ci": [
+        1726.0,
+        2013.5
+      ],
+      "ci_width": 287.5,
+      "mu": 0.005514,
+      "r2": 0.088
+    },
+    "ols": {
+      "t_mrca": 2007.28,
+      "ci": [
+        1938.6,
+        2104.6
+      ],
+      "mu": 0.055939,
+      "r2": 0.248
+    },
+    "runtime": 3.1200368404388428,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "49_rhinovirus_c_palmenberg2009",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.8818)",
+    "tmrca": 1305.0,
+    "active_mu": 0.001075,
+    "pgls": {
+      "t_mrca": 1305.0,
+      "ci": [
+        -2125.6,
+        2012.5
+      ],
+      "ci_width": 4138.1,
+      "mu": 0.001075,
+      "r2": 0.01
+    },
+    "ols": {
+      "t_mrca": 1991.75,
+      "ci": [
+        1740.8,
+        2173.7
+      ],
+      "mu": 0.029605,
+      "r2": 0.14
+    },
+    "runtime": 3.1532092094421387,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "50_astrovirus_finkbeiner2009",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.3973)",
+    "tmrca": 2088.33,
+    "active_mu": -0.004513,
+    "pgls": {
+      "t_mrca": 2088.33,
+      "ci": [
+        1831.4,
+        2007.5
+      ],
+      "ci_width": 176.0999999999999,
+      "mu": -0.004513,
+      "r2": 0.032
+    },
+    "ols": {
+      "t_mrca": 1983.87,
+      "ci": [
+        1857.4,
+        2298.2
+      ],
+      "mu": 0.008872,
+      "r2": 0.023
+    },
+    "runtime": 3.149406909942627,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "51_equine_influenza_h3n8_hughes2012",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.7180)",
+    "tmrca": 1980.92,
+    "active_mu": 0.00193,
+    "pgls": {
+      "t_mrca": 1980.92,
+      "ci": [
+        1971.4,
+        1990.5
+      ],
+      "ci_width": 19.09999999999991,
+      "mu": 0.00193,
+      "r2": 0.609
+    },
+    "ols": {
+      "t_mrca": 1993.09,
+      "ci": [
+        1984.9,
+        1996.9
+      ],
+      "mu": 0.003366,
+      "r2": 0.803
+    },
+    "runtime": 3.440582036972046,
+    "pagel_lambda": 0.9971
+  },
+  {
+    "sid": "52_coxsackievirus_a16_zhang2010",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.0473)",
+    "tmrca": 1986.89,
+    "active_mu": 0.002429,
+    "pgls": {
+      "t_mrca": 1986.89,
+      "ci": [
+        1957.5,
+        2016.3
+      ],
+      "ci_width": 58.799999999999955,
+      "mu": 0.002429,
+      "r2": 0.183
+    },
+    "ols": {
+      "t_mrca": 1992.2,
+      "ci": [
+        1891.3,
+        2005.1
+      ],
+      "mu": 0.002812,
+      "r2": 0.208
+    },
+    "runtime": 3.6604928970336914,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "53_coxsackievirus_a6_li2014",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.5310)",
+    "tmrca": 1955.47,
+    "active_mu": 0.000613,
+    "pgls": {
+      "t_mrca": 1955.47,
+      "ci": [
+        1825.7,
+        2015.5
+      ],
+      "ci_width": 189.79999999999995,
+      "mu": 0.000613,
+      "r2": 0.046
+    },
+    "ols": {
+      "t_mrca": 2011.33,
+      "ci": [
+        2001.2,
+        2013.5
+      ],
+      "mu": 0.004152,
+      "r2": 0.412
+    },
+    "runtime": 3.6051790714263916,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "54_fmdv_cottam2008",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.1675)",
+    "tmrca": 1927.87,
+    "active_mu": 0.006174,
+    "pgls": {
+      "t_mrca": 1927.87,
+      "ci": [
+        1827.1,
+        2000.5
+      ],
+      "ci_width": 173.4000000000001,
+      "mu": 0.006174,
+      "r2": 0.142
+    },
+    "ols": {
+      "t_mrca": 1981.14,
+      "ci": [
+        1803.2,
+        1999.3
+      ],
+      "mu": 0.015474,
+      "r2": 0.181
+    },
+    "runtime": 3.3052620887756348,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "55_hepatitis_a_perez_sautu2011",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.9454)",
+    "tmrca": 1962.0,
+    "active_mu": 0.001167,
+    "pgls": {
+      "t_mrca": 1962.0,
+      "ci": [
+        1823.6,
+        2015.5
+      ],
+      "ci_width": 191.9000000000001,
+      "mu": 0.001167,
+      "r2": 0.036
+    },
+    "ols": {
+      "t_mrca": 2015.13,
+      "ci": [
+        2014.8,
+        2015.5
+      ],
+      "mu": 0.016738,
+      "r2": 0.977
+    },
+    "runtime": 3.4426229000091553,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "56_bundibugyo_ebolavirus_macneil2011",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=n/a)",
+    "tmrca": 2007.45,
+    "active_mu": 0.00245,
+    "pgls": {
+      "t_mrca": 2007.45,
+      "ci": [
+        2007.5,
+        2007.5
+      ],
+      "ci_width": 0.0,
+      "mu": 0.00245,
+      "r2": 1.0
+    },
+    "ols": {
+      "t_mrca": 2007.45,
+      "ci": [
+        2007.5,
+        2007.5
+      ],
+      "mu": 0.00245,
+      "r2": 1.0
+    },
+    "runtime": 3.927260160446167,
+    "pagel_lambda": 0.9092
+  },
+  {
+    "sid": "57_reston_virus_carroll2013",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.1176)",
+    "tmrca": 1989.22,
+    "active_mu": 0.001105,
+    "pgls": {
+      "t_mrca": 1989.22,
+      "ci": [
+        1983.0,
+        1989.5
+      ],
+      "ci_width": 6.5,
+      "mu": 0.001105,
+      "r2": 0.864
+    },
+    "ols": {
+      "t_mrca": 1987.98,
+      "ci": [
+        1981.9,
+        1989.0
+      ],
+      "mu": 0.001012,
+      "r2": 0.928
+    },
+    "runtime": 3.4095098972320557,
+    "pagel_lambda": 0.9793
+  },
+  {
+    "sid": "59_jc_polyomavirus_shackelton2006",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.3425)",
+    "tmrca": 1983.98,
+    "active_mu": 0.000551,
+    "pgls": {
+      "t_mrca": 1983.98,
+      "ci": [
+        1962.6,
+        2004.5
+      ],
+      "ci_width": 41.90000000000009,
+      "mu": 0.000551,
+      "r2": 0.336
+    },
+    "ols": {
+      "t_mrca": 1993.51,
+      "ci": [
+        1857.5,
+        2156.7
+      ],
+      "mu": 0.000794,
+      "r2": 0.175
+    },
+    "runtime": 3.5977799892425537,
+    "pagel_lambda": 0.9903
+  },
+  {
+    "sid": "60_adenovirus_b7_radke2016",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.0489)",
+    "tmrca": 1961.29,
+    "active_mu": 1.8e-05,
+    "pgls": {
+      "t_mrca": 1961.29,
+      "ci": [
+        1858.3,
+        2014.5
+      ],
+      "ci_width": 156.20000000000005,
+      "mu": 1.8e-05,
+      "r2": 0.059
+    },
+    "ols": {
+      "t_mrca": 2007.48,
+      "ci": [
+        1880.0,
+        2105.9
+      ],
+      "mu": 7.4e-05,
+      "r2": 0.132
+    },
+    "runtime": 3.9497690200805664,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "61_vzv_grose2008",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.9606)",
+    "tmrca": 1881.77,
+    "active_mu": 4e-06,
+    "pgls": {
+      "t_mrca": 1881.77,
+      "ci": [
+        1449.6,
+        2010.5
+      ],
+      "ci_width": 560.9000000000001,
+      "mu": 4e-06,
+      "r2": 0.018
+    },
+    "ols": {
+      "t_mrca": 2012.64,
+      "ci": [
+        2010.7,
+        2014.1
+      ],
+      "mu": 2.2e-05,
+      "r2": 0.093
+    },
+    "runtime": 3.8176660537719727,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "62_bluetongue_carpi2010",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.7514)",
+    "tmrca": 1400.86,
+    "active_mu": 0.001723,
+    "pgls": {
+      "t_mrca": 1400.86,
+      "ci": [
+        -293.4,
+        2008.5
+      ],
+      "ci_width": 2301.9,
+      "mu": 0.001723,
+      "r2": 0.033
+    },
+    "ols": {
+      "t_mrca": 1990.19,
+      "ci": [
+        1811.0,
+        2324.4
+      ],
+      "mu": 0.039159,
+      "r2": 0.156
+    },
+    "runtime": 3.8950793743133545,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "63_swine_influenza_h1n1_vijaykrishna2011",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.4656)",
+    "tmrca": 2774.59,
+    "active_mu": -0.000379,
+    "pgls": {
+      "t_mrca": 2774.59,
+      "ci": [
+        -42593.2,
+        2023.2
+      ],
+      "ci_width": 44616.399999999994,
+      "mu": -0.000379,
+      "r2": 0.0
+    },
+    "ols": {
+      "t_mrca": 2022.1,
+      "ci": [
+        2007.1,
+        2038.8
+      ],
+      "mu": 0.256693,
+      "r2": 0.032
+    },
+    "runtime": 3.540313959121704,
+    "pagel_lambda": 0.999
+  },
+  {
+    "sid": "65_hcov_hku1_woo2005",
+    "status": "SUCCESS",
+    "model": "Linear (parsimonious linear clock preferred; p=0.8940)",
+    "tmrca": 2210.94,
+    "active_mu": -0.000665,
+    "pgls": {
+      "t_mrca": 2210.94,
+      "ci": [
+        1834.6,
+        2014.5
+      ],
+      "ci_width": 179.9000000000001,
+      "mu": -0.000665,
+      "r2": 0.067
+    },
+    "ols": {
+      "t_mrca": 1721.01,
+      "ci": [
+        1926.9,
+        2198.6
+      ],
+      "mu": 0.000599,
+      "r2": 0.0
+    },
+    "runtime": 3.3435280323028564,
+    "pagel_lambda": 0.999
+  }
+]

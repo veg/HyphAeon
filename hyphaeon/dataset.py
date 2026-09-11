@@ -15,7 +15,9 @@ import subprocess
 import re
 import csv
 from io import StringIO
-from typing import Optional, Tuple, Dict, List
+from pathlib import Path
+from typing import Optional, Tuple, Dict, List, Any, Union
+import xml.etree.ElementTree as ET
 
 import numpy as np
 import scipy.stats as stats
@@ -56,14 +58,201 @@ def get_aa_token(codon: str) -> int:
     aa = CODON_TO_AA.get(codon.upper(), '-')
     return AA_MAP.get(aa, 20)
 
+
+def _parse_numeric_or_calendar_date(v_str: str) -> Optional[float]:
+    """Helper to parse decimal year or ISO calendar dates into float timestamps."""
+    if not v_str:
+        return None
+    s = str(v_str).strip().strip("'\"")
+    try:
+        return float(s)
+    except ValueError:
+        pass
+    # YYYY-MM-DD
+    m = re.match(r'^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$', s)
+    if m:
+        y, mth, day = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        return float(y) + (mth - 1.0) / 12.0 + (day - 1.0) / 365.25
+    # YYYY-MM
+    m2 = re.match(r'^(\d{4})[-/](\d{1,2})$', s)
+    if m2:
+        y, mth = int(m2.group(1)), int(m2.group(2))
+        return float(y) + (mth - 0.5) / 12.0
+    return None
+
+
+def parse_beast_xml(filepath: Union[str, Path]) -> Dict[str, Any]:
+    """
+    Parses BEAST 1.x and BEAST 2.x XML configuration files.
+
+    Extracts:
+      - Multiple sequence alignments (nucleotide / coding sequences)
+      - Heterochronous tip sampling dates (from <date> tags or TraitSet attributes)
+      - Embedded starting tree / topology (if present as <newick>, <tree>, or <init>)
+      - Reconciled taxon labels
+
+    Returns a dictionary with keys:
+      'sequences': Dict[str, str] (taxon -> sequence string)
+      'dates': Dict[str, float] (taxon -> sampling timestamp)
+      'tree_newick': Optional[str] (clean Newick string without rate annotations)
+      'taxa': List[str] (taxa list in alignment order)
+      'version': str ('BEAST 1', 'BEAST 2', or 'BEAST XML')
+    """
+    filepath_str = str(filepath)
+    if os.path.exists(filepath_str):
+        open_func = gzip.open if filepath_str.endswith('.gz') else open
+        with open_func(filepath_str, 'rt', encoding='utf-8', errors='replace') as f:
+            xml_content = f.read()
+    else:
+        xml_content = filepath_str
+
+    try:
+        root = ET.fromstring(xml_content)
+    except ET.ParseError as e:
+        raise ValueError(f"Failed to parse BEAST XML content from '{filepath_str[:60]}...': {e}")
+
+    # Version heuristic
+    is_beast2 = (
+        'spec' in root.attrib or
+        'namespace' in root.attrib.get('spec', '').lower() or
+        any('spec' in el.attrib for el in root.iter())
+    )
+    detected_version = "BEAST 2" if is_beast2 else ("BEAST 1" if 'beast' in root.tag.lower() else "BEAST XML")
+
+    # 1. Extract Sequences
+    align_nodes = root.findall('.//alignment') + root.findall('.//data')
+    candidates = []
+    for node in align_nodes:
+        seq_elems = node.findall('.//sequence')
+        if not seq_elems:
+            continue
+        cur_dict = {}
+        for s in seq_elems:
+            t_child = s.find('./taxon')
+            t_name = None
+            if t_child is not None:
+                t_name = t_child.attrib.get('idref') or t_child.attrib.get('id')
+            if not t_name:
+                t_name = s.attrib.get('taxon') or s.attrib.get('id')
+
+            seq = ''
+            if 'value' in s.attrib:
+                seq = s.attrib['value']
+            elif s.text and s.text.strip():
+                seq = s.text.strip()
+            elif t_child is not None and t_child.tail and t_child.tail.strip():
+                seq = t_child.tail.strip()
+
+            seq = re.sub(r'\s+', '', seq).upper().replace('U', 'T')
+            if t_name and seq:
+                cur_dict[t_name.strip("'\"")] = seq
+        if cur_dict:
+            candidates.append(cur_dict)
+
+    seq_dict = max(candidates, key=len) if candidates else {}
+
+    # 2. Extract Sampling Dates
+    dates_map: Dict[str, float] = {}
+
+    # BEAST 1.x format: <taxa><taxon id="..."><date value="..." .../></taxon></taxa>
+    for tx in root.findall('.//taxon'):
+        t_id = tx.attrib.get('id') or tx.attrib.get('idref')
+        if not t_id:
+            continue
+        t_clean = t_id.strip("'\"")
+        d = tx.find('./date')
+        val_str = None
+        if d is not None:
+            val_str = d.attrib.get('value') or (d.text.strip() if d.text else None)
+        elif 'date' in tx.attrib:
+            val_str = tx.attrib['date']
+
+        if val_str is not None:
+            parsed_d = _parse_numeric_or_calendar_date(val_str)
+            if parsed_d is not None:
+                dates_map[t_clean] = parsed_d
+
+    # BEAST 2.x format: <trait spec="beast.evolution.tree.TraitSet" traitname="date" value="...">
+    for tr in root.findall('.//trait'):
+        t_attr = (tr.attrib.get('traitname') or tr.attrib.get('name') or '').lower()
+        if 'date' in t_attr:
+            val_text = tr.attrib.get('value', tr.text or '')
+            entries = re.split(r'[,;\n\r]+', val_text.strip())
+            for entry in entries:
+                if '=' in entry:
+                    parts = entry.split('=', 1)
+                    k = parts[0].strip().strip("'\"")
+                    v_str = parts[1].strip()
+                    parsed_d = _parse_numeric_or_calendar_date(v_str)
+                    if parsed_d is not None:
+                        dates_map[k] = parsed_d
+
+    # 3. Taxon Name Reconciliation
+    # Handle 'seq_' prefix or differences between sequence id and trait taxon names
+    reconciled_seqs = {}
+    for k, v in seq_dict.items():
+        if k in dates_map:
+            reconciled_seqs[k] = v
+        elif k.startswith('seq_') and k[4:] in dates_map:
+            reconciled_seqs[k[4:]] = v
+        elif f"seq_{k}" in dates_map:
+            reconciled_seqs[k] = v
+            dates_map[k] = dates_map[f"seq_{k}"]
+        else:
+            reconciled_seqs[k] = v
+
+    # 4. Starting Tree Extraction
+    tree_newick = None
+    for el in root.iter():
+        if 'newick' in el.tag.lower() and el.text and el.text.strip().startswith('('):
+            tree_newick = el.text.strip()
+            break
+        for attr_k, attr_v in el.attrib.items():
+            if 'newick' in attr_k.lower() and isinstance(attr_v, str) and attr_v.strip().startswith('('):
+                tree_newick = attr_v.strip()
+                break
+        if el.text and el.text.strip().startswith('(') and el.text.strip().endswith(';'):
+            tree_newick = el.text.strip()
+            break
+        if tree_newick:
+            break
+
+    if tree_newick:
+        # Strip BEAST comments [&rate=...] and HyPhy annotations
+        tree_newick = re.sub(r'\[&[^\]]*\]', '', tree_newick)
+        tree_newick = re.sub(r'\{[^}]*\}', '', tree_newick)
+        if not tree_newick.endswith(';'):
+            tree_newick += ';'
+
+    return {
+        'version': detected_version,
+        'sequences': reconciled_seqs,
+        'dates': dates_map,
+        'tree_newick': tree_newick,
+        'taxa': list(reconciled_seqs.keys())
+    }
+
+
 def parse_alignment_sequences(filepath: str) -> Dict[str, str]:
     """
-    Parses FASTA, NEXUS, or PHYLIP (sequential/interleaved) format alignments (including compressed .gz files).
+    Parses FASTA, NEXUS, PHYLIP (sequential/interleaved), or BEAST XML format alignments (including compressed .gz files).
     """
     filepath = os.path.expanduser(filepath)
     open_func = gzip.open if filepath.endswith('.gz') else open
     with open_func(filepath, 'rt') as f:
         full_text = f.read()
+
+    # 0. BEAST 1.x or BEAST 2.x XML format
+    if filepath.lower().endswith(('.xml', '.xml.gz')) or (
+        full_text.lstrip().startswith('<') and (
+            '<beast' in full_text[:2000].lower() or
+            '<alignment' in full_text[:2000].lower() or
+            '<data' in full_text[:2000].lower()
+        )
+    ):
+        beast_data = parse_beast_xml(filepath)
+        if beast_data and beast_data.get('sequences'):
+            return beast_data['sequences']
 
     # 1. PHYLIP / Sequential / Interleaved format (starts with 'ntaxa nsites' header)
     lines_nonempty = [l.strip() for l in full_text.splitlines() if l.strip()]
@@ -173,6 +362,17 @@ def extract_tree_from_string_or_file(source: str) -> Optional[Phylo.BaseTree.Tre
     else:
         content = source
 
+    # 0. Check for BEAST XML starting tree
+    if (isinstance(source, str) and (source.lower().endswith(('.xml', '.xml.gz')) or (content.lstrip().startswith('<') and ('<beast' in content[:2000].lower() or '<newick' in content.lower())))):
+        try:
+            beast_data = parse_beast_xml(source)
+            if beast_data.get('tree_newick'):
+                clean_nwk = re.sub(r'\{[^}]*\}', '', beast_data['tree_newick'])
+                clean_nwk = re.sub(r'\[[^\]]*\]', '', clean_nwk)
+                return Phylo.read(StringIO(clean_nwk), 'newick')
+        except Exception:
+            pass
+
     # 1. Search for explicit Nexus / HyPhy TREE command
     tree_match = re.search(r'tree\s+[^=]+=\s*(\([^;]+;)', content, re.IGNORECASE)
     if tree_match:
@@ -211,15 +411,21 @@ def extract_tree_from_string_or_file(source: str) -> Optional[Phylo.BaseTree.Tre
 
     return None
 
-def has_nonzero_branch_lengths(tree: Phylo.BaseTree.Tree) -> bool:
+def has_nonzero_branch_lengths(tree: Phylo.BaseTree.Tree, min_pos_ratio: float = 0.05) -> bool:
     """
-    Returns True if the tree contains valid, positive branch lengths across most branches.
+    Returns True if the tree contains valid, numeric branch lengths.
+    A tree is considered to have branch lengths if the vast majority of branches
+    have numeric lengths (not None) and at least some branches have positive divergence
+    (default >= 5%, accommodating dense outbreak trees with many identical isolates).
     """
     branches = [c.branch_length for c in tree.find_clades() if c != tree.root]
     if not branches:
         return False
-    pos_branches = [b for b in branches if b is not None and b > 0.0]
-    return len(pos_branches) > 0 and (len(pos_branches) / len(branches) >= 0.5)
+    numeric_branches = [b for b in branches if b is not None]
+    if len(numeric_branches) < len(branches) * 0.5:
+        return False
+    pos_branches = [b for b in numeric_branches if b > 0.0]
+    return len(pos_branches) > 0 and (len(pos_branches) / len(numeric_branches) >= min_pos_ratio)
 
 def estimate_tree_branch_lengths_hyphy(seq_dict: Dict[str, str], tree_obj: Phylo.BaseTree.Tree) -> Optional[Phylo.BaseTree.Tree]:
     """
@@ -490,14 +696,25 @@ def prune_identical_sequences(seq_dict: Dict[str, str], taxa: List[str]) -> Tupl
     num_pruned = len(taxa) - len(unique_taxa)
     return unique_taxa, dup_map, num_pruned
 
-def compute_tn93_distance_matrix(seq_dict: Dict[str, str], taxa: List[str], fa_path: Optional[str] = None) -> np.ndarray:
+def compute_tn93_distance_matrix(
+    seq_dict: Dict[str, str],
+    taxa: List[str],
+    fa_path: Optional[str] = None,
+    threshold: float = 100.0
+) -> np.ndarray:
     """
     Computes pairwise Tamura-Nei 93 (TN93) genetic distance matrix directly from sequences.
     Prefers the high-speed compiled 'tn93' C binary if available in PATH, falling back
     to the Python 'tn93' package (from tn93.tn93 import TN93).
+
+    threshold: Distance cutoff for TN93 reporting. Set to a high value (default 100.0) so that
+    no divergent pairwise distances are prematurely omitted from deep alignments. If the installed
+    tn93 binary strictly bounds distance to [0, 1] (e.g. stock <= v1.0.15), it automatically retries
+    with threshold=1.0.
     """
     n = len(taxa)
-    dist_mat = np.zeros((n, n), dtype=np.float32)
+    dist_mat = np.full((n, n), -1.0, dtype=np.float32)
+    np.fill_diagonal(dist_mat, 0.0)
     if n <= 1:
         return dist_mat
 
@@ -511,29 +728,43 @@ def compute_tn93_distance_matrix(seq_dict: Dict[str, str], taxa: List[str], fa_p
             out_csv = os.path.join(tmpdir, "distances.csv")
             with open(tmp_fa, "w") as f:
                 for t in taxa:
-                    f.write(f">{t}\n{seq_dict[t]}\n")
-            cmd = [tn93_bin, "-t", "1.0", "-l", "1", "-q", "-o", out_csv, tmp_fa]
+                    # Sanitize non-standard gap/missing characters (e.g. LANL MASE '*' -> '-')
+                    s_clean = seq_dict[t].replace('*', '-')
+                    f.write(f">{t}\n{s_clean}\n")
+            
+            # Call tn93 with higher threshold so divergent pairs are not omitted
+            cmd = [tn93_bin, "-t", f"{threshold:.1f}", "-l", "1", "-q", "-o", out_csv, tmp_fa]
+            binary_success = False
             try:
                 subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                if os.path.exists(out_csv) and os.path.getsize(out_csv) > 0:
-                    with open(out_csv, "r") as cf:
-                        reader = csv.DictReader(cf)
-                        for row in reader:
-                            id1 = row.get("ID1")
-                            id2 = row.get("ID2")
-                            d_str = row.get("Distance")
-                            if id1 in taxa_idx and id2 in taxa_idx and d_str is not None:
-                                try:
-                                    d_val = float(d_str)
-                                    i, j = taxa_idx[id1], taxa_idx[id2]
-                                    dist_mat[i, j] = d_val
-                                    dist_mat[j, i] = d_val
-                                except ValueError:
-                                    pass
-                    used_binary = True
+                binary_success = True
+            except subprocess.CalledProcessError:
+                if threshold > 1.0:
+                    # Stock tn93 binaries (<= v1.0.15) enforce distance threshold in [0, 1].
+                    # Gracefully retry with threshold 1.0 (the maximum allowed by stock builds).
+                    cmd_fallback = [tn93_bin, "-t", "1.0", "-l", "1", "-q", "-o", out_csv, tmp_fa]
+                    try:
+                        subprocess.run(cmd_fallback, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        binary_success = True
+                    except Exception as e:
+                        print(f"[!] Warning: tn93 binary execution failed ({e}); falling back to Python TN93.")
             except Exception as e:
                 print(f"[!] Warning: tn93 binary execution failed ({e}); falling back to Python TN93.")
-                used_binary = False
+
+            if binary_success and os.path.exists(out_csv) and os.path.getsize(out_csv) > 0:
+                # Vectorized parse of the tn93 pairwise CSV (O(pairs) Python loop -> numpy scatter).
+                import pandas as pd
+                df = pd.read_csv(out_csv, usecols=["ID1", "ID2", "Distance"], dtype={"ID1": str, "ID2": str})
+                ii = df["ID1"].map(taxa_idx).to_numpy(dtype="float64")
+                jj = df["ID2"].map(taxa_idx).to_numpy(dtype="float64")
+                dd = pd.to_numeric(df["Distance"], errors="coerce").to_numpy()
+                valid = ~(np.isnan(ii) | np.isnan(jj) | np.isnan(dd))
+                ii = ii[valid].astype(np.intp)
+                jj = jj[valid].astype(np.intp)
+                dd = dd[valid].astype(np.float32)
+                dist_mat[ii, jj] = dd
+                dist_mat[jj, ii] = dd
+                used_binary = True
 
     if not used_binary:
         try:
@@ -543,7 +774,13 @@ def compute_tn93_distance_matrix(seq_dict: Dict[str, str], taxa: List[str], fa_p
                 for j in range(i + 1, n):
                     counts = tn.get_counts(seq_dict[taxa[i]], seq_dict[taxa[j]], "resolve")
                     nuc_freq = tn.get_nucleotide_frequency(counts)
-                    d = tn.calculate_distance(counts, nuc_freq)
+                    try:
+                        d = tn.calculate_distance(counts, nuc_freq)
+                    except (ValueError, OverflowError):
+                        # TN93 can throw math domain errors on very short or
+                        # saturated sequences (e.g. log of a negative number);
+                        # treat as a maximally distant pair.
+                        d = 1.0
                     if d is None or d == "-" or d < 0 or np.isnan(d):
                         d = 1.0
                     d = float(d)
@@ -556,19 +793,124 @@ def compute_tn93_distance_matrix(seq_dict: Dict[str, str], taxa: List[str], fa_p
                 "(or install the tn93 binary from https://github.com/veg/tn93)."
             )
 
-    # Impute missing/saturated off-diagonal distances with maximum observed distance or 1.0
-    max_d = float(dist_mat.max()) if dist_mat.max() > 0 else 0.1
-    for i in range(n):
-        for j in range(i + 1, n):
-            if dist_mat[i, j] <= 0.0 and seq_dict[taxa[i]] != seq_dict[taxa[j]]:
-                dist_mat[i, j] = 1e-4
-                dist_mat[j, i] = 1e-4
-            elif dist_mat[i, j] <= 0.0 and dist_mat.max() > 0:
-                dist_mat[i, j] = max(1.0, max_d)
-                dist_mat[j, i] = max(1.0, max_d)
-
+    # Impute missing off-diagonal distances (vectorized).
+    # Identical sequences (distance == 0.0) are preserved.
+    # Any negative entry (< 0.0) represents a divergent pair whose distance
+    # exceeded the threshold or was omitted -> impute with max observed distance or 1.0.
+    np.fill_diagonal(dist_mat, 0.0)
+    missing = (dist_mat < 0.0)
+    max_d = float(dist_mat.max()) if dist_mat.max() > 0 else 1.0
+    dist_mat[missing] = max(1.0, max_d)
     np.fill_diagonal(dist_mat, 0.0)
     return dist_mat
+
+
+def compute_tn93_cross_distance_matrix(
+    seq_dict: Dict[str, str],
+    taxa_all: List[str],
+    taxa_landmarks: List[str],
+    threshold: float = 100.0
+) -> np.ndarray:
+    """
+    Computes rectangular (N x M) pairwise TN93 genetic distance matrix between all N taxa
+    and M landmark taxa directly from sequences, enabling O(NM) landmark/Nystrom spectral
+    deconvolution for ultra-large cohorts (N up to 50,000+) without O(N^2) memory footprint.
+    """
+    n = len(taxa_all)
+    m = len(taxa_landmarks)
+    dist_mat = np.full((n, m), -1.0, dtype=np.float32)
+    if n == 0 or m == 0:
+        return dist_mat
+
+    taxa_idx = {t: i for i, t in enumerate(taxa_all)}
+    lm_idx = {t: j for j, t in enumerate(taxa_landmarks)}
+    tn93_bin = shutil.which("tn93")
+    used_binary = False
+
+    if tn93_bin:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_all = os.path.join(tmpdir, "all.fa")
+            tmp_lm = os.path.join(tmpdir, "landmarks.fa")
+            out_csv = os.path.join(tmpdir, "cross_distances.csv")
+
+            with open(tmp_all, "w") as f:
+                for t in taxa_all:
+                    s_clean = seq_dict[t].replace('*', '-')
+                    f.write(f">{t}\n{s_clean}\n")
+            with open(tmp_lm, "w") as f:
+                for t in taxa_landmarks:
+                    s_clean = seq_dict[t].replace('*', '-')
+                    f.write(f">{t}\n{s_clean}\n")
+
+            cmd = [tn93_bin, "-s", tmp_lm, "-t", f"{threshold:.1f}", "-l", "1", "-q", "-o", out_csv, tmp_all]
+            binary_success = False
+            try:
+                subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                binary_success = True
+            except subprocess.CalledProcessError:
+                if threshold > 1.0:
+                    cmd_fallback = [tn93_bin, "-s", tmp_lm, "-t", "1.0", "-l", "1", "-q", "-o", out_csv, tmp_all]
+                    try:
+                        subprocess.run(cmd_fallback, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        binary_success = True
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+            if binary_success and os.path.exists(out_csv) and os.path.getsize(out_csv) > 0:
+                import pandas as pd
+                chunksize = 2_000_000
+                for chunk in pd.read_csv(out_csv, usecols=["ID1", "ID2", "Distance"], dtype={"ID1": str, "ID2": str}, chunksize=chunksize):
+                    ii = chunk["ID1"].map(taxa_idx).to_numpy(dtype="float64")
+                    jj = chunk["ID2"].map(lm_idx).to_numpy(dtype="float64")
+                    dd = pd.to_numeric(chunk["Distance"], errors="coerce").to_numpy()
+                    valid = ~(np.isnan(ii) | np.isnan(jj) | np.isnan(dd))
+                    ii = ii[valid].astype(np.intp)
+                    jj = jj[valid].astype(np.intp)
+                    dd = dd[valid].astype(np.float32)
+                    dist_mat[ii, jj] = dd
+                used_binary = True
+
+    if not used_binary:
+        try:
+            from tn93.tn93 import TN93
+            tn = TN93()
+            for j, lm in enumerate(taxa_landmarks):
+                seq_lm = seq_dict[lm]
+                for i, t in enumerate(taxa_all):
+                    if t == lm:
+                        dist_mat[i, j] = 0.0
+                        continue
+                    counts = tn.get_counts(seq_dict[t], seq_lm, "resolve")
+                    nuc_freq = tn.get_nucleotide_frequency(counts)
+                    try:
+                        d = tn.calculate_distance(counts, nuc_freq)
+                    except (ValueError, OverflowError):
+                        d = 1.0
+                    if d is None or d == "-" or d < 0 or np.isnan(d):
+                        d = 1.0
+                    dist_mat[i, j] = float(d)
+        except ImportError:
+            raise ImportError(
+                "The 'tn93' tool or python package is required to compute TN93 distances."
+            )
+
+    # Fill self-distances
+    for j, lm in enumerate(taxa_landmarks):
+        if lm in taxa_idx:
+            dist_mat[taxa_idx[lm], j] = 0.0
+
+    # Impute missing entries
+    missing = (dist_mat < 0.0)
+    max_d = float(dist_mat.max()) if dist_mat.max() > 0 else 1.0
+    dist_mat[missing] = max(1.0, max_d)
+    for j, lm in enumerate(taxa_landmarks):
+        if lm in taxa_idx:
+            dist_mat[taxa_idx[lm], j] = 0.0
+
+    return dist_mat
+
 
 def load_alignment_and_tree(
     fa_path: str,

@@ -275,7 +275,10 @@ def compute_sector_permutation_test(
             perm_indices[i] = rng.choice(candidate_pool, size=K, replace=False)
             
         sub_A = attributions[perm_indices]  # [cur_b, K, N]
-        cov = np.einsum('bkn,bln->bkl', sub_A, sub_A)  # [cur_b, K, K]
+        if K > N:
+            cov = np.einsum('bkn,bkm->bnm', sub_A, sub_A)  # [cur_b, N, N]
+        else:
+            cov = np.einsum('bkn,bln->bkl', sub_A, sub_A)  # [cur_b, K, K]
         traces = np.trace(cov, axis1=1, axis2=2)
         eigs = np.linalg.eigvalsh(cov)[:, -1]
         eigs = np.maximum(eigs, 0.0)

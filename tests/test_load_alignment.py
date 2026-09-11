@@ -4,6 +4,12 @@ import pytest
 import torch
 from hyphaeon.dataset import load_alignment_and_tree
 
+try:
+    import tn93  # noqa: F401
+    _HAS_TN93 = True
+except ImportError:
+    _HAS_TN93 = False
+
 
 class TestLoadAlignmentAndTreeFasta:
     def test_basic_fasta_newick(self, fasta_file, newick_file):
@@ -91,6 +97,7 @@ class TestLoadAlignmentAndTreeFasta:
         assert np.allclose(np.diag(dist), 0.0)
         assert np.allclose(dist, dist.T)
 
+    @pytest.mark.skipif(not _HAS_TN93, reason="tn93 package not installed")
     def test_use_tn93_without_tree(self, fasta_file):
         c, a, d, z, inv, taxa, L = load_alignment_and_tree(fasta_file, use_tn93=True)
         assert L == 4
@@ -101,6 +108,7 @@ class TestLoadAlignmentAndTreeFasta:
         assert (dist >= 0.0).all()
         assert z.shape == (1, len(taxa), 4)
 
+    @pytest.mark.skipif(not _HAS_TN93, reason="tn93 package not installed")
     def test_nwk_path_tn93_alias(self, fasta_file):
         c, a, d, z, inv, taxa, L = load_alignment_and_tree(fasta_file, nwk_path="tn93")
         assert L == 4
@@ -109,6 +117,7 @@ class TestLoadAlignmentAndTreeFasta:
         assert np.allclose(np.diag(dist), 0.0)
         assert np.allclose(dist, dist.T)
 
+    @pytest.mark.skipif(not _HAS_TN93, reason="tn93 package not installed")
     def test_compute_tn93_distance_matrix_direct(self):
         from hyphaeon.dataset import compute_tn93_distance_matrix
         seq_dict = {

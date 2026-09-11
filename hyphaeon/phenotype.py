@@ -276,23 +276,51 @@ def compute_phylogenetic_covariance(tree: Phylo.BaseTree.Tree, taxa: List[str]) 
     """
     Computes the phylogenetic variance-covariance matrix V (Saputra et al. 2021):
     V[i, j] = shared patristic distance from root to MRCA(taxon_i, taxon_j).
+    Uses fast O(M) tree traversal with depth memoization.
     """
     M = len(taxa)
-    V = np.zeros((M, M), dtype=np.float64)
+    taxa_idx = {name: i for i, name in enumerate(taxa)}
     root = tree.root
-    root_dists = {t.name: tree.distance(root, t) for t in tree.get_terminals()}
+    depths = {}
+    term_nodes = {}
 
-    for i in range(M):
-        t1 = tree.find_any(name=taxa[i])
-        for j in range(i, M):
-            t2 = tree.find_any(name=taxa[j])
-            if i == j:
-                V[i, i] = root_dists.get(taxa[i], 1.0)
-            elif t1 is not None and t2 is not None:
-                mrca = tree.common_ancestor(t1, t2)
-                shared_d = tree.distance(root, mrca)
-                V[i, j] = shared_d
-                V[j, i] = shared_d
+    def calc_depths(node, current_d=0.0):
+        depths[id(node)] = current_d
+        if node.is_terminal():
+            term_nodes[node.name] = node
+        for child in node.clades:
+            bl = child.branch_length if child.branch_length is not None else 0.0
+            calc_depths(child, current_d + bl)
+
+    calc_depths(root, 0.0)
+    V = np.zeros((M, M), dtype=np.float64)
+
+    def traverse(node):
+        curr_indices = []
+        if node.is_terminal() and node.name in taxa_idx:
+            curr_indices.append(taxa_idx[node.name])
+        child_lists = []
+        for child in node.clades:
+            c_idx = traverse(child)
+            if c_idx:
+                child_lists.append(c_idx)
+                curr_indices.extend(c_idx)
+        d = depths[id(node)]
+        for i in range(len(child_lists)):
+            for j in range(i + 1, len(child_lists)):
+                for u in child_lists[i]:
+                    for v in child_lists[j]:
+                        V[u, v] = d
+                        V[v, u] = d
+        return curr_indices
+
+    traverse(root)
+    for t_name, i in taxa_idx.items():
+        if t_name in term_nodes:
+            V[i, i] = depths[id(term_nodes[t_name])]
+        else:
+            V[i, i] = 1.0
+
     return V
 
 

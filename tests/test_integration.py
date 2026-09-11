@@ -25,6 +25,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
+try:
+    import tn93  # noqa: F401
+    _HAS_TN93 = True
+except ImportError:
+    _HAS_TN93 = False
+
 EXAMPLES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "examples")
 EXPECTED_DIR = os.path.join(EXAMPLES_DIR, "expected_results")
 
@@ -168,6 +174,7 @@ def test_busted_cli_runs_and_produces_valid_output(examples_dir, dummy_weights, 
     assert len(df) == 1
 
 
+@pytest.mark.skipif(not _HAS_TN93, reason="tn93 package not installed")
 def test_cli_runs_with_no_tree(examples_dir, dummy_weights, tmp_path):
     """Test that hyphaeon meme runs end-to-end with --no-tree without any tree input."""
     fa = os.path.join(examples_dir, "bat_oas1.fasta")
@@ -190,6 +197,7 @@ def test_cli_runs_with_no_tree(examples_dir, dummy_weights, tmp_path):
         assert np.isfinite(actual[col]).all()
 
 
+@pytest.mark.skipif(not _HAS_TN93, reason="tn93 package not installed")
 def test_cli_runs_with_use_tn93(examples_dir, dummy_weights, tmp_path):
     """Test that hyphaeon meme runs end-to-end with --use-tn93 without any tree input."""
     fa = os.path.join(examples_dir, "bat_oas1.fasta")
