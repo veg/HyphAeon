@@ -1,0 +1,1000 @@
+{
+ "generated_by": "js/test/data/dates/gen.py",
+ "source": {
+  "parse_date_to_decimal": "hyphaeon/temporal.py:73-151",
+  "extract_date_from_string": "hyphaeon/temporal.py:196-245",
+  "parse_header_timestamp": "hyphaeon/dating.py:317-364",
+  "_parse_timestamp_flexible": "hyphaeon/dating.py:367-384"
+ },
+ "python": "3.14.0",
+ "numpy": "2.3.3",
+ "pandas": "3.0.5",
+ "parse_date_to_decimal_years": [
+  {
+   "input": 2021.25,
+   "output": 2021.25
+  },
+  {
+   "input": 1959.5,
+   "output": 1959.5
+  },
+  {
+   "input": 1800,
+   "output": 1800.0
+  },
+  {
+   "input": 2100,
+   "output": 2100.0
+  },
+  {
+   "input": 1799.999,
+   "output": "NaN"
+  },
+  {
+   "input": 2100.001,
+   "output": "NaN"
+  },
+  {
+   "input": 0,
+   "output": "NaN"
+  },
+  {
+   "input": -1,
+   "output": "NaN"
+  },
+  {
+   "input": 1000000000.0,
+   "output": "NaN"
+  },
+  {
+   "input": true,
+   "output": "NaN"
+  },
+  {
+   "input": false,
+   "output": "NaN"
+  },
+  {
+   "input": null,
+   "output": "NaN"
+  },
+  {
+   "input": "",
+   "output": "NaN"
+  },
+  {
+   "input": "   ",
+   "output": "NaN"
+  },
+  {
+   "input": "unknown",
+   "output": "NaN"
+  },
+  {
+   "input": "UNKNOWN",
+   "output": "NaN"
+  },
+  {
+   "input": "nan",
+   "output": "NaN"
+  },
+  {
+   "input": "NaN",
+   "output": "NaN"
+  },
+  {
+   "input": "none",
+   "output": "NaN"
+  },
+  {
+   "input": "NA",
+   "output": "NaN"
+  },
+  {
+   "input": "na",
+   "output": "NaN"
+  },
+  {
+   "input": "?",
+   "output": "NaN"
+  },
+  {
+   "input": "??",
+   "output": "NaN"
+  },
+  {
+   "input": "2021.25",
+   "output": 2021.25
+  },
+  {
+   "input": " 2021.25 ",
+   "output": 2021.25
+  },
+  {
+   "input": "2021",
+   "output": 2021.0
+  },
+  {
+   "input": "2_021",
+   "output": 2021.0
+  },
+  {
+   "input": "2.0212e3",
+   "output": 2021.2
+  },
+  {
+   "input": "+2021",
+   "output": 2021.0
+  },
+  {
+   "input": "inf",
+   "output": "NaN"
+  },
+  {
+   "input": "-inf",
+   "output": "NaN"
+  },
+  {
+   "input": "2021-04-15",
+   "output": 2021.2849315068493
+  },
+  {
+   "input": "2021-04",
+   "output": 2021.2849315068493
+  },
+  {
+   "input": "2021-01-01",
+   "output": 2021.0
+  },
+  {
+   "input": "2021-12-31",
+   "output": 2021.9945205479453
+  },
+  {
+   "input": "2020-02-29",
+   "output": 2020.1584699453551
+  },
+  {
+   "input": "2021-02-28",
+   "output": 2021.158904109589
+  },
+  {
+   "input": "2021-XX-XX",
+   "output": 2021.4520547945206
+  },
+  {
+   "input": "2021-04-XX",
+   "output": 2021.2849315068493
+  },
+  {
+   "input": "2021-4-5",
+   "output": 2021.2575342465752
+  },
+  {
+   "input": "2021-004-015",
+   "output": 2021.2849315068493
+  },
+  {
+   "input": "2021/04/15",
+   "output": 2021.2849315068493
+  },
+  {
+   "input": "2021.04.15",
+   "output": 2021.2849315068493
+  },
+  {
+   "input": "2021.4.15",
+   "output": 2021.2849315068493
+  },
+  {
+   "input": "2021/4",
+   "output": 2021.2849315068493
+  },
+  {
+   "input": "2021.5",
+   "output": 2021.5
+  },
+  {
+   "input": "2021.05",
+   "output": 2021.05
+  },
+  {
+   "input": "2021-01-31",
+   "output": 2021.0794520547945
+  },
+  {
+   "input": "2021-03-31",
+   "output": 2021.2410958904109
+  },
+  {
+   "input": "2021-02-29",
+   "output": 2021.158904109589
+  },
+  {
+   "input": "2020-02-29",
+   "output": 2020.1584699453551
+  },
+  {
+   "input": "2021-02-30",
+   "output": 2021.158904109589
+  },
+  {
+   "input": "2021-12-30",
+   "output": 2021.9945205479453
+  },
+  {
+   "input": "2021-13-15",
+   "output": 2021.4520547945206
+  },
+  {
+   "input": "2021-00-15",
+   "output": 2021.4520547945206
+  },
+  {
+   "input": "2021-04-00",
+   "output": 2021.2849315068493
+  },
+  {
+   "input": "2021-04-32",
+   "output": 2021.2849315068493
+  },
+  {
+   "input": "2021-04-31",
+   "output": 2021.3260273972603
+  },
+  {
+   "input": "1700-04-15",
+   "output": "NaN"
+  },
+  {
+   "input": "2500-04-15",
+   "output": "NaN"
+  },
+  {
+   "input": "0021-04-15",
+   "output": "NaN"
+  },
+  {
+   "input": "21-04-15",
+   "output": "NaN"
+  },
+  {
+   "input": "202-04-15",
+   "output": "NaN"
+  },
+  {
+   "input": "20210415",
+   "output": "NaN"
+  },
+  {
+   "input": "notadate",
+   "output": "NaN"
+  },
+  {
+   "input": "2021-04-15T09:30:00Z",
+   "output": 2021.2849315068493
+  },
+  {
+   "input": "15-04-2021",
+   "output": "NaN"
+  },
+  {
+   "input": "April 2021",
+   "output": "NaN"
+  },
+  {
+   "input": "1900-03-01",
+   "output": 1900.1616438356164
+  },
+  {
+   "input": "2000-03-01",
+   "output": 2000.1639344262296
+  },
+  {
+   "input": "2004-03-01",
+   "output": 2004.1639344262296
+  },
+  {
+   "input": "1996-12-31",
+   "output": 1996.9945355191257
+  }
+ ],
+ "parse_date_to_decimal_generations": [
+  {
+   "input": 0,
+   "output": 0.0
+  },
+  {
+   "input": 5000,
+   "output": 5000.0
+  },
+  {
+   "input": 5000.5,
+   "output": 5000.5
+  },
+  {
+   "input": -1,
+   "output": "NaN"
+  },
+  {
+   "input": -0.0,
+   "output": -0.0
+  },
+  {
+   "input": "5000",
+   "output": 5000.0
+  },
+  {
+   "input": "5000.5",
+   "output": 5000.5
+  },
+  {
+   "input": "-5000",
+   "output": "NaN"
+  },
+  {
+   "input": "gen_5000",
+   "output": 5000.0
+  },
+  {
+   "input": "generation 42",
+   "output": 42.0
+  },
+  {
+   "input": "t=17.5",
+   "output": 17.5
+  },
+  {
+   "input": "abc",
+   "output": "NaN"
+  },
+  {
+   "input": "",
+   "output": "NaN"
+  },
+  {
+   "input": null,
+   "output": "NaN"
+  },
+  {
+   "input": "nan",
+   "output": "NaN"
+  },
+  {
+   "input": "inf",
+   "output": "Infinity"
+  },
+  {
+   "input": "-inf",
+   "output": "NaN"
+  },
+  {
+   "input": "  12  ",
+   "output": 12.0
+  },
+  {
+   "input": 1000000000.0,
+   "output": 1000000000.0
+  },
+  {
+   "input": true,
+   "output": 1.0
+  }
+ ],
+ "parse_date_to_decimal_days": [
+  {
+   "input": 0,
+   "output": 0.0
+  },
+  {
+   "input": 5000,
+   "output": 5000.0
+  },
+  {
+   "input": 5000.5,
+   "output": 5000.5
+  },
+  {
+   "input": -1,
+   "output": "NaN"
+  },
+  {
+   "input": -0.0,
+   "output": -0.0
+  },
+  {
+   "input": "5000",
+   "output": 5000.0
+  },
+  {
+   "input": "5000.5",
+   "output": 5000.5
+  },
+  {
+   "input": "-5000",
+   "output": "NaN"
+  },
+  {
+   "input": "gen_5000",
+   "output": 5000.0
+  },
+  {
+   "input": "generation 42",
+   "output": 42.0
+  },
+  {
+   "input": "t=17.5",
+   "output": 17.5
+  },
+  {
+   "input": "abc",
+   "output": "NaN"
+  },
+  {
+   "input": "",
+   "output": "NaN"
+  },
+  {
+   "input": null,
+   "output": "NaN"
+  },
+  {
+   "input": "nan",
+   "output": "NaN"
+  },
+  {
+   "input": "inf",
+   "output": "Infinity"
+  },
+  {
+   "input": "-inf",
+   "output": "NaN"
+  },
+  {
+   "input": "  12  ",
+   "output": 12.0
+  },
+  {
+   "input": 1000000000.0,
+   "output": 1000000000.0
+  },
+  {
+   "input": true,
+   "output": 1.0
+  }
+ ],
+ "parse_date_to_decimal_arbitrary": [
+  {
+   "input": 0,
+   "output": 0.0
+  },
+  {
+   "input": 5000,
+   "output": 5000.0
+  },
+  {
+   "input": 5000.5,
+   "output": 5000.5
+  },
+  {
+   "input": -1,
+   "output": "NaN"
+  },
+  {
+   "input": -0.0,
+   "output": -0.0
+  },
+  {
+   "input": "5000",
+   "output": 5000.0
+  },
+  {
+   "input": "5000.5",
+   "output": 5000.5
+  },
+  {
+   "input": "-5000",
+   "output": "NaN"
+  },
+  {
+   "input": "gen_5000",
+   "output": 5000.0
+  },
+  {
+   "input": "generation 42",
+   "output": 42.0
+  },
+  {
+   "input": "t=17.5",
+   "output": 17.5
+  },
+  {
+   "input": "abc",
+   "output": "NaN"
+  },
+  {
+   "input": "",
+   "output": "NaN"
+  },
+  {
+   "input": null,
+   "output": "NaN"
+  },
+  {
+   "input": "nan",
+   "output": "NaN"
+  },
+  {
+   "input": "inf",
+   "output": "Infinity"
+  },
+  {
+   "input": "-inf",
+   "output": "NaN"
+  },
+  {
+   "input": "  12  ",
+   "output": 12.0
+  },
+  {
+   "input": 1000000000.0,
+   "output": 1000000000.0
+  },
+  {
+   "input": true,
+   "output": 1.0
+  }
+ ],
+ "parse_date_to_decimal_unknown_units": [
+  {
+   "input": "2021-04-15",
+   "output": 2021.2849315068493
+  },
+  {
+   "input": "5000",
+   "output": "NaN"
+  },
+  {
+   "input": 5000,
+   "output": "NaN"
+  }
+ ],
+ "extract_date_from_string_years": [
+  {
+   "input": "A/USA/CA-1/2021|2021-05-14",
+   "output": 2021.3643835616438
+  },
+  {
+   "input": "seq_2021-05-14",
+   "output": 2021.3643835616438
+  },
+  {
+   "input": "seq 2021-05-14",
+   "output": 2021.3643835616438
+  },
+  {
+   "input": "A/USA/2021-05-14/2021",
+   "output": 2021.3643835616438
+  },
+  {
+   "input": "2021-05-14",
+   "output": 2021.3643835616438
+  },
+  {
+   "input": "A-2021-05-14",
+   "output": "NaN"
+  },
+  {
+   "input": "hCoV-19/England/X|2021.35",
+   "output": 2021.35
+  },
+  {
+   "input": "hCoV-19/England/X|2021.3512",
+   "output": 2021.3512
+  },
+  {
+   "input": "hCoV-19/England/X|2021.5",
+   "output": "NaN"
+  },
+  {
+   "input": "strain_2021-05",
+   "output": 2021.3671232876711
+  },
+  {
+   "input": "strain|2021",
+   "output": 2021.0
+  },
+  {
+   "input": "strain/2021",
+   "output": 2021.0
+  },
+  {
+   "input": "2021",
+   "output": "NaN"
+  },
+  {
+   "input": "strain_2021",
+   "output": 2021.0
+  },
+  {
+   "input": "strain-2021",
+   "output": "NaN"
+  },
+  {
+   "input": "EPI_ISL_402124|2019-12-30|China",
+   "output": 2019.9945205479453
+  },
+  {
+   "input": "no_date_here",
+   "output": "NaN"
+  },
+  {
+   "input": "",
+   "output": "NaN"
+  },
+  {
+   "input": "X|9999-05-14",
+   "output": "NaN"
+  },
+  {
+   "input": "X|1700-05-14",
+   "output": "NaN"
+  },
+  {
+   "input": "X|2021-13-14",
+   "output": 2021.4493150684932
+  }
+ ],
+ "extract_date_from_string_generations": [
+  {
+   "input": "pop1_gen2000",
+   "output": 2000.0
+  },
+  {
+   "input": "pop1|gen_5000",
+   "output": 5000.0
+  },
+  {
+   "input": "pop1_20000gen",
+   "output": 20000.0
+  },
+  {
+   "input": "pop1_g50000",
+   "output": 50000.0
+  },
+  {
+   "input": "lineage|5000",
+   "output": 5000.0
+  },
+  {
+   "input": "lineage_generation_120",
+   "output": 120.0
+  },
+  {
+   "input": "sample_day-7",
+   "output": 7.0
+  },
+  {
+   "input": "sample_d30",
+   "output": 30.0
+  },
+  {
+   "input": "sample_t12.5",
+   "output": 12.5
+  },
+  {
+   "input": "sample_D30",
+   "output": 30.0
+  },
+  {
+   "input": "clone7",
+   "output": "NaN"
+  },
+  {
+   "input": "7clone",
+   "output": "NaN"
+  },
+  {
+   "input": "no_number",
+   "output": "NaN"
+  },
+  {
+   "input": "",
+   "output": "NaN"
+  },
+  {
+   "input": "x_2021-05-14",
+   "output": 2021.0
+  }
+ ],
+ "parse_header_timestamp": [
+  {
+   "input": "Z59ZR.ZHU",
+   "output": 1959.5
+  },
+  {
+   "input": "ZR59",
+   "output": 1959.5
+  },
+  {
+   "input": "AZ59012",
+   "output": 1959.5
+  },
+  {
+   "input": "A/Kinshasa/1959-03-04",
+   "output": 1959.5
+  },
+  {
+   "input": "X|1959-03-04",
+   "output": 1959.5
+  },
+  {
+   "input": "X|2019-03-04",
+   "output": 2019.1698630136987
+  },
+  {
+   "input": "B86US.SFMHS18",
+   "output": 1986.5
+  },
+  {
+   "input": "F93BE_VI850",
+   "output": 1993.5
+  },
+  {
+   "input": "C86ET.ETH2220",
+   "output": 1986.5
+  },
+  {
+   "input": "A85UG.U455",
+   "output": 1985.5
+  },
+  {
+   "input": "D84ZR.84ZR085",
+   "output": 1984.5
+  },
+  {
+   "input": "B29US.X",
+   "output": 2029.5
+  },
+  {
+   "input": "B30US.X",
+   "output": 1930.5
+  },
+  {
+   "input": "b86us.SFMHS18",
+   "output": 1986.5
+  },
+  {
+   "input": "Ref_B_FR_83_HXB2",
+   "output": 1983.5
+  },
+  {
+   "input": "Ref_C_ET_86_ETH2220",
+   "output": 1986.5
+  },
+  {
+   "input": "Ref_C_et_86_ETH2220",
+   "output": "NaN"
+  },
+  {
+   "input": "patient1_16WPI",
+   "output": 16.0
+  },
+  {
+   "input": "patient1_16 WPI",
+   "output": 16.0
+  },
+  {
+   "input": "patient1_16wpi",
+   "output": 16.0
+  },
+  {
+   "input": "patient1_16Wpi",
+   "output": "NaN"
+  },
+  {
+   "input": "patient1_120DPI",
+   "output": 120.0
+  },
+  {
+   "input": "patient1_120.5dpi",
+   "output": 120.5
+  },
+  {
+   "input": "seq_2021-05-14",
+   "output": 2021.3643835616438
+  },
+  {
+   "input": "",
+   "output": "NaN"
+  },
+  {
+   "input": "nothing_here",
+   "output": "NaN"
+  }
+ ],
+ "parse_header_timestamp_without_1959": [
+  {
+   "input": "Z59ZR.ZHU",
+   "output": 1959.5
+  },
+  {
+   "input": "ZR59",
+   "output": "NaN"
+  },
+  {
+   "input": "AZ59012",
+   "output": "NaN"
+  },
+  {
+   "input": "A/Kinshasa/1959-03-04",
+   "output": 1959.1698630136987
+  },
+  {
+   "input": "X|1959-03-04",
+   "output": 1959.1698630136987
+  },
+  {
+   "input": "X|2019-03-04",
+   "output": 2019.1698630136987
+  },
+  {
+   "input": "B86US.SFMHS18",
+   "output": 1986.5
+  },
+  {
+   "input": "F93BE_VI850",
+   "output": 1993.5
+  },
+  {
+   "input": "C86ET.ETH2220",
+   "output": 1986.5
+  },
+  {
+   "input": "A85UG.U455",
+   "output": 1985.5
+  },
+  {
+   "input": "D84ZR.84ZR085",
+   "output": 1984.5
+  },
+  {
+   "input": "B29US.X",
+   "output": 2029.5
+  },
+  {
+   "input": "B30US.X",
+   "output": 1930.5
+  },
+  {
+   "input": "b86us.SFMHS18",
+   "output": 1986.5
+  },
+  {
+   "input": "Ref_B_FR_83_HXB2",
+   "output": 1983.5
+  },
+  {
+   "input": "Ref_C_ET_86_ETH2220",
+   "output": 1986.5
+  },
+  {
+   "input": "Ref_C_et_86_ETH2220",
+   "output": "NaN"
+  },
+  {
+   "input": "patient1_16WPI",
+   "output": 16.0
+  },
+  {
+   "input": "patient1_16 WPI",
+   "output": 16.0
+  },
+  {
+   "input": "patient1_16wpi",
+   "output": 16.0
+  },
+  {
+   "input": "patient1_16Wpi",
+   "output": "NaN"
+  },
+  {
+   "input": "patient1_120DPI",
+   "output": 120.0
+  },
+  {
+   "input": "patient1_120.5dpi",
+   "output": 120.5
+  },
+  {
+   "input": "seq_2021-05-14",
+   "output": 2021.3643835616438
+  },
+  {
+   "input": "",
+   "output": "NaN"
+  },
+  {
+   "input": "nothing_here",
+   "output": "NaN"
+  }
+ ],
+ "parse_timestamp_flexible": [
+  {
+   "input": null,
+   "output": "NaN"
+  },
+  {
+   "input": "",
+   "output": "NaN"
+  },
+  {
+   "input": "unknown",
+   "output": "NaN"
+  },
+  {
+   "input": "nan",
+   "output": "NaN"
+  },
+  {
+   "input": "2021-04-15",
+   "output": 2021.2849315068493
+  },
+  {
+   "input": "2021.25",
+   "output": 2021.25
+  },
+  {
+   "input": 2021.25,
+   "output": 2021.25
+  },
+  {
+   "input": "5000",
+   "output": 5000.0
+  },
+  {
+   "input": 5000,
+   "output": 5000.0
+  },
+  {
+   "input": 0.25,
+   "output": 0.25
+  },
+  {
+   "input": "0.25",
+   "output": 0.25
+  },
+  {
+   "input": "-3",
+   "output": -3.0
+  },
+  {
+   "input": -3,
+   "output": -3.0
+  },
+  {
+   "input": "1700",
+   "output": 1700.0
+  },
+  {
+   "input": 1700,
+   "output": 1700.0
+  },
+  {
+   "input": "inf",
+   "output": "Infinity"
+  },
+  {
+   "input": "abc",
+   "output": "NaN"
+  },
+  {
+   "input": true,
+   "output": 1.0
+  },
+  {
+   "input": "1e6",
+   "output": 1000000.0
+  }
+ ]
+}
