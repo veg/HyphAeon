@@ -2700,6 +2700,72 @@ def gen_dating_model(w: Writer, model_sha: Optional[str]) -> Dict[str, Any]:
         + " the smallest n the function accepts (it raises at n < 3, dating.py:1320-1321). df = max(1, n-2) = 1, so "
         "t.ppf(0.975, 1) = 12.706 and the intervals are enormous -- which is the correct answer and is what a reader "
         "must see rather than a narrow one."))
+    # ---- run_mrca_dating, end to end through the CLI, WITH the model -------------------------
+    # The model-free table for this function (run_mrca_dating.json) runs `--method ols`, which
+    # leaves `pgls`, `latent_root` and `distance_mode: "latent"` out of the record entirely. These
+    # two cases are the phase-4 acceptance target: the same alignment, the same root, `--method all`,
+    # in both distance modes, so an application can diff its whole record against the reference's.
+    #
+    # THE tn93 CASE IS THE DIAGNOSTIC ONE. Its divergence vector is the one the model-free chain
+    # already reproduces bit for bit, so a failure there is necessarily in the kernel, the REML or
+    # the GLS fit -- the three things phase 4 adds. In `latent` the response vector is itself a model
+    # output and a failure could be anywhere. Two cases, one cause each.
+    #
+    # Run with the compiled tn93 binary ON PATH and the alignment UNMODIFIED, unlike the model-free
+    # table: dataset.py:747 writes `seq_dict[t].replace('*','-')` into the FASTA it hands the binary,
+    # so the binary branch performs that rewrite itself and the distances -- which are the model's
+    # own `dist_matrix` input -- are the published ones. MEASURED on korber, which carries 2,389
+    # asterisks: skipping the rewrite moves the site-averaged cross-taxa attention by 1.703e-3, 9.3 %
+    # of its largest entry. It is not a cosmetic difference in a distance, it is a different forward
+    # pass.
+    cli_cases = []
+    with tempfile.TemporaryDirectory() as td:
+        for idx, mode in enumerate(("tn93", "latent")):
+            out = os.path.join(td, f"out_{mode}.json")
+            argv = [sys.executable, "-m", "hyphaeon.cli", "dating", "-a", str(EXAMPLES / fasta),
+                    "--root-taxon", root_taxon, "--no-tree", "--method", "all", "--cpu",
+                    "--distance-mode", mode, "-o", out]
+            proc = subprocess.run(argv, cwd=REPO, env={**os.environ, "PYTHONUNBUFFERED": "1"},
+                                  capture_output=True, text=True)
+            if proc.returncode != 0 or not os.path.exists(out):
+                raise RuntimeError(f"dating CLI exit {proc.returncode}\n{proc.stdout[-2000:]}\n{proc.stderr[-2000:]}")
+            data = null_timings(basenames(json.load(open(out))))
+            data["alignment"] = fasta
+            sp = data.get("spline") or {}
+            cli_cases.append(case(
+                f"{idx:03d}_korber_{mode}",
+                {"argv": ["hyphaeon", "dating", "-a", fasta, "--root-taxon", root_taxon, "--no-tree",
+                          "--method", "all", "--cpu", "--distance-mode", mode, "-o", "<out.json>"],
+                 "star_to_gap": False, "tn93_binary_on_path": True, "device": "cpu",
+                 "python": platform.python_version()},
+                {"result": data}, "1e-5",
+                "signature: hyphaeon.dating.run_mrca_dating, reached through `python -m hyphaeon.cli dating --method all`. "
+                f"--distance-mode {mode}. "
+                + ("The divergences are the model-free ones this repository already reproduces bit for bit, so the model "
+                   "enters ONLY through the covariance: pgls, the GLS spline (DATING Q10) and the clock selection. "
+                   if mode == "tn93" else
+                   "The divergences are `alpha * ||z_i - z_root||` from the latent convex-hull root, so EVERY estimator is "
+                   "fitted against a model output -- the ordinary one included (DATING Q11). On this example that moves "
+                   f"ols.t_mrca to {float(data['ols']['t_mrca'])!r} from the 1893.91095511759 the tn93 case reports. ")
+                + f"active_model {data['active_model']!r}; selected_clock {data['selected_clock']!r}; "
+                f"pagel_lambda {float(data['pgls']['pagel_lambda'])!r}. "
+                "PER-FIELD CLASSES FOR A REPLAY, measured against a float64 JavaScript port driven by the same ONNX "
+                "dating graph: strings, integers, booleans, taxon names and the anchor ORDER exact; mu, d0, the standard "
+                "errors, r2, sigma2, rmse, fieller_g, alpha and temporal_r at 1e-5 RELATIVE; t_mrca and every interval "
+                "endpoint in YEARS -- 1e-3 under tn93 and 5e-3 under latent, whose Fieller g of 1.72 means its own slope "
+                "is not significantly positive and whose lever arm d0/mu is 358 years. "
+                f"THE SPLINE IS THE EXCEPTION: its t_mrca is -beta_0/beta_1 on an uncentred calendar axis with beta_1 = "
+                f"{float(sp.get('beta_1', 0.0)):.3e}"
+                + (", a lever arm of about 2e3 years per unit relative error in the slope, so it is pinned at 1 YEAR "
+                   "under latent and its betas at 1e-3 relative. That is the conditioning of the reference's own "
+                   "construction (DATING Q5), not slack. "
+                   if mode == "latent" else
+                   ", a hundred times larger than the latent case's, so 1e-3 years holds. ")
+                + "predicted_date and temporal_residual arrive on the FLOAT32 grid (ulp 1.22e-4 at year 2000) and are "
+                "compared at max(2e-4, 1e-6 * |value|) -- the holdout predicted at 3084 is 1093 years outside the fitted "
+                "range and inherits the rate's relative error over that lever arm."))
+    w.write("dating", "run_mrca_dating_model", cli_cases)
+
     w.write("dating", "estimate_reml_pagel_lambda", reml_cases)
     w.write("dating", "run_pgls_dating", pgls_cases)
     w.write("dating", "run_restricted_spline_clock_dating_gls", spline_gls_cases)

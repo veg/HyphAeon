@@ -121,6 +121,10 @@ const EXPECTED_COUNTS = {
 	// without the checkpoint and could not carry a covariance.
 	run_restricted_spline_clock_dating_gls: 2,
 	run_mrca_dating: 3,
+	// Phase 4's acceptance target: the same CLI with --method all, in both distance modes, so the
+	// application can diff a whole record. Nothing in this library replays it — it is orchestration,
+	// and `runtime/test/dating-model.test.js` in hyphaeon-app is what reads it.
+	run_mrca_dating_model: 2,
 	// phase 4, replayed by test/dating-model.test.js
 	model_outputs: 1,
 	compute_neural_covariance_kernel: 5,

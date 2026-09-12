@@ -1,7 +1,7 @@
 {
  "generator": "scripts/gen_fixtures.py",
- "engine_commit": "23a6c385574fb4fd278a2c48759fb1f77dcb462d",
- "generated_at": "2026-09-12T13:12:27-0700",
+ "engine_commit": "a4738ab9fc0255da9ba129cbc61f71e15d13e3dd",
+ "generated_at": "2026-09-12T13:24:11-0700",
  "model_safetensors_sha256": "0278dff092601acca959aa64bf6742ad17a38a5e6e31eabd424d6d224eea6ebd",
  "model_safetensors_bytes": 9842824,
  "environment": {
@@ -164,7 +164,8 @@
    "optimize_latent_convex_hull_root": 5,
    "estimate_reml_pagel_lambda": 5,
    "run_pgls_dating": 8,
-   "run_restricted_spline_clock_dating_gls": 2
+   "run_restricted_spline_clock_dating_gls": 2,
+   "run_mrca_dating_model": 2
   }
  },
  "bytes": {
@@ -235,10 +236,11 @@
   "dating/optimize_latent_convex_hull_root.json": 91826,
   "dating/estimate_reml_pagel_lambda.json": 27220,
   "dating/run_pgls_dating.json": 79093,
-  "dating/run_restricted_spline_clock_dating_gls.json": 21245
+  "dating/run_restricted_spline_clock_dating_gls.json": 21245,
+  "dating/run_mrca_dating_model.json": 126499
  },
- "total_bytes": 8846272,
- "elapsed_seconds": 5.5,
+ "total_bytes": 8972771,
+ "elapsed_seconds": 15.3,
  "e2e_wall_seconds": {
   "meme_bat_oas1": 1.7,
   "meme_Smc6": 1.6,
