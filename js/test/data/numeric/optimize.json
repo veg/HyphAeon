@@ -75,6 +75,176 @@
   "rtol": 8.881784197001252e-16,
   "maxiter": 100
  },
+ "fminbound": [
+  {
+   "name": "quadratic_interior",
+   "a": 0.0,
+   "b": 1.0,
+   "options": {},
+   "x": 0.3000000000000004,
+   "fun": 1.0,
+   "nfev": 6,
+   "status": 0,
+   "success": 1,
+   "calls": 6,
+   "notes": "the easy case: a parabola, so the parabolic step is exact from the third evaluation and the rest is the tolerance schedule walking in"
+  },
+  {
+   "name": "quartic_shallow",
+   "a": 0.0,
+   "b": 1.0,
+   "options": {},
+   "x": 0.7000000312108251,
+   "fun": 9.741156063295214e-17,
+   "nfev": 9,
+   "status": 0,
+   "success": 1,
+   "calls": 9,
+   "notes": "a quartic floor: curvature vanishes at the minimum, so the parabolic fit is poor near the end and golden steps keep being taken"
+  },
+  {
+   "name": "nonsmooth_abs",
+   "a": 0.0,
+   "b": 1.0,
+   "options": {},
+   "x": 0.42000178991813336,
+   "fun": 1.789918133376922e-06,
+   "nfev": 19,
+   "status": 0,
+   "success": 1,
+   "calls": 19,
+   "notes": "a kink at the minimum: the parabola is never acceptable and this is effectively pure golden section, which is the branch a REML profile with a flat shoulder takes"
+  },
+  {
+   "name": "monotone_to_lower",
+   "a": 0.001,
+   "b": 0.999,
+   "options": {},
+   "x": 0.001005948939264576,
+   "fun": 0.001005948939264576,
+   "nfev": 25,
+   "status": 0,
+   "success": 1,
+   "calls": 25,
+   "notes": "no interior minimum: the bracket collapses onto the LOWER bound but never reaches it -- the returned x is tol1 inside, which is what dating.py's clip to [0.001, 0.999] then sees"
+  },
+  {
+   "name": "monotone_to_upper",
+   "a": 0.001,
+   "b": 0.999,
+   "options": {},
+   "x": 0.9989940510607355,
+   "fun": -0.9989940510607355,
+   "nfev": 25,
+   "status": 0,
+   "success": 1,
+   "calls": 25,
+   "notes": "the same against the upper bound"
+  },
+  {
+   "name": "wide_bracket",
+   "a": 0.0,
+   "b": 10000.0,
+   "options": {},
+   "x": 1234.4999999999995,
+   "fun": 2.0679515313825692e-25,
+   "nfev": 6,
+   "status": 0,
+   "success": 1,
+   "calls": 6,
+   "notes": "|xf| is large, so sqrt_eps * |xf| DOMINATES xatol/3 in tol1 and the stopping rule is effectively relative -- the term a port that used sqrt(Number.EPSILON) instead of scipy's hard-coded sqrt(2.2e-16) would get wrong here and nowhere else"
+  },
+  {
+   "name": "degenerate_bounds",
+   "a": 0.25,
+   "b": 0.25,
+   "options": {},
+   "x": 0.25,
+   "fun": 0.0625,
+   "nfev": 1,
+   "status": 0,
+   "success": 1,
+   "calls": 1,
+   "notes": "a and b equal: the while condition is false at once, so the objective is evaluated exactly ONCE and that single point is returned"
+  },
+  {
+   "name": "narrow_than_xatol",
+   "a": 0.4999,
+   "b": 0.5001,
+   "options": {},
+   "x": 0.5,
+   "fun": 0.0,
+   "nfev": 6,
+   "status": 0,
+   "success": 1,
+   "calls": 6,
+   "notes": "a bracket narrower than 2*tol2: same early exit, one evaluation, on a bracket that does contain the minimum"
+  },
+  {
+   "name": "budget_exhausted",
+   "a": 0.0,
+   "b": 1.0,
+   "options": {
+    "maxiter": 5
+   },
+   "x": 0.7004389663151942,
+   "fun": 1.9269179717506902e-08,
+   "nfev": 5,
+   "status": 1,
+   "success": 0,
+   "calls": 5,
+   "notes": "maxiter = 5 cuts the search off: status 1, success False, and the BEST POINT SO FAR is still returned -- dating.py:1540 reads res_opt.success and falls back to 0.95, so this branch decides a lambda"
+  },
+  {
+   "name": "tight_xatol",
+   "a": 0.0,
+   "b": 1.0,
+   "options": {
+    "xatol": 1e-12
+   },
+   "x": 0.29999999109989556,
+   "fun": 1.0,
+   "nfev": 23,
+   "status": 0,
+   "success": 1,
+   "calls": 23,
+   "notes": "xatol = 1e-12 instead of the default 1e-5: the same algorithm run much further in, which separates a transcription error from a tolerance disagreement"
+  },
+  {
+   "name": "asymmetric_two_wells",
+   "a": -1.0,
+   "b": 1.0,
+   "options": {},
+   "x": -0.4999999983985886,
+   "fun": 2.564518451758813e-18,
+   "nfev": 10,
+   "status": 0,
+   "success": 1,
+   "calls": 10,
+   "notes": "TWO local minima in the bracket: the reference is not a global minimiser and the one it finds is a property of its bracket updates, which is exactly what must be reproduced rather than improved on"
+  }
+ ],
+ "fminbound_refusals": [
+  {
+   "name": "reversed_bounds",
+   "a": 1.0,
+   "b": 0.0,
+   "error": "The lower bound exceeds the upper bound.",
+   "notes": "the lower bound exceeds the upper"
+  },
+  {
+   "name": "infinite_bound",
+   "a": 0.0,
+   "b": "Infinity",
+   "error": "Optimization bounds must be finite scalars.",
+   "notes": "bounds must be finite scalars"
+  }
+ ],
+ "fminbound_defaults": {
+  "xatol": 1e-05,
+  "maxiter": 500,
+  "sqrt_eps": 1.4832396974191326e-08
+ },
  "percentile": [
   {
    "label": "odd_7",

@@ -378,10 +378,69 @@ def gen_optimize():
             percentiles.append({"label": label, "x": xs, "q": q, "value": float(np.percentile(xs, q)),
                                 "median": float(np.median(xs))})
 
+    # scipy.optimize.minimize_scalar(method='bounded') -- _minimize_scalar_bounded, the bounded
+    # scalar minimiser hyphaeon/dating.py:1539 profiles Pagel's lambda with. Every objective below is
+    # written in +, -, * and / ONLY, so Python and JavaScript evaluate it to the same bits and the
+    # comparison is of the ALGORITHM (which iterate it returns, how many evaluations it spends,
+    # which flag it raises) rather than of two libraries' transcendental functions. The one thing a
+    # tolerance could otherwise hide is the whole point of transcribing it: at xatol = 1e-5 the
+    # answer is the point this bracket lands on, not the argmin.
+    bounded = []
+
+    def addmin(name, expr, a, b, notes, **opts):
+        calls = [0]
+
+        def counted(x):
+            calls[0] += 1
+            return expr(x)
+
+        r = op.minimize_scalar(counted, bounds=(a, b), method="bounded", options=opts or None)
+        bounded.append({"name": name, "a": a, "b": b, "options": opts,
+                        "x": float(r.x), "fun": float(r.fun), "nfev": int(r.nfev),
+                        "status": int(r.status), "success": bool(r.success),
+                        "calls": calls[0], "notes": notes})
+
+    addmin("quadratic_interior", lambda x: (x - 0.3) * (x - 0.3) + 1.0, 0.0, 1.0,
+           "the easy case: a parabola, so the parabolic step is exact from the third evaluation and the rest is the tolerance schedule walking in")
+    addmin("quartic_shallow", lambda x: (x - 0.7) ** 4 + 0.1 * (x - 0.7) * (x - 0.7), 0.0, 1.0,
+           "a quartic floor: curvature vanishes at the minimum, so the parabolic fit is poor near the end and golden steps keep being taken")
+    addmin("nonsmooth_abs", lambda x: abs(x - 0.42) + 0.0, 0.0, 1.0,
+           "a kink at the minimum: the parabola is never acceptable and this is effectively pure golden section, which is the branch a REML profile with a flat shoulder takes")
+    addmin("monotone_to_lower", lambda x: x, 0.001, 0.999,
+           "no interior minimum: the bracket collapses onto the LOWER bound but never reaches it -- the returned x is tol1 inside, which is what dating.py's clip to [0.001, 0.999] then sees")
+    addmin("monotone_to_upper", lambda x: -x, 0.001, 0.999,
+           "the same against the upper bound")
+    addmin("wide_bracket", lambda x: (x - 1234.5) * (x - 1234.5), 0.0, 1.0e4,
+           "|xf| is large, so sqrt_eps * |xf| DOMINATES xatol/3 in tol1 and the stopping rule is effectively relative -- the term a port that used sqrt(Number.EPSILON) instead of scipy's hard-coded sqrt(2.2e-16) would get wrong here and nowhere else")
+    addmin("degenerate_bounds", lambda x: (x - 0.5) * (x - 0.5), 0.25, 0.25,
+           "a and b equal: the while condition is false at once, so the objective is evaluated exactly ONCE and that single point is returned")
+    addmin("narrow_than_xatol", lambda x: (x - 0.5) * (x - 0.5), 0.4999, 0.5001,
+           "a bracket narrower than 2*tol2: same early exit, one evaluation, on a bracket that does contain the minimum")
+    addmin("budget_exhausted", lambda x: (x - 0.7) ** 4 + 0.1 * (x - 0.7) * (x - 0.7), 0.0, 1.0,
+           "maxiter = 5 cuts the search off: status 1, success False, and the BEST POINT SO FAR is still returned -- dating.py:1540 reads res_opt.success and falls back to 0.95, so this branch decides a lambda", maxiter=5)
+    addmin("tight_xatol", lambda x: (x - 0.3) * (x - 0.3) + 1.0, 0.0, 1.0,
+           "xatol = 1e-12 instead of the default 1e-5: the same algorithm run much further in, which separates a transcription error from a tolerance disagreement", xatol=1e-12)
+    addmin("asymmetric_two_wells", lambda x: (x * x - 0.25) * (x * x - 0.25) * (x + 1.5), -1.0, 1.0,
+           "TWO local minima in the bracket: the reference is not a global minimiser and the one it finds is a property of its bracket updates, which is exactly what must be reproduced rather than improved on")
+
+    bounded_refusals = []
+    for name, a, b, notes in [
+        ("reversed_bounds", 1.0, 0.0, "the lower bound exceeds the upper"),
+        ("infinite_bound", 0.0, float("inf"), "bounds must be finite scalars"),
+    ]:
+        try:
+            op.minimize_scalar(lambda x: x * x, bounds=(a, b), method="bounded")
+            raise AssertionError(f"{name} was expected to raise")
+        except ValueError as exc:
+            bounded_refusals.append({"name": name, "a": a, "b": b, "error": str(exc), "notes": notes})
+
     write("optimize.json", {
         "brentq": roots,
         "brentq_refusals": refusals,
         "brentq_defaults": {"xtol": 2e-12, "rtol": 4 * float(np.finfo(float).eps), "maxiter": 100},
+        "fminbound": bounded,
+        "fminbound_refusals": bounded_refusals,
+        "fminbound_defaults": {"xatol": 1e-5, "maxiter": 500, "sqrt_eps": math.sqrt(2.2e-16)},
         "percentile": percentiles,
     })
 
