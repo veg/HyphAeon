@@ -36,7 +36,9 @@
     "taxa_outputs": [
       "cross_attn_sum",
       "taxa_repr_sum"
-    ]
+    ],
+    "taxa_row_layers": 6,
+    "embed_dim": 384
   },
   "prng": {
     "algorithm": "xoshiro256**",

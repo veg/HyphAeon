@@ -785,23 +785,38 @@ def resolve_variant_weights(variant: str, general_weights: Optional[str], hf_dir
     return str(p)
 
 
-def write_manifest(models_dir: Path, variants: Dict[str, dict], exported_with: dict) -> Path:
+def write_manifest(models_dir: Path, variants: Dict[str, dict], exported_with: dict,
+                   taxa_arch: Optional[dict] = None) -> Path:
     import onnx
+    onnx_block = {
+        "opset": OPSET_VERSION,
+        "inputs": list(INPUT_NAMES),
+        "outputs": list(OUTPUT_NAMES),
+        # The dating graph's outputs. Deliberately NOT merged into
+        # "outputs": that list is what a backbone session fetches by
+        # default, and these two live on a different artifact.
+        "taxa_outputs": list(TAXA_OUTPUT_NAMES),
+    }
+    if taxa_arch:
+        # THE DIVISORS THE CALLER NEEDS, AND WHY THEY ARE DATA AND NOT A
+        # CONSTANT IN THE RUNTIME. cross_attn_sum is accumulated over the graph's
+        # ROW LAYERS as well as over the call's sites (TaxaGraph.forward, mirroring
+        # splits.py:131-132), so splits.py:152's divisor is batch_size *
+        # num_layers; taxa_repr_sum is summed over sites alone and its divisor is
+        # batch_size (splits.py:153). A runtime that hard-coded 6 would silently
+        # mis-scale the attention matrix against a checkpoint with a different
+        # depth. embed_dim is here for the same reason: it is the width
+        # taxa_repr_sum is pinned to by _pin_output_dim, and a reader of the
+        # manifest should not have to load the graph to learn it.
+        onnx_block["taxa_row_layers"] = int(taxa_arch["num_layers"])
+        onnx_block["embed_dim"] = int(taxa_arch["embed_dim"])
     manifest = {
         "model_version": MODEL_VERSION,
         "variants": variants,
         "taxon_cap": TAXON_CAP,
         "default_taxon_cap": DEFAULT_TAXON_CAP,
         "dropped_heads_policy": "omit",
-        "onnx": {
-            "opset": OPSET_VERSION,
-            "inputs": list(INPUT_NAMES),
-            "outputs": list(OUTPUT_NAMES),
-            # The dating graph's outputs. Deliberately NOT merged into
-            # "outputs": that list is what a backbone session fetches by
-            # default, and these two live on a different artifact.
-            "taxa_outputs": list(TAXA_OUTPUT_NAMES),
-        },
+        "onnx": onnx_block,
         "prng": {"algorithm": "xoshiro256**", "default_seed": 42},
         "reference_version": REFERENCE_VERSION,
         "exported_with": exported_with,
@@ -822,10 +837,15 @@ def run_export(variants, models_dir: Path, general_weights: Optional[str] = None
     models_dir.mkdir(parents=True, exist_ok=True)
 
     manifest_variants = {}
+    taxa_arch = None
     existing = models_dir / "manifest.json"
     if existing.exists():
         try:
-            manifest_variants = json.load(open(existing)).get("variants", {})
+            prev_manifest = json.load(open(existing))
+            manifest_variants = prev_manifest.get("variants", {})
+            prev_onnx = prev_manifest.get("onnx", {})
+            if "taxa_row_layers" in prev_onnx and "embed_dim" in prev_onnx:
+                taxa_arch = {"num_layers": prev_onnx["taxa_row_layers"], "embed_dim": prev_onnx["embed_dim"]}
         except Exception:
             manifest_variants = {}
 
@@ -869,6 +889,8 @@ def run_export(variants, models_dir: Path, general_weights: Optional[str] = None
             exporters[f"{variant}_taxa"] = export_taxa_graph(weights, tx)
             onnx.checker.check_model(str(tx))
             entry["taxa_onnx_sha256"] = sha256_file(tx)
+            arch = load_arch_config(weights)
+            taxa_arch = {"num_layers": arch["num_layers"], "embed_dim": arch["embed_dim"]}
         elif "taxa_onnx_sha256" in prev:
             entry["taxa_onnx_sha256"] = prev["taxa_onnx_sha256"]
         entry.update(VARIANTS.get(variant, {}))
@@ -879,7 +901,7 @@ def run_export(variants, models_dir: Path, general_weights: Optional[str] = None
     ordered = {k: manifest_variants[k] for k in ("general", "viral") if k in manifest_variants}
     ordered.update({k: v for k, v in manifest_variants.items() if k not in ordered})
     exported_with = {"torch": torch.__version__, "onnx": onnx.__version__}
-    path = write_manifest(models_dir, ordered, exported_with)
+    path = write_manifest(models_dir, ordered, exported_with, taxa_arch)
     print(f"[✓] Manifest written to {path}")
     return {"manifest": str(path), "variants": ordered, "exporters": exporters}
 
