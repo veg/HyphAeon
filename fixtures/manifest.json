@@ -1,7 +1,7 @@
 {
  "generator": "scripts/gen_fixtures.py",
- "engine_commit": "fda67f013a2516fc74e5f3c754ce62f3b3f94d6b",
- "generated_at": "2026-09-11T15:23:56-0700",
+ "engine_commit": "43600985fd3fb23ff05339b65aacf2606b2437cf",
+ "generated_at": "2026-09-11T21:13:18-0700",
  "model_safetensors_sha256": "0278dff092601acca959aa64bf6742ad17a38a5e6e31eabd424d6d224eea6ebd",
  "model_safetensors_bytes": 9842824,
  "environment": {
@@ -49,7 +49,17 @@
   "dataset.parse_alignment_sequences NEXUS branch: quoted matrix labels containing spaces are split on whitespace.",
   "dataset.extract_tree_from_string_or_file: a NEXUS 'TREE name = [&R] (...);' line is rejected because the rooting annotation precedes '(' (returns None).",
   "filter.scan_hypergeometric_patches reports nothing when every site is significant (P(X>=k)=1 for every window).",
-  "stats.benjamini_hochberg uses numpy argsort (quicksort) which is unstable; tied p-values still get identical q so results are order-independent."
+  "stats.benjamini_hochberg uses numpy argsort (quicksort) which is unstable; tied p-values still get identical q so results are order-independent.",
+  "DATES Q1: dating.parse_header_timestamp opens with `if 'Z59' in name or 'ZR59' in name or '1959' in name: return 1959.5` (dating.py:330-332), before any date pattern. It is an unbounded substring test on the whole header, so A/Kinshasa/1959-03-04 loses the date that is written there and an accession like AZ59012 is dated to the archival ZR59 isolate. fixtures/dates/parse_header_timestamp.json pins it VERBATIM; js/src/dates.js makes it opt-in ({archival1959: true}) because it is data loss rather than a convention, and js/test/data/dates/parsers.json carries the anchor-off table so both directions stay pinned.",
+  "DATES Q2: temporal.parse_date_to_decimal defaults a missing month to 6 and a missing day to 15 on the delimiter path (temporal.py:132, 138) with no flag of any kind, so 2021-XX-XX becomes 2021.45205. Its OWN DOCSTRING (temporal.py:80) is wrong about the commonest case: it promises '2021' -> 2021.5, but a bare year string is claimed by float() at temporal.py:116, passes the gate, and comes back as 2021.0 with nothing imputed.",
+  "DATES Q3: the day is capped at min(day, 28 if month == 2 else 30) (temporal.py:144), in EVERY month. 2021-01-31 is returned as 30 January and 29 February of a leap year is unreachable. r0.parse_calendar_date, which uses strptime, disagrees on exactly those days.",
+  "DATES Q4: an out-of-range month or day is discarded and the default kept, with no error (temporal.py:133-142), so 2021-13-40 comes back as mid-2021, indistinguishable by value from a masked 2021-XX-XX.",
+  "DATES Q5: temporal.parse_date_to_decimal normalises '.' to '-' as well as '/' (temporal.py:123), but only AFTER float() has claimed every plain decimal year. So 2021.25 is a decimal year and 2021.4.15 is 15 April 2021; a decimal year just outside the gate is re-read as a date rather than rejected.",
+  "DATES Q6: a year outside [1800, 2100] returns NaN with no distinction from an unparseable string (temporal.py:108, 130). fixtures/dates/parse_date_to_decimal.json pins both; js/src/dates.js separates them into rule 'out_of_range' vs 'unparsed' without changing the value, because a page has to say which happened.",
+  "DATES Q7: extract_date_from_string's calendar delimiter class is [\\|/_\\s] and does NOT include '-' (temporal.py:218-239), pattern 2 requires two to four decimals, and pattern 4 has no '^' alternative. MEASURED on examples/H1N1_2009_pandemic.fasta: 5 of 100 headers are undated, three because pattern 2 matches an isolate number (4218.01) that then fails the gate and re.search never offers the second match, and two because their decimal year is written to one place (|2009.4, |2009.8). The non-calendar patterns use a WIDER class that does include '-', and re.IGNORECASE.",
+  "DATES Q8: the Korber/LANL two-digit year pivots at 30 (dating.py:344, 351), hard-coded, so 2030 onwards reads as 1930; both rules add a flat 0.5 for mid-year. MEASURED on examples/korber_env_gp160.fasta: temporal.extract_date_from_string dates 0 of 143 headers and dating.parse_header_timestamp dates 142 (CONSENSUS is the miss), all through this rule.",
+  "DATES Q9: (?:WPI|wpi) and (?:DPI|dpi) (dating.py:355, 360) match neither 'Wpi' nor 'wPI', while the non-calendar unit patterns are re.IGNORECASE throughout. Both return the elapsed time RAW onto the same axis a decimal year is on, with nothing downstream distinguishing them.",
+  "DATES Q10: the non-calendar path accepts Infinity, because float('inf') >= 0.0 is True (temporal.py:92-93), and rejects a negative real and a literal 'nan' by the same comparison without falling through to the embedded-number search."
  ],
  "counts": {
   "stats": {
@@ -117,6 +127,12 @@
    "phenotype_RHO_marine_n_permutations_0": 1,
    "filter_bat_oas1": 1,
    "filter_camelid": 1
+  },
+  "dates": {
+   "parse_date_to_decimal": 135,
+   "extract_date_from_string": 44,
+   "parse_header_timestamp": 26,
+   "_parse_timestamp_flexible": 19
   }
  },
  "bytes": {
@@ -167,10 +183,14 @@
   "e2e/meme_camelid_tn93.json": 18133,
   "e2e/meme_HIV1_RT_tn93.json": 56497,
   "e2e/busted_Smc6_tn93.json": 25452,
-  "e2e/epistasis_Smc6_tn93.json": 24426
+  "e2e/epistasis_Smc6_tn93.json": 24426,
+  "dates/parse_date_to_decimal.json": 65040,
+  "dates/extract_date_from_string.json": 26169,
+  "dates/parse_header_timestamp.json": 11468,
+  "dates/_parse_timestamp_flexible.json": 9030
  },
- "total_bytes": 5764983,
- "elapsed_seconds": 30.5,
+ "total_bytes": 5876690,
+ "elapsed_seconds": 0.9,
  "e2e_wall_seconds": {
   "meme_bat_oas1": 1.7,
   "meme_Smc6": 1.6,
@@ -201,5 +221,11 @@
   "in_proj.weight"
  ],
  "mds_sign": "canonical",
- "mds_sign_rule": "dataset.compute_mds_coordinates(mds_sign='canonical'): each kept eigenvector is flipped so its largest-magnitude entry is positive (np.argmax(np.abs(col)), first index on ties) before scaling by sqrt(eigenvalue); CLI --mds-sign / env HYPHAEON_MDS_SIGN, default canonical. 'lapack' keeps the solver's signs and is not what the fixtures record."
+ "mds_sign_rule": "dataset.compute_mds_coordinates(mds_sign='canonical'): each kept eigenvector is flipped so its largest-magnitude entry is positive (np.argmax(np.abs(col)), first index on ties) before scaling by sqrt(eigenvalue); CLI --mds-sign / env HYPHAEON_MDS_SIGN, default canonical. 'lapack' keeps the solver's signs and is not what the fixtures record.",
+ "date_reference_source": {
+  "parse_date_to_decimal": "hyphaeon/temporal.py:73-151",
+  "extract_date_from_string": "hyphaeon/temporal.py:196-245",
+  "parse_header_timestamp": "hyphaeon/dating.py:317-364",
+  "_parse_timestamp_flexible": "hyphaeon/dating.py:367-384"
+ }
 }

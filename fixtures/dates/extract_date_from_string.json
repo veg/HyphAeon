@@ -1,0 +1,530 @@
+[
+ {
+  "name": "000_'A/USA/CA-1/2021|2021-05-14'",
+  "inputs": {
+   "name": "A/USA/CA-1/2021|2021-05-14",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.3643835616438
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='years') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the four calendar header patterns and the delimiter class [|/_\\s] they require -- Q7: '-' is NOT a delimiter, pattern 2 needs two to four decimals, and pattern 4 is anchored at the end with no '^' alternative"
+ },
+ {
+  "name": "001_'seq_2021-05-14'",
+  "inputs": {
+   "name": "seq_2021-05-14",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.3643835616438
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='years') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the four calendar header patterns and the delimiter class [|/_\\s] they require -- Q7: '-' is NOT a delimiter, pattern 2 needs two to four decimals, and pattern 4 is anchored at the end with no '^' alternative"
+ },
+ {
+  "name": "002_'seq 2021-05-14'",
+  "inputs": {
+   "name": "seq 2021-05-14",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.3643835616438
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='years') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the four calendar header patterns and the delimiter class [|/_\\s] they require -- Q7: '-' is NOT a delimiter, pattern 2 needs two to four decimals, and pattern 4 is anchored at the end with no '^' alternative"
+ },
+ {
+  "name": "003_'A/USA/2021-05-14/2021'",
+  "inputs": {
+   "name": "A/USA/2021-05-14/2021",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.3643835616438
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='years') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the four calendar header patterns and the delimiter class [|/_\\s] they require -- Q7: '-' is NOT a delimiter, pattern 2 needs two to four decimals, and pattern 4 is anchored at the end with no '^' alternative"
+ },
+ {
+  "name": "004_'2021-05-14'",
+  "inputs": {
+   "name": "2021-05-14",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.3643835616438
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='years') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the four calendar header patterns and the delimiter class [|/_\\s] they require -- Q7: '-' is NOT a delimiter, pattern 2 needs two to four decimals, and pattern 4 is anchored at the end with no '^' alternative"
+ },
+ {
+  "name": "005_'A-2021-05-14'",
+  "inputs": {
+   "name": "A-2021-05-14",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='years') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the four calendar header patterns and the delimiter class [|/_\\s] they require -- Q7: '-' is NOT a delimiter, pattern 2 needs two to four decimals, and pattern 4 is anchored at the end with no '^' alternative"
+ },
+ {
+  "name": "006_'hCoV-19/England/X|2021.35'",
+  "inputs": {
+   "name": "hCoV-19/England/X|2021.35",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.35
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='years') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the four calendar header patterns and the delimiter class [|/_\\s] they require -- Q7: '-' is NOT a delimiter, pattern 2 needs two to four decimals, and pattern 4 is anchored at the end with no '^' alternative"
+ },
+ {
+  "name": "007_'hCoV-19/England/X|2021.3512'",
+  "inputs": {
+   "name": "hCoV-19/England/X|2021.3512",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.3512
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='years') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the four calendar header patterns and the delimiter class [|/_\\s] they require -- Q7: '-' is NOT a delimiter, pattern 2 needs two to four decimals, and pattern 4 is anchored at the end with no '^' alternative"
+ },
+ {
+  "name": "008_'hCoV-19/England/X|2021.5'",
+  "inputs": {
+   "name": "hCoV-19/England/X|2021.5",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='years') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the four calendar header patterns and the delimiter class [|/_\\s] they require -- Q7: '-' is NOT a delimiter, pattern 2 needs two to four decimals, and pattern 4 is anchored at the end with no '^' alternative"
+ },
+ {
+  "name": "009_'strain_2021-05'",
+  "inputs": {
+   "name": "strain_2021-05",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.3671232876711
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='years') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the four calendar header patterns and the delimiter class [|/_\\s] they require -- Q7: '-' is NOT a delimiter, pattern 2 needs two to four decimals, and pattern 4 is anchored at the end with no '^' alternative"
+ },
+ {
+  "name": "010_'strain|2021'",
+  "inputs": {
+   "name": "strain|2021",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='years') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the four calendar header patterns and the delimiter class [|/_\\s] they require -- Q7: '-' is NOT a delimiter, pattern 2 needs two to four decimals, and pattern 4 is anchored at the end with no '^' alternative"
+ },
+ {
+  "name": "011_'strain/2021'",
+  "inputs": {
+   "name": "strain/2021",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='years') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the four calendar header patterns and the delimiter class [|/_\\s] they require -- Q7: '-' is NOT a delimiter, pattern 2 needs two to four decimals, and pattern 4 is anchored at the end with no '^' alternative"
+ },
+ {
+  "name": "012_'2021'",
+  "inputs": {
+   "name": "2021",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='years') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the four calendar header patterns and the delimiter class [|/_\\s] they require -- Q7: '-' is NOT a delimiter, pattern 2 needs two to four decimals, and pattern 4 is anchored at the end with no '^' alternative"
+ },
+ {
+  "name": "013_'strain_2021'",
+  "inputs": {
+   "name": "strain_2021",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='years') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the four calendar header patterns and the delimiter class [|/_\\s] they require -- Q7: '-' is NOT a delimiter, pattern 2 needs two to four decimals, and pattern 4 is anchored at the end with no '^' alternative"
+ },
+ {
+  "name": "014_'strain-2021'",
+  "inputs": {
+   "name": "strain-2021",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='years') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the four calendar header patterns and the delimiter class [|/_\\s] they require -- Q7: '-' is NOT a delimiter, pattern 2 needs two to four decimals, and pattern 4 is anchored at the end with no '^' alternative"
+ },
+ {
+  "name": "015_'EPI_ISL_402124|2019-12-30|China'",
+  "inputs": {
+   "name": "EPI_ISL_402124|2019-12-30|China",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2019.9945205479453
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='years') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the four calendar header patterns and the delimiter class [|/_\\s] they require -- Q7: '-' is NOT a delimiter, pattern 2 needs two to four decimals, and pattern 4 is anchored at the end with no '^' alternative"
+ },
+ {
+  "name": "016_'no_date_here'",
+  "inputs": {
+   "name": "no_date_here",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='years') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the four calendar header patterns and the delimiter class [|/_\\s] they require -- Q7: '-' is NOT a delimiter, pattern 2 needs two to four decimals, and pattern 4 is anchored at the end with no '^' alternative"
+ },
+ {
+  "name": "017_''",
+  "inputs": {
+   "name": "",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='years') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the four calendar header patterns and the delimiter class [|/_\\s] they require -- Q7: '-' is NOT a delimiter, pattern 2 needs two to four decimals, and pattern 4 is anchored at the end with no '^' alternative"
+ },
+ {
+  "name": "018_'X|9999-05-14'",
+  "inputs": {
+   "name": "X|9999-05-14",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='years') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the four calendar header patterns and the delimiter class [|/_\\s] they require -- Q7: '-' is NOT a delimiter, pattern 2 needs two to four decimals, and pattern 4 is anchored at the end with no '^' alternative"
+ },
+ {
+  "name": "019_'X|1700-05-14'",
+  "inputs": {
+   "name": "X|1700-05-14",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='years') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the four calendar header patterns and the delimiter class [|/_\\s] they require -- Q7: '-' is NOT a delimiter, pattern 2 needs two to four decimals, and pattern 4 is anchored at the end with no '^' alternative"
+ },
+ {
+  "name": "020_'X|2021-13-14'",
+  "inputs": {
+   "name": "X|2021-13-14",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.4493150684932
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='years') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the four calendar header patterns and the delimiter class [|/_\\s] they require -- Q7: '-' is NOT a delimiter, pattern 2 needs two to four decimals, and pattern 4 is anchored at the end with no '^' alternative"
+ },
+ {
+  "name": "021_'pop1_gen2000'",
+  "inputs": {
+   "name": "pop1_gen2000",
+   "time_units": "generations"
+  },
+  "outputs": {
+   "result": 2000.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='generations') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the three non-calendar header patterns, whose delimiter class DOES include '-' and which are case-insensitive; the bare-number rule takes the FIRST delimiter-bound number in the name"
+ },
+ {
+  "name": "022_'pop1|gen_5000'",
+  "inputs": {
+   "name": "pop1|gen_5000",
+   "time_units": "generations"
+  },
+  "outputs": {
+   "result": 5000.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='generations') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the three non-calendar header patterns, whose delimiter class DOES include '-' and which are case-insensitive; the bare-number rule takes the FIRST delimiter-bound number in the name"
+ },
+ {
+  "name": "023_'pop1_20000gen'",
+  "inputs": {
+   "name": "pop1_20000gen",
+   "time_units": "generations"
+  },
+  "outputs": {
+   "result": 20000.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='generations') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the three non-calendar header patterns, whose delimiter class DOES include '-' and which are case-insensitive; the bare-number rule takes the FIRST delimiter-bound number in the name"
+ },
+ {
+  "name": "024_'pop1_g50000'",
+  "inputs": {
+   "name": "pop1_g50000",
+   "time_units": "generations"
+  },
+  "outputs": {
+   "result": 50000.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='generations') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the three non-calendar header patterns, whose delimiter class DOES include '-' and which are case-insensitive; the bare-number rule takes the FIRST delimiter-bound number in the name"
+ },
+ {
+  "name": "025_'lineage|5000'",
+  "inputs": {
+   "name": "lineage|5000",
+   "time_units": "generations"
+  },
+  "outputs": {
+   "result": 5000.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='generations') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the three non-calendar header patterns, whose delimiter class DOES include '-' and which are case-insensitive; the bare-number rule takes the FIRST delimiter-bound number in the name"
+ },
+ {
+  "name": "026_'lineage_generation_120'",
+  "inputs": {
+   "name": "lineage_generation_120",
+   "time_units": "generations"
+  },
+  "outputs": {
+   "result": 120.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='generations') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the three non-calendar header patterns, whose delimiter class DOES include '-' and which are case-insensitive; the bare-number rule takes the FIRST delimiter-bound number in the name"
+ },
+ {
+  "name": "027_'sample_day-7'",
+  "inputs": {
+   "name": "sample_day-7",
+   "time_units": "generations"
+  },
+  "outputs": {
+   "result": 7.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='generations') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the three non-calendar header patterns, whose delimiter class DOES include '-' and which are case-insensitive; the bare-number rule takes the FIRST delimiter-bound number in the name"
+ },
+ {
+  "name": "028_'sample_d30'",
+  "inputs": {
+   "name": "sample_d30",
+   "time_units": "generations"
+  },
+  "outputs": {
+   "result": 30.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='generations') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the three non-calendar header patterns, whose delimiter class DOES include '-' and which are case-insensitive; the bare-number rule takes the FIRST delimiter-bound number in the name"
+ },
+ {
+  "name": "029_'sample_t12.5'",
+  "inputs": {
+   "name": "sample_t12.5",
+   "time_units": "generations"
+  },
+  "outputs": {
+   "result": 12.5
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='generations') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the three non-calendar header patterns, whose delimiter class DOES include '-' and which are case-insensitive; the bare-number rule takes the FIRST delimiter-bound number in the name"
+ },
+ {
+  "name": "030_'sample_D30'",
+  "inputs": {
+   "name": "sample_D30",
+   "time_units": "generations"
+  },
+  "outputs": {
+   "result": 30.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='generations') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the three non-calendar header patterns, whose delimiter class DOES include '-' and which are case-insensitive; the bare-number rule takes the FIRST delimiter-bound number in the name"
+ },
+ {
+  "name": "031_'clone7'",
+  "inputs": {
+   "name": "clone7",
+   "time_units": "generations"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='generations') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the three non-calendar header patterns, whose delimiter class DOES include '-' and which are case-insensitive; the bare-number rule takes the FIRST delimiter-bound number in the name"
+ },
+ {
+  "name": "032_'7clone'",
+  "inputs": {
+   "name": "7clone",
+   "time_units": "generations"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='generations') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the three non-calendar header patterns, whose delimiter class DOES include '-' and which are case-insensitive; the bare-number rule takes the FIRST delimiter-bound number in the name"
+ },
+ {
+  "name": "033_'no_number'",
+  "inputs": {
+   "name": "no_number",
+   "time_units": "generations"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='generations') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the three non-calendar header patterns, whose delimiter class DOES include '-' and which are case-insensitive; the bare-number rule takes the FIRST delimiter-bound number in the name"
+ },
+ {
+  "name": "034_''",
+  "inputs": {
+   "name": "",
+   "time_units": "generations"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='generations') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the three non-calendar header patterns, whose delimiter class DOES include '-' and which are case-insensitive; the bare-number rule takes the FIRST delimiter-bound number in the name"
+ },
+ {
+  "name": "035_'x_2021-05-14'",
+  "inputs": {
+   "name": "x_2021-05-14",
+   "time_units": "generations"
+  },
+  "outputs": {
+   "result": 2021.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='generations') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. the three non-calendar header patterns, whose delimiter class DOES include '-' and which are case-insensitive; the bare-number rule takes the FIRST delimiter-bound number in the name"
+ },
+ {
+  "name": "036_'A/Managua/4218.01/2009|North_America_/_Nicaragua_/_Depar...",
+  "inputs": {
+   "name": "A/Managua/4218.01/2009|North_America_/_Nicaragua_/_Departamento_de_Managua|229|2009.627",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='years') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. MEASURED: examples/H1N1_2009_pandemic.fasta header 46 (0-based) is one of the 5 of 100 this function cannot date. pattern 2 matches the FIRST \\d{4}\\.\\d{2,4} in the header, which here is the isolate number (4218.01, 1127.02, 4016.02); that fails the [1800, 2100] gate, re.search never offers the second match, and the real decimal year in the last pipe field is then unreachable because pattern 4 is anchored at '$' -- Q6 + Q7."
+ },
+ {
+  "name": "037_'A/Managua/1127.02/2009|North_America_/_Nicaragua_/_Depar...",
+  "inputs": {
+   "name": "A/Managua/1127.02/2009|North_America_/_Nicaragua_/_Departamento_de_Managua|180|2009.493",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='years') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. MEASURED: examples/H1N1_2009_pandemic.fasta header 57 (0-based) is one of the 5 of 100 this function cannot date. pattern 2 matches the FIRST \\d{4}\\.\\d{2,4} in the header, which here is the isolate number (4218.01, 1127.02, 4016.02); that fails the [1800, 2100] gate, re.search never offers the second match, and the real decimal year in the last pipe field is then unreachable because pattern 4 is anchored at '$' -- Q6 + Q7."
+ },
+ {
+  "name": "038_'A/Managua/4016.02/2009|North_America_/_Nicaragua_/_Depar...",
+  "inputs": {
+   "name": "A/Managua/4016.02/2009|North_America_/_Nicaragua_/_Departamento_de_Managua|156|2009.427",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='years') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. MEASURED: examples/H1N1_2009_pandemic.fasta header 76 (0-based) is one of the 5 of 100 this function cannot date. pattern 2 matches the FIRST \\d{4}\\.\\d{2,4} in the header, which here is the isolate number (4218.01, 1127.02, 4016.02); that fails the [1800, 2100] gate, re.search never offers the second match, and the real decimal year in the last pipe field is then unreachable because pattern 4 is anchored at '$' -- Q6 + Q7."
+ },
+ {
+  "name": "039_'A/New_York/3702/2009|North_America_/_USA_/_New_York_stat...",
+  "inputs": {
+   "name": "A/New_York/3702/2009|North_America_/_USA_/_New_York_state_/_New_York_County|146|2009.4",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='years') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. MEASURED: examples/H1N1_2009_pandemic.fasta header 87 (0-based) is one of the 5 of 100 this function cannot date. pattern 2 requires TWO to four decimals, so a decimal year written to one place (|2009.4, |2009.8) is not matched at all; pattern 4's '$' anchor then leaves the header undated -- Q7."
+ },
+ {
+  "name": "040_'A/Texas/46192760/2009|North_America_/_USA_/_Texas_state|...",
+  "inputs": {
+   "name": "A/Texas/46192760/2009|North_America_/_USA_/_Texas_state|292|2009.8",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='years') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. MEASURED: examples/H1N1_2009_pandemic.fasta header 97 (0-based) is one of the 5 of 100 this function cannot date. pattern 2 requires TWO to four decimals, so a decimal year written to one place (|2009.4, |2009.8) is not matched at all; pattern 4's '$' anchor then leaves the header undated -- Q7."
+ },
+ {
+  "name": "041_'CONSENSUS'",
+  "inputs": {
+   "name": "CONSENSUS",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='years') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. MEASURED: examples/korber_env_gp160.fasta header 0 (0-based). This function dates 0 of that file's 143 headers; dating.parse_header_timestamp dates 142 of them, all through the Korber rule temporal.py does not have."
+ },
+ {
+  "name": "042_'A92UG.037'",
+  "inputs": {
+   "name": "A92UG.037",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='years') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. MEASURED: examples/korber_env_gp160.fasta header 1 (0-based). This function dates 0 of that file's 143 headers; dating.parse_header_timestamp dates 142 of them, all through the Korber rule temporal.py does not have."
+ },
+ {
+  "name": "043_'Z59ZR.ZHU'",
+  "inputs": {
+   "name": "Z59ZR.ZHU",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: extract_date_from_string(name, time_units='years') -> float. Reference hyphaeon/temporal.py:196-245, lifted by ast and executed without importing hyphaeon. MEASURED: examples/korber_env_gp160.fasta header 142 (0-based). This function dates 0 of that file's 143 headers; dating.parse_header_timestamp dates 142 of them, all through the Korber rule temporal.py does not have."
+ }
+]

@@ -1,0 +1,211 @@
+[
+ {
+  "name": "000_None",
+  "inputs": {
+   "val": null
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: _parse_timestamp_flexible(val) -> float. Reference hyphaeon/dating.py:367-384, lifted by ast and executed without importing hyphaeon. the calendar reading first, then a RAW float() with no gate at all (dating.py:378-381): this is the only way the dating pillar reaches a non-calendar coordinate, and it accepts negatives"
+ },
+ {
+  "name": "001_''",
+  "inputs": {
+   "val": ""
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: _parse_timestamp_flexible(val) -> float. Reference hyphaeon/dating.py:367-384, lifted by ast and executed without importing hyphaeon. the calendar reading first, then a RAW float() with no gate at all (dating.py:378-381): this is the only way the dating pillar reaches a non-calendar coordinate, and it accepts negatives"
+ },
+ {
+  "name": "002_'unknown'",
+  "inputs": {
+   "val": "unknown"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: _parse_timestamp_flexible(val) -> float. Reference hyphaeon/dating.py:367-384, lifted by ast and executed without importing hyphaeon. the calendar reading first, then a RAW float() with no gate at all (dating.py:378-381): this is the only way the dating pillar reaches a non-calendar coordinate, and it accepts negatives"
+ },
+ {
+  "name": "003_'nan'",
+  "inputs": {
+   "val": "nan"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: _parse_timestamp_flexible(val) -> float. Reference hyphaeon/dating.py:367-384, lifted by ast and executed without importing hyphaeon. the calendar reading first, then a RAW float() with no gate at all (dating.py:378-381): this is the only way the dating pillar reaches a non-calendar coordinate, and it accepts negatives"
+ },
+ {
+  "name": "004_'2021-04-15'",
+  "inputs": {
+   "val": "2021-04-15"
+  },
+  "outputs": {
+   "result": 2021.2849315068493
+  },
+  "tolerance": "exact",
+  "notes": "signature: _parse_timestamp_flexible(val) -> float. Reference hyphaeon/dating.py:367-384, lifted by ast and executed without importing hyphaeon. the calendar reading first, then a RAW float() with no gate at all (dating.py:378-381): this is the only way the dating pillar reaches a non-calendar coordinate, and it accepts negatives"
+ },
+ {
+  "name": "005_'2021.25'",
+  "inputs": {
+   "val": "2021.25"
+  },
+  "outputs": {
+   "result": 2021.25
+  },
+  "tolerance": "exact",
+  "notes": "signature: _parse_timestamp_flexible(val) -> float. Reference hyphaeon/dating.py:367-384, lifted by ast and executed without importing hyphaeon. the calendar reading first, then a RAW float() with no gate at all (dating.py:378-381): this is the only way the dating pillar reaches a non-calendar coordinate, and it accepts negatives"
+ },
+ {
+  "name": "006_2021.25",
+  "inputs": {
+   "val": 2021.25
+  },
+  "outputs": {
+   "result": 2021.25
+  },
+  "tolerance": "exact",
+  "notes": "signature: _parse_timestamp_flexible(val) -> float. Reference hyphaeon/dating.py:367-384, lifted by ast and executed without importing hyphaeon. the calendar reading first, then a RAW float() with no gate at all (dating.py:378-381): this is the only way the dating pillar reaches a non-calendar coordinate, and it accepts negatives"
+ },
+ {
+  "name": "007_'5000'",
+  "inputs": {
+   "val": "5000"
+  },
+  "outputs": {
+   "result": 5000.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: _parse_timestamp_flexible(val) -> float. Reference hyphaeon/dating.py:367-384, lifted by ast and executed without importing hyphaeon. the calendar reading first, then a RAW float() with no gate at all (dating.py:378-381): this is the only way the dating pillar reaches a non-calendar coordinate, and it accepts negatives"
+ },
+ {
+  "name": "008_5000",
+  "inputs": {
+   "val": 5000
+  },
+  "outputs": {
+   "result": 5000.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: _parse_timestamp_flexible(val) -> float. Reference hyphaeon/dating.py:367-384, lifted by ast and executed without importing hyphaeon. the calendar reading first, then a RAW float() with no gate at all (dating.py:378-381): this is the only way the dating pillar reaches a non-calendar coordinate, and it accepts negatives"
+ },
+ {
+  "name": "009_0.25",
+  "inputs": {
+   "val": 0.25
+  },
+  "outputs": {
+   "result": 0.25
+  },
+  "tolerance": "exact",
+  "notes": "signature: _parse_timestamp_flexible(val) -> float. Reference hyphaeon/dating.py:367-384, lifted by ast and executed without importing hyphaeon. the calendar reading first, then a RAW float() with no gate at all (dating.py:378-381): this is the only way the dating pillar reaches a non-calendar coordinate, and it accepts negatives"
+ },
+ {
+  "name": "010_'0.25'",
+  "inputs": {
+   "val": "0.25"
+  },
+  "outputs": {
+   "result": 0.25
+  },
+  "tolerance": "exact",
+  "notes": "signature: _parse_timestamp_flexible(val) -> float. Reference hyphaeon/dating.py:367-384, lifted by ast and executed without importing hyphaeon. the calendar reading first, then a RAW float() with no gate at all (dating.py:378-381): this is the only way the dating pillar reaches a non-calendar coordinate, and it accepts negatives"
+ },
+ {
+  "name": "011_'-3'",
+  "inputs": {
+   "val": "-3"
+  },
+  "outputs": {
+   "result": -3.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: _parse_timestamp_flexible(val) -> float. Reference hyphaeon/dating.py:367-384, lifted by ast and executed without importing hyphaeon. the calendar reading first, then a RAW float() with no gate at all (dating.py:378-381): this is the only way the dating pillar reaches a non-calendar coordinate, and it accepts negatives"
+ },
+ {
+  "name": "012_-3",
+  "inputs": {
+   "val": -3
+  },
+  "outputs": {
+   "result": -3.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: _parse_timestamp_flexible(val) -> float. Reference hyphaeon/dating.py:367-384, lifted by ast and executed without importing hyphaeon. the calendar reading first, then a RAW float() with no gate at all (dating.py:378-381): this is the only way the dating pillar reaches a non-calendar coordinate, and it accepts negatives"
+ },
+ {
+  "name": "013_'1700'",
+  "inputs": {
+   "val": "1700"
+  },
+  "outputs": {
+   "result": 1700.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: _parse_timestamp_flexible(val) -> float. Reference hyphaeon/dating.py:367-384, lifted by ast and executed without importing hyphaeon. the calendar reading first, then a RAW float() with no gate at all (dating.py:378-381): this is the only way the dating pillar reaches a non-calendar coordinate, and it accepts negatives"
+ },
+ {
+  "name": "014_1700",
+  "inputs": {
+   "val": 1700
+  },
+  "outputs": {
+   "result": 1700.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: _parse_timestamp_flexible(val) -> float. Reference hyphaeon/dating.py:367-384, lifted by ast and executed without importing hyphaeon. the calendar reading first, then a RAW float() with no gate at all (dating.py:378-381): this is the only way the dating pillar reaches a non-calendar coordinate, and it accepts negatives"
+ },
+ {
+  "name": "015_'inf'",
+  "inputs": {
+   "val": "inf"
+  },
+  "outputs": {
+   "result": "Infinity"
+  },
+  "tolerance": "exact",
+  "notes": "signature: _parse_timestamp_flexible(val) -> float. Reference hyphaeon/dating.py:367-384, lifted by ast and executed without importing hyphaeon. the calendar reading first, then a RAW float() with no gate at all (dating.py:378-381): this is the only way the dating pillar reaches a non-calendar coordinate, and it accepts negatives"
+ },
+ {
+  "name": "016_'abc'",
+  "inputs": {
+   "val": "abc"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: _parse_timestamp_flexible(val) -> float. Reference hyphaeon/dating.py:367-384, lifted by ast and executed without importing hyphaeon. the calendar reading first, then a RAW float() with no gate at all (dating.py:378-381): this is the only way the dating pillar reaches a non-calendar coordinate, and it accepts negatives"
+ },
+ {
+  "name": "017_True",
+  "inputs": {
+   "val": true
+  },
+  "outputs": {
+   "result": 1.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: _parse_timestamp_flexible(val) -> float. Reference hyphaeon/dating.py:367-384, lifted by ast and executed without importing hyphaeon. the calendar reading first, then a RAW float() with no gate at all (dating.py:378-381): this is the only way the dating pillar reaches a non-calendar coordinate, and it accepts negatives"
+ },
+ {
+  "name": "018_'1e6'",
+  "inputs": {
+   "val": "1e6"
+  },
+  "outputs": {
+   "result": 1000000.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: _parse_timestamp_flexible(val) -> float. Reference hyphaeon/dating.py:367-384, lifted by ast and executed without importing hyphaeon. the calendar reading first, then a RAW float() with no gate at all (dating.py:378-381): this is the only way the dating pillar reaches a non-calendar coordinate, and it accepts negatives"
+ }
+]

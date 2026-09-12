@@ -1,0 +1,288 @@
+[
+ {
+  "name": "000_'Z59ZR.ZHU'",
+  "inputs": {
+   "name": "Z59ZR.ZHU"
+  },
+  "outputs": {
+   "result": 1959.5
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_header_timestamp(name) -> float. Reference hyphaeon/dating.py:317-364, lifted by ast and executed without importing hyphaeon. the hard-coded archival anchor (dating.py:330-332) -- Q1: an unbounded substring test that overwrites a real date and claims an unrelated accession"
+ },
+ {
+  "name": "001_'ZR59'",
+  "inputs": {
+   "name": "ZR59"
+  },
+  "outputs": {
+   "result": 1959.5
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_header_timestamp(name) -> float. Reference hyphaeon/dating.py:317-364, lifted by ast and executed without importing hyphaeon. the hard-coded archival anchor (dating.py:330-332) -- Q1: an unbounded substring test that overwrites a real date and claims an unrelated accession"
+ },
+ {
+  "name": "002_'AZ59012'",
+  "inputs": {
+   "name": "AZ59012"
+  },
+  "outputs": {
+   "result": 1959.5
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_header_timestamp(name) -> float. Reference hyphaeon/dating.py:317-364, lifted by ast and executed without importing hyphaeon. the hard-coded archival anchor (dating.py:330-332) -- Q1: an unbounded substring test that overwrites a real date and claims an unrelated accession"
+ },
+ {
+  "name": "003_'A/Kinshasa/1959-03-04'",
+  "inputs": {
+   "name": "A/Kinshasa/1959-03-04"
+  },
+  "outputs": {
+   "result": 1959.5
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_header_timestamp(name) -> float. Reference hyphaeon/dating.py:317-364, lifted by ast and executed without importing hyphaeon. the hard-coded archival anchor (dating.py:330-332) -- Q1: an unbounded substring test that overwrites a real date and claims an unrelated accession"
+ },
+ {
+  "name": "004_'X|1959-03-04'",
+  "inputs": {
+   "name": "X|1959-03-04"
+  },
+  "outputs": {
+   "result": 1959.5
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_header_timestamp(name) -> float. Reference hyphaeon/dating.py:317-364, lifted by ast and executed without importing hyphaeon. the hard-coded archival anchor (dating.py:330-332) -- Q1: an unbounded substring test that overwrites a real date and claims an unrelated accession"
+ },
+ {
+  "name": "005_'X|2019-03-04'",
+  "inputs": {
+   "name": "X|2019-03-04"
+  },
+  "outputs": {
+   "result": 2019.1698630136987
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_header_timestamp(name) -> float. Reference hyphaeon/dating.py:317-364, lifted by ast and executed without importing hyphaeon. the hard-coded archival anchor (dating.py:330-332) -- Q1: an unbounded substring test that overwrites a real date and claims an unrelated accession"
+ },
+ {
+  "name": "006_'B86US.SFMHS18'",
+  "inputs": {
+   "name": "B86US.SFMHS18"
+  },
+  "outputs": {
+   "result": 1986.5
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_header_timestamp(name) -> float. Reference hyphaeon/dating.py:317-364, lifted by ast and executed without importing hyphaeon. the Korber HIV-1 isolate code ^[A-Za-z]\\d\\d[A-Za-z]{2}[._] with the two-digit year pivoted at 30 and mid-year added (dating.py:341-345) -- Q8"
+ },
+ {
+  "name": "007_'F93BE_VI850'",
+  "inputs": {
+   "name": "F93BE_VI850"
+  },
+  "outputs": {
+   "result": 1993.5
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_header_timestamp(name) -> float. Reference hyphaeon/dating.py:317-364, lifted by ast and executed without importing hyphaeon. the Korber HIV-1 isolate code ^[A-Za-z]\\d\\d[A-Za-z]{2}[._] with the two-digit year pivoted at 30 and mid-year added (dating.py:341-345) -- Q8"
+ },
+ {
+  "name": "008_'C86ET.ETH2220'",
+  "inputs": {
+   "name": "C86ET.ETH2220"
+  },
+  "outputs": {
+   "result": 1986.5
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_header_timestamp(name) -> float. Reference hyphaeon/dating.py:317-364, lifted by ast and executed without importing hyphaeon. the Korber HIV-1 isolate code ^[A-Za-z]\\d\\d[A-Za-z]{2}[._] with the two-digit year pivoted at 30 and mid-year added (dating.py:341-345) -- Q8"
+ },
+ {
+  "name": "009_'A85UG.U455'",
+  "inputs": {
+   "name": "A85UG.U455"
+  },
+  "outputs": {
+   "result": 1985.5
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_header_timestamp(name) -> float. Reference hyphaeon/dating.py:317-364, lifted by ast and executed without importing hyphaeon. the Korber HIV-1 isolate code ^[A-Za-z]\\d\\d[A-Za-z]{2}[._] with the two-digit year pivoted at 30 and mid-year added (dating.py:341-345) -- Q8"
+ },
+ {
+  "name": "010_'D84ZR.84ZR085'",
+  "inputs": {
+   "name": "D84ZR.84ZR085"
+  },
+  "outputs": {
+   "result": 1984.5
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_header_timestamp(name) -> float. Reference hyphaeon/dating.py:317-364, lifted by ast and executed without importing hyphaeon. the Korber HIV-1 isolate code ^[A-Za-z]\\d\\d[A-Za-z]{2}[._] with the two-digit year pivoted at 30 and mid-year added (dating.py:341-345) -- Q8"
+ },
+ {
+  "name": "011_'B29US.X'",
+  "inputs": {
+   "name": "B29US.X"
+  },
+  "outputs": {
+   "result": 2029.5
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_header_timestamp(name) -> float. Reference hyphaeon/dating.py:317-364, lifted by ast and executed without importing hyphaeon. the Korber HIV-1 isolate code ^[A-Za-z]\\d\\d[A-Za-z]{2}[._] with the two-digit year pivoted at 30 and mid-year added (dating.py:341-345) -- Q8"
+ },
+ {
+  "name": "012_'B30US.X'",
+  "inputs": {
+   "name": "B30US.X"
+  },
+  "outputs": {
+   "result": 1930.5
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_header_timestamp(name) -> float. Reference hyphaeon/dating.py:317-364, lifted by ast and executed without importing hyphaeon. the Korber HIV-1 isolate code ^[A-Za-z]\\d\\d[A-Za-z]{2}[._] with the two-digit year pivoted at 30 and mid-year added (dating.py:341-345) -- Q8"
+ },
+ {
+  "name": "013_'b86us.SFMHS18'",
+  "inputs": {
+   "name": "b86us.SFMHS18"
+  },
+  "outputs": {
+   "result": 1986.5
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_header_timestamp(name) -> float. Reference hyphaeon/dating.py:317-364, lifted by ast and executed without importing hyphaeon. the Korber HIV-1 isolate code ^[A-Za-z]\\d\\d[A-Za-z]{2}[._] with the two-digit year pivoted at 30 and mid-year added (dating.py:341-345) -- Q8"
+ },
+ {
+  "name": "014_'Ref_B_FR_83_HXB2'",
+  "inputs": {
+   "name": "Ref_B_FR_83_HXB2"
+  },
+  "outputs": {
+   "result": 1983.5
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_header_timestamp(name) -> float. Reference hyphaeon/dating.py:317-364, lifted by ast and executed without importing hyphaeon. the LANL _XX_86_ year, which requires an UPPERCASE country code (dating.py:348-352) -- Q8"
+ },
+ {
+  "name": "015_'Ref_C_ET_86_ETH2220'",
+  "inputs": {
+   "name": "Ref_C_ET_86_ETH2220"
+  },
+  "outputs": {
+   "result": 1986.5
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_header_timestamp(name) -> float. Reference hyphaeon/dating.py:317-364, lifted by ast and executed without importing hyphaeon. the LANL _XX_86_ year, which requires an UPPERCASE country code (dating.py:348-352) -- Q8"
+ },
+ {
+  "name": "016_'Ref_C_et_86_ETH2220'",
+  "inputs": {
+   "name": "Ref_C_et_86_ETH2220"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_header_timestamp(name) -> float. Reference hyphaeon/dating.py:317-364, lifted by ast and executed without importing hyphaeon. the LANL _XX_86_ year, which requires an UPPERCASE country code (dating.py:348-352) -- Q8"
+ },
+ {
+  "name": "017_'patient1_16WPI'",
+  "inputs": {
+   "name": "patient1_16WPI"
+  },
+  "outputs": {
+   "result": 16.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_header_timestamp(name) -> float. Reference hyphaeon/dating.py:317-364, lifted by ast and executed without importing hyphaeon. weeks and days post infection, returned raw onto the same axis as a decimal year (dating.py:355-362) -- Q9: (?:WPI|wpi) matches neither 'Wpi' nor 'wPI'"
+ },
+ {
+  "name": "018_'patient1_16 WPI'",
+  "inputs": {
+   "name": "patient1_16 WPI"
+  },
+  "outputs": {
+   "result": 16.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_header_timestamp(name) -> float. Reference hyphaeon/dating.py:317-364, lifted by ast and executed without importing hyphaeon. weeks and days post infection, returned raw onto the same axis as a decimal year (dating.py:355-362) -- Q9: (?:WPI|wpi) matches neither 'Wpi' nor 'wPI'"
+ },
+ {
+  "name": "019_'patient1_16wpi'",
+  "inputs": {
+   "name": "patient1_16wpi"
+  },
+  "outputs": {
+   "result": 16.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_header_timestamp(name) -> float. Reference hyphaeon/dating.py:317-364, lifted by ast and executed without importing hyphaeon. weeks and days post infection, returned raw onto the same axis as a decimal year (dating.py:355-362) -- Q9: (?:WPI|wpi) matches neither 'Wpi' nor 'wPI'"
+ },
+ {
+  "name": "020_'patient1_16Wpi'",
+  "inputs": {
+   "name": "patient1_16Wpi"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_header_timestamp(name) -> float. Reference hyphaeon/dating.py:317-364, lifted by ast and executed without importing hyphaeon. weeks and days post infection, returned raw onto the same axis as a decimal year (dating.py:355-362) -- Q9: (?:WPI|wpi) matches neither 'Wpi' nor 'wPI'"
+ },
+ {
+  "name": "021_'patient1_120DPI'",
+  "inputs": {
+   "name": "patient1_120DPI"
+  },
+  "outputs": {
+   "result": 120.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_header_timestamp(name) -> float. Reference hyphaeon/dating.py:317-364, lifted by ast and executed without importing hyphaeon. weeks and days post infection, returned raw onto the same axis as a decimal year (dating.py:355-362) -- Q9: (?:WPI|wpi) matches neither 'Wpi' nor 'wPI'"
+ },
+ {
+  "name": "022_'patient1_120.5dpi'",
+  "inputs": {
+   "name": "patient1_120.5dpi"
+  },
+  "outputs": {
+   "result": 120.5
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_header_timestamp(name) -> float. Reference hyphaeon/dating.py:317-364, lifted by ast and executed without importing hyphaeon. weeks and days post infection, returned raw onto the same axis as a decimal year (dating.py:355-362) -- Q9: (?:WPI|wpi) matches neither 'Wpi' nor 'wPI'"
+ },
+ {
+  "name": "023_'seq_2021-05-14'",
+  "inputs": {
+   "name": "seq_2021-05-14"
+  },
+  "outputs": {
+   "result": 2021.3643835616438
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_header_timestamp(name) -> float. Reference hyphaeon/dating.py:317-364, lifted by ast and executed without importing hyphaeon. the calendar patterns it delegates to first (dating.py:335), and the two ways of having no date at all"
+ },
+ {
+  "name": "024_''",
+  "inputs": {
+   "name": ""
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_header_timestamp(name) -> float. Reference hyphaeon/dating.py:317-364, lifted by ast and executed without importing hyphaeon. the calendar patterns it delegates to first (dating.py:335), and the two ways of having no date at all"
+ },
+ {
+  "name": "025_'nothing_here'",
+  "inputs": {
+   "name": "nothing_here"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_header_timestamp(name) -> float. Reference hyphaeon/dating.py:317-364, lifted by ast and executed without importing hyphaeon. the calendar patterns it delegates to first (dating.py:335), and the two ways of having no date at all"
+ }
+]

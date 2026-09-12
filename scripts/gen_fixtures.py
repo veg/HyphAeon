@@ -52,11 +52,19 @@ Regenerate from the repository root with the same environment CI uses:
         python scripts/gen_fixtures.py
 
 Options: --only <module> (repeatable), --skip-model, --skip-e2e.
+
+  * `--only dates` needs neither weights nor torch: the four date parsers of
+    temporal.py and dating.py are lifted out of the checked-out source by `ast`
+    (load_date_reference) and executed in a namespace holding only re, datetime,
+    numpy and pandas, because both modules import torch at module scope and the
+    parsers use none of it. A run that touches no model-dependent module keeps
+    the previous manifest's weights record rather than nulling it.
 """
 
 from __future__ import annotations
 
 import argparse
+import ast
 import contextlib
 import csv
 import hashlib
@@ -1217,6 +1225,288 @@ def gen_dataset(w: Writer) -> None:
 
 
 # --------------------------------------------------------------------------
+# dates (no model, no torch, no weights: four pure string parsers)
+# --------------------------------------------------------------------------
+
+# The four date parsers of the time-aware pillars. They are ordinary ported reference functions, so
+# their tables live here rather than under js/test/data/ (fixtures/README.md: test/data/<module>/ is
+# for cases this generator CANNOT produce).
+DATE_FUNCTIONS = {
+    "hyphaeon/temporal.py": ["parse_date_to_decimal", "extract_date_from_string"],
+    "hyphaeon/dating.py": ["parse_header_timestamp", "_parse_timestamp_flexible"],
+}
+
+
+def load_date_reference(engine_root: Path = REPO):
+    """
+    Execute the four date functions out of the checked-out Python, WITHOUT importing hyphaeon.
+
+    Both modules import torch at module scope (temporal.py:42; dating.py imports inference), and the
+    date parsers need none of it: importing either would make four string tables depend on a full
+    model environment. So the function definitions are lifted out of the source by `ast` — by name,
+    with their exact line ranges returned alongside — and executed in a namespace holding only what
+    their bodies reference (`re`, `datetime`, `np`, `pd`). Nothing is retyped, so a drift between the
+    reference body and the generated table is impossible, and the line ranges are the audit trail
+    (js/test/dates.test.js asserts them).
+
+    `js/test/data/dates/gen.py` imports this function for the one table it still owns.
+
+    @returns (namespace, {function name: "<file>:<first line>-<last line>"})
+    """
+    import datetime as _datetime
+    import re as _re
+
+    import pandas as _pd
+
+    ns: Dict[str, Any] = {"re": _re, "datetime": _datetime, "np": np, "pd": _pd, "Any": Any}
+    provenance: Dict[str, str] = {}
+    for rel, names in DATE_FUNCTIONS.items():
+        path = engine_root / rel
+        source = path.read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        by_name = {n.name: n for n in tree.body if isinstance(n, ast.FunctionDef)}
+        for name in names:
+            node = by_name[name]
+            provenance[name] = f"{rel}:{node.lineno}-{node.end_lineno}"
+            exec(compile(ast.get_source_segment(source, node), str(path), "exec"), ns)  # noqa: S102
+    return ns, provenance
+
+
+# Each block is (what it pins, [values]). The blocks are flattened in order, so the tables' lengths
+# and order are fixed by this file; a case's `notes` carries its block's sentence.
+
+# parse_date_to_decimal, calendar (temporal.py:73-151).
+DATE_CALENDAR_BLOCKS = [
+    ("plain numbers and the [1800, 2100] gate (temporal.py:104-108, 115-120); a Python bool is an int, so True is 1.0 and fails the gate",
+     [2021.25, 1959.5, 1800, 2100, 1799.999, 2100.001, 0, -1, 1e9, True, False]),
+    ("missing / null tokens (temporal.py:86, 111); the token test is case-folded, so 'NaN' and 'NA' are null but '??' is not",
+     [None, "", "   ", "unknown", "UNKNOWN", "nan", "NaN", "none", "NA", "na", "?", "??"]),
+    ("decimal-year strings (temporal.py:115-120) through CPython float(): underscore separators, exponents, a leading '+', and the inf spellings",
+     ["2021.25", " 2021.25 ", "2021", "2_021", "2.0212e3", "+2021", "inf", "-inf"]),
+    ("ISO and partial ISO on the delimiter path (temporal.py:126-147) -- Q2: a missing month defaults to June and a missing day to the 15th, silently",
+     ["2021-04-15", "2021-04", "2021-01-01", "2021-12-31", "2020-02-29", "2021-02-28",
+      "2021-XX-XX", "2021-04-XX", "2021-4-5", "2021-004-015"]),
+    ("'/' and '.' are both normalised to '-' (temporal.py:123) -- Q5, and only AFTER float() has claimed every plain decimal year",
+     ["2021/04/15", "2021.04.15", "2021.4.15", "2021/4", "2021.5", "2021.05"]),
+    ("the day cap min(day, 28 if month == 2 else 30) (temporal.py:144) -- Q3: the 31st of a 31-day month moves back a day and 29 February is unreachable",
+     ["2021-01-31", "2021-03-31", "2021-02-29", "2020-02-29", "2021-02-30", "2021-12-30"]),
+    ("an out-of-range month or day is discarded and the default kept, with no error (temporal.py:133-142) -- Q4",
+     ["2021-13-15", "2021-00-15", "2021-04-00", "2021-04-32", "2021-04-31"]),
+    ("out of the gate, and unparseable (temporal.py:129-130, 151) -- Q6: the reference returns NaN for both and the two are indistinguishable to it",
+     ["1700-04-15", "2500-04-15", "0021-04-15", "21-04-15", "202-04-15", "20210415",
+      "notadate", "2021-04-15T09:30:00Z", "15-04-2021", "April 2021"]),
+    ("the leap rule and the 365/366 divisor (temporal.py:146) across a non-leap century, a leap century and an ordinary leap year",
+     ["1900-03-01", "2000-03-01", "2004-03-01", "1996-12-31"]),
+]
+
+# parse_date_to_decimal, non-calendar (temporal.py:90-102). Replayed under each of the three units.
+DATE_NON_CALENDAR_BLOCKS = [
+    ("any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not",
+     [0, 5000, 5000.5, -1, -0.0, "5000", "5000.5", "-5000", "gen_5000", "generation 42",
+      "t=17.5", "abc", "", None, "nan", "inf", "-inf", "  12  ", 1e9, True]),
+]
+
+# extract_date_from_string, calendar (temporal.py:217-243).
+DATE_HEADER_CALENDAR_BLOCKS = [
+    ("the four calendar header patterns and the delimiter class [|/_\\s] they require -- Q7: '-' is NOT a delimiter, pattern 2 needs two to four decimals, and pattern 4 is anchored at the end with no '^' alternative",
+     ["A/USA/CA-1/2021|2021-05-14", "seq_2021-05-14", "seq 2021-05-14", "A/USA/2021-05-14/2021",
+      "2021-05-14", "A-2021-05-14", "hCoV-19/England/X|2021.35", "hCoV-19/England/X|2021.3512",
+      "hCoV-19/England/X|2021.5", "strain_2021-05", "strain|2021", "strain/2021", "2021",
+      "strain_2021", "strain-2021", "EPI_ISL_402124|2019-12-30|China", "no_date_here", "",
+      "X|9999-05-14", "X|1700-05-14", "X|2021-13-14"]),
+]
+
+# extract_date_from_string, non-calendar (temporal.py:204-215).
+DATE_HEADER_NON_CALENDAR_BLOCKS = [
+    ("the three non-calendar header patterns, whose delimiter class DOES include '-' and which are case-insensitive; the bare-number rule takes the FIRST delimiter-bound number in the name",
+     ["pop1_gen2000", "pop1|gen_5000", "pop1_20000gen", "pop1_g50000", "lineage|5000",
+      "lineage_generation_120", "sample_day-7", "sample_d30", "sample_t12.5", "sample_D30",
+      "clone7", "7clone", "no_number", "", "x_2021-05-14"]),
+]
+
+# parse_header_timestamp (dating.py:317-364). Every name containing Z59, ZR59 or 1959 is answered
+# 1959.5 by the reference before any pattern is tried -- Q1.
+DATE_HEADER_TIMESTAMP_BLOCKS = [
+    ("the hard-coded archival anchor (dating.py:330-332) -- Q1: an unbounded substring test that overwrites a real date and claims an unrelated accession",
+     ["Z59ZR.ZHU", "ZR59", "AZ59012", "A/Kinshasa/1959-03-04", "X|1959-03-04", "X|2019-03-04"]),
+    ("the Korber HIV-1 isolate code ^[A-Za-z]\\d\\d[A-Za-z]{2}[._] with the two-digit year pivoted at 30 and mid-year added (dating.py:341-345) -- Q8",
+     ["B86US.SFMHS18", "F93BE_VI850", "C86ET.ETH2220", "A85UG.U455", "D84ZR.84ZR085",
+      "B29US.X", "B30US.X", "b86us.SFMHS18"]),
+    ("the LANL _XX_86_ year, which requires an UPPERCASE country code (dating.py:348-352) -- Q8",
+     ["Ref_B_FR_83_HXB2", "Ref_C_ET_86_ETH2220", "Ref_C_et_86_ETH2220"]),
+    ("weeks and days post infection, returned raw onto the same axis as a decimal year (dating.py:355-362) -- Q9: (?:WPI|wpi) matches neither 'Wpi' nor 'wPI'",
+     ["patient1_16WPI", "patient1_16 WPI", "patient1_16wpi", "patient1_16Wpi",
+      "patient1_120DPI", "patient1_120.5dpi"]),
+    ("the calendar patterns it delegates to first (dating.py:335), and the two ways of having no date at all",
+     ["seq_2021-05-14", "", "nothing_here"]),
+]
+
+# _parse_timestamp_flexible (dating.py:367-384).
+DATE_FLEXIBLE_BLOCKS = [
+    ("the calendar reading first, then a RAW float() with no gate at all (dating.py:378-381): this is the only way the dating pillar reaches a non-calendar coordinate, and it accepts negatives",
+     [None, "", "unknown", "nan", "2021-04-15", "2021.25", 2021.25, "5000", 5000, 0.25, "0.25",
+      "-3", -3, "1700", 1700, "inf", "abc", True, "1e6"]),
+]
+
+
+def _flat(blocks):
+    return [v for _, values in blocks for v in values]
+
+
+# Flat lists, for js/test/data/dates/gen.py, which replays the same inputs through one hand-written
+# variant of parse_header_timestamp.
+CALENDAR_VALUES = _flat(DATE_CALENDAR_BLOCKS)
+NON_CALENDAR_VALUES = _flat(DATE_NON_CALENDAR_BLOCKS)
+HEADER_NAMES_CALENDAR = _flat(DATE_HEADER_CALENDAR_BLOCKS)
+HEADER_NAMES_NON_CALENDAR = _flat(DATE_HEADER_NON_CALENDAR_BLOCKS)
+HEADER_TIMESTAMP_NAMES = _flat(DATE_HEADER_TIMESTAMP_BLOCKS)
+FLEXIBLE_VALUES = _flat(DATE_FLEXIBLE_BLOCKS)
+
+# The measured real-data cases, BY INDEX into the bundled alignment so the string itself is never
+# retyped. MEASURED at this commit with the reference's own extract_date_from_string:
+#   examples/H1N1_2009_pandemic.fasta   95 of 100 headers dated; these five are the misses, for two
+#                                       distinct reasons (see the notes on each block)
+#   examples/korber_env_gp160.fasta     0 of 143 dated by temporal's parser; all 142 that dating's
+#                                       parse_header_timestamp dates come from the Korber rule,
+#                                       which temporal does not have (CONSENSUS is the 143rd)
+H1N1_UNDATED_HEADER_INDICES = [46, 57, 76, 87, 97]
+KORBER_HEADER_INDICES = [0, 1, 142]
+
+_H1N1_ISOLATE_NUMBER_SHADOW = (
+    "pattern 2 matches the FIRST \\d{4}\\.\\d{2,4} in the header, which here is the isolate number "
+    "(4218.01, 1127.02, 4016.02); that fails the [1800, 2100] gate, re.search never offers the second "
+    "match, and the real decimal year in the last pipe field is then unreachable because pattern 4 is "
+    "anchored at '$' -- Q6 + Q7."
+)
+_H1N1_ONE_DECIMAL = (
+    "pattern 2 requires TWO to four decimals, so a decimal year written to one place (|2009.4, |2009.8) "
+    "is not matched at all; pattern 4's '$' anchor then leaves the header undated -- Q7."
+)
+# MEASURED per header, not derived: which of the two defects drops this one.
+H1N1_UNDATED_REASONS = {
+    46: _H1N1_ISOLATE_NUMBER_SHADOW, 57: _H1N1_ISOLATE_NUMBER_SHADOW, 76: _H1N1_ISOLATE_NUMBER_SHADOW,
+    87: _H1N1_ONE_DECIMAL, 97: _H1N1_ONE_DECIMAL,
+}
+
+
+def fasta_headers(path: Path) -> List[str]:
+    """The '>' lines of a FASTA, marker stripped and stripped, in file order."""
+    return [line[1:].strip() for line in path.read_text().splitlines() if line.startswith(">")]
+
+
+def _date_case_name(index: int, value: Any) -> str:
+    """`NNN_<repr>`: the index keeps names unique (a value may appear in two blocks), the repr shows
+    whitespace and quoting, which is half of what these cases are about."""
+    body = "".join(ch if ch.isprintable() else "?" for ch in repr(value))
+    if len(body) > 60:
+        body = body[:57] + "..."
+    return f"{index:03d}_{body}"
+
+
+def gen_dates(w: Writer) -> None:
+    ns, provenance = load_date_reference()
+    parse_date_to_decimal = ns["parse_date_to_decimal"]
+    extract_date_from_string = ns["extract_date_from_string"]
+    parse_header_timestamp = ns["parse_header_timestamp"]
+    parse_timestamp_flexible = ns["_parse_timestamp_flexible"]
+
+    def sig(fn: str, call: str) -> str:
+        return f"signature: {call}. Reference {provenance[fn]}, lifted by ast and executed without importing hyphaeon."
+
+    # ---- parse_date_to_decimal -------------------------------------------------------------
+    cases: List[Dict[str, Any]] = []
+    i = 0
+    for note, values in DATE_CALENDAR_BLOCKS:
+        for v in values:
+            cases.append(case(_date_case_name(i, v), {"val": v, "time_units": "years"},
+                              {"result": parse_date_to_decimal(v, "years")}, "exact",
+                              sig("parse_date_to_decimal", "parse_date_to_decimal(val, time_units='years') -> float") + " " + note))
+            i += 1
+    for units in ("generations", "days", "arbitrary"):
+        for note, values in DATE_NON_CALENDAR_BLOCKS:
+            for v in values:
+                cases.append(case(_date_case_name(i, v), {"val": v, "time_units": units},
+                                  {"result": parse_date_to_decimal(v, units)}, "exact",
+                                  sig("parse_date_to_decimal", f"parse_date_to_decimal(val, time_units={units!r}) -> float") + " " + note))
+                i += 1
+    # An unrecognised time_units takes the CALENDAR path, because the reference's test is
+    # `if time_units in ('generations', 'days', 'arbitrary')` and not a membership of the known set.
+    for v in ["2021-04-15", "5000", 5000]:
+        cases.append(case(_date_case_name(i, v), {"val": v, "time_units": "fortnights"},
+                          {"result": parse_date_to_decimal(v, "fortnights")}, "exact",
+                          sig("parse_date_to_decimal", "parse_date_to_decimal(val, time_units='fortnights') -> float")
+                          + " an unknown time_units is calendar, because the reference tests membership of the non-calendar tuple only."))
+        i += 1
+    w.write("dates", "parse_date_to_decimal", cases)
+
+    # ---- extract_date_from_string ----------------------------------------------------------
+    cases = []
+    i = 0
+    for note, values in DATE_HEADER_CALENDAR_BLOCKS:
+        for v in values:
+            cases.append(case(_date_case_name(i, v), {"name": v, "time_units": "years"},
+                              {"result": extract_date_from_string(v, "years")}, "exact",
+                              sig("extract_date_from_string", "extract_date_from_string(name, time_units='years') -> float") + " " + note))
+            i += 1
+    for note, values in DATE_HEADER_NON_CALENDAR_BLOCKS:
+        for v in values:
+            cases.append(case(_date_case_name(i, v), {"name": v, "time_units": "generations"},
+                              {"result": extract_date_from_string(v, "generations")}, "exact",
+                              sig("extract_date_from_string", "extract_date_from_string(name, time_units='generations') -> float") + " " + note))
+            i += 1
+
+    # The real-data proof. Five headers of the 100 in the shipped H1N1 alignment are undated by this
+    # function, for two distinct reasons, and both are quirks a reading of the source can miss.
+    h1n1 = fasta_headers(EXAMPLES / "H1N1_2009_pandemic.fasta")
+    for k in H1N1_UNDATED_HEADER_INDICES:
+        name = h1n1[k]
+        reason = H1N1_UNDATED_REASONS[k]
+        cases.append(case(_date_case_name(i, name), {"name": name, "time_units": "years"},
+                          {"result": extract_date_from_string(name, "years")}, "exact",
+                          sig("extract_date_from_string", "extract_date_from_string(name, time_units='years') -> float")
+                          + f" MEASURED: examples/H1N1_2009_pandemic.fasta header {k} (0-based) is one of the 5 of 100 this function cannot date. " + reason))
+        i += 1
+
+    korber = fasta_headers(EXAMPLES / "korber_env_gp160.fasta")
+    for k in KORBER_HEADER_INDICES:
+        name = korber[k]
+        cases.append(case(_date_case_name(i, name), {"name": name, "time_units": "years"},
+                          {"result": extract_date_from_string(name, "years")}, "exact",
+                          sig("extract_date_from_string", "extract_date_from_string(name, time_units='years') -> float")
+                          + f" MEASURED: examples/korber_env_gp160.fasta header {k} (0-based). This function dates 0 of that file's 143 headers;"
+                            " dating.parse_header_timestamp dates 142 of them, all through the Korber rule temporal.py does not have."))
+        i += 1
+    w.write("dates", "extract_date_from_string", cases)
+
+    # ---- parse_header_timestamp ------------------------------------------------------------
+    # The reference VERBATIM, 1959 anchor included. js/src/dates.js makes that anchor opt-in, so the
+    # port reproduces this table only under {archival1959: true}; the default is measured against
+    # js/test/data/dates/parsers.json, which has no reference function of its own (Q1).
+    cases = []
+    i = 0
+    for note, values in DATE_HEADER_TIMESTAMP_BLOCKS:
+        for v in values:
+            cases.append(case(_date_case_name(i, v), {"name": v},
+                              {"result": parse_header_timestamp(v)}, "exact",
+                              sig("parse_header_timestamp", "parse_header_timestamp(name) -> float") + " " + note))
+            i += 1
+    w.write("dates", "parse_header_timestamp", cases)
+
+    # ---- _parse_timestamp_flexible ---------------------------------------------------------
+    cases = []
+    i = 0
+    for note, values in DATE_FLEXIBLE_BLOCKS:
+        for v in values:
+            cases.append(case(_date_case_name(i, v), {"val": v},
+                              {"result": parse_timestamp_flexible(v)}, "exact",
+                              sig("_parse_timestamp_flexible", "_parse_timestamp_flexible(val) -> float") + " " + note))
+            i += 1
+    w.write("dates", "_parse_timestamp_flexible", cases)
+
+    return {"date_reference_source": provenance}
+
+
+# --------------------------------------------------------------------------
 # attribution + dms (model-dependent, bat_oas1 only)
 # --------------------------------------------------------------------------
 
@@ -1440,13 +1730,13 @@ def gen_e2e(w: Writer, model_sha: str, only_cases: List[str] | None = None) -> N
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--only", action="append", choices=["stats", "filter", "evaluation", "epistasis", "phenotype", "dataset", "attribution", "dms", "e2e"], help="generate only these modules")
+    ap.add_argument("--only", action="append", choices=["stats", "filter", "evaluation", "epistasis", "phenotype", "dataset", "dates", "attribution", "dms", "e2e"], help="generate only these modules")
     ap.add_argument("--e2e-case", action="append", help="within e2e, generate only the cases whose name contains one of these substrings; the manifest keeps the other cases' counts, sizes and wall times")
     ap.add_argument("--skip-model", action="store_true", help="skip attribution, dms and e2e (no weights needed)")
     ap.add_argument("--skip-e2e", action="store_true")
     args = ap.parse_args()
 
-    wanted = set(args.only) if args.only else {"stats", "filter", "evaluation", "epistasis", "phenotype", "dataset", "attribution", "dms", "e2e"}
+    wanted = set(args.only) if args.only else {"stats", "filter", "evaluation", "epistasis", "phenotype", "dataset", "dates", "attribution", "dms", "e2e"}
     # Fixtures always record the canonical MDS sign convention: every in-process load_alignment_and_tree call
     # (attribution, dms, the dataset cases that do not pass mds_sign explicitly, filter e2e) reads this env var.
     os.environ["HYPHAEON_MDS_SIGN"] = "canonical"
@@ -1456,13 +1746,25 @@ def main() -> int:
         wanted -= {"e2e"}
 
     FIXTURES.mkdir(exist_ok=True)
+    manifest_path = FIXTURES / "manifest.json"
+    previous = json.load(open(manifest_path)) if manifest_path.exists() else {}
     w = Writer()
     model_sha = sha256_of(MODEL_PATH) if MODEL_PATH.exists() else None
+    model_bytes = MODEL_PATH.stat().st_size if MODEL_PATH.exists() else None
     if wanted & {"attribution", "dms", "e2e"} and model_sha is None:
         raise SystemExit(f"model weights not found at {MODEL_PATH}; set HYPHAEON_WEIGHTS or use --skip-model")
+    # A partial run that touches no model-dependent module keeps the previous run's weights record:
+    # attribution/, dms/ and e2e/ are still on disk and their provenance is still the hash that made
+    # them. Nulling it because THIS run needed no weights would falsify those files (and
+    # js/test/fixtures.test.js asserts the field is a sha256). `dates` is the module this is for: it
+    # is four string parsers and needs no weights, no torch and no model.
+    if model_sha is None and not (wanted & {"attribution", "dms", "e2e"}):
+        model_sha = previous.get("model_safetensors_sha256")
+        model_bytes = previous.get("model_safetensors_bytes")
     t0 = time.time()
     steps = [("stats", lambda: gen_stats(w)), ("filter", lambda: gen_filter(w)), ("evaluation", lambda: gen_evaluation(w)),
              ("epistasis", lambda: gen_epistasis(w)), ("phenotype", lambda: gen_phenotype(w)), ("dataset", lambda: gen_dataset(w)),
+             ("dates", lambda: gen_dates(w)),
              ("attribution", lambda: gen_attribution(w, model_sha)), ("dms", lambda: gen_dms(w, model_sha)), ("e2e", lambda: gen_e2e(w, model_sha, args.e2e_case))]
     extra: Dict[str, Any] = {}
     for name, fn in steps:
@@ -1470,8 +1772,7 @@ def main() -> int:
             print(f"[{name}]")
             extra.update(fn() or {})
 
-    manifest_path = FIXTURES / "manifest.json"
-    manifest = json.load(open(manifest_path)) if manifest_path.exists() else {}
+    manifest = dict(previous)
     # a partial e2e run keeps the wall times of the cases it did not re-run
     if "e2e_wall_seconds" in extra:
         extra["e2e_wall_seconds"] = {**manifest.get("e2e_wall_seconds", {}), **extra["e2e_wall_seconds"]}
@@ -1495,7 +1796,7 @@ def main() -> int:
         "engine_commit": git_head(),
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "model_safetensors_sha256": model_sha,
-        "model_safetensors_bytes": MODEL_PATH.stat().st_size if MODEL_PATH.exists() else None,
+        "model_safetensors_bytes": model_bytes,
         "environment": python_env(),
         "synthetic_seed": SYNTH_SEED,
         "engine_default_rng_seed": PERM_SEED,
@@ -1533,6 +1834,16 @@ def main() -> int:
             "dataset.extract_tree_from_string_or_file: a NEXUS 'TREE name = [&R] (...);' line is rejected because the rooting annotation precedes '(' (returns None).",
             "filter.scan_hypergeometric_patches reports nothing when every site is significant (P(X>=k)=1 for every window).",
             "stats.benjamini_hochberg uses numpy argsort (quicksort) which is unstable; tied p-values still get identical q so results are order-independent.",
+            "DATES Q1: dating.parse_header_timestamp opens with `if 'Z59' in name or 'ZR59' in name or '1959' in name: return 1959.5` (dating.py:330-332), before any date pattern. It is an unbounded substring test on the whole header, so A/Kinshasa/1959-03-04 loses the date that is written there and an accession like AZ59012 is dated to the archival ZR59 isolate. fixtures/dates/parse_header_timestamp.json pins it VERBATIM; js/src/dates.js makes it opt-in ({archival1959: true}) because it is data loss rather than a convention, and js/test/data/dates/parsers.json carries the anchor-off table so both directions stay pinned.",
+            "DATES Q2: temporal.parse_date_to_decimal defaults a missing month to 6 and a missing day to 15 on the delimiter path (temporal.py:132, 138) with no flag of any kind, so 2021-XX-XX becomes 2021.45205. Its OWN DOCSTRING (temporal.py:80) is wrong about the commonest case: it promises '2021' -> 2021.5, but a bare year string is claimed by float() at temporal.py:116, passes the gate, and comes back as 2021.0 with nothing imputed.",
+            "DATES Q3: the day is capped at min(day, 28 if month == 2 else 30) (temporal.py:144), in EVERY month. 2021-01-31 is returned as 30 January and 29 February of a leap year is unreachable. r0.parse_calendar_date, which uses strptime, disagrees on exactly those days.",
+            "DATES Q4: an out-of-range month or day is discarded and the default kept, with no error (temporal.py:133-142), so 2021-13-40 comes back as mid-2021, indistinguishable by value from a masked 2021-XX-XX.",
+            "DATES Q5: temporal.parse_date_to_decimal normalises '.' to '-' as well as '/' (temporal.py:123), but only AFTER float() has claimed every plain decimal year. So 2021.25 is a decimal year and 2021.4.15 is 15 April 2021; a decimal year just outside the gate is re-read as a date rather than rejected.",
+            "DATES Q6: a year outside [1800, 2100] returns NaN with no distinction from an unparseable string (temporal.py:108, 130). fixtures/dates/parse_date_to_decimal.json pins both; js/src/dates.js separates them into rule 'out_of_range' vs 'unparsed' without changing the value, because a page has to say which happened.",
+            "DATES Q7: extract_date_from_string's calendar delimiter class is [\\|/_\\s] and does NOT include '-' (temporal.py:218-239), pattern 2 requires two to four decimals, and pattern 4 has no '^' alternative. MEASURED on examples/H1N1_2009_pandemic.fasta: 5 of 100 headers are undated, three because pattern 2 matches an isolate number (4218.01) that then fails the gate and re.search never offers the second match, and two because their decimal year is written to one place (|2009.4, |2009.8). The non-calendar patterns use a WIDER class that does include '-', and re.IGNORECASE.",
+            "DATES Q8: the Korber/LANL two-digit year pivots at 30 (dating.py:344, 351), hard-coded, so 2030 onwards reads as 1930; both rules add a flat 0.5 for mid-year. MEASURED on examples/korber_env_gp160.fasta: temporal.extract_date_from_string dates 0 of 143 headers and dating.parse_header_timestamp dates 142 (CONSENSUS is the miss), all through this rule.",
+            "DATES Q9: (?:WPI|wpi) and (?:DPI|dpi) (dating.py:355, 360) match neither 'Wpi' nor 'wPI', while the non-calendar unit patterns are re.IGNORECASE throughout. Both return the elapsed time RAW onto the same axis a decimal year is on, with nothing downstream distinguishing them.",
+            "DATES Q10: the non-calendar path accepts Infinity, because float('inf') >= 0.0 is True (temporal.py:92-93), and rejects a negative real and a literal 'nan' by the same comparison without falling through to the embedded-number search.",
         ],
         "counts": counts,
         "bytes": sizes,

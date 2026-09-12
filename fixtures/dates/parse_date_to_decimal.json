@@ -1,0 +1,1622 @@
+[
+ {
+  "name": "000_2021.25",
+  "inputs": {
+   "val": 2021.25,
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.25
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. plain numbers and the [1800, 2100] gate (temporal.py:104-108, 115-120); a Python bool is an int, so True is 1.0 and fails the gate"
+ },
+ {
+  "name": "001_1959.5",
+  "inputs": {
+   "val": 1959.5,
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 1959.5
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. plain numbers and the [1800, 2100] gate (temporal.py:104-108, 115-120); a Python bool is an int, so True is 1.0 and fails the gate"
+ },
+ {
+  "name": "002_1800",
+  "inputs": {
+   "val": 1800,
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 1800.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. plain numbers and the [1800, 2100] gate (temporal.py:104-108, 115-120); a Python bool is an int, so True is 1.0 and fails the gate"
+ },
+ {
+  "name": "003_2100",
+  "inputs": {
+   "val": 2100,
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2100.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. plain numbers and the [1800, 2100] gate (temporal.py:104-108, 115-120); a Python bool is an int, so True is 1.0 and fails the gate"
+ },
+ {
+  "name": "004_1799.999",
+  "inputs": {
+   "val": 1799.999,
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. plain numbers and the [1800, 2100] gate (temporal.py:104-108, 115-120); a Python bool is an int, so True is 1.0 and fails the gate"
+ },
+ {
+  "name": "005_2100.001",
+  "inputs": {
+   "val": 2100.001,
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. plain numbers and the [1800, 2100] gate (temporal.py:104-108, 115-120); a Python bool is an int, so True is 1.0 and fails the gate"
+ },
+ {
+  "name": "006_0",
+  "inputs": {
+   "val": 0,
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. plain numbers and the [1800, 2100] gate (temporal.py:104-108, 115-120); a Python bool is an int, so True is 1.0 and fails the gate"
+ },
+ {
+  "name": "007_-1",
+  "inputs": {
+   "val": -1,
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. plain numbers and the [1800, 2100] gate (temporal.py:104-108, 115-120); a Python bool is an int, so True is 1.0 and fails the gate"
+ },
+ {
+  "name": "008_1000000000.0",
+  "inputs": {
+   "val": 1000000000.0,
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. plain numbers and the [1800, 2100] gate (temporal.py:104-108, 115-120); a Python bool is an int, so True is 1.0 and fails the gate"
+ },
+ {
+  "name": "009_True",
+  "inputs": {
+   "val": true,
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. plain numbers and the [1800, 2100] gate (temporal.py:104-108, 115-120); a Python bool is an int, so True is 1.0 and fails the gate"
+ },
+ {
+  "name": "010_False",
+  "inputs": {
+   "val": false,
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. plain numbers and the [1800, 2100] gate (temporal.py:104-108, 115-120); a Python bool is an int, so True is 1.0 and fails the gate"
+ },
+ {
+  "name": "011_None",
+  "inputs": {
+   "val": null,
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. missing / null tokens (temporal.py:86, 111); the token test is case-folded, so 'NaN' and 'NA' are null but '??' is not"
+ },
+ {
+  "name": "012_''",
+  "inputs": {
+   "val": "",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. missing / null tokens (temporal.py:86, 111); the token test is case-folded, so 'NaN' and 'NA' are null but '??' is not"
+ },
+ {
+  "name": "013_'   '",
+  "inputs": {
+   "val": "   ",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. missing / null tokens (temporal.py:86, 111); the token test is case-folded, so 'NaN' and 'NA' are null but '??' is not"
+ },
+ {
+  "name": "014_'unknown'",
+  "inputs": {
+   "val": "unknown",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. missing / null tokens (temporal.py:86, 111); the token test is case-folded, so 'NaN' and 'NA' are null but '??' is not"
+ },
+ {
+  "name": "015_'UNKNOWN'",
+  "inputs": {
+   "val": "UNKNOWN",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. missing / null tokens (temporal.py:86, 111); the token test is case-folded, so 'NaN' and 'NA' are null but '??' is not"
+ },
+ {
+  "name": "016_'nan'",
+  "inputs": {
+   "val": "nan",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. missing / null tokens (temporal.py:86, 111); the token test is case-folded, so 'NaN' and 'NA' are null but '??' is not"
+ },
+ {
+  "name": "017_'NaN'",
+  "inputs": {
+   "val": "NaN",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. missing / null tokens (temporal.py:86, 111); the token test is case-folded, so 'NaN' and 'NA' are null but '??' is not"
+ },
+ {
+  "name": "018_'none'",
+  "inputs": {
+   "val": "none",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. missing / null tokens (temporal.py:86, 111); the token test is case-folded, so 'NaN' and 'NA' are null but '??' is not"
+ },
+ {
+  "name": "019_'NA'",
+  "inputs": {
+   "val": "NA",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. missing / null tokens (temporal.py:86, 111); the token test is case-folded, so 'NaN' and 'NA' are null but '??' is not"
+ },
+ {
+  "name": "020_'na'",
+  "inputs": {
+   "val": "na",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. missing / null tokens (temporal.py:86, 111); the token test is case-folded, so 'NaN' and 'NA' are null but '??' is not"
+ },
+ {
+  "name": "021_'?'",
+  "inputs": {
+   "val": "?",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. missing / null tokens (temporal.py:86, 111); the token test is case-folded, so 'NaN' and 'NA' are null but '??' is not"
+ },
+ {
+  "name": "022_'??'",
+  "inputs": {
+   "val": "??",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. missing / null tokens (temporal.py:86, 111); the token test is case-folded, so 'NaN' and 'NA' are null but '??' is not"
+ },
+ {
+  "name": "023_'2021.25'",
+  "inputs": {
+   "val": "2021.25",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.25
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. decimal-year strings (temporal.py:115-120) through CPython float(): underscore separators, exponents, a leading '+', and the inf spellings"
+ },
+ {
+  "name": "024_' 2021.25 '",
+  "inputs": {
+   "val": " 2021.25 ",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.25
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. decimal-year strings (temporal.py:115-120) through CPython float(): underscore separators, exponents, a leading '+', and the inf spellings"
+ },
+ {
+  "name": "025_'2021'",
+  "inputs": {
+   "val": "2021",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. decimal-year strings (temporal.py:115-120) through CPython float(): underscore separators, exponents, a leading '+', and the inf spellings"
+ },
+ {
+  "name": "026_'2_021'",
+  "inputs": {
+   "val": "2_021",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. decimal-year strings (temporal.py:115-120) through CPython float(): underscore separators, exponents, a leading '+', and the inf spellings"
+ },
+ {
+  "name": "027_'2.0212e3'",
+  "inputs": {
+   "val": "2.0212e3",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.2
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. decimal-year strings (temporal.py:115-120) through CPython float(): underscore separators, exponents, a leading '+', and the inf spellings"
+ },
+ {
+  "name": "028_'+2021'",
+  "inputs": {
+   "val": "+2021",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. decimal-year strings (temporal.py:115-120) through CPython float(): underscore separators, exponents, a leading '+', and the inf spellings"
+ },
+ {
+  "name": "029_'inf'",
+  "inputs": {
+   "val": "inf",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. decimal-year strings (temporal.py:115-120) through CPython float(): underscore separators, exponents, a leading '+', and the inf spellings"
+ },
+ {
+  "name": "030_'-inf'",
+  "inputs": {
+   "val": "-inf",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. decimal-year strings (temporal.py:115-120) through CPython float(): underscore separators, exponents, a leading '+', and the inf spellings"
+ },
+ {
+  "name": "031_'2021-04-15'",
+  "inputs": {
+   "val": "2021-04-15",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.2849315068493
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. ISO and partial ISO on the delimiter path (temporal.py:126-147) -- Q2: a missing month defaults to June and a missing day to the 15th, silently"
+ },
+ {
+  "name": "032_'2021-04'",
+  "inputs": {
+   "val": "2021-04",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.2849315068493
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. ISO and partial ISO on the delimiter path (temporal.py:126-147) -- Q2: a missing month defaults to June and a missing day to the 15th, silently"
+ },
+ {
+  "name": "033_'2021-01-01'",
+  "inputs": {
+   "val": "2021-01-01",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. ISO and partial ISO on the delimiter path (temporal.py:126-147) -- Q2: a missing month defaults to June and a missing day to the 15th, silently"
+ },
+ {
+  "name": "034_'2021-12-31'",
+  "inputs": {
+   "val": "2021-12-31",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.9945205479453
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. ISO and partial ISO on the delimiter path (temporal.py:126-147) -- Q2: a missing month defaults to June and a missing day to the 15th, silently"
+ },
+ {
+  "name": "035_'2020-02-29'",
+  "inputs": {
+   "val": "2020-02-29",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2020.1584699453551
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. ISO and partial ISO on the delimiter path (temporal.py:126-147) -- Q2: a missing month defaults to June and a missing day to the 15th, silently"
+ },
+ {
+  "name": "036_'2021-02-28'",
+  "inputs": {
+   "val": "2021-02-28",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.158904109589
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. ISO and partial ISO on the delimiter path (temporal.py:126-147) -- Q2: a missing month defaults to June and a missing day to the 15th, silently"
+ },
+ {
+  "name": "037_'2021-XX-XX'",
+  "inputs": {
+   "val": "2021-XX-XX",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.4520547945206
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. ISO and partial ISO on the delimiter path (temporal.py:126-147) -- Q2: a missing month defaults to June and a missing day to the 15th, silently"
+ },
+ {
+  "name": "038_'2021-04-XX'",
+  "inputs": {
+   "val": "2021-04-XX",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.2849315068493
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. ISO and partial ISO on the delimiter path (temporal.py:126-147) -- Q2: a missing month defaults to June and a missing day to the 15th, silently"
+ },
+ {
+  "name": "039_'2021-4-5'",
+  "inputs": {
+   "val": "2021-4-5",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.2575342465752
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. ISO and partial ISO on the delimiter path (temporal.py:126-147) -- Q2: a missing month defaults to June and a missing day to the 15th, silently"
+ },
+ {
+  "name": "040_'2021-004-015'",
+  "inputs": {
+   "val": "2021-004-015",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.2849315068493
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. ISO and partial ISO on the delimiter path (temporal.py:126-147) -- Q2: a missing month defaults to June and a missing day to the 15th, silently"
+ },
+ {
+  "name": "041_'2021/04/15'",
+  "inputs": {
+   "val": "2021/04/15",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.2849315068493
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. '/' and '.' are both normalised to '-' (temporal.py:123) -- Q5, and only AFTER float() has claimed every plain decimal year"
+ },
+ {
+  "name": "042_'2021.04.15'",
+  "inputs": {
+   "val": "2021.04.15",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.2849315068493
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. '/' and '.' are both normalised to '-' (temporal.py:123) -- Q5, and only AFTER float() has claimed every plain decimal year"
+ },
+ {
+  "name": "043_'2021.4.15'",
+  "inputs": {
+   "val": "2021.4.15",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.2849315068493
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. '/' and '.' are both normalised to '-' (temporal.py:123) -- Q5, and only AFTER float() has claimed every plain decimal year"
+ },
+ {
+  "name": "044_'2021/4'",
+  "inputs": {
+   "val": "2021/4",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.2849315068493
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. '/' and '.' are both normalised to '-' (temporal.py:123) -- Q5, and only AFTER float() has claimed every plain decimal year"
+ },
+ {
+  "name": "045_'2021.5'",
+  "inputs": {
+   "val": "2021.5",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.5
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. '/' and '.' are both normalised to '-' (temporal.py:123) -- Q5, and only AFTER float() has claimed every plain decimal year"
+ },
+ {
+  "name": "046_'2021.05'",
+  "inputs": {
+   "val": "2021.05",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.05
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. '/' and '.' are both normalised to '-' (temporal.py:123) -- Q5, and only AFTER float() has claimed every plain decimal year"
+ },
+ {
+  "name": "047_'2021-01-31'",
+  "inputs": {
+   "val": "2021-01-31",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.0794520547945
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. the day cap min(day, 28 if month == 2 else 30) (temporal.py:144) -- Q3: the 31st of a 31-day month moves back a day and 29 February is unreachable"
+ },
+ {
+  "name": "048_'2021-03-31'",
+  "inputs": {
+   "val": "2021-03-31",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.2410958904109
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. the day cap min(day, 28 if month == 2 else 30) (temporal.py:144) -- Q3: the 31st of a 31-day month moves back a day and 29 February is unreachable"
+ },
+ {
+  "name": "049_'2021-02-29'",
+  "inputs": {
+   "val": "2021-02-29",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.158904109589
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. the day cap min(day, 28 if month == 2 else 30) (temporal.py:144) -- Q3: the 31st of a 31-day month moves back a day and 29 February is unreachable"
+ },
+ {
+  "name": "050_'2020-02-29'",
+  "inputs": {
+   "val": "2020-02-29",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2020.1584699453551
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. the day cap min(day, 28 if month == 2 else 30) (temporal.py:144) -- Q3: the 31st of a 31-day month moves back a day and 29 February is unreachable"
+ },
+ {
+  "name": "051_'2021-02-30'",
+  "inputs": {
+   "val": "2021-02-30",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.158904109589
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. the day cap min(day, 28 if month == 2 else 30) (temporal.py:144) -- Q3: the 31st of a 31-day month moves back a day and 29 February is unreachable"
+ },
+ {
+  "name": "052_'2021-12-30'",
+  "inputs": {
+   "val": "2021-12-30",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.9945205479453
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. the day cap min(day, 28 if month == 2 else 30) (temporal.py:144) -- Q3: the 31st of a 31-day month moves back a day and 29 February is unreachable"
+ },
+ {
+  "name": "053_'2021-13-15'",
+  "inputs": {
+   "val": "2021-13-15",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.4520547945206
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. an out-of-range month or day is discarded and the default kept, with no error (temporal.py:133-142) -- Q4"
+ },
+ {
+  "name": "054_'2021-00-15'",
+  "inputs": {
+   "val": "2021-00-15",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.4520547945206
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. an out-of-range month or day is discarded and the default kept, with no error (temporal.py:133-142) -- Q4"
+ },
+ {
+  "name": "055_'2021-04-00'",
+  "inputs": {
+   "val": "2021-04-00",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.2849315068493
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. an out-of-range month or day is discarded and the default kept, with no error (temporal.py:133-142) -- Q4"
+ },
+ {
+  "name": "056_'2021-04-32'",
+  "inputs": {
+   "val": "2021-04-32",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.2849315068493
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. an out-of-range month or day is discarded and the default kept, with no error (temporal.py:133-142) -- Q4"
+ },
+ {
+  "name": "057_'2021-04-31'",
+  "inputs": {
+   "val": "2021-04-31",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.3260273972603
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. an out-of-range month or day is discarded and the default kept, with no error (temporal.py:133-142) -- Q4"
+ },
+ {
+  "name": "058_'1700-04-15'",
+  "inputs": {
+   "val": "1700-04-15",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. out of the gate, and unparseable (temporal.py:129-130, 151) -- Q6: the reference returns NaN for both and the two are indistinguishable to it"
+ },
+ {
+  "name": "059_'2500-04-15'",
+  "inputs": {
+   "val": "2500-04-15",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. out of the gate, and unparseable (temporal.py:129-130, 151) -- Q6: the reference returns NaN for both and the two are indistinguishable to it"
+ },
+ {
+  "name": "060_'0021-04-15'",
+  "inputs": {
+   "val": "0021-04-15",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. out of the gate, and unparseable (temporal.py:129-130, 151) -- Q6: the reference returns NaN for both and the two are indistinguishable to it"
+ },
+ {
+  "name": "061_'21-04-15'",
+  "inputs": {
+   "val": "21-04-15",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. out of the gate, and unparseable (temporal.py:129-130, 151) -- Q6: the reference returns NaN for both and the two are indistinguishable to it"
+ },
+ {
+  "name": "062_'202-04-15'",
+  "inputs": {
+   "val": "202-04-15",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. out of the gate, and unparseable (temporal.py:129-130, 151) -- Q6: the reference returns NaN for both and the two are indistinguishable to it"
+ },
+ {
+  "name": "063_'20210415'",
+  "inputs": {
+   "val": "20210415",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. out of the gate, and unparseable (temporal.py:129-130, 151) -- Q6: the reference returns NaN for both and the two are indistinguishable to it"
+ },
+ {
+  "name": "064_'notadate'",
+  "inputs": {
+   "val": "notadate",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. out of the gate, and unparseable (temporal.py:129-130, 151) -- Q6: the reference returns NaN for both and the two are indistinguishable to it"
+ },
+ {
+  "name": "065_'2021-04-15T09:30:00Z'",
+  "inputs": {
+   "val": "2021-04-15T09:30:00Z",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2021.2849315068493
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. out of the gate, and unparseable (temporal.py:129-130, 151) -- Q6: the reference returns NaN for both and the two are indistinguishable to it"
+ },
+ {
+  "name": "066_'15-04-2021'",
+  "inputs": {
+   "val": "15-04-2021",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. out of the gate, and unparseable (temporal.py:129-130, 151) -- Q6: the reference returns NaN for both and the two are indistinguishable to it"
+ },
+ {
+  "name": "067_'April 2021'",
+  "inputs": {
+   "val": "April 2021",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. out of the gate, and unparseable (temporal.py:129-130, 151) -- Q6: the reference returns NaN for both and the two are indistinguishable to it"
+ },
+ {
+  "name": "068_'1900-03-01'",
+  "inputs": {
+   "val": "1900-03-01",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 1900.1616438356164
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. the leap rule and the 365/366 divisor (temporal.py:146) across a non-leap century, a leap century and an ordinary leap year"
+ },
+ {
+  "name": "069_'2000-03-01'",
+  "inputs": {
+   "val": "2000-03-01",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2000.1639344262296
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. the leap rule and the 365/366 divisor (temporal.py:146) across a non-leap century, a leap century and an ordinary leap year"
+ },
+ {
+  "name": "070_'2004-03-01'",
+  "inputs": {
+   "val": "2004-03-01",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 2004.1639344262296
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. the leap rule and the 365/366 divisor (temporal.py:146) across a non-leap century, a leap century and an ordinary leap year"
+ },
+ {
+  "name": "071_'1996-12-31'",
+  "inputs": {
+   "val": "1996-12-31",
+   "time_units": "years"
+  },
+  "outputs": {
+   "result": 1996.9945355191257
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='years') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. the leap rule and the 365/366 divisor (temporal.py:146) across a non-leap century, a leap century and an ordinary leap year"
+ },
+ {
+  "name": "072_0",
+  "inputs": {
+   "val": 0,
+   "time_units": "generations"
+  },
+  "outputs": {
+   "result": 0.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='generations') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "073_5000",
+  "inputs": {
+   "val": 5000,
+   "time_units": "generations"
+  },
+  "outputs": {
+   "result": 5000.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='generations') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "074_5000.5",
+  "inputs": {
+   "val": 5000.5,
+   "time_units": "generations"
+  },
+  "outputs": {
+   "result": 5000.5
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='generations') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "075_-1",
+  "inputs": {
+   "val": -1,
+   "time_units": "generations"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='generations') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "076_-0.0",
+  "inputs": {
+   "val": -0.0,
+   "time_units": "generations"
+  },
+  "outputs": {
+   "result": -0.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='generations') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "077_'5000'",
+  "inputs": {
+   "val": "5000",
+   "time_units": "generations"
+  },
+  "outputs": {
+   "result": 5000.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='generations') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "078_'5000.5'",
+  "inputs": {
+   "val": "5000.5",
+   "time_units": "generations"
+  },
+  "outputs": {
+   "result": 5000.5
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='generations') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "079_'-5000'",
+  "inputs": {
+   "val": "-5000",
+   "time_units": "generations"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='generations') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "080_'gen_5000'",
+  "inputs": {
+   "val": "gen_5000",
+   "time_units": "generations"
+  },
+  "outputs": {
+   "result": 5000.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='generations') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "081_'generation 42'",
+  "inputs": {
+   "val": "generation 42",
+   "time_units": "generations"
+  },
+  "outputs": {
+   "result": 42.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='generations') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "082_'t=17.5'",
+  "inputs": {
+   "val": "t=17.5",
+   "time_units": "generations"
+  },
+  "outputs": {
+   "result": 17.5
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='generations') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "083_'abc'",
+  "inputs": {
+   "val": "abc",
+   "time_units": "generations"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='generations') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "084_''",
+  "inputs": {
+   "val": "",
+   "time_units": "generations"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='generations') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "085_None",
+  "inputs": {
+   "val": null,
+   "time_units": "generations"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='generations') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "086_'nan'",
+  "inputs": {
+   "val": "nan",
+   "time_units": "generations"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='generations') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "087_'inf'",
+  "inputs": {
+   "val": "inf",
+   "time_units": "generations"
+  },
+  "outputs": {
+   "result": "Infinity"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='generations') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "088_'-inf'",
+  "inputs": {
+   "val": "-inf",
+   "time_units": "generations"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='generations') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "089_'  12  '",
+  "inputs": {
+   "val": "  12  ",
+   "time_units": "generations"
+  },
+  "outputs": {
+   "result": 12.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='generations') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "090_1000000000.0",
+  "inputs": {
+   "val": 1000000000.0,
+   "time_units": "generations"
+  },
+  "outputs": {
+   "result": 1000000000.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='generations') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "091_True",
+  "inputs": {
+   "val": true,
+   "time_units": "generations"
+  },
+  "outputs": {
+   "result": 1.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='generations') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "092_0",
+  "inputs": {
+   "val": 0,
+   "time_units": "days"
+  },
+  "outputs": {
+   "result": 0.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='days') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "093_5000",
+  "inputs": {
+   "val": 5000,
+   "time_units": "days"
+  },
+  "outputs": {
+   "result": 5000.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='days') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "094_5000.5",
+  "inputs": {
+   "val": 5000.5,
+   "time_units": "days"
+  },
+  "outputs": {
+   "result": 5000.5
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='days') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "095_-1",
+  "inputs": {
+   "val": -1,
+   "time_units": "days"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='days') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "096_-0.0",
+  "inputs": {
+   "val": -0.0,
+   "time_units": "days"
+  },
+  "outputs": {
+   "result": -0.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='days') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "097_'5000'",
+  "inputs": {
+   "val": "5000",
+   "time_units": "days"
+  },
+  "outputs": {
+   "result": 5000.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='days') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "098_'5000.5'",
+  "inputs": {
+   "val": "5000.5",
+   "time_units": "days"
+  },
+  "outputs": {
+   "result": 5000.5
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='days') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "099_'-5000'",
+  "inputs": {
+   "val": "-5000",
+   "time_units": "days"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='days') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "100_'gen_5000'",
+  "inputs": {
+   "val": "gen_5000",
+   "time_units": "days"
+  },
+  "outputs": {
+   "result": 5000.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='days') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "101_'generation 42'",
+  "inputs": {
+   "val": "generation 42",
+   "time_units": "days"
+  },
+  "outputs": {
+   "result": 42.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='days') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "102_'t=17.5'",
+  "inputs": {
+   "val": "t=17.5",
+   "time_units": "days"
+  },
+  "outputs": {
+   "result": 17.5
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='days') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "103_'abc'",
+  "inputs": {
+   "val": "abc",
+   "time_units": "days"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='days') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "104_''",
+  "inputs": {
+   "val": "",
+   "time_units": "days"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='days') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "105_None",
+  "inputs": {
+   "val": null,
+   "time_units": "days"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='days') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "106_'nan'",
+  "inputs": {
+   "val": "nan",
+   "time_units": "days"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='days') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "107_'inf'",
+  "inputs": {
+   "val": "inf",
+   "time_units": "days"
+  },
+  "outputs": {
+   "result": "Infinity"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='days') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "108_'-inf'",
+  "inputs": {
+   "val": "-inf",
+   "time_units": "days"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='days') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "109_'  12  '",
+  "inputs": {
+   "val": "  12  ",
+   "time_units": "days"
+  },
+  "outputs": {
+   "result": 12.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='days') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "110_1000000000.0",
+  "inputs": {
+   "val": 1000000000.0,
+   "time_units": "days"
+  },
+  "outputs": {
+   "result": 1000000000.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='days') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "111_True",
+  "inputs": {
+   "val": true,
+   "time_units": "days"
+  },
+  "outputs": {
+   "result": 1.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='days') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "112_0",
+  "inputs": {
+   "val": 0,
+   "time_units": "arbitrary"
+  },
+  "outputs": {
+   "result": 0.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='arbitrary') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "113_5000",
+  "inputs": {
+   "val": 5000,
+   "time_units": "arbitrary"
+  },
+  "outputs": {
+   "result": 5000.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='arbitrary') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "114_5000.5",
+  "inputs": {
+   "val": 5000.5,
+   "time_units": "arbitrary"
+  },
+  "outputs": {
+   "result": 5000.5
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='arbitrary') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "115_-1",
+  "inputs": {
+   "val": -1,
+   "time_units": "arbitrary"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='arbitrary') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "116_-0.0",
+  "inputs": {
+   "val": -0.0,
+   "time_units": "arbitrary"
+  },
+  "outputs": {
+   "result": -0.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='arbitrary') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "117_'5000'",
+  "inputs": {
+   "val": "5000",
+   "time_units": "arbitrary"
+  },
+  "outputs": {
+   "result": 5000.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='arbitrary') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "118_'5000.5'",
+  "inputs": {
+   "val": "5000.5",
+   "time_units": "arbitrary"
+  },
+  "outputs": {
+   "result": 5000.5
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='arbitrary') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "119_'-5000'",
+  "inputs": {
+   "val": "-5000",
+   "time_units": "arbitrary"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='arbitrary') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "120_'gen_5000'",
+  "inputs": {
+   "val": "gen_5000",
+   "time_units": "arbitrary"
+  },
+  "outputs": {
+   "result": 5000.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='arbitrary') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "121_'generation 42'",
+  "inputs": {
+   "val": "generation 42",
+   "time_units": "arbitrary"
+  },
+  "outputs": {
+   "result": 42.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='arbitrary') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "122_'t=17.5'",
+  "inputs": {
+   "val": "t=17.5",
+   "time_units": "arbitrary"
+  },
+  "outputs": {
+   "result": 17.5
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='arbitrary') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "123_'abc'",
+  "inputs": {
+   "val": "abc",
+   "time_units": "arbitrary"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='arbitrary') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "124_''",
+  "inputs": {
+   "val": "",
+   "time_units": "arbitrary"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='arbitrary') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "125_None",
+  "inputs": {
+   "val": null,
+   "time_units": "arbitrary"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='arbitrary') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "126_'nan'",
+  "inputs": {
+   "val": "nan",
+   "time_units": "arbitrary"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='arbitrary') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "127_'inf'",
+  "inputs": {
+   "val": "inf",
+   "time_units": "arbitrary"
+  },
+  "outputs": {
+   "result": "Infinity"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='arbitrary') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "128_'-inf'",
+  "inputs": {
+   "val": "-inf",
+   "time_units": "arbitrary"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='arbitrary') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "129_'  12  '",
+  "inputs": {
+   "val": "  12  ",
+   "time_units": "arbitrary"
+  },
+  "outputs": {
+   "result": 12.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='arbitrary') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "130_1000000000.0",
+  "inputs": {
+   "val": 1000000000.0,
+   "time_units": "arbitrary"
+  },
+  "outputs": {
+   "result": 1000000000.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='arbitrary') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "131_True",
+  "inputs": {
+   "val": true,
+   "time_units": "arbitrary"
+  },
+  "outputs": {
+   "result": 1.0
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='arbitrary') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. any non-negative real, else the first embedded number; no year gate -- Q10: float('inf') >= 0.0 is True, so Infinity is a valid coordinate and NaN is not"
+ },
+ {
+  "name": "132_'2021-04-15'",
+  "inputs": {
+   "val": "2021-04-15",
+   "time_units": "fortnights"
+  },
+  "outputs": {
+   "result": 2021.2849315068493
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='fortnights') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. an unknown time_units is calendar, because the reference tests membership of the non-calendar tuple only."
+ },
+ {
+  "name": "133_'5000'",
+  "inputs": {
+   "val": "5000",
+   "time_units": "fortnights"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='fortnights') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. an unknown time_units is calendar, because the reference tests membership of the non-calendar tuple only."
+ },
+ {
+  "name": "134_5000",
+  "inputs": {
+   "val": 5000,
+   "time_units": "fortnights"
+  },
+  "outputs": {
+   "result": "NaN"
+  },
+  "tolerance": "exact",
+  "notes": "signature: parse_date_to_decimal(val, time_units='fortnights') -> float. Reference hyphaeon/temporal.py:73-151, lifted by ast and executed without importing hyphaeon. an unknown time_units is calendar, because the reference tests membership of the non-calendar tuple only."
+ }
+]

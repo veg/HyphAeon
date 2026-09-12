@@ -19,7 +19,25 @@ HYPHAEON_WEIGHTS=model.safetensors HF_HUB_OFFLINE=1 python scripts/gen_fixtures.
 one module and keeps the manifest's counts for the others; `--e2e-case <substring>`
 (repeatable) narrows an `--only e2e` run to the CLI cases whose name contains it,
 keeping the others' counts, sizes and wall times. A full run takes about 75 s on an
-Apple M4 Pro. Every model run is forced onto the CPU.
+Apple M4 Pro. Every model run is forced onto the CPU. A partial run that touches no
+model-dependent module keeps the previous manifest's weights record rather than
+nulling it, so `--only dates` on a checkout without `model.safetensors` does not
+falsify the provenance of the files it did not regenerate.
+
+`dates/` is the one module that needs **neither weights nor torch**:
+
+```bash
+python scripts/gen_fixtures.py --only dates      # numpy + pandas, about 2 s
+```
+
+`hyphaeon/temporal.py` and `hyphaeon/dating.py` both import torch at module scope
+and the four date parsers use none of it, so `load_date_reference` lifts the four
+function definitions out of the checked-out source with `ast` — by name, returning
+their exact line ranges — and executes them in a namespace holding only `re`,
+`datetime`, `numpy` and `pandas`. Nothing is retyped, so a drift between a
+reference body and its table is impossible; the line ranges travel in
+`manifest.json` (`date_reference_source`) and in every case's `notes`, and
+`js/test/dates.test.js` asserts them.
 
 `examples/camelid.nwk` has no branch lengths, so anything touching it goes through
 HyPhy's HKY85 branch-length estimation (`hyphy` must be on PATH; the version used
@@ -178,6 +196,7 @@ reproduce a numpy stream.
 | `evaluation/` | 6 | `load_meme_json`, `load_prediction_csv`, `_roc_auc`, `_correlations`, `evaluate_files` (+ error cases) on synthetic pairs under `evaluation/inputs/` (`geneA`, `geneB`) and on `Smc6` (`examples/Smc6_results.csv` + a MEME JSON synthesised from `model_eval/_cache` with the matching 1097 sites) |
 | `epistasis/` | 3 | `compute_branch_coselection_network` on a 40×12 float32 matrix with planted co-selected sites (function defaults, CLI defaults, loose, strict); `extract_epistatic_sectors_tse` on the resulting graphs (exact with `n_permutations=0`, statistical with B = 2000, focal taxon, components fallback); `compute_sector_permutation_test` (statistical, plus exact degenerate cases) |
 | `phenotype/` | 3 | `resolve_phenotype_vector` (presets, explicit list, regex, pipe list, glob, `.*` patterns, CSV/TSV discrete and continuous under `phenotype/inputs/`); `compute_phylogenetic_covariance` on `Smc6.nwk` and `bat_oas1.nwk`; `generate_permulations` (binary and continuous, B = 200) |
+| `dates/` | 4 | `parse_date_to_decimal` (the [1800, 2100] gate, CPython `float()` spellings, ISO and partial ISO, `/` and `.` delimiters, the 28/30 day cap, invalid components, the leap divisor; the 20 non-calendar values replayed under `generations`, `days` and `arbitrary`; and an unknown `time_units`, which takes the calendar path); `extract_date_from_string` (the four calendar patterns and their `[\|/_\s]` class, the three non-calendar ones, and eight **measured real headers** — the five of 100 in `examples/H1N1_2009_pandemic.fasta` this function cannot date, and three of the 143 in `examples/korber_env_gp160.fasta`, of which it dates none); `parse_header_timestamp` **verbatim, 1959 anchor included**; `_parse_timestamp_flexible`. All `exact`: the conversion is integer arithmetic plus one division |
 | `dataset/` | 13 | tokenizer over all 64 codons plus gaps/ambiguity/lowercase/U and the raw tables; `parse_alignment_sequences` on every `examples/*.fasta` and on synthetic PHYLIP/NEXUS/FASTA/gz files under `dataset/inputs/`; `extract_tree_from_string_or_file`; `compute_fast_dist_matrix`; `compute_mds_coordinates` (with `gram`); `load_alignment_and_tree` on Smc6 and bat_oas1 (full N×N, N×4, tokens, invariable mask, rescale flag); the > 10 rescale rule on synthetic trees; `prune_identical_sequences`; duplicates through the loader; Faith's PD downsampling (synthetic, ties, camelid 128 → 64); the tree-free TN93 path (`tn93_distance`, `tn93_distance_matrix`, `load_alignment_and_tree_tn93` — see "TN93 and tree-free mode") |
 | `attribution/` | 1 | `attribute_selection` on bat_oas1, `min_lrt` 3.84 |
 | `dms/` | 1 | `run_insilico_selection_dms` on bat_oas1 restricted to the sites with LRT ≥ 3.84 (`target_sites` is supported), default focal taxon and `r_ferr` |
@@ -198,6 +217,17 @@ The port replicates the Python as it is (PLAN.md §5.3 rule 3). The full list is
   taxa in tree order before Faith's PD (stride 1 for 212 camelid taxa).
 * The `> 10` rescale test runs after `enforce_nonzero_branch_lengths`, so
   zero-length branches can push a max of exactly 10 over the threshold.
+* The date parsers carry ten of their own (`DATES Q1`–`Q10` in `known_quirks`).
+  The loudest is **Q1**: `parse_header_timestamp` returns 1959.5 for any header
+  containing `Z59`, `ZR59` or `1959`, before it looks at anything else
+  (`dating.py:330-332`), so a real `1959-03-04` is overwritten and an accession
+  like `AZ59012` is dated to the archival ZR59 isolate.
+  `dates/parse_header_timestamp.json` pins that verbatim; the port makes the rule
+  **opt-in** (`{archival1959: true}`) because it is data loss rather than a
+  convention, and `js/test/data/dates/parsers.json` — the one date table with no
+  reference function behind it — carries the anchor-off answers so both
+  directions stay pinned. Measured: it costs the flagship `korber_env_gp160`
+  example nothing, because the Korber rule reads `Z59ZR.ZHU` as 1959.5 anyway.
 * The CLI's `epistasis` default `min_sim` is 0.30; the function default is 0.35.
 * Multi-line PHYLIP parses into garbage; quoted NEXUS labels with spaces split;
   `TREE x = [&R] (...)` is not recognised.
