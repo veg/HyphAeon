@@ -17,5 +17,5 @@ export * from './ranks.js'; // rankdata, pearson, spearman, rocAuc
 export * from './bh.js'; // benjaminiHochberg
 export * from './cauchy.js'; // cauchyCombination
 export * from './linalg.js'; // cholesky, symmetricEigenvalues, largestEigenvalue, symmetricEigen (re-export)
-export * from './optimize.js'; // brentq (scipy.optimize's bracketing root finder, transcribed from Zeros/brentq.c)
+export * from './optimize.js'; // brentq (scipy.optimize's bracketing root finder, transcribed from Zeros/brentq.c), fminbound (its bounded scalar minimiser)
 export * from './graph.js'; // networkx 3.6.1 semantics: adjacency, subgraph views, components, greedy modularity, cpythonIntSetOrder

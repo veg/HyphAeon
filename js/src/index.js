@@ -77,4 +77,5 @@ export * from './permulations.js'; // phenotype.py:275-374: computePhylogeneticC
 export * from './phenotype.js'; // phenotype.py:48-274 and 347-646: PRESETS, PHENOTYPE_THRESHOLDS, resolvePhenotypeVector, runPhenotypeAssociation, parsePhenotypeTable, pyFnmatch, pyRepr*, pyFloatStr
 export * from './diagnostics.js'; // PLAN.md §4.3 pre-flight: diagnose, DIAGNOSTIC_CODES, DIAGNOSTIC_THRESHOLDS
 export * from './dating.js'; // dating.py: the model-free dating estimators - runOlsDating, the Fieller and delta intervals, the restricted spline clock, computeTreeFreeDivergences (no model, no RNG; the policy and the prose are the app's)
+export * from './datingModel.js'; // dating.py: the MODEL-BASED dating estimators - the neural covariance kernel, REML Pagel lambda, runPglsDating and the latent convex-hull root (the two [N,N] and [N,D] matrices arrive as arguments; nothing here loads a model)
 export * from './dates.js'; // temporal.py:73-245 + dating.py:317-384: parseDate/extractDate/parseHeaderDate/parseFlexibleDate and their exact-Python numeric wrappers, DATE_RULES (a leaf; the file/table/JSON ingestion around them is the app's)
