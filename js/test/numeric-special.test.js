@@ -10,6 +10,26 @@
  * The rule per value: exact for 0, ±Infinity and NaN; otherwise |js − ref| ≤ 1e-12·|ref|, or, when
  * the reference is below 1e-300 (deep denormal tails where scipy itself is only a few digits),
  * |js − ref| ≤ 1e-300. lgamma is checked at its zeros (x = 1, 2) exactly and elsewhere relatively.
+ *
+ * TWO FUNCTIONS ARE NOT MEASURED AGAINST SCIPY, and saying so is the point:
+ *
+ *   - `tPpf` is held to 1e-13 relative against MPMATH at 40 dps, because scipy's own `t.ppf` is the
+ *     less accurate of the two: cephes `stdtri` polishes with a loose stopping rule and is off by
+ *     up to 3.7e-11 relative on this grid (worst at df = 100, q = 0.975), and it returns ~7e-17
+ *     rather than 0 at q = 0.5 for every df. gen.py arbitrates with mpmath and writes the mpmath
+ *     value wherever the two disagree by more than 1e-13, recording every such point under
+ *     `scipy_deviations` — the same mechanism `betaincReg` already uses. A test that claimed
+ *     agreement with scipy to 1e-12 here would be a false claim and would fail on the first run.
+ *   - `1 − fCdf` is the call shape dating.py:1269 uses where `f.sf` was meant, and it is compared
+ *     at 1e-12 relative OR 1e-15 absolute, whichever is looser: the subtraction quantises at one ulp
+ *     of 1.0, and scipy's own cdf is one ulp BELOW 1 at F = 194.58 / dfd = 93 (the H1N1 fit's own
+ *     value) where the correctly rounded double is exactly 1.0. `one_minus_f_cdf` carries both
+ *     spellings side by side, from mpmath, so the size of the upstream defect is in the record
+ *     rather than in a comment.
+ *
+ * `fSf` and `fCdf` are arbitrated by mpmath for the same reason `tPpf` is: MEASURED,
+ * `scipy.stats.f.sf(1e-12, 1, 139)` is 4.9e-9 relative from the truth (Boost's ibeta at an x within
+ * 1e-14 of 1), while this file's incomplete beta reproduces mpmath to 17 digits there.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -23,6 +43,8 @@ const ref = JSON.parse(readFileSync(join(DATA, 'special.json'), 'utf8'));
 
 const REL = 1e-12;
 const DEEP = 1e-300;
+/** Per-function bounds tighter or looser than the house 1e-12; see the header. */
+const REL_BY_FN = { tPpf: 1e-13 };
 
 function num(v) {
 	if (v === 'NaN') return NaN;
@@ -32,14 +54,14 @@ function num(v) {
 }
 
 /** Relative-or-deep-tail closeness, as the header describes. Returns the failure text or null. */
-function mismatch(got, want) {
+function mismatch(got, want, bound = REL) {
 	if (Number.isNaN(want)) return Number.isNaN(got) ? null : `expected NaN, got ${got}`;
 	if (!Number.isFinite(want)) return Object.is(got, want) ? null : `expected ${want}, got ${got}`;
 	if (want === 0) return got === 0 ? null : `expected exactly 0, got ${got}`;
 	const err = Math.abs(got - want);
 	if (Math.abs(want) < DEEP) return err <= DEEP ? null : `deep tail: |Δ| = ${err} > ${DEEP}`;
 	const rel = err / Math.abs(want);
-	return rel <= REL ? null : `rel err ${rel.toExponential(2)} (got ${got}, want ${want})`;
+	return rel <= bound ? null : `rel err ${rel.toExponential(2)} (got ${got}, want ${want})`;
 }
 
 describe('special.json replay: scalar special functions vs scipy', () => {
@@ -50,7 +72,8 @@ describe('special.json replay: scalar special functions vs scipy', () => {
 	}
 
 	for (const [fn, cases] of byFn) {
-		it(`${fn} (${cases.length} points) within 1e-12 relative`, () => {
+		const bound = REL_BY_FN[fn] ?? REL;
+		it(`${fn} (${cases.length} points) within ${bound} relative`, () => {
 			const f = special[fn];
 			expect(typeof f, `${fn} exported`).toBe('function');
 			const failures = [];
@@ -59,14 +82,60 @@ describe('special.json replay: scalar special functions vs scipy', () => {
 				const args = c.args.map(num);
 				const want = num(c.value);
 				const got = f(...args);
-				const m = mismatch(got, want);
+				const m = mismatch(got, want, bound);
 				if (m) failures.push(`${fn}(${args.join(', ')}): ${m}`);
 				if (Number.isFinite(want) && want !== 0) worst = Math.max(worst, Math.abs(got - want) / Math.abs(want));
 			}
 			expect(failures, failures.slice(0, 10).join('\n')).toEqual([]);
-			expect(worst).toBeLessThanOrEqual(REL);
+			expect(worst).toBeLessThanOrEqual(bound);
 		});
 	}
+
+	it('scipy itself is the outlier at tPpf: the recorded deviations are real and mpmath is the arbiter', () => {
+		const dev = ref.scipy_deviations.filter((d) => d.fn === 'tPpf');
+		expect(dev.length, 'gen.py recorded scipy/mpmath disagreements for tPpf').toBeGreaterThan(0);
+		let worstScipy = 0;
+		for (const d of dev) {
+			if (d.rel === 'Infinity') {
+				// q = 0.5: scipy returns ~7e-17, the port returns exact 0.
+				expect(Math.abs(d.scipy)).toBeLessThan(1e-16);
+				expect(special.tPpf(d.args[0], d.args[1])).toBe(0);
+				continue;
+			}
+			worstScipy = Math.max(worstScipy, d.rel);
+			// The port is closer to mpmath than scipy is, at every recorded point.
+			const got = special.tPpf(d.args[0], d.args[1]);
+			expect(Math.abs(got - d.mpmath), `tPpf(${d.args.join(', ')})`).toBeLessThan(Math.abs(d.scipy - d.mpmath));
+		}
+		// MEASURED at this fixture: 3.73e-11 relative, at df = 100, q = 0.975.
+		expect(worstScipy).toBeGreaterThan(1e-11);
+	});
+
+	it("dating.py:1269's `1 - f.cdf` spelling, and the size of what it loses", () => {
+		let worstLoss = 0;
+		for (const row of ref.one_minus_f_cdf) {
+			const [x, dfn, dfd] = row.args;
+			const got = 1 - special.fCdf(x, dfn, dfd);
+			const want = num(row.one_minus_cdf);
+			// Relative at the house bound where the value carries digits, absolute at 1e-15 where the
+			// subtraction has quantised it to a multiple of one ulp of 1.0 and there are none left.
+			const bound = Math.max(1e-15, REL * Math.abs(want));
+			expect(Math.abs(got - want), `1 - fCdf(${row.args.join(', ')})`).toBeLessThanOrEqual(bound);
+			const sf = num(row.sf);
+			if (sf > 0 && want === 0) {
+				// `1 - cdf` has annihilated a real probability: the whole tail is below one ulp of 1.
+				worstLoss++;
+				expect(1 - special.fCdf(x, dfn, dfd), `1 - fCdf(${row.args.join(', ')}) annihilates`).toBe(0);
+				expect(special.fSf(x, dfn, dfd), `fSf(${row.args.join(', ')}) does not`).toBeGreaterThan(0);
+			}
+		}
+		// The defect is not hypothetical. MEASURED on this grid: from F ≈ 80 upward the true
+		// `1 − cdf` is exactly 0 in float64 while the survival function is still 1e-15 to 1e-25, and
+		// scipy's own cdf hides that by returning one ulp below 1 (H1N1's run reports 1.11e-16 for a
+		// p-value whose real value is 1.59e-24). The port replicates the reference's spelling and the
+		// annihilation with it.
+		expect(worstLoss, 'rows where `1 - cdf` annihilates a tail `sf` still resolves').toBeGreaterThan(5);
+	});
 
 	it('covers every exported special function', () => {
 		const exported = Object.keys(special).filter((k) => typeof special[k] === 'function');

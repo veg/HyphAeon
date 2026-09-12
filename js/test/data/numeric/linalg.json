@@ -2,6 +2,7 @@
  "generator": "js/test/data/numeric/gen.py",
  "scipy": "1.16.2",
  "numpy": "2.3.3",
+ "mpmath": "1.3.0",
  "matrices": {
   "spd_3": {
    "n": 3,

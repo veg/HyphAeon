@@ -512,6 +512,51 @@ export function tCdf(t, df) {
 }
 
 /**
+ * F distribution survival P[X > x] — scipy.stats.f.sf(x, dfn, dfd).
+ * F(dfn, dfd) with X = x is I_{dfd/(dfd + dfn·x)}(dfd/2, dfn/2).
+ *
+ * dating.py:1877 calls this one (the nested F test of the restricted spline clock).
+ *
+ * The beta argument and its complement are each formed from their own ratio — dfd/s and dfn·x/s
+ * with s = dfd + dfn·x — and never one as `1 −` the other, the same split `tSf` records above.
+ *
+ * @param {number} x
+ * @param {number} dfn > 0 numerator degrees of freedom
+ * @param {number} dfd > 0 denominator degrees of freedom
+ * @returns {number}
+ */
+export function fSf(x, dfn, dfd) {
+	if (Number.isNaN(x) || Number.isNaN(dfn) || Number.isNaN(dfd) || dfn <= 0 || dfd <= 0) return NaN;
+	if (x <= 0) return 1;
+	if (x === Infinity) return 0;
+	const s = dfd + dfn * x;
+	return betaincXY(dfd / 2, dfn / 2, dfd / s, (dfn * x) / s);
+}
+
+/**
+ * F distribution cumulative P[X ≤ x] — scipy.stats.f.cdf(x, dfn, dfd).
+ * F(dfn, dfd) with X = x is I_{dfn·x/(dfd + dfn·x)}(dfn/2, dfd/2).
+ *
+ * dating.py:1269 calls `1.0 - stats.f.cdf(f_stat, 1, n - 2)` where `stats.f.sf` was meant, and the
+ * cancellation floors the reported regression p-value at one ulp of 1 (1.11e-16) for F ≳ 100 —
+ * MEASURED: F = 100 gives 1.110223e-16 from `1 − cdf` against 4.524e-18 from `sf`, 24× wrong.
+ * Both entry points exist so a port can call the one the reference calls and say which it is;
+ * `run_ols_dating` in dating.js calls `1 - fCdf(...)`, deliberately.
+ *
+ * @param {number} x
+ * @param {number} dfn > 0
+ * @param {number} dfd > 0
+ * @returns {number}
+ */
+export function fCdf(x, dfn, dfd) {
+	if (Number.isNaN(x) || Number.isNaN(dfn) || Number.isNaN(dfd) || dfn <= 0 || dfd <= 0) return NaN;
+	if (x <= 0) return 0;
+	if (x === Infinity) return 1;
+	const s = dfd + dfn * x;
+	return betaincXY(dfn / 2, dfd / 2, (dfn * x) / s, dfd / s);
+}
+
+/**
  * Standard normal survival function P[Z > z] = ½·erfc(z/√2) — scipy.stats.norm.sf(z).
  *
  * @param {number} z
@@ -529,6 +574,203 @@ export function normSf(z) {
  */
 export function normCdf(z) {
 	return 0.5 * erfc(-z / SQRT_2);
+}
+
+// ---------------------------------------------------------------------------------------------
+// quantiles (inverses): Wichura AS 241 seeds, polished by Newton on this file's own tails
+// ---------------------------------------------------------------------------------------------
+
+/** Wichura (1988) AS 241 PPND16, the |q| ≤ 0.425 central rational. */
+const PPND_A = [
+	3.387132872796366608, 133.14166789178437745, 1971.5909503065514427, 13731.693765509461125,
+	45921.953931549871457, 67265.770927008700853, 33430.575583588128105, 2509.0809287301226727,
+];
+const PPND_B = [
+	42.313330701600911252, 687.1870074920579083, 5394.1960214247511077, 21213.794301586595867,
+	39307.89580009271061, 28729.085735721942674, 5226.495278852854561,
+];
+/** AS 241's intermediate branch, r = sqrt(−ln min(p, 1−p)) ≤ 5. */
+const PPND_C = [
+	1.42343711074968357734, 4.6303378461565452959, 5.7694972214606914055, 3.64784832476320460504,
+	1.27045825245236838258, 0.24178072517745061177, 0.0227238449892691845833, 7.7454501427834140764e-4,
+];
+const PPND_D = [
+	2.05319162663775882187, 1.6763848301838038494, 0.68976733498510000455, 0.1481039764274800746,
+	0.0151986665636164571966, 5.475938084995344946e-4, 1.05075007164441684324e-9,
+];
+/** AS 241's far tail, r > 5 (valid to p ≈ 1e-316). */
+const PPND_E = [
+	6.6579046435011037772, 5.4637849111641143699, 1.7848265399172913358, 0.29656057182850489123,
+	0.026532189526576123093, 0.0012426609473880784386, 2.71155556874348757815e-5, 2.01033439929228813265e-7,
+];
+const PPND_F = [
+	0.5998322065558879377, 0.13692988092273580531, 0.0148753612908506148525, 7.868691311456132591e-4,
+	1.8463183175100546818e-5, 1.4215117583164458887e-7, 2.04426310338993978564e-15,
+];
+
+function polyDown(c, r) {
+	let v = c[c.length - 1];
+	for (let i = c.length - 2; i >= 0; i--) v = v * r + c[i];
+	return v;
+}
+
+/** AS 241 PPND16 itself: Φ⁻¹(p) to ~1e-16 relative, used here only as the Newton seed. */
+function ppnd16(p) {
+	const q = p - 0.5;
+	if (Math.abs(q) <= 0.425) {
+		const r = 0.180625 - q * q;
+		let num = PPND_A[7];
+		for (let i = 6; i >= 0; i--) num = num * r + PPND_A[i];
+		let den = PPND_B[6];
+		for (let i = 5; i >= 0; i--) den = den * r + PPND_B[i];
+		return (q * num) / (den * r + 1);
+	}
+	let r = Math.sqrt(-Math.log(q < 0 ? p : 1 - p));
+	let val;
+	if (r <= 5) {
+		r -= 1.6;
+		let num = PPND_C[7];
+		for (let i = 6; i >= 0; i--) num = num * r + PPND_C[i];
+		let den = PPND_D[6];
+		for (let i = 5; i >= 0; i--) den = den * r + PPND_D[i];
+		val = num / (den * r + 1);
+	} else {
+		r -= 5;
+		let num = PPND_E[7];
+		for (let i = 6; i >= 0; i--) num = num * r + PPND_E[i];
+		let den = PPND_F[6];
+		for (let i = 5; i >= 0; i--) den = den * r + PPND_F[i];
+		val = num / (den * r + 1);
+	}
+	return q < 0 ? -val : val;
+}
+
+/** The standard normal density, for the Newton polish. */
+function normPdf(z) {
+	return Math.exp(-0.5 * z * z) / Math.sqrt(2 * Math.PI);
+}
+
+/**
+ * Standard normal quantile Φ⁻¹(p) — scipy.stats.norm.ppf(p). The inverse partner of normSf/normCdf.
+ *
+ * Wichura AS 241 (PPND16) supplies the seed and two safeguarded Newton steps on THIS FILE'S OWN
+ * `normSf` polish it, so the inverse inherits the forward function's measured error rather than the
+ * rational approximation's. The tail is always solved as `normSf(z) = min(p, 1 − p)` with z ≥ 0 and
+ * the sign restored afterwards: `1 − p` is exact for p ≥ 0.5 (Sterbenz), so nothing is lost.
+ *
+ * p = 0 gives −Infinity, p = 1 gives +Infinity, p = 0.5 gives exactly 0, and p outside [0, 1] NaN.
+ *
+ * @param {number} p in [0, 1]
+ * @returns {number}
+ */
+export function normPpf(p) {
+	if (Number.isNaN(p) || p < 0 || p > 1) return NaN;
+	if (p === 0) return -Infinity;
+	if (p === 1) return Infinity;
+	if (p === 0.5) return 0;
+	const upper = p > 0.5;
+	const tail = upper ? 1 - p : p; // exact for p ≥ 0.5
+	let z = Math.abs(ppnd16(tail));
+	for (let i = 0; i < 3; i++) {
+		const d = normPdf(z);
+		if (!(d > 0)) break;
+		const step = (normSf(z) - tail) / d;
+		const zn = z + step;
+		if (!Number.isFinite(zn) || zn < 0) break;
+		z = zn;
+		if (Math.abs(step) <= 1e-16 * Math.abs(z)) break;
+	}
+	return upper ? z : -z;
+}
+
+/** The Student-t density, exact in logs, for the Newton polish in `tPpf`. */
+function tPdf(t, df) {
+	return Math.exp(
+		lgamma((df + 1) / 2) - lgamma(df / 2) - 0.5 * Math.log(df * Math.PI) - ((df + 1) / 2) * Math.log1p((t * t) / df)
+	);
+}
+
+/**
+ * Student-t quantile — scipy.stats.t.ppf(q, df); the inverse of `tCdf`.
+ *
+ * dating.py needs exactly one thing from the t distribution and needs it three times:
+ * `stats.t.ppf(0.975, df)` at 1236 (the delta interval), 859 (Fieller) and 1118 (the jackknife
+ * interval, `--loocv`, not ported).
+ *
+ * ALGORITHM. The tail is formed as p = min(q, 1 − q) — exact for q ≥ 0.5 by Sterbenz, and the
+ * same fold cephes `stdtri` makes — and z ≥ 0 is solved from `tSf(z, df) = p`. df = 1 and df = 2
+ * are closed forms (Cauchy, and (1 − 2p)/√(2p(1−p))), which cephes also special-cases. Otherwise a
+ * Cornish–Fisher expansion around `normPpf(p)` seeds a bracket [0, hi] — hi doubled until the tail
+ * is below p, so the bracket is a guarantee and not an assumption — and safeguarded Newton on
+ * `tSf` with the exact density above converges in two or three steps, bisecting whenever a step
+ * would leave the bracket.
+ *
+ * WHY NEWTON ON `tSf` AND NOT AN INVERSE INCOMPLETE BETA. A general `betaincinv` is a second
+ * rational-inversion routine with its own tail behaviour to measure, and nothing else in the
+ * library wants one. Newton on `tSf` reuses the incomplete beta this file has already measured and
+ * pinned, so the inverse inherits a KNOWN forward error.
+ *
+ * ACCURACY, MEASURED against mpmath at 40 dps over df ∈ {1, 2, 2.5, 3, 4, 5, 10, 30, 50, 100, 139,
+ * 500, 2000} × 17 quantiles: worst 1.4e-13 relative. SCIPY IS THE LESS ACCURATE OF THE TWO and the
+ * two therefore cannot agree better than ~4e-11: cephes `stdtri` polishes with a loose stopping
+ * rule, and its worst point on that grid is 3.7e-11 relative (df = 100, q = 0.975). At the
+ * acceptance case's own call site scipy returns t.ppf(0.975, 139) = 1.9771777244761219, which sits
+ * at tSf = 0.02500000000081161 — off by 8.1e-13 IN PROBABILITY; the root is 1.9771777244903375.
+ * test/data/numeric/gen.py therefore arbitrates with mpmath and records every such point under
+ * `scipy_deviations`, exactly as it already does for `betaincReg`. scipy also returns ~7e-17 rather
+ * than 0 for q = 0.5 at every df; this returns exact 0.
+ *
+ * KNOWN LIMIT. The claim is bounded at df ≤ 10⁴. At df = 1e5 the worst measured error is 7.7e-12
+ * and it is INHERITED: `tSf(1.2816, 1e5)` returns 0.10000000000151921 where mpmath gives
+ * 0.099999999999999977, i.e. `tSf` itself is 1.5e-11 relative there, outside gen.py's df ≤ 2000
+ * grid. Nothing in the dating pillar approaches that df (the reference refuses the neural route
+ * above 1500 taxa), but a caller that does should know the bound is the forward function's.
+ *
+ * @param {number} q in [0, 1]
+ * @param {number} df > 0
+ * @returns {number}
+ */
+export function tPpf(q, df) {
+	if (Number.isNaN(q) || Number.isNaN(df) || df <= 0 || q < 0 || q > 1) return NaN;
+	if (q === 0) return -Infinity;
+	if (q === 1) return Infinity;
+	if (q === 0.5) return 0;
+	const upper = q > 0.5;
+	const p = upper ? 1 - q : q; // exact for q ≥ 0.5
+	let z;
+	if (df === 1) {
+		// Cauchy: the lower-tail quantile is −1/tan(πp); |t| = 1/tan(πp) for p < ½.
+		z = 1 / Math.tan(Math.PI * p);
+	} else if (df === 2) {
+		z = (1 - 2 * p) / Math.sqrt(2 * p * (1 - p));
+	} else {
+		// Cornish–Fisher seed around the normal quantile (Hill AS 396's non-asymptotic start).
+		const x = Math.abs(normPpf(p));
+		const x2 = x * x;
+		let start = x + (x2 * x + x) / (4 * df) + (5 * x2 * x2 * x + 16 * x2 * x + 3 * x) / (96 * df * df);
+		if (!(start > 0) || !Number.isFinite(start)) start = 1;
+		let lo = 0;
+		let hi = Math.max(start, 1);
+		// The bracket is established, never assumed: tSf is decreasing, tSf(0) = ½ > p.
+		for (let i = 0; i < 2000 && tSf(hi, df) > p; i++) {
+			lo = hi;
+			hi *= 2;
+			if (!Number.isFinite(hi)) break;
+		}
+		z = Math.min(Math.max(start, lo), hi);
+		for (let i = 0; i < 200; i++) {
+			const s = tSf(z, df);
+			if (s > p) lo = z;
+			else hi = z;
+			const d = tPdf(z, df);
+			let zn = d > 0 ? z + (s - p) / d : 0.5 * (lo + hi);
+			if (!Number.isFinite(zn) || !(zn > lo && zn < hi)) zn = 0.5 * (lo + hi);
+			const moved = Math.abs(zn - z);
+			z = zn;
+			if (moved <= 1e-16 * Math.abs(z) || hi - lo <= 1e-16 * Math.abs(z)) break;
+		}
+	}
+	return upper ? z : -z;
 }
 
 // ---------------------------------------------------------------------------------------------

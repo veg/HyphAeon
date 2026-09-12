@@ -14,7 +14,7 @@
  *      only place that loads the package the way an app does.
  *   2. THE PUBLIC SURFACE IS A COMMITMENT. `index.js` re-exports whole modules deliberately (its
  *      header says why), which means adding an export to any file under `src/preprocess/` publishes
- *      it, and deleting one breaks a pinned consumer. Listing all 256 names here turns both into a
+ *      it, and deleting one breaks a pinned consumer. Listing all 265 names here turns both into a
  *      visible diff in the pull request that causes them, rather than a discovery in `hyphaeon-app`.
  *   3. THE EXPORTS MAP IS LOAD-BEARING, not decoration. `package.json` exposes exactly `.`, so a
  *      deep import into `src/preprocess/…` must FAIL — otherwise consumers pin internal paths, and
@@ -148,10 +148,15 @@ const PUBLIC_SURFACE = [
 	'siteBatch',
 	'siteBatches',
 	// numeric/reduce.js
+	'percentile',
 	'float32Sum',
 	'numpyMeanFloat32',
 	'numpyPairwiseSum',
 	// numeric/special.js
+	'fCdf',
+	'fSf',
+	'normPpf',
+	'tPpf',
 	'betaincReg',
 	'chi2Cdf',
 	'chi2Sf',
@@ -167,6 +172,11 @@ const PUBLIC_SURFACE = [
 	'normSf',
 	'tCdf',
 	'tSf',
+	// numeric/optimize.js
+	'BRENTQ_MAXITER',
+	'BRENTQ_RTOL',
+	'BRENTQ_XTOL',
+	'brentq',
 	// numeric/prng.js
 	'Xoshiro256',
 	// numeric/ranks.js

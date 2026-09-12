@@ -10,11 +10,12 @@
  * Nothing here is model-, method- or I/O-aware; see each module's header for what it mirrors.
  */
 
-export * from './reduce.js'; // numpyPairwiseSum, float32Sum, numpyMeanFloat32 (numpy reduction order)
+export * from './reduce.js'; // numpyPairwiseSum, float32Sum, numpyMeanFloat32, percentile (numpy reduction and quantile semantics)
 export * from './special.js'; // lgamma, gammaincReg, gammaincc, betaincReg, erfc, chi2Sf, chi2Cdf, tSf, tCdf, normSf, normCdf, logChoose, hypergeomPmf, hypergeomCdf, hypergeomSf
 export * from './prng.js'; // Xoshiro256
 export * from './ranks.js'; // rankdata, pearson, spearman, rocAuc
 export * from './bh.js'; // benjaminiHochberg
 export * from './cauchy.js'; // cauchyCombination
 export * from './linalg.js'; // cholesky, symmetricEigenvalues, largestEigenvalue, symmetricEigen (re-export)
+export * from './optimize.js'; // brentq (scipy.optimize's bracketing root finder, transcribed from Zeros/brentq.c)
 export * from './graph.js'; // networkx 3.6.1 semantics: adjacency, subgraph views, components, greedy modularity, cpythonIntSetOrder

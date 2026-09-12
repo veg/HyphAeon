@@ -13,7 +13,7 @@ Regenerate from js/ with the reference environment:
 
     python test/data/numeric/gen.py
 
-Output: special.json, ranks.json, linalg.json in this directory. NaN and infinities are written as
+Output: special.json, ranks.json, linalg.json, optimize.json in this directory. NaN and infinities are written as
 the strings "NaN", "Infinity", "-Infinity" (the fixtures/README.md convention).
 """
 
@@ -53,7 +53,8 @@ def jsonable(v):
 
 
 def write(name, payload):
-    payload = {"generator": "js/test/data/numeric/gen.py", "scipy": scipy.__version__, "numpy": np.__version__, **payload}
+    import mpmath as _mp
+    payload = {"generator": "js/test/data/numeric/gen.py", "scipy": scipy.__version__, "numpy": np.__version__, "mpmath": _mp.__version__, **payload}
     path = HERE / name
     path.write_text(json.dumps(jsonable(payload), indent=1) + "\n")
     print(f"wrote {path.relative_to(HERE.parent.parent.parent)}")
@@ -167,8 +168,96 @@ def gen_special():
                          "pmf": st.hypergeom.pmf(k, 20, 7, 12), "cdf": st.hypergeom.cdf(k, 20, 7, 12),
                          "sf": st.hypergeom.sf(k, 20, 7, 12)} for k in [2.5, 3.999, -0.5, 7.5]]
 
+    # ---- the quantiles and the F tails the dating pillar needs (hyphaeon/dating.py) -------------
+    # Inverse Student t. scipy's own t.ppf is the LESS accurate of the two here -- cephes `stdtri`
+    # polishes with a loose stopping rule -- so mpmath at 40 dps is the arbiter exactly as it is for
+    # betaincReg above, and every point where scipy differs by more than 1e-13 relative is recorded
+    # under `scipy_deviations` with the mpmath value written into the table.
+    def _t_ppf_exact(q, df):
+        p = mp.mpf(1) - mp.mpf(q) if q > 0.5 else mp.mpf(q)
+        f = lambda tt: mp.betainc(mp.mpf(df) / 2, mp.mpf('0.5'), 0,
+                                  mp.mpf(df) / (mp.mpf(df) + tt * tt), regularized=True) / 2 - p
+        seed = st.t.ppf(min(q, 1 - q), df)
+        root = abs(mp.findroot(f, mp.mpf(abs(seed)) if seed != 0 else mp.mpf(1)))
+        return -root if q < 0.5 else root
+
+    for df in [1, 2, 2.5, 3, 4, 5, 10, 30, 50, 100, 139, 500, 2000]:
+        for q in [0.5, 0.6, 0.75, 0.9, 0.95, 0.975, 0.99, 0.995, 0.999, 0.9995,
+                  1 - 1e-6, 1 - 1e-9, 1 - 1e-12, 0.025, 0.005, 1e-6, 1e-12]:
+            v = float(st.t.ppf(q, df))
+            if q == 0.5:
+                # scipy returns ~7e-17 here for every df (cephes' convergence residual: measured
+                # 8.18e-17 at df=1, 6.65e-17 at df=139). The port returns exact 0.
+                deviations.append({"fn": "tPpf", "args": [q, df], "scipy": v, "mpmath": 0.0, "rel": "Infinity"})
+                v = 0.0
+            else:
+                exact = float(_t_ppf_exact(q, df))
+                if abs(v - exact) / abs(exact) > 1e-13:
+                    deviations.append({"fn": "tPpf", "args": [q, df], "scipy": v, "mpmath": exact,
+                                       "rel": abs(v - exact) / abs(exact)})
+                    v = exact
+            add("tPpf", [q, df], v)
+    for q in [0.0, 1.0, -0.1, 1.1]:
+        add("tPpf", [q, 5], st.t.ppf(q, 5))
+    add("tPpf", [0.975, 139], float(_t_ppf_exact(0.975, 139)))   # the Fieller call site itself
+
+    # Normal quantile (Wichura AS 241 seed, polished on normSf). scipy's ndtri is reliable here, so
+    # no arbitration is needed.
+    for pq in [1e-300, 1e-12, 1e-6, 0.001, 0.025, 0.1, 0.4, 0.425, 0.5, 0.575, 0.6, 0.9,
+               0.975, 0.999, 1 - 1e-6, 1 - 1e-12, 0.0, 1.0]:
+        add("normPpf", [pq], st.norm.ppf(pq))
+
+    # F distribution, both tails. (1, n-2) and (1, n-3) are the only shapes dating.py uses, and
+    # 5.255140428205752 / 41.836941733804075 are the acceptance case's own f_stat values, at its own
+    # degrees of freedom -- the ground truth is in the grid, not adjacent to it.
+    # scipy is arbitrated here too, and it LOSES at small x: MEASURED, st.f.sf(1e-12, 1, 139) is
+    # 4.9e-9 relative from the truth (Boost's ibeta at x within 1e-14 of 1), where the incomplete
+    # beta this file already pins is exact to 17 digits. Same mechanism as betaincReg and tPpf.
+    def _f_tails_exact(x, dfn, dfd):
+        if x <= 0:
+            return 1.0, 0.0
+        xm, a, b = mp.mpf(x), mp.mpf(dfn), mp.mpf(dfd)
+        s_ = b + a * xm
+        sf_ = mp.betainc(b / 2, a / 2, 0, b / s_, regularized=True)
+        cdf_ = mp.betainc(a / 2, b / 2, 0, a * xm / s_, regularized=True)
+        return float(sf_), float(cdf_)
+
+    for dfn, dfd in [(1, 1), (1, 2), (1, 3), (1, 5), (1, 30), (1, 138), (1, 139), (1, 1000),
+                     (2, 10), (3, 7), (5, 5), (10, 100)]:
+        for x in [0.0, 1e-12, 1e-6, 0.01, 0.1, 0.5, 1.0, 2.0, 3.84,
+                  5.255140428205752, 10.0, 41.836941733804075, 100.0, 1e3, 1e6]:
+            sf_exact, cdf_exact = _f_tails_exact(x, dfn, dfd)
+            for fn, scipy_v, exact_v in (("fSf", float(st.f.sf(x, dfn, dfd)), sf_exact),
+                                         ("fCdf", float(st.f.cdf(x, dfn, dfd)), cdf_exact)):
+                v = scipy_v
+                if exact_v != 0.0 and abs(v - exact_v) / abs(exact_v) > 1e-13:
+                    deviations.append({"fn": fn, "args": [x, dfn, dfd], "scipy": v, "mpmath": exact_v,
+                                       "rel": abs(v - exact_v) / abs(exact_v)})
+                    v = exact_v
+                add(fn, [x, dfn, dfd], v)
+    add("fSf", ["Infinity", 1, 139], st.f.sf(np.inf, 1, 139))
+    add("fCdf", ["Infinity", 1, 139], st.f.cdf(np.inf, 1, 139))
+    add("fSf", [-1.0, 1, 139], st.f.sf(-1.0, 1, 139))
+    add("fCdf", [-1.0, 1, 139], st.f.cdf(-1.0, 1, 139))
+
+    # dating.py:1269 spells the regression p as `1 - f.cdf`, not `f.sf`, and the cancellation floors
+    # it at one ulp of 1. Recorded as its own call shape so the port's quirk-replication is CHECKED
+    # rather than assumed -- and note that scipy's cdf is itself one ulp low where the correctly
+    # rounded double is exactly 1.0 (measured at F = 194.58113368283688, dfd = 93, the H1N1 fit's own
+    # value: scipy cdf 0.9999999999999999, true 1 - 1.59e-24). That is why this shape is compared
+    # ABSOLUTELY at 1e-15 and not relatively.
+    one_minus = []
+    for dfn, dfd in [(1, 30), (1, 93), (1, 138), (1, 139)]:
+        for x in [0.5, 3.84, 5.255140428205752, 41.836941733804075, 80.0, 100.0,
+                  194.58113368283688, 1e3, 1e6]:
+            sf_exact, cdf_exact = _f_tails_exact(x, dfn, dfd)
+            one_minus.append({"args": [x, dfn, dfd],
+                              "one_minus_cdf": 1.0 - cdf_exact, "sf": sf_exact,
+                              "scipy_one_minus_cdf": 1.0 - float(st.f.cdf(x, dfn, dfd)),
+                              "scipy_sf": float(st.f.sf(x, dfn, dfd))})
+
     write("special.json", {"cases": cases, "hypergeom": hyper, "hypergeom_noninteger": hyper_noninteger,
-                           "scipy_deviations": deviations})
+                           "one_minus_f_cdf": one_minus, "scipy_deviations": deviations})
 
 
 def gen_ranks():
@@ -245,8 +334,61 @@ def gen_linalg():
     write("linalg.json", {"matrices": mats})
 
 
+def gen_optimize():
+    """scipy.optimize.brentq and numpy.percentile: the two primitives hyphaeon/dating.py reaches for
+    that have no hyphaeon body behind them, so their provenance is the scipy/numpy version in the
+    header rather than a line range."""
+    import scipy.optimize as op
+
+    roots = []
+
+    def addroot(name, expr, a, b, notes):
+        roots.append({"name": name, "a": a, "b": b, "root": float(op.brentq(expr, a, b)), "notes": notes})
+
+    addroot("cubic", lambda x: x ** 3 - 2 * x - 5, 2.0, 3.0, "Brent's own published example")
+    addroot("flat_near_root", lambda x: (x - 1.0) ** 3, 0.0, 2.0, "a triple root: the secant step degenerates and the bisection safeguard carries it")
+    addroot("steep", lambda x: math.exp(x) - 1e6, 0.0, 20.0, "eighteen orders of magnitude across the bracket")
+    addroot("root_at_a", lambda x: x - 1.0, 1.0, 3.0, "f(a) == 0 exactly: scipy returns immediately, before the first iteration")
+    addroot("root_at_b", lambda x: x - 3.0, 1.0, 3.0, "f(b) == 0 exactly")
+    addroot("shallow_wide", lambda x: 1e-14 * (x - 1234.5), 0.0, 1e4, "a nearly flat function over a wide bracket: the xtol/rtol stopping rule decides where this stops, not the arithmetic")
+    addroot("negative_bracket", lambda x: math.cos(x) - x, -1.0, 2.0, "a bracket straddling zero, f decreasing")
+
+    # Brackets scipy REFUSES. dating.py:3024 catches exactly this and silently substitutes a
+    # different model for those rows, so the refusal is part of the answer and is pinned.
+    refusals = []
+    for name, expr, a, b, notes in [
+        ("same_sign_positive", lambda x: x * x + 1.0, -1.0, 1.0, "f > 0 everywhere"),
+        ("same_sign_both_negative", lambda x: x - 10.0, 0.0, 5.0, "f(a) and f(b) both negative: the root is outside the bracket, which is exactly the shape of a decelerating spline that cannot reach a taxon's divergence"),
+    ]:
+        try:
+            op.brentq(expr, a, b)
+            raise AssertionError(f"{name} was expected to raise")
+        except ValueError as exc:
+            refusals.append({"name": name, "a": a, "b": b, "error": str(exc), "notes": notes})
+
+    percentiles = []
+    for label, xs in [("odd_7", [3.0, 1.0, 4.0, 1.0, 5.0, 9.0, 2.0]),
+                      ("even_4", [1.0, 2.0, 3.5, 9.25]),
+                      ("single", [7.0]),
+                      ("two", [1.0, 2.0]),
+                      ("linspace_101", list(np.linspace(0, 1, 101))),
+                      ("negatives", [-5.5, -1.0, 0.0, 2.25, 100.0, -3.0]),
+                      ("ties", [2.0, 2.0, 2.0, 2.0, 5.0])]:
+        for q in [0.0, 2.5, 25.0, 50.0, 90.0, 95.0, 97.5, 100.0, 1.0 / 3.0]:
+            percentiles.append({"label": label, "x": xs, "q": q, "value": float(np.percentile(xs, q)),
+                                "median": float(np.median(xs))})
+
+    write("optimize.json", {
+        "brentq": roots,
+        "brentq_refusals": refusals,
+        "brentq_defaults": {"xtol": 2e-12, "rtol": 4 * float(np.finfo(float).eps), "maxiter": 100},
+        "percentile": percentiles,
+    })
+
+
 if __name__ == "__main__":
     gen_special()
     gen_ranks()
     gen_linalg()
+    gen_optimize()
     sys.exit(0)

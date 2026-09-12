@@ -79,3 +79,48 @@ export function numpyMeanFloat32(x, lo = 0, n = x.length - lo) {
 	if (n <= 0) return NaN;
 	return Math.fround(numpyPairwiseSum(x, lo, n, Math.fround) / n);
 }
+
+/**
+ * `float(np.percentile(x, q))` in float64, numpy 2.3's default method `'linear'`.
+ *
+ * dating.py:1844 picks the restricted cubic spline's second and third knots as
+ * `np.median(times)` and `np.percentile(times, 90)`, and a knot that moves changes every spline
+ * number downstream of it — F, p, ΔAIC and therefore the model selection — so this is on the
+ * deterministic critical path and is held to EXACT agreement with numpy, not to a tolerance.
+ * MEASURED on the acceptance case: reproduces `np.percentile(times, 90) = 1995.5` and
+ * `np.median(times) = 1992.5` bit-exactly, and `np.median` bit-exactly for even n too, which is
+ * why no separate `median` exists here — `percentile(x, 50)` is it.
+ *
+ * The virtual index is numpy's `_QuantileMethods['linear']` spelt EXACTLY as numpy spells it:
+ * `v = (n − 1)·(q/100)`, floored to the lower index and clamped to the last element above the top.
+ * The algebraically identical `n·p + (1 − p) − 1` is NOT the same in floating point — measured, it
+ * disagrees with numpy on 9 of the 63 grid points in test/data/numeric/optimize.json — and the
+ * interpolation is numpy's own `_lerp`, which switches to `b − (b − a)(1 − t)` once t ≥ 0.5 so the
+ * result is monotone and lands exactly on `b` at t = 1.
+ *
+ * NaN propagates (np.percentile's own behaviour, minus the RuntimeWarning); an empty input is NaN.
+ * The input is not mutated.
+ *
+ * @param {ArrayLike<number>} x
+ * @param {number} q percentile in [0, 100]
+ * @returns {number}
+ */
+export function percentile(x, q) {
+	const n = x.length;
+	if (n === 0) return NaN;
+	const a = Float64Array.from(x);
+	for (let i = 0; i < n; i++) if (Number.isNaN(a[i])) return NaN;
+	a.sort();
+	const p = q / 100;
+	const v = (n - 1) * p;
+	if (Number.isNaN(v)) return NaN;
+	if (v >= n - 1) return a[n - 1];
+	if (v < 0) return a[0];
+	const i = Math.floor(v);
+	const t = v - i;
+	const lo = a[i];
+	const hi = a[i + 1];
+	const diff = hi - lo;
+	// numpy/lib/_function_base_impl.py `_lerp`
+	return t >= 0.5 ? hi - diff * (1 - t) : lo + diff * t;
+}
