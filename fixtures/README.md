@@ -70,6 +70,30 @@ counts per module and the list of Python quirks the fixtures deliberately pin.
   `examples/` for the bundled datasets). Each `notes` field starts with the exact
   Python signature the case exercised.
 * `outputs` are the return values, keyed by name for tuples.
+* An input (or an output) may be a **reference to another case's array** instead of
+  a copy of it:
+
+  ```json
+  {"$fixture": "compute_neural_covariance_kernel", "case": "000_korber_env_gp160",
+   "field": "K_neural", "rows": [...], "cols": [...]}
+  ```
+
+  `rows`/`cols` are index lists into the referenced array, applied in that order.
+  `dating/` uses this for the model-based chain, where the same 143×143 attention
+  matrix, 143×384 embedding block and the kernel they produce are consumed by four
+  tables: copying them would add about 4 MB of duplicated text and would still not
+  say that they are the SAME numbers, which is the part that matters — the
+  covariance the estimators are fitted on is a 141-row slice of a kernel built over
+  ALL 143 alignment taxa, and centre-then-subset is not subset-then-centre.
+* A case may carry **extra keys beside `tolerance`** when one field of it cannot be
+  held to the table's class for a reason that belongs in the data rather than in a
+  note. Two are in use: `tolerance_relative` / `tolerance_floor` (the MDS class),
+  and `best_lambda_tolerance` in `dating/estimate_reml_pagel_lambda.json`, which is
+  `1e-4` — `scipy.optimize.minimize_scalar(method='bounded')`'s own `xatol` — where
+  the REML profile has an argmin and `1.0`, the whole box, where it is flat and the
+  returned λ is therefore a property of the bracket rather than of the likelihood.
+  The replaying test re-derives the flatness from the recorded profile, so the free
+  pass has to be earned by the data.
 * `NaN`, `+inf`, `-inf` appear as the strings `"NaN"`, `"Infinity"`, `"-Infinity"`.
 * Integer-keyed dicts (attributions by site, MEME sites) become string keys.
 * Every file is under 2 MB. Where a case was reduced for size the notes say so
@@ -88,6 +112,18 @@ counts per module and the list of Python quirks the fixtures deliberately pin.
 | `1e-6` | max abs difference ≤ 1e-6 | float32 arithmetic on float32 inputs: patristic distances, cosine networks, spectral coherence |
 | `1e-9` | max abs difference ≤ 1e-9 | float64 special functions and statistics: χ²/t/hypergeometric survival, BH, CCT, Pearson/Spearman, ROC-AUC, phylogenetic covariance |
 | `statistical` | Monte Carlo outputs, PLAN.md §5.4: `|p_js − p_py| ≤ 3·√(p(1−p)/B)`, null moments within 2 % | `p_perm`, `null_coherence_*`, permulation matrices |
+
+A note on where the `1e-5` class comes from in `dating/`, because it is not the
+usual reason. `compute_neural_covariance_kernel` and `optimize_latent_convex_hull_root`
+are pure float64 arithmetic, but their INPUTS are float32 and numpy keeps them
+there: the Gram products at `dating.py:96` and `107` are float32 BLAS `sgemm`,
+whose accumulation order belongs to the BLAS, and the 250 Adam steps at `769-795`
+run in float32 under torch. MEASURED on korber: a float64 recomputation of the
+reference's own kernel from the reference's own inputs differs by 1.95e-6, and the
+float64 trajectory lands 3.8e-7 from the float32 one. Neither is reproducible in
+JavaScript, which has `Math.fround` but no float32 arithmetic. Everything
+DOWNSTREAM of those two — the REML profile, the GLS fit — is held at `1e-9`
+instead, by feeding the reference's own matrices in rather than the port's.
 
 A case with a mixed payload carries the loosest class its numeric fields need;
 its notes say which fields are exact regardless (site lists, counts, strings).
@@ -197,7 +233,7 @@ reproduce a numpy stream.
 | `epistasis/` | 3 | `compute_branch_coselection_network` on a 40×12 float32 matrix with planted co-selected sites (function defaults, CLI defaults, loose, strict); `extract_epistatic_sectors_tse` on the resulting graphs (exact with `n_permutations=0`, statistical with B = 2000, focal taxon, components fallback); `compute_sector_permutation_test` (statistical, plus exact degenerate cases) |
 | `phenotype/` | 3 | `resolve_phenotype_vector` (presets, explicit list, regex, pipe list, glob, `.*` patterns, CSV/TSV discrete and continuous under `phenotype/inputs/`); `compute_phylogenetic_covariance` on `Smc6.nwk` and `bat_oas1.nwk`; `generate_permulations` (binary and continuous, B = 200) |
 | `dates/` | 4 | `parse_date_to_decimal` (the [1800, 2100] gate, CPython `float()` spellings, ISO and partial ISO, `/` and `.` delimiters, the 28/30 day cap, invalid components, the leap divisor; the 20 non-calendar values replayed under `generations`, `days` and `arbitrary`; and an unknown `time_units`, which takes the calendar path); `extract_date_from_string` (the four calendar patterns and their `[\|/_\s]` class, the three non-calendar ones, and eight **measured real headers** — the five of 100 in `examples/H1N1_2009_pandemic.fasta` this function cannot date, and three of the 143 in `examples/korber_env_gp160.fasta`, of which it dates none); `parse_header_timestamp` **verbatim, 1959 anchor included**; `_parse_timestamp_flexible`. All `exact`: the conversion is integer arithmetic plus one division |
-| `dating/` | 9 | the model-free half of the ChronAeon pillar, all generated with the compiled `tn93` binary hidden and `*` rewritten to `-`: `generate_consensus_sequence` and `generate_time_decay_consensus_sequence` (the skip set, the first-in-insertion-order tie break, and every arm of the γ ladder, including H1N1's own adaptive γ = 3.0030); `compute_tn93_cross_distance_matrix` (the rectangular N×M float32 matrix, the landmark self-zeros, the `max(1.0, max_d)` imputation, the empty-axis shortcut); `compute_tree_free_divergences` (all four root cases, their ORDER, and both bundled alignments end to end); `compute_rcs_basis`; `compute_fieller_mrca_interval` (BOUNDED, the `min_time` clamp, UNBOUNDED_ANTIQUITY at g ≥ 1, the `mu ≤ 1e-12` guard); `run_ols_dating` and `run_restricted_spline_clock_dating` on the two real fits plus their guards; and `run_mrca_dating`, the reference CLI's own record, which is the only way to pin the per-taxon table, the clock-model sentence and the ensemble — they are inline in `run_mrca_dating` and there is no function to lift. Regenerate with `--only dating`; it needs no weights |
+| `dating/` | 15 | the model-free half of the ChronAeon pillar (9 tables), generated with the compiled `tn93` binary hidden and `*` rewritten to `-`: `generate_consensus_sequence` and `generate_time_decay_consensus_sequence` (the skip set, the first-in-insertion-order tie break, and every arm of the γ ladder, including H1N1's own adaptive γ = 3.0030); `compute_tn93_cross_distance_matrix` (the rectangular N×M float32 matrix, the landmark self-zeros, the `max(1.0, max_d)` imputation, the empty-axis shortcut); `compute_tree_free_divergences` (all four root cases, their ORDER, and both bundled alignments end to end); `compute_rcs_basis`; `compute_fieller_mrca_interval` (BOUNDED, the `min_time` clamp, UNBOUNDED_ANTIQUITY at g ≥ 1, the `mu ≤ 1e-12` guard); `run_ols_dating` and `run_restricted_spline_clock_dating` on the two real fits plus their guards; and `run_mrca_dating`, the reference CLI's own record, which is the only way to pin the per-taxon table, the clock-model sentence and the ensemble — they are inline in `run_mrca_dating` and there is no function to lift. Regenerate with `--only dating`; it needs no weights.<br><br>Plus the MODEL-BASED half (6 tables), regenerated separately with `--only dating_model`, which needs the weights and torch: `model_outputs` (the site-averaged 143×143 cross-taxa attention and 143×384 embeddings `splits.py:24-155` produces — pinned as the chain's input, not as a parity target, since nothing in `js/` computes it); `compute_neural_covariance_kernel`; `pairwise_acgt_hamming` (the raw p-distance block at `dating.py:2586-2596` that calibrates α — NOT TN93, despite the docstring); `optimize_latent_convex_hull_root` (the endpoint AND the softmax weights at ten intermediate Adam steps, because 250 is a hard stop on an unconverged descent); `estimate_reml_pagel_lambda` (the objective on a fixed λ grid, which is the real test, plus `best_lambda`); and `run_pgls_dating` (both distance modes × both analytic intervals, plus the additive-ridge arm and the three guards). **These six are generated with the `tn93` binary VISIBLE**, reversing the rule above, because `prepare_alignment` feeds its matrix to the transformer as `dist_matrix`: the branch is a model input, not a distance table. MEASURED, the two branches move the cross-taxa attention by 9.8 % relative and the kernel by 0.33 on entries of magnitude 1. The binary branch is pinned because it is the configuration the reference's published numbers were produced under, and these six tables reproduce `hyphaeon dating -a examples/korber_env_gp160.fasta --root-taxon CONSENSUS --no-tree --method all --cpu` field for field in both distance modes |
 | `dataset/` | 13 | tokenizer over all 64 codons plus gaps/ambiguity/lowercase/U and the raw tables; `parse_alignment_sequences` on every `examples/*.fasta` and on synthetic PHYLIP/NEXUS/FASTA/gz files under `dataset/inputs/`; `extract_tree_from_string_or_file`; `compute_fast_dist_matrix`; `compute_mds_coordinates` (with `gram`); `load_alignment_and_tree` on Smc6 and bat_oas1 (full N×N, N×4, tokens, invariable mask, rescale flag); the > 10 rescale rule on synthetic trees; `prune_identical_sequences`; duplicates through the loader; Faith's PD downsampling (synthetic, ties, camelid 128 → 64); the tree-free TN93 path (`tn93_distance`, `tn93_distance_matrix`, `load_alignment_and_tree_tn93` — see "TN93 and tree-free mode") |
 | `attribution/` | 1 | `attribute_selection` on bat_oas1, `min_lrt` 3.84 |
 | `dms/` | 1 | `run_insilico_selection_dms` on bat_oas1 restricted to the sites with LRT ≥ 3.84 (`target_sites` is supported), default focal taxon and `r_ferr` |
