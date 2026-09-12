@@ -75,3 +75,4 @@ export * from './dms.js'; // epistasis.py:449-631, 724-768: runInsilicoSelection
 export * from './permulations.js'; // phenotype.py:275-374: computePhylogeneticCovariance, generatePermulations, findAnyByName, pyRegexSource (before phenotype.js, which imports it)
 export * from './phenotype.js'; // phenotype.py:48-274 and 347-646: PRESETS, PHENOTYPE_THRESHOLDS, resolvePhenotypeVector, runPhenotypeAssociation, parsePhenotypeTable, pyFnmatch, pyRepr*, pyFloatStr
 export * from './diagnostics.js'; // PLAN.md §4.3 pre-flight: diagnose, DIAGNOSTIC_CODES, DIAGNOSTIC_THRESHOLDS
+export * from './dates.js'; // temporal.py:73-245 + dating.py:317-384: parseDate/extractDate/parseHeaderDate/parseFlexibleDate and their exact-Python numeric wrappers, DATE_RULES (a leaf; the file/table/JSON ingestion around them is the app's)

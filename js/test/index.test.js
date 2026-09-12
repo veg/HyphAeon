@@ -14,7 +14,7 @@
  *      only place that loads the package the way an app does.
  *   2. THE PUBLIC SURFACE IS A COMMITMENT. `index.js` re-exports whole modules deliberately (its
  *      header says why), which means adding an export to any file under `src/preprocess/` publishes
- *      it, and deleting one breaks a pinned consumer. Listing all 232 names here turns both into a
+ *      it, and deleting one breaks a pinned consumer. Listing all 256 names here turns both into a
  *      visible diff in the pull request that causes them, rather than a discovery in `hyphaeon-app`.
  *   3. THE EXPORTS MAP IS LOAD-BEARING, not decoration. `package.json` exposes exactly `.`, so a
  *      deep import into `src/preprocess/…` must FAIL — otherwise consumers pin internal paths, and
@@ -311,6 +311,31 @@ const PUBLIC_SURFACE = [
 	'meanPairwiseDivergence',
 	'medianOffDiagonal',
 	'sniffAlignmentFormat',
+	// dates.js
+	'ARCHIVAL_1959_DECIMAL',
+	'ARCHIVAL_1959_MARKERS',
+	'CALENDAR_TIME_UNITS',
+	'CALENDAR_YEAR_MAX',
+	'CALENDAR_YEAR_MIN',
+	'DATE_RULES',
+	'FEBRUARY_DAY_CAP',
+	'IMPUTED_DAY',
+	'IMPUTED_MONTH',
+	'KORBER_YEAR_PIVOT',
+	'MONTH_DAY_CAP',
+	'NON_CALENDAR_TIME_UNITS',
+	'NULL_DATE_TOKENS',
+	'TIME_UNITS',
+	'extractDate',
+	'extractDateFromString',
+	'isNonCalendarTimeUnits',
+	'matchesArchival1959',
+	'parseDate',
+	'parseDateToDecimal',
+	'parseFlexibleDate',
+	'parseHeaderDate',
+	'parseHeaderTimestamp',
+	'parseTimestampFlexible',
 ].sort();
 
 describe('the package entry point', () => {
