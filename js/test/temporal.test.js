@@ -375,6 +375,76 @@ describe('the chain, against the reference running its own code', () => {
 				}
 			});
 
+			it('the writers are BYTE-EXACT on the reference\'s own bytes', () => {
+				// Re-parse the reference's own three files and write them straight back out. This
+				// separates the two things a CSV comparison confounds: whether the ARITHMETIC agrees
+				// (the column comparisons above) and whether the FORMATTING does. Only the second is
+				// a property of the writers, and it is the one that can be held to bytes.
+				//
+				// WHY THE CHAIN'S OWN OUTPUT IS NOT COMPARED AS BYTES, said plainly rather than
+				// asserted away: `curves_matrix = leaf_attributions @ norm_weights.T` is a dgemm on
+				// the reference's side and a per-taxon accumulation here, and the two associate the
+				// same additions differently. MEASURED on these fixtures, the difference shows in the
+				// 16th significant digit -- 1.5193085793805557e-09 against 1.519308579380556e-09 --
+				// which is a float64 summation-order difference and nothing else. The same
+				// re-parse-and-rewrite check run on the REAL acceptance run reproduces all three of
+				// the reference's files byte for byte: 780,749 bytes over 4384 rows for
+				// _sites_summary.csv, 1,186,202 over 14,760 for _curves.csv, 6,083 over 60 for
+				// _waves.csv.
+				const rc = parseCsv(c.outputs.curves_csv);
+				const T = got.T;
+				const sites = [...new Set(rc.rows.map((r) => Number(r[0])))];
+				const maxSite = sites.length ? Math.max(...sites) : 0;
+				const vel = new Float64Array(maxSite * T);
+				const prev = new Float64Array(maxSite * T);
+				const labels = new Array(maxSite).fill('');
+				const seen = new Map();
+				for (const r of rc.rows) {
+					const s0 = Number(r[0]) - 1;
+					const t = seen.get(s0) ?? 0;
+					seen.set(s0, t + 1);
+					vel[s0 * T + t] = Number(r[3]);
+					prev[s0 * T + t] = Number(r[5]);
+					labels[s0] = r[1];
+				}
+				const denseT = Float64Array.from(rc.rows.slice(0, T), (r) => Number(r[2]));
+				expect(temporalCurvesCsv({
+					exportSites: Int32Array.from(sites, (x) => x - 1), mutationLabels: labels, denseT,
+					velocity: vel, curves: prev, T
+				})).toBe(c.outputs.curves_csv);
+
+				const rw = parseCsv(c.outputs.waves_csv);
+				const waves = new Float64Array(4 * T);
+				rw.rows.forEach((r, t) => {
+					for (let k = 0; k < 4; k++) waves[k * T + t] = Number(r[k + 1]);
+				});
+				expect(temporalWavesCsv({
+					denseT: Float64Array.from(rw.rows, (r) => Number(r[0])), waves, nWaves: 4, T
+				})).toBe(c.outputs.waves_csv);
+
+				const rs = parseCsv(c.outputs.sites_csv);
+				const colOf = (n) => rs.header.indexOf(n);
+				const strs = (n) => rs.rows.map((r) => r[colOf(n)]);
+				const nums = (n, C) => C.from(rs.rows, (r) => Number(r[colOf(n)]));
+				const bools = (n) => rs.rows.map((r) => r[colOf(n)] === 'True');
+				expect(temporalSitesCsv({
+					L: rs.rows.length, refAas: strs('ref_aa'), derivedAas: strs('derived_aa'),
+					mutationLabels: strs('mutation_label'), domains: strs('domain'),
+					crossClassification: strs('cross_classification'), classification: strs('classification'),
+					isConfirmedSweep: bools('is_confirmed_sweep'), isConcordant: bools('is_concordant_sweep'),
+					isRescued: bools('is_rescued_sweep'), lrts: nums('lrt', Float32Array),
+					pStatic: nums('p_static', Float64Array), qStatic: nums('q_static', Float32Array),
+					pPerm: nums('p_perm', Float32Array), qPerm: nums('q_perm', Float32Array),
+					r2Fpca: nums('r2_fpca', Float32Array), peakTimes: nums('peak_date', Float64Array),
+					peakIntensities: nums('peak_intensity', Float64Array),
+					tHalfStart: nums('t_half_start', Float32Array), tHalfEnd: nums('t_half_end', Float32Array),
+					fwhm: nums('fwhm_years', Float32Array), meanIntensity: nums('mean_intensity', Float64Array),
+					aucs: nums('auc', Float64Array),
+					loadings: Float32Array.from(rs.rows.flatMap((r) => [1, 2, 3, 4].map((k) => Number(r[colOf(`Wave_${k}_loading`)])))),
+					K: 4
+				})).toBe(c.outputs.sites_csv);
+			});
+
 			it('_curves.csv has the reference\'s rows, its columns and its duplicated column', () => {
 				const rc = parseCsv(c.outputs.curves_csv);
 				const mc = parseCsv(got.files.curves_csv);
