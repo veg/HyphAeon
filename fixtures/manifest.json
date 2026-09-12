@@ -1,7 +1,7 @@
 {
  "generator": "scripts/gen_fixtures.py",
- "engine_commit": "8a3ce788bc8988aee20a14c73ac67c93b371cb34",
- "generated_at": "2026-09-12T14:20:22-0700",
+ "engine_commit": "c5f52f6c8115e3c21a4f787c4103cc7a92c2515d",
+ "generated_at": "2026-09-12T14:24:47-0700",
  "model_safetensors_sha256": "0278dff092601acca959aa64bf6742ad17a38a5e6e31eabd424d6d224eea6ebd",
  "model_safetensors_bytes": 9842824,
  "environment": {
@@ -30,6 +30,18 @@
   "statistical": "Monte Carlo outputs: |p_js - p_py| <= 3*sqrt(p(1-p)/B), null moments within 2%; membership/exact fields still compared exactly"
  },
  "known_quirks": [
+  "TEMPORAL Q1: temporal.run_temporal_surveillance tests the VALUE of tau_peak, not whether the caller supplied one (`tau_peak is None or tau_peak == 1e-4`, temporal.py:604/610), so a caller who passes the documented default explicitly is silently overridden to 0.5e-4 (calendar) or 0.010 (non-calendar). Pinned by chain/tau_peak_explicit_default_overridden, which must produce the same mask as episodic_calendar_B0.",
+  "TEMPORAL Q2: infer_root_sequence's explicit-root-taxon path turns an unknown residue into index 0 = ALANINE rather than a sentinel (temporal.py:355). Every gapped position of the chosen root taxon then reads as A, so invariable sites acquire nonzero curves, velocity, peak_date, auc and wave loadings, and their mutation labels are wrong. This is the ONLY configuration in which the model's outputs at invariable sites matter. The 'X' default at temporal.py:356 and the '-' default at :390 are both unreachable, since REV_AA_MAP covers 0-19.",
+  "TEMPORAL Q3: the root consensus window is max(3, min(25, int(0.05*N))) (temporal.py:366), so it is 3 below 60 dated taxa and 25 above 500 -- not 'the earliest 5%' in either tail, which is what the docstring claims.",
+  "TEMPORAL Q4: np.argsort on the dates (temporal.py:365) and on -peak_intensities (temporal.py:722) is an UNSTABLE quicksort. The acceptance run's root window is tie-free (measured: argsort and argsort(kind='stable') agree on the four selected indices and first diverge at rank 7), but 4111 of its 4384 peak intensities are tied at exactly zero, so the wave-stage fallback set is not reproducible across sort implementations. The port uses stable sorts keyed on (value, index) and records the choice.",
+  "TEMPORAL Q5: the static-LRT escape hatch (temporal.py:692-693) fires when the confirmed count is zero, uses a hard-coded 0.10 rather than perm_alpha and the hard-coded chi2_1 cut 3.84 against the FLOAT32 LRT, and is recorded in NO output file -- a run that confirmed nothing and one that confirmed thirty through the hatch look identical in the CSV. The port returns escape_hatch_used so a surface can say so.",
+  "TEMPORAL Q6: the fixation branch divides the velocity by site_scale (temporal.py:574) and the episodic branch does not, so calendar peak_intensity and auc scale as ~1/N_taxa while the stage-one floors stay fixed: candidate counts are taxon-count dependent in calendar mode.",
+  "TEMPORAL Q7: `stds_c = cand_curves.std(...) + 1e-8` (temporal.py:669) turns a CONSTANT candidate row into exact zeros, giving sse = 0, sst = 1e-8 and r2_fpca = 1.0 -- a pass on no signal at all.",
+  "TEMPORAL Q8: `k_eff = min(4, n_stage1)` (temporal.py:672) with mean-centred rows makes the shape gate VACUOUS at exactly four candidates: the row space has rank at most min(C, T-1) = 3, so the top-4 subspace contains all of it and every candidate scores 1.0. C <= 3 is already the solitary regime, so C = 4 is the only live case.",
+  "TEMPORAL Q9: _curves.csv writes `selection_intensity` and `sweep_velocity` from the SAME array (temporal.py:807-808), so the two columns are identical in every row (14,760 of them in the acceptance run). Replicated so the file diffs clean.",
+  "TEMPORAL Q10: `timespan_years`, `bandwidth_years` and the CSV's `fwhm_years` carry the word 'years' whatever --time-units was; `mean_intensity` is the mean of the VELOCITY, not of the intensity (temporal.py:785).",
+  "TEMPORAL Q11: q_perm is uninformative at every feasible B. BH runs over the C candidates, so the value at rank 1 is C/(B+1) -- 246/101 = 2.4 on the acceptance run, clipped to 1, where every confirmed sweep reports the same q_perm = 0.4298. Reaching q <= 0.10 at all needs B+1 >= 10*C, about 2,500 draws for that run; the reference's own default of 1,000 does not reach it. The sweep call is made on p (temporal.py:687-689).",
+  "TEMPORAL Q12: TEMPORAL_ANALYSIS_GUIDE.md documents flags and an entry point that do not exist (--time-bins, --root, --out-dir, --min-peak-intensity, run_temporal_analysis); the code is the only specification.",
   "dataset.compute_tn93_distance_matrix PREFERS the compiled `tn93` binary on PATH (`tn93 -t 100.0 -l 1 -q -o out.csv in.fa`, retried at -t 1.0 on CalledProcessError for stock builds <= v1.0.15) and falls back to the Python `tn93` package (TN93().get_counts(a, b, 'resolve') -> get_nucleotide_frequency -> calculate_distance). The fixtures hide the binary so the PACKAGE path is pinned. The earlier measurement that the two agree exactly (max |delta| = 0.0 on bat_oas1 and HIV1_RT) was taken at threshold 1.0 with the old imputation and has NOT been re-taken: the binary now reports pairs it used to drop, and only it can leave an entry unwritten for the imputation to fill, so the two paths are no longer known to be identical.",
   "dataset.compute_tn93_distance_matrix used to impute a zero distance between two BYTE-IDENTICAL sequences as max(1.0, max_d) - the LARGEST distance in the matrix - and raise two different sequences at zero distance to 1e-4. FIXED UPSTREAM: the matrix now starts at -1.0 so a measured zero is distinguishable from an entry that was never written, and only the latter is imputed (dataset.py:816-821). A measured 0.0 survives, from either kind of pair. HIV1_RT has 1 byte-identical pair and 66 different-sequence pairs at distance 0, RHO has 78 and 8; all now stay 0.0.",
   "The tn93 package RAISES rather than returning a sentinel on two inputs: math.log of a non-positive corrected proportion (a saturated pair) -> ValueError, and `2 / sum(nucleotide_frequency)` on a pair with no overlapping non-gap position -> ZeroDivisionError. dataset.py now catches (ValueError, OverflowError) around calculate_distance and calls such a pair maximally distant (d = 1.0); ZeroDivisionError is still uncaught and still kills the run. Its `if d is None or d == '-' or d < 0 or isnan(d)` guard remains dead code on that path. No pair in the five bundled alignments raises either.",
@@ -245,11 +257,11 @@
   "dating/run_restricted_spline_clock_dating_gls.json": 21245,
   "dating/run_mrca_dating_model.json": 126499,
   "temporal/numeric.json": 62874,
-  "temporal/thin_svd.json": 58950,
+  "temporal/thin_svd.json": 58671,
   "temporal/root.json": 74410,
   "temporal/chain.json": 211562
  },
- "total_bytes": 9380567,
+ "total_bytes": 9380288,
  "elapsed_seconds": 1.5,
  "e2e_wall_seconds": {
   "meme_bat_oas1": 1.7,
