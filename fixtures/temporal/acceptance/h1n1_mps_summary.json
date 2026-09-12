@@ -1,0 +1,26 @@
+{
+  "alignment": "examples/H1N1_2009_pandemic.fasta",
+  "tree": "examples/H1N1_2009_pandemic.nwk",
+  "taxa_total": 100,
+  "taxa_timestamped": 95,
+  "codons_total": 4384,
+  "codons_variable": 273,
+  "codons_invariable": 4111,
+  "timespan_years": 0.67,
+  "t_min": 2009.25,
+  "t_max": 2009.92,
+  "bandwidth_years": 0.05,
+  "sig_static_q10": 0,
+  "stage1_candidates": 246,
+  "confirmed_sweeps": 18,
+  "concordant_sweeps": 0,
+  "rescued_sweeps": 18,
+  "filtered_static_noise": 0,
+  "fpca_wave_variance_pct": [
+    39.67,
+    32.37,
+    13.92,
+    9.31
+  ],
+  "runtime_sec": 3.32
+}
