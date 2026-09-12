@@ -92,6 +92,13 @@ const EXPECTED_SOURCE = {
 	compute_rcs_basis: 'hyphaeon/dating.py:1774-1806',
 	run_restricted_spline_clock_dating: 'hyphaeon/dating.py:1809-1968',
 	parse_header_timestamp: 'hyphaeon/dating.py:317-364',
+	// The four bodies phase 4 added. They are lifted by the SAME `load_dating_reference`, so they
+	// land in the same provenance map and this file asserts all of them even though
+	// test/dating-model.test.js is what replays them — one map, one place it is checked.
+	compute_neural_covariance_kernel: 'hyphaeon/dating.py:78-118',
+	optimize_latent_convex_hull_root: 'hyphaeon/dating.py:701-832',
+	run_pgls_dating: 'hyphaeon/dating.py:1299-1473',
+	estimate_reml_pagel_lambda: 'hyphaeon/dating.py:1476-1547',
 	parse_alignment_sequences: 'hyphaeon/dataset.py:252-364',
 	compute_tn93_distance_matrix: 'hyphaeon/dataset.py:715-821',
 	compute_tn93_cross_distance_matrix: 'hyphaeon/dataset.py:824-928',
@@ -109,7 +116,14 @@ const EXPECTED_COUNTS = {
 	compute_fieller_mrca_interval: 9,
 	run_ols_dating: 12,
 	run_restricted_spline_clock_dating: 5,
-	run_mrca_dating: 3
+	run_mrca_dating: 3,
+	// phase 4, replayed by test/dating-model.test.js
+	model_outputs: 1,
+	compute_neural_covariance_kernel: 5,
+	pairwise_acgt_hamming: 2,
+	optimize_latent_convex_hull_root: 5,
+	estimate_reml_pagel_lambda: 5,
+	run_pgls_dating: 8
 };
 
 /** fixtures/README.md's convention: non-finite floats travel as strings. */
@@ -156,10 +170,13 @@ describe('the fixtures describe the reference bodies they were generated from', 
 		for (const [fn, n] of Object.entries(EXPECTED_COUNTS)) expect(load(fn).length, fn).toBe(n);
 	});
 
-	it('the seven DATING quirks this port replicates are named in the manifest', () => {
+	it('the fourteen DATING quirks these two ports replicate are named in the manifest', () => {
+		// Q1-Q7 are the model-free half's (src/dating.js), Q8-Q14 the model-based half's
+		// (src/datingModel.js). The count is asserted as well as the membership so a quirk that is
+		// silently dropped from the manifest fails rather than passing with fewer.
 		const quirks = MANIFEST.known_quirks.filter((q) => q.startsWith('DATING Q'));
-		expect(quirks.length).toBe(7);
-		for (let i = 1; i <= 7; i++) expect(quirks.some((q) => q.startsWith(`DATING Q${i}:`)), `DATING Q${i}`).toBe(true);
+		expect(quirks.length).toBe(14);
+		for (let i = 1; i <= 14; i++) expect(quirks.some((q) => q.startsWith(`DATING Q${i}:`)), `DATING Q${i}`).toBe(true);
 	});
 });
 

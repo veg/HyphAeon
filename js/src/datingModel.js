@@ -532,6 +532,18 @@ export function runPglsDating(times, dists, covMatrix, options = {}) {
 	}
 
 	const ridge = options.ridge ?? 0.05;
+	if (typeof ridge !== 'number') {
+		// dating.py:1330-1336 accepts the STRING 'auto' and answers by calling
+		// estimate_reml_pagel_lambda itself, which is the only path on which its `w_K`/`V` return
+		// values are ever used (B17). The CLI never takes it, and letting a string through here would
+		// make `1.0 - ridge` NaN, every eigenvalue of C NaN, and the whole record NaN under a status
+		// of 'OK'. Refused, with the two-line recipe that replaces it.
+		throw new RangeError(
+			`ridge must be a number; run_pgls_dating's ridge='auto' branch (dating.py:1330-1336) is not ported. ` +
+				`Call estimateRemlPagelLambda first and pass its best_lambda as pagelLambda — and its w_K/V as ` +
+				`options.eigen, which is the saving the reference's own 'auto' branch was written for.`
+		);
+	}
 	const pagelLambda = options.pagelLambda ?? null;
 	const ciMethod = options.ciMethod ?? 'fieller';
 	const ciLower = String(ciMethod).toLowerCase();

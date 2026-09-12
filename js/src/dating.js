@@ -30,9 +30,12 @@
  *     7x4 restart grid to serve a branch nothing reaches (PLAN-TEMPORAL D33).
  *   - LOOCV / jackknife (970-1168), opt-in upstream behind `--loocv`, O(N²) as written.
  *   - Everything the transformer feeds: PGLS (1299-1474), REML Pagel λ (1476-1548), the latent
- *     convex-hull root (701-838), the neural and attention covariance kernels (78-134). They need a
- *     taxon-by-taxon attention matrix and per-taxon embeddings averaged inside the graph, i.e. a new
- *     ONNX contract, a new manifest hash and new fixtures (D29).
+ *     convex-hull root (701-838) and the neural covariance kernel (78-118). PHASE 4 PORTED THEM,
+ *     into src/datingModel.js — they needed a taxon-by-taxon attention matrix and per-taxon
+ *     embeddings averaged inside the graph, i.e. a new ONNX contract, a new manifest hash and new
+ *     fixtures (D29), and those exist now. They are a separate file because the split is real: this
+ *     one is reachable with no model at all, which is what makes the date-review page cost no model
+ *     byte, and datingModel.js is not.
  *   - The Poisson (890-925) and wild-residual (927-968) intervals, and the spline bootstrap's
  *     resampling. Each needs a bit-compatible mirror of numpy's PCG64 (`rng.poisson`, `rng.choice`)
  *     to reproduce. Skipping all three means THIS PILLAR SHIPS WITH NO RNG AND NO SEED CONTRACT AT
@@ -85,6 +88,16 @@
  *   - The `1e-15` floors under `se_mu`/`se_d0` (1210-1211), the `1e-12` in `f_stat` (1268), the
  *     `999.0` sentinel (1268) and every `1e-6`/`1e-9`/`1e-12` guard below are the reference's own
  *     numbers and are reproduced rather than rationalised.
+ *
+ * ONE CONSEQUENCE OF PHASE 4 THAT LANDS ON THIS FILE, recorded here because it changes a number this
+ * file produces (fixtures/manifest.json, DATING Q10): `run_restricted_spline_clock_dating` becomes a
+ * GLS spline the moment the model runs. dating.py:2842-2844 passes `cov_train` as `spline_cov`
+ * whenever the neural path ran, so on IDENTICAL divergences the spline's `beta_0` moves from
+ * -4.386825916889575 to -1.7112000894725579, its `t_mrca` from 1938.7746674292187 to 1864.5477949,
+ * and the clock selection flips from Restricted Spline to Linear PGLS. `runRestrictedSplineClockDating`
+ * here takes no covariance and is therefore the MODEL-FREE spline — the right answer when no model
+ * ran, and the wrong one to show beside a PGLS fit. An application that runs both must say which
+ * spline it drew.
  *
  * FULL-CHAIN VERIFICATION (measured in this session, tn93 binary off PATH, `*` rewritten to `-`,
  * `verify_coding_alignment`'s `L mod 3` trim applied): the chain parse -> parse_header_timestamp ->

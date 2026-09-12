@@ -2094,6 +2094,15 @@ DATING_MODEL_EXAMPLE = ("korber_env_gp160.fasta", "CONSENSUS")
 REML_LAMBDA_GRID = [0.001, 0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.75, 0.8,
                     0.85, 0.9, 0.95, 0.99, 0.999]
 
+# A profile whose whole range is below this has no argmin worth localising, and `best_lambda` is
+# then a property of the bracket rather than of the likelihood. Two of the four cases here are in
+# that state -- an identity kernel, where C(lambda) = I for every lambda by construction, and an
+# all-ones rank-1 kernel, where MEASURED the profile varies by 2.7e-12 across the whole box -- and
+# for those the recorded `best_lambda_tolerance` is 1.0, the entire interval. The flatness is
+# asserted from the recorded profile on the JavaScript side, so the free pass has to be earned by
+# the data and cannot be handed out by a note.
+REML_FLAT_PROFILE = 1e-6
+
 # `optimize_latent_convex_hull_root` runs a FIXED 250 Adam steps with no stopping criterion and is
 # NOT converged (dating.py:781-795; measured upstream, one more step moves t_MRCA by 1.2e-3 years and
 # 250 more by 0.26). Its answer is therefore a point on a trajectory, and a port that reproduces step
@@ -2293,8 +2302,13 @@ def gen_dating_model(w: Writer, model_sha: Optional[str]) -> Dict[str, Any]:
         "downstream at dating.py:1347 and 1490 never bind on this example.")]
 
     rng = np.random.default_rng(SYNTH_SEED)
-    synth_attn = np.abs(rng.normal(0.007, 0.001, size=(6, 6))).astype(np.float32)
-    synth_repr = rng.normal(0.0, 1.0, size=(6, 8)).astype(np.float32)
+    # FLOAT64, deliberately, where the real case above is float32. The korber case is what pins the
+    # sgemm path and its 1.95e-6 floor; these pin the FORMULA -- the column centring, the out=np.eye
+    # fallback, the 50/50 fusion, the silent row-count drop -- and they can only do that at 1e-9 if
+    # numpy and this library are both doing float64 arithmetic. A synthetic cast to float32 would
+    # measure BLAS twice and the branch structure not at all.
+    synth_attn = np.abs(rng.normal(0.007, 0.001, size=(6, 6)))
+    synth_repr = rng.normal(0.0, 1.0, size=(6, 8))
     cases.append(case(
         "001_attention_only",
         {"cross_attn": synth_attn, "taxa_repr": None, "n": 6, "embed_dim": 0},
@@ -2312,8 +2326,8 @@ def gen_dating_model(w: Writer, model_sha: Optional[str]) -> Dict[str, Any]:
         + " `len(taxa_repr) == n` at dating.py:104 is a ROW count, and a mismatch SILENTLY drops the embedding half with "
         "no error and no flag -- the returned matrix is K_attn alone and looks exactly like a fused one. Pinned because "
         "a port that raised here, or that fused anyway, would both be defensible and both be wrong."))
-    const_attn = np.tile(np.float32(0.01), (5, 5))
-    const_attn[1] = np.float32(0.02)
+    const_attn = np.full((5, 5), 0.01)
+    const_attn[1] = 0.02
     cases.append(case(
         "003_constant_rows_zero_variance",
         {"cross_attn": const_attn, "taxa_repr": None, "n": 5, "embed_dim": 0},
@@ -2329,9 +2343,9 @@ def gen_dating_model(w: Writer, model_sha: Optional[str]) -> Dict[str, Any]:
                            [0.05, 0.35, 0.20, 0.30, 0.10],
                            [0.30, 0.20, 0.10, 0.25, 0.15],
                            [0.10, 0.25, 0.35, 0.05, 0.25],
-                           [0.25, 0.15, 0.20, 0.20, 0.20]], dtype=np.float32)
+                           [0.25, 0.15, 0.20, 0.20, 0.20]])
     small_repr = np.array([[1.0, 0.0, -1.0], [0.5, 0.5, 0.0], [-1.0, 1.0, 0.5],
-                           [0.25, -0.75, 1.0], [0.0, 0.0, 0.0]], dtype=np.float32)
+                           [0.25, -0.75, 1.0], [0.0, 0.0, 0.0]])
     cases.append(case(
         "004_synthetic_n5_fused",
         {"cross_attn": small_attn, "taxa_repr": small_repr, "n": 5, "embed_dim": 3},
@@ -2508,7 +2522,8 @@ def gen_dating_model(w: Writer, model_sha: Optional[str]) -> Dict[str, Any]:
             "scipy.optimize.minimize_scalar(method='bounded') at its default xatol of 1e-5, so two correct "
             "implementations of this objective will not choose the same iterates; it is compared at 1e-4 ABSOLUTE, "
             "which is the optimiser's own tolerance and not a concession. MEASURED for the record: a faithful "
-            "transcription of _minimize_scalar_bounded takes scipy's own 12 evaluations here and lands within 1.3e-08."))
+            "transcription of _minimize_scalar_bounded takes scipy's own 12 evaluations here and lands within 1.3e-08.",
+            best_lambda_tolerance=_reml_lambda_tolerance(profile)))
         for ci_method in ("fieller", "delta"):
             eff_ridge = float(np.clip(1.0 - lambdas[mode], 0.01, 0.20))
             res = ns["run_pgls_dating"](train_times, dd, cov_train, ridge=eff_ridge,
@@ -2538,33 +2553,71 @@ def gen_dating_model(w: Writer, model_sha: Optional[str]) -> Dict[str, Any]:
     t8 = np.array([2000.0, 2001.0, 2002.0, 2003.5, 2005.0, 2006.0, 2008.0, 2010.0])
     d8 = np.array([0.010, 0.014, 0.019, 0.026, 0.031, 0.037, 0.046, 0.055])
     eye8 = np.eye(8)
+    eye8_profile = _reml_profile(t8, d8, eye8, REML_LAMBDA_GRID)
     reml_cases.append(case(
         f"{len(reml_cases):03d}_identity_kernel",
         {"times": t8, "dists": d8, "cov_matrix": eye8, "n": 8, "lambda_grid": REML_LAMBDA_GRID},
         {"best_lambda": float(ns["estimate_reml_pagel_lambda"](t8, d8, eye8)["best_lambda"]),
          "status": "OPTIMAL_REML",
-         "neg_reml_profile": _reml_profile(t8, d8, eye8, REML_LAMBDA_GRID)},
+         "neg_reml_profile": eye8_profile},
         "1e-9",
         sig("estimate_reml_pagel_lambda", "estimate_reml_pagel_lambda(times, dists, cov_matrix)")
-        + " C(lambda) = lambda*I + (1-lambda)*I = I for EVERY lambda, so the objective is exactly flat and the returned "
+        + " C(lambda) = lambda*I + (1-lambda)*I = I for EVERY lambda, so the objective is EXACTLY FLAT and the returned "
         "lambda is whichever point the bracket happens to stop at -- a degenerate case that says nothing about "
-        "phylogenetic signal and everything about the minimiser. The flat profile is the assertion; best_lambda is "
-        "recorded for completeness and is not worth a tight bound."))
+        "phylogenetic signal and everything about the minimiser. `best_lambda_tolerance` is 1.0, i.e. the whole box: "
+        "there is no argmin to localise, and asserting one would be asserting a coincidence. The FLAT PROFILE is the "
+        "test -- every grid point must agree to 1e-9, and a port whose objective depended on lambda at all would fail "
+        "here and nowhere else.",
+        best_lambda_tolerance=_reml_lambda_tolerance(eye8_profile)))
     rank_def = np.ones((6, 6))
     t6 = np.array([1999.0, 2000.5, 2002.0, 2004.0, 2006.5, 2009.0])
     d6 = np.array([0.008, 0.011, 0.015, 0.021, 0.028, 0.034])
+    rank_def_profile = _reml_profile(t6, d6, rank_def, REML_LAMBDA_GRID)
     reml_cases.append(case(
         f"{len(reml_cases):03d}_rank_deficient_kernel",
         {"times": t6, "dists": d6, "cov_matrix": rank_def, "n": 6, "lambda_grid": REML_LAMBDA_GRID},
         {"best_lambda": float(ns["estimate_reml_pagel_lambda"](t6, d6, rank_def)["best_lambda"]),
          "status": "OPTIMAL_REML",
-         "neg_reml_profile": _reml_profile(t6, d6, rank_def, REML_LAMBDA_GRID)},
+         "neg_reml_profile": rank_def_profile},
         "1e-9",
         sig("estimate_reml_pagel_lambda", "estimate_reml_pagel_lambda(times, dists, cov_matrix)")
         + " an all-ones kernel: rank 1, so five of the six eigenvalues are zero up to rounding and np.maximum(w, 0) at "
         "dating.py:1506 clamps whichever came out negative. The clip of lambda into [0.001, 0.999] at 1352 is what "
         "keeps C invertible -- w_c is floored at 1-lambda >= 0.001 -- and this case is where a port that skipped the "
-        "clamp or the clip produces infinities."))
+        "clamp or the clip produces infinities. MEASURED, its profile varies by 2.7e-12 across the whole box -- an "
+        "all-ones kernel gives C(lambda) eigenvalues 1 + 5*lambda once and 1 - lambda five times, and the design "
+        "matrix's projection onto the rank-1 direction very nearly cancels the two -- so there is no argmin to "
+        "localise and best_lambda_tolerance comes out at 1.0. The clamp, the clip and the flat profile are the test.",
+        best_lambda_tolerance=_reml_lambda_tolerance(rank_def_profile)))
+
+    # A synthetic with REAL phylogenetic signal, so the table is not three degenerate kernels and one
+    # real alignment: two clades of three, correlated 0.8 within and 0.1 across, and a clock whose
+    # residuals follow that structure. Its profile has genuine curvature, so its lambda IS localised
+    # and is compared at the minimiser's own 1e-4.
+    blocks = np.full((6, 6), 0.1)
+    blocks[:3, :3] = 0.8
+    blocks[3:, 3:] = 0.8
+    np.fill_diagonal(blocks, 1.0)
+    # The residuals are deliberately only PARTLY block-structured: a fully structured vector drives
+    # lambda onto its 0.999 ceiling, where the clip rather than the likelihood decides the answer.
+    # These land it at 0.7096, interior, where the parabolic steps actually have to find something.
+    d6_blocked = np.array([0.0078, 0.0126, 0.0139, 0.0236, 0.0260, 0.0345])
+    blocks_profile = _reml_profile(t6, d6_blocked, blocks, REML_LAMBDA_GRID)
+    reml_cases.append(case(
+        f"{len(reml_cases):03d}_block_structured_kernel",
+        {"times": t6, "dists": d6_blocked, "cov_matrix": blocks, "n": 6, "lambda_grid": REML_LAMBDA_GRID},
+        {"best_lambda": float(ns["estimate_reml_pagel_lambda"](t6, d6_blocked, blocks)["best_lambda"]),
+         "status": "OPTIMAL_REML",
+         "neg_reml_profile": blocks_profile},
+        "1e-9",
+        sig("estimate_reml_pagel_lambda", "estimate_reml_pagel_lambda(times, dists, cov_matrix)")
+        + " two clades of three, correlated 0.8 within and 0.1 across, with residuals that follow the same structure: "
+        "a kernel with actual phylogenetic signal and therefore a profile with actual curvature, which is what makes "
+        f"this the one synthetic case whose best_lambda ({float(ns['estimate_reml_pagel_lambda'](t6, d6_blocked, blocks)['best_lambda']):.6f}) "
+        "is a statement about the data rather than about the bracket. Without it the table would pin three degenerate "
+        "kernels and one real alignment, and a port could pass every synthetic case with an objective that ignored "
+        "lambda entirely.",
+        best_lambda_tolerance=_reml_lambda_tolerance(blocks_profile)))
 
     # synthetic PGLS arms
     K6 = np.eye(6) * 0.6 + 0.4
@@ -2627,6 +2680,12 @@ def gen_dating_model(w: Writer, model_sha: Optional[str]) -> Dict[str, Any]:
                 "model_safetensors_bytes": ch["weights_bytes"],
                 "trajectory_steps": LATENT_TRAJECTORY_STEPS,
                 "reml_lambda_grid": REML_LAMBDA_GRID}}
+
+
+def _reml_lambda_tolerance(profile: List[float]) -> float:
+    """1e-4 -- minimize_scalar(method='bounded')'s own xatol -- when the profile has an argmin, and
+    1.0 when it does not. See REML_FLAT_PROFILE."""
+    return 1e-4 if (max(profile) - min(profile)) > REML_FLAT_PROFILE else 1.0
 
 
 def _reml_profile(times, dists, cov_matrix, grid) -> List[float]:

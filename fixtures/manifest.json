@@ -1,7 +1,7 @@
 {
  "generator": "scripts/gen_fixtures.py",
- "engine_commit": "62f41d2072802b9be364cdafde5594f441a8f45d",
- "generated_at": "2026-09-12T12:59:50-0700",
+ "engine_commit": "0dba6f45677605d452a39f094c15f4a8a5cb0d37",
+ "generated_at": "2026-09-12T13:03:45-0700",
  "model_safetensors_sha256": "0278dff092601acca959aa64bf6742ad17a38a5e6e31eabd424d6d224eea6ebd",
  "model_safetensors_bytes": 9842824,
  "environment": {
@@ -162,7 +162,7 @@
    "compute_neural_covariance_kernel": 5,
    "pairwise_acgt_hamming": 2,
    "optimize_latent_convex_hull_root": 5,
-   "estimate_reml_pagel_lambda": 4,
+   "estimate_reml_pagel_lambda": 5,
    "run_pgls_dating": 8
   }
  },
@@ -229,14 +229,14 @@
   "dating/run_restricted_spline_clock_dating.json": 20820,
   "dating/run_mrca_dating.json": 172214,
   "dating/model_outputs.json": 1342504,
-  "dating/compute_neural_covariance_kernel.json": 537972,
+  "dating/compute_neural_covariance_kernel.json": 537457,
   "dating/pairwise_acgt_hamming.json": 521276,
   "dating/optimize_latent_convex_hull_root.json": 91826,
-  "dating/estimate_reml_pagel_lambda.json": 24278,
+  "dating/estimate_reml_pagel_lambda.json": 27220,
   "dating/run_pgls_dating.json": 79093
  },
- "total_bytes": 8822600,
- "elapsed_seconds": 5.6,
+ "total_bytes": 8825027,
+ "elapsed_seconds": 5.9,
  "e2e_wall_seconds": {
   "meme_bat_oas1": 1.7,
   "meme_Smc6": 1.6,

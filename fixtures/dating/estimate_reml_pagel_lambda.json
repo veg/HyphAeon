@@ -624,7 +624,8 @@
    ]
   },
   "tolerance": "1e-9",
-  "notes": "signature: estimate_reml_pagel_lambda(times, dists, cov_matrix) -> {best_lambda, status, w_K, V}. Reference hyphaeon/dating.py:1476-1547, lifted by ast and executed without importing hyphaeon (torch is bound into the namespace for the one body that needs it at call time). korber under --distance-mode tn93: the SAME covariance, fitted against two different response vectors. THE PROFILE IS THE TEST AND best_lambda IS NOT. `neg_reml_profile` is -2 log L_REML(lambda) = (n-2) log sigma^2 + log det C + log det Xt_Cinv_X at the fixed lambda_grid, all float64 on float64 inputs, and it is compared at 1e-9. `best_lambda` comes out of scipy.optimize.minimize_scalar(method='bounded') at its default xatol of 1e-5, so two correct implementations of this objective will not choose the same iterates; it is compared at 1e-4 ABSOLUTE, which is the optimiser's own tolerance and not a concession. MEASURED for the record: a faithful transcription of _minimize_scalar_bounded takes scipy's own 12 evaluations here and lands within 1.3e-08."
+  "notes": "signature: estimate_reml_pagel_lambda(times, dists, cov_matrix) -> {best_lambda, status, w_K, V}. Reference hyphaeon/dating.py:1476-1547, lifted by ast and executed without importing hyphaeon (torch is bound into the namespace for the one body that needs it at call time). korber under --distance-mode tn93: the SAME covariance, fitted against two different response vectors. THE PROFILE IS THE TEST AND best_lambda IS NOT. `neg_reml_profile` is -2 log L_REML(lambda) = (n-2) log sigma^2 + log det C + log det Xt_Cinv_X at the fixed lambda_grid, all float64 on float64 inputs, and it is compared at 1e-9. `best_lambda` comes out of scipy.optimize.minimize_scalar(method='bounded') at its default xatol of 1e-5, so two correct implementations of this objective will not choose the same iterates; it is compared at 1e-4 ABSOLUTE, which is the optimiser's own tolerance and not a concession. MEASURED for the record: a faithful transcription of _minimize_scalar_bounded takes scipy's own 12 evaluations here and lands within 1.3e-08.",
+  "best_lambda_tolerance": 0.0001
  },
  {
   "name": "001_korber_latent",
@@ -1251,7 +1252,8 @@
    ]
   },
   "tolerance": "1e-9",
-  "notes": "signature: estimate_reml_pagel_lambda(times, dists, cov_matrix) -> {best_lambda, status, w_K, V}. Reference hyphaeon/dating.py:1476-1547, lifted by ast and executed without importing hyphaeon (torch is bound into the namespace for the one body that needs it at call time). korber under --distance-mode latent: the SAME covariance, fitted against two different response vectors. THE PROFILE IS THE TEST AND best_lambda IS NOT. `neg_reml_profile` is -2 log L_REML(lambda) = (n-2) log sigma^2 + log det C + log det Xt_Cinv_X at the fixed lambda_grid, all float64 on float64 inputs, and it is compared at 1e-9. `best_lambda` comes out of scipy.optimize.minimize_scalar(method='bounded') at its default xatol of 1e-5, so two correct implementations of this objective will not choose the same iterates; it is compared at 1e-4 ABSOLUTE, which is the optimiser's own tolerance and not a concession. MEASURED for the record: a faithful transcription of _minimize_scalar_bounded takes scipy's own 12 evaluations here and lands within 1.3e-08."
+  "notes": "signature: estimate_reml_pagel_lambda(times, dists, cov_matrix) -> {best_lambda, status, w_K, V}. Reference hyphaeon/dating.py:1476-1547, lifted by ast and executed without importing hyphaeon (torch is bound into the namespace for the one body that needs it at call time). korber under --distance-mode latent: the SAME covariance, fitted against two different response vectors. THE PROFILE IS THE TEST AND best_lambda IS NOT. `neg_reml_profile` is -2 log L_REML(lambda) = (n-2) log sigma^2 + log det C + log det Xt_Cinv_X at the fixed lambda_grid, all float64 on float64 inputs, and it is compared at 1e-9. `best_lambda` comes out of scipy.optimize.minimize_scalar(method='bounded') at its default xatol of 1e-5, so two correct implementations of this objective will not choose the same iterates; it is compared at 1e-4 ABSOLUTE, which is the optimiser's own tolerance and not a concession. MEASURED for the record: a faithful transcription of _minimize_scalar_bounded takes scipy's own 12 evaluations here and lands within 1.3e-08.",
+  "best_lambda_tolerance": 0.0001
  },
  {
   "name": "002_identity_kernel",
@@ -1403,7 +1405,8 @@
    ]
   },
   "tolerance": "1e-9",
-  "notes": "signature: estimate_reml_pagel_lambda(times, dists, cov_matrix). Reference hyphaeon/dating.py:1476-1547, lifted by ast and executed without importing hyphaeon (torch is bound into the namespace for the one body that needs it at call time). C(lambda) = lambda*I + (1-lambda)*I = I for EVERY lambda, so the objective is exactly flat and the returned lambda is whichever point the bracket happens to stop at -- a degenerate case that says nothing about phylogenetic signal and everything about the minimiser. The flat profile is the assertion; best_lambda is recorded for completeness and is not worth a tight bound."
+  "notes": "signature: estimate_reml_pagel_lambda(times, dists, cov_matrix). Reference hyphaeon/dating.py:1476-1547, lifted by ast and executed without importing hyphaeon (torch is bound into the namespace for the one body that needs it at call time). C(lambda) = lambda*I + (1-lambda)*I = I for EVERY lambda, so the objective is EXACTLY FLAT and the returned lambda is whichever point the bracket happens to stop at -- a degenerate case that says nothing about phylogenetic signal and everything about the minimiser. `best_lambda_tolerance` is 1.0, i.e. the whole box: there is no argmin to localise, and asserting one would be asserting a coincidence. The FLAT PROFILE is the test -- every grid point must agree to 1e-9, and a port whose objective depended on lambda at all would fail here and nowhere else.",
+  "best_lambda_tolerance": 1.0
  },
  {
   "name": "003_rank_deficient_kernel",
@@ -1519,6 +1522,124 @@
    ]
   },
   "tolerance": "1e-9",
-  "notes": "signature: estimate_reml_pagel_lambda(times, dists, cov_matrix). Reference hyphaeon/dating.py:1476-1547, lifted by ast and executed without importing hyphaeon (torch is bound into the namespace for the one body that needs it at call time). an all-ones kernel: rank 1, so five of the six eigenvalues are zero up to rounding and np.maximum(w, 0) at dating.py:1506 clamps whichever came out negative. The clip of lambda into [0.001, 0.999] at 1352 is what keeps C invertible -- w_c is floored at 1-lambda >= 0.001 -- and this case is where a port that skipped the clamp or the clip produces infinities."
+  "notes": "signature: estimate_reml_pagel_lambda(times, dists, cov_matrix). Reference hyphaeon/dating.py:1476-1547, lifted by ast and executed without importing hyphaeon (torch is bound into the namespace for the one body that needs it at call time). an all-ones kernel: rank 1, so five of the six eigenvalues are zero up to rounding and np.maximum(w, 0) at dating.py:1506 clamps whichever came out negative. The clip of lambda into [0.001, 0.999] at 1352 is what keeps C invertible -- w_c is floored at 1-lambda >= 0.001 -- and this case is where a port that skipped the clamp or the clip produces infinities. MEASURED, its profile varies by 2.7e-12 across the whole box -- an all-ones kernel gives C(lambda) eigenvalues 1 + 5*lambda once and 1 - lambda five times, and the design matrix's projection onto the rank-1 direction very nearly cancels the two -- so there is no argmin to localise and best_lambda_tolerance comes out at 1.0. The clamp, the clip and the flat profile are the test.",
+  "best_lambda_tolerance": 1.0
+ },
+ {
+  "name": "004_block_structured_kernel",
+  "inputs": {
+   "times": [
+    1999.0,
+    2000.5,
+    2002.0,
+    2004.0,
+    2006.5,
+    2009.0
+   ],
+   "dists": [
+    0.0078,
+    0.0126,
+    0.0139,
+    0.0236,
+    0.026,
+    0.0345
+   ],
+   "cov_matrix": [
+    [
+     1.0,
+     0.8,
+     0.8,
+     0.1,
+     0.1,
+     0.1
+    ],
+    [
+     0.8,
+     1.0,
+     0.8,
+     0.1,
+     0.1,
+     0.1
+    ],
+    [
+     0.8,
+     0.8,
+     1.0,
+     0.1,
+     0.1,
+     0.1
+    ],
+    [
+     0.1,
+     0.1,
+     0.1,
+     1.0,
+     0.8,
+     0.8
+    ],
+    [
+     0.1,
+     0.1,
+     0.1,
+     0.8,
+     1.0,
+     0.8
+    ],
+    [
+     0.1,
+     0.1,
+     0.1,
+     0.8,
+     0.8,
+     1.0
+    ]
+   ],
+   "n": 6,
+   "lambda_grid": [
+    0.001,
+    0.01,
+    0.05,
+    0.1,
+    0.2,
+    0.3,
+    0.4,
+    0.5,
+    0.6,
+    0.7,
+    0.75,
+    0.8,
+    0.85,
+    0.9,
+    0.95,
+    0.99,
+    0.999
+   ]
+  },
+  "outputs": {
+   "best_lambda": 0.7095577702389847,
+   "status": "OPTIMAL_REML",
+   "neg_reml_profile": [
+    -44.380071882994066,
+    -44.382395833771255,
+    -44.39276338262501,
+    -44.40578898696306,
+    -44.43187224520267,
+    -44.45752923769378,
+    -44.481904660443725,
+    -44.503615552670446,
+    -44.5203770975571,
+    -44.52828199864302,
+    -44.526908598741684,
+    -44.5202931294931,
+    -44.50650176756882,
+    -44.48270585112313,
+    -44.44460113549145,
+    -44.39931383494176,
+    -44.38674447371704
+   ]
+  },
+  "tolerance": "1e-9",
+  "notes": "signature: estimate_reml_pagel_lambda(times, dists, cov_matrix). Reference hyphaeon/dating.py:1476-1547, lifted by ast and executed without importing hyphaeon (torch is bound into the namespace for the one body that needs it at call time). two clades of three, correlated 0.8 within and 0.1 across, with residuals that follow the same structure: a kernel with actual phylogenetic signal and therefore a profile with actual curvature, which is what makes this the one synthetic case whose best_lambda (0.709558) is a statement about the data rather than about the bracket. Without it the table would pin three degenerate kernels and one real alignment, and a port could pass every synthetic case with an objective that ignored lambda entirely.",
+  "best_lambda_tolerance": 0.0001
  }
 ]

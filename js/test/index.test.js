@@ -185,7 +185,10 @@ const PUBLIC_SURFACE = [
 	'BRENTQ_MAXITER',
 	'BRENTQ_RTOL',
 	'BRENTQ_XTOL',
+	'FMINBOUND_MAXITER',
+	'FMINBOUND_XATOL',
 	'brentq',
+	'fminbound',
 	// numeric/prng.js
 	'Xoshiro256',
 	// numeric/ranks.js
@@ -348,6 +351,19 @@ const PUBLIC_SURFACE = [
 	'residualScale',
 	'runOlsDating',
 	'runRestrictedSplineClockDating',
+	// datingModel.js
+	'ADAM_DEFAULTS',
+	'LATENT_ROOT_DEFAULTS',
+	'LATENT_TRAJECTORY_STEPS',
+	'PAGEL_LAMBDA_BOUNDS',
+	'PGLS_DENSE_EIGEN_MAX',
+	'REML_DENSE_MAX',
+	'REML_STATUS',
+	'computeNeuralCovarianceKernel',
+	'estimateRemlPagelLambda',
+	'optimizeLatentConvexHullRoot',
+	'pairwiseAcgtHammingMatrix',
+	'runPglsDating',
 	// dates.js
 	'ARCHIVAL_1959_DECIMAL',
 	'ARCHIVAL_1959_MARKERS',
