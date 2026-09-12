@@ -1,7 +1,7 @@
 {
  "generator": "scripts/gen_fixtures.py",
- "engine_commit": "d998cabbf05916e4ad3d1fe69a5cc3c4cc191eb1",
- "generated_at": "2026-09-12T11:47:05-0700",
+ "engine_commit": "62f41d2072802b9be364cdafde5594f441a8f45d",
+ "generated_at": "2026-09-12T12:59:50-0700",
  "model_safetensors_sha256": "0278dff092601acca959aa64bf6742ad17a38a5e6e31eabd424d6d224eea6ebd",
  "model_safetensors_bytes": 9842824,
  "environment": {
@@ -66,7 +66,14 @@
   "DATING Q4: two spellings of the same tail. run_ols_dating:1269 computes the regression p as `1.0 - stats.f.cdf(...)` while the nested F test at 1877 correctly uses `stats.f.sf(...)`. The cancellation floors the reported p at one ulp of 1: MEASURED, F = 80 gives 2.109424e-15 against a true 2.097939e-15, F = 100 gives 1.110223e-16 against 4.524211e-18 (24x wrong), and every F above that is pinned at 1.110223e-16. examples/H1N1_2009_pandemic.fasta reports exactly that value. The port calls `1 - fCdf`, deliberately; note that scipy's f.cdf itself returns one ulp BELOW 1 there where the correctly rounded double is 1.0, so p_value is the one field that cannot be held tighter than 1e-15 absolute.",
   "DATING Q5: run_restricted_spline_clock_dating solves UNCENTRED normal equations on a calendar axis (dating.py:1857-1871). MEASURED cond(X_sp.T X_sp) = 9.307e12 on korber, so about five significant figures of the spline's t_mrca survive: partial-pivot Gaussian elimination reproduces LAPACK's answer to 1.1e-8 years there and 9.3e-7 on H1N1, and merely reassociating the reference's own products (multiplying by the identity C_inv first, as it does) moves it by 3.5e-10. The spline fixtures are pinned at 1e-5 for that reason; centring would change the answer and is not done.",
   "DATING Q6: verify_coding_alignment SILENTLY MUTATES the alignment it is handed, trimming L mod 3 trailing nucleotides (dating.py:163-174, auto_trim_trailing defaults True) and printing a notice to stdout, and every distance downstream is then computed on the trimmed sequences. MEASURED on examples/H1N1_2009_pandemic.fasta: without the trim every one of its 95 divergences is wrong and t_MRCA moves from 2009.0426391755814 to 2009.0426390275454. examples/korber_env_gp160.fasta is 2943 nt and is unaffected.",
-  "DATING Q7: run_ols_dating initialises ci_bootstrap to None at 1246 and never assigns it, so it ships in the exported JSON as a permanent null (1285). Its three bootstrap ci_methods -- poisson, residual-boot/wild and jackknife/loocv -- are reached by an if/elif chain whose ELSE is Fieller, so an unrecognised ci_method string silently becomes Fieller rather than raising."
+  "DATING Q7: run_ols_dating initialises ci_bootstrap to None at 1246 and never assigns it, so it ships in the exported JSON as a permanent null (1285). Its three bootstrap ci_methods -- poisson, residual-boot/wild and jackknife/loocv -- are reached by an if/elif chain whose ELSE is Fieller, so an unrecognised ci_method string silently becomes Fieller rather than raising.",
+  "DATING Q8: two different numbers ship under the name 'ridge'. run_mrca_dating:2792 computes effective_ridge = clip(1 - lambda*, 0.01, 0.20), PRINTS it as `nugget ridge = ...` and passes it to run_pgls_dating -- which then ignores it completely, because pagel_lambda is not None and the covariance takes the Pagel branch at dating.py:1352-1353. Line 1466 recomputes the returned field as 1 - eff_lam. MEASURED on korber under tn93 divergences: the CLI prints 0.2000 and the JSON ships pgls.ridge = 0.30157452782705985. A page must not show both, and a port must not 'use the ridge'.",
+  "DATING Q9: the covariance kernel is eigendecomposed twice per fit and the first result is thrown away. estimate_reml_pagel_lambda returns w_K and V at dating.py:1545-1546 precisely so run_pgls_dating can reuse them, but that reuse branch (1331-1336) fires only when ridge == 'auto', and run_mrca_dating:2799 always passes a float -- so la.eigh runs again at 1347 on the same matrix. run_restricted_spline_clock_dating decomposes it a third time at 1845 whenever the model ran. At the taxon caps an application works at, that is two wasted O(N^3) per date.",
+  "DATING Q10: loading the model silently changes the SPLINE. dating.py:2842-2844 sets spline_cov = cov_train whenever the neural path ran, so the restricted spline is an OLS spline without the model and a GLS spline with it, on IDENTICAL divergences. MEASURED on korber under tn93 divergences: spline.beta_0 moves from -4.386825916889575 to -1.7112000894725579, spline.t_mrca from 1938.7746674292187 to 1864.5477949, and the clock selection flips from Restricted Spline to Linear PGLS. Phase 3's shipped spline number therefore changes when the model-based estimators are switched on; that is a consequence to state, not a regression.",
+  "DATING Q11: --distance-mode auto is NOT 'tn93 unless there is a tree'. With no tree and the model available it resolves to LATENT (dating.py:2519-2523), so under `--method all` the divergences fed to every estimator, the ordinary least-squares one included, are alpha * ||z_i - z_root|| from the convex-hull root rather than TN93 distances. MEASURED on korber: ols.t_mrca is 1893.91 under tn93 and 1926.81 under latent, ols.mu 0.001169 against 0.000555. A report must name the DIVERGENCE SOURCE and not only the estimator, or the two are indistinguishable to a reader.",
+  "DATING Q12: optimize_latent_convex_hull_root's loss is not the correlation it reports. dating.py:786-789 computes cov with torch.mean (divisor m) while both standard deviations use torch's default correction=1 (divisor m-1), so the maximised quantity is Pearson's r scaled by (m-1)/m. It is monotone in r, so the argmax is unmoved and the trajectory is unaffected in any way a reader could see -- and temporal_r at 803 is recomputed with np.corrcoef, so the REPORTED correlation is a true r. Flagged rather than fixed: changing the loss would change the Adam steps.",
+  "DATING Q13: the latent root is a fixed 250-step Adam trajectory, not a converged optimum. dating.py:778-795 runs exactly max_iter steps at lr 0.05 from a closed-form initialisation with no stopping criterion and no RNG, so it is perfectly reproducible and perfectly arbitrary: measured upstream, one extra step moves t_MRCA by 1.2e-3 years, 250 more move it by 0.26 years, and the correlation is still climbing at the cut-off. Any port must replay the trajectory rather than optimise the objective -- a better optimiser reproduces nothing. fixtures/dating/optimize_latent_convex_hull_root.json records the weights at ten intermediate steps for exactly this reason.",
+  "DATING Q14: splits.extract_cross_taxa_attentions_and_embeddings is correct only at window_size == 1. splits.py:152 divides the accumulated attention by batch_size * num_layers where the sum ran over batch_size * window_size sites, and :147 takes the central codon index alone while the docstring claims pooling across all sites. Both are exact at the only configuration the exporter emits (window_size 1) and both would be wrong above it."
  ],
  "counts": {
   "stats": {
@@ -150,7 +157,13 @@
    "compute_fieller_mrca_interval": 9,
    "run_ols_dating": 12,
    "run_restricted_spline_clock_dating": 5,
-   "run_mrca_dating": 3
+   "run_mrca_dating": 3,
+   "model_outputs": 1,
+   "compute_neural_covariance_kernel": 5,
+   "pairwise_acgt_hamming": 2,
+   "optimize_latent_convex_hull_root": 5,
+   "estimate_reml_pagel_lambda": 4,
+   "run_pgls_dating": 8
   }
  },
  "bytes": {
@@ -214,10 +227,16 @@
   "dating/compute_fieller_mrca_interval.json": 7198,
   "dating/run_ols_dating.json": 35316,
   "dating/run_restricted_spline_clock_dating.json": 20820,
-  "dating/run_mrca_dating.json": 172214
+  "dating/run_mrca_dating.json": 172214,
+  "dating/model_outputs.json": 1342504,
+  "dating/compute_neural_covariance_kernel.json": 537972,
+  "dating/pairwise_acgt_hamming.json": 521276,
+  "dating/optimize_latent_convex_hull_root.json": 91826,
+  "dating/estimate_reml_pagel_lambda.json": 24278,
+  "dating/run_pgls_dating.json": 79093
  },
- "total_bytes": 6225651,
- "elapsed_seconds": 9.0,
+ "total_bytes": 8822600,
+ "elapsed_seconds": 5.6,
  "e2e_wall_seconds": {
   "meme_bat_oas1": 1.7,
   "meme_Smc6": 1.6,
@@ -265,10 +284,64 @@
   "compute_rcs_basis": "hyphaeon/dating.py:1774-1806",
   "run_restricted_spline_clock_dating": "hyphaeon/dating.py:1809-1968",
   "parse_header_timestamp": "hyphaeon/dating.py:317-364",
+  "compute_neural_covariance_kernel": "hyphaeon/dating.py:78-118",
+  "optimize_latent_convex_hull_root": "hyphaeon/dating.py:701-832",
+  "run_pgls_dating": "hyphaeon/dating.py:1299-1473",
+  "estimate_reml_pagel_lambda": "hyphaeon/dating.py:1476-1547",
   "parse_alignment_sequences": "hyphaeon/dataset.py:252-364",
   "compute_tn93_distance_matrix": "hyphaeon/dataset.py:715-821",
   "compute_tn93_cross_distance_matrix": "hyphaeon/dataset.py:824-928",
   "parse_date_to_decimal": "hyphaeon/temporal.py:73-151",
   "extract_date_from_string": "hyphaeon/temporal.py:196-245"
+ },
+ "dating_model_example": {
+  "command": "hyphaeon dating -a examples/korber_env_gp160.fasta --root-taxon CONSENSUS --no-tree --method all --cpu",
+  "alignment": "korber_env_gp160.fasta",
+  "root_taxon": "CONSENSUS",
+  "device": "cpu",
+  "n_taxa": 143,
+  "n_dated": 142,
+  "n_train": 141,
+  "n_codons": 981,
+  "embed_dim": 384,
+  "pagel_lambda": {
+   "tn93": 0.6984254721729402,
+   "latent": 0.8591318190927182
+  },
+  "root_description_tn93": "explicit_root_CONSENSUS",
+  "root_description_latent": "latent_convex_hull (\u03b1=0.05407 subs/site/unit, R=+0.374)",
+  "model_safetensors_sha256": "db59db0d13aeca06fddbec3c56280a69915bd6c4fd77a19220c4e82365a5e5bc",
+  "model_safetensors_bytes": 7655016,
+  "trajectory_steps": [
+   1,
+   2,
+   5,
+   10,
+   25,
+   50,
+   100,
+   200,
+   249,
+   250
+  ],
+  "reml_lambda_grid": [
+   0.001,
+   0.01,
+   0.05,
+   0.1,
+   0.2,
+   0.3,
+   0.4,
+   0.5,
+   0.6,
+   0.7,
+   0.75,
+   0.8,
+   0.85,
+   0.9,
+   0.95,
+   0.99,
+   0.999
+  ]
  }
 }

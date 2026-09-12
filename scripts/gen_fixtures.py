@@ -100,6 +100,16 @@ REPO = Path(__file__).resolve().parent.parent
 FIXTURES = REPO / "fixtures"
 EXAMPLES = REPO / "examples"
 MODEL_PATH = Path(os.environ.get("HYPHAEON_WEIGHTS", str(REPO / "model.safetensors")))
+
+# The groups that need weights at all, and -- a strict subset -- the ones the manifest's TOP-LEVEL
+# `model_safetensors_sha256` describes. They came apart at phase 4: `dating_model` needs a forward
+# pass like the other three, but the reference's published dating numbers were produced against the
+# weights `hyphaeon.weights` resolves by default, which need not be the file the older model tables
+# were generated from. It records its own hash under `dating_model_example` and leaves the top-level
+# field alone, so a `--only dating_model` run cannot silently relabel attribution/, dms/ and e2e/
+# with a checkpoint they were not made from.
+MODEL_SHA_GROUPS = {"attribution", "dms", "e2e"}
+WEIGHTS_GROUPS = MODEL_SHA_GROUPS | {"dating_model"}
 MEME_CACHE = REPO / "model_eval" / "_cache"
 
 SYNTH_SEED = 20260904          # seed for synthetic inputs (inputs are written into fixtures)
@@ -1538,6 +1548,17 @@ DATING_FUNCTIONS = {
         "compute_rcs_basis",
         "run_restricted_spline_clock_dating",
         "parse_header_timestamp",
+        # Phase 4, the model-based half. The first three are numpy/scipy only and lift exactly like
+        # the rest; `optimize_latent_convex_hull_root` references `torch` at CALL time, so its body
+        # still compiles and defines without it and only gen_dating_model, which has torch anyway,
+        # can run it. `run_pgls_dating` also names compute_poisson_mrca_interval,
+        # compute_residual_bootstrap_mrca_interval and run_dating_loocv, which are NOT lifted: they
+        # live in ci_method branches no fixture takes, and a NameError there would be the right
+        # failure rather than a silent one.
+        "compute_neural_covariance_kernel",
+        "optimize_latent_convex_hull_root",
+        "run_pgls_dating",
+        "estimate_reml_pagel_lambda",
     ],
     "hyphaeon/dataset.py": [
         "parse_alignment_sequences",
@@ -1586,6 +1607,15 @@ def load_dating_reference(engine_root: Path = REPO):
         "shutil": shutil, "tempfile": tempfile, "subprocess": subprocess,
         "Any": Any, "Dict": Dict, "List": List, "Optional": _Optional, "Tuple": _Tuple,
     }
+    # `optimize_latent_convex_hull_root` resolves `torch` as a GLOBAL at call time, so its body
+    # compiles and defines without it; only gen_dating_model actually calls it, and only that group
+    # requires torch. gen_dating never does, and stays a torch-free run as its header promises.
+    try:
+        import torch as _torch
+        ns["torch"] = _torch
+    except Exception:
+        pass
+
     provenance: Dict[str, str] = {}
     for rel, names in DATING_FUNCTIONS.items():
         path = engine_root / rel
@@ -2040,6 +2070,602 @@ def _load_bat_model():
     return device, model, c, a, d, z, inv, taxa, L, cache
 
 
+# --------------------------------------------------------------------------
+# dating, model-based (the two estimators the transformer feeds: PGLS over the
+# neural covariance kernel, and the latent convex-hull root). WEIGHTS AND TORCH
+# ARE REQUIRED here and nowhere else in the dating tables -- the four function
+# bodies are still lifted by `ast`, but two of the inputs are a forward pass.
+# --------------------------------------------------------------------------
+
+# `hyphaeon dating -a examples/korber_env_gp160.fasta --root-taxon CONSENSUS --no-tree --method all`
+# is the acceptance command of the model-based half, and everything below is generated from the
+# exact chain it runs (dating.py:2543-2601 for the latent arm, 2698-2802 for the fit), on the CPU so
+# the numbers are reproducible off this machine. MEASURED at this commit: this generator's own
+# `run_pgls_dating` and `optimize_latent_convex_hull_root` outputs are BIT-IDENTICAL to that CLI
+# run's JSON in both distance modes -- every field of `pgls`, and `latent_root`'s alpha, temporal_r
+# and all six anchor weights.
+DATING_MODEL_EXAMPLE = ("korber_env_gp160.fasta", "CONSENSUS")
+
+# The lambda grid `neg_reml_profile` is recorded on. `best_lambda` alone cannot localise a failure:
+# it is whatever `scipy.optimize.minimize_scalar(method='bounded')` lands on at its own xatol of
+# 1e-5, so two correct implementations of the SAME objective can return different sixth digits. The
+# objective at fixed points can be compared at float64 precision, and is the test that says whether
+# the REML likelihood or the minimiser is at fault.
+REML_LAMBDA_GRID = [0.001, 0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.75, 0.8,
+                    0.85, 0.9, 0.95, 0.99, 0.999]
+
+# `optimize_latent_convex_hull_root` runs a FIXED 250 Adam steps with no stopping criterion and is
+# NOT converged (dating.py:781-795; measured upstream, one more step moves t_MRCA by 1.2e-3 years and
+# 250 more by 0.26). Its answer is therefore a point on a trajectory, and a port that reproduces step
+# 250 with the wrong Adam is a port that breaks on the next alignment. These are the steps the
+# weights are recorded at -- obtained by RE-RUNNING the reference function at each `max_iter`, which
+# is exact because the initialisation is closed-form and there is no RNG anywhere in it, rather than
+# by retyping its loop here with a hook in it.
+LATENT_TRAJECTORY_STEPS = [1, 2, 5, 10, 25, 50, 100, 200, 249, 250]
+
+
+def _f32_short(v: float) -> float:
+    """The shortest decimal that identifies a float32, as a float.
+
+    The model's two matrices are float32 (splits.py:83-84), so widening them to float64 and writing
+    17 digits would triple the file for no information. MEASURED: korber's two matrices are 1.61 MB
+    of float64 text and 0.98 MB this way, and the perturbation this costs a float64 reader is ~1e-9
+    RELATIVE -- four decades below the 1.95e-6 that float32 BLAS accumulation already puts between
+    the reference's kernel and any float64 recomputation of it.
+    """
+    f = float(v)
+    if f == 0.0 or not math.isfinite(f):
+        return f
+    if abs(f) < 1e-4:
+        return float(np.format_float_scientific(np.float32(f), unique=True, trim="0"))
+    return float(np.format_float_positional(np.float32(f), unique=True, trim="0"))
+
+
+def _f32_matrix(a) -> List[List[float]]:
+    return [[_f32_short(v) for v in row] for row in np.asarray(a)]
+
+
+def fixture_ref(function: str, case_name: str, field: str, rows=None, cols=None) -> Dict[str, Any]:
+    """A pointer to another case's array instead of a copy of it.
+
+    korber's model outputs are 143x143 and 143x384; the kernel they produce is another 143x143; the
+    covariance the two estimators are fitted on is a 141x141 slice of that kernel. Inlining each
+    where it is consumed would put about 4 MB of duplicated text under fixtures/dating and would
+    still not say that they are the SAME numbers. A reference says it, and js/test/dating.test.js
+    resolves it in fifteen lines. `rows`/`cols` are index lists into the referenced array, applied in
+    that order -- which matters, because the reference builds the kernel over ALL alignment taxa and
+    only then slices it to the dated and then to the training ones (dating.py:2568, 2576, 2781), and
+    centre-then-subset is not subset-then-centre.
+    """
+    ref: Dict[str, Any] = {"$fixture": function, "case": case_name, "field": field}
+    if rows is not None:
+        ref["rows"] = [int(i) for i in rows]
+    if cols is not None:
+        ref["cols"] = [int(i) for i in cols]
+    return ref
+
+
+def _latent_chain(ns, fasta: str, root_taxon: str, device):
+    """Run dating.py:2543-2601 and 2698-2709 for real, and hand back every array they produce.
+
+    Not a paraphrase: `prepare_alignment` and `extract_cross_taxa_attentions_and_embeddings` are the
+    reference's own, called with the reference's own arguments (`max_species=None`,
+    `prune_duplicates=False`, `use_tn93=True` because the acceptance command passes --no-tree), and
+    the three inline blocks that are not functions upstream -- the dated-taxon subsetting at 2573,
+    the <50 % ACGT anchor mask at 2578-2582 and the pairwise Hamming loop at 2586-2596 -- are
+    transcribed here and nowhere else, exactly as `_dating_case_inputs` transcribes the model-free
+    ones.
+    """
+    import torch
+    from hyphaeon.inference import load_model, prepare_alignment
+    from hyphaeon.splits import extract_cross_taxa_attentions_and_embeddings
+
+    path = EXAMPLES / fasta
+    seq_dict = ns["parse_alignment_sequences"](str(path))
+    n_taxa_raw, n_codons = ns["verify_coding_alignment"](seq_dict)
+    dates_map = {t: ns["parse_header_timestamp"](t) for t in seq_dict}
+    dated_taxa = [t for t in seq_dict if not np.isnan(dates_map[t]) and t != root_taxon]
+
+    # Whatever `hyphaeon.weights` would resolve, hashed as loaded: HYPHAEON_WEIGHTS when it points
+    # at a real file, otherwise the Hugging Face cache the reference CLI itself falls back to. The
+    # published dating numbers this group reproduces were produced through that fallback, and the
+    # hash is recorded per-group rather than at the top of the manifest (see MODEL_SHA_GROUPS).
+    from hyphaeon.weights import resolve_weights_path
+    weights_arg = str(MODEL_PATH) if MODEL_PATH.exists() else None
+    resolved = Path(resolve_weights_path(weights=weights_arg, variant=None))
+    model = load_model(weights=weights_arg, variant=None, device=device)
+    c, a, d, z, inv, aln_taxa, L, tree_cache = prepare_alignment(
+        str(path), None, model=model, device=device, max_species=None, prune_duplicates=False, use_tn93=True)
+    cross_attn, taxa_repr = extract_cross_taxa_attentions_and_embeddings(
+        model, c.to(device), a.to(device), tree_cache, device=device)
+
+    aln_map = {t: i for i, t in enumerate(aln_taxa)}
+    sub_indices = [aln_map[t] for t in dated_taxa if t in aln_map]          # 2573
+    taxa = [t for t in dated_taxa if t in aln_map]
+    times = np.array([dates_map[t] for t in taxa], dtype=np.float64)
+
+    char_mat = np.array([list(seq_dict[t]) for t in taxa])                  # 2578-2582
+    coverage = np.array([np.sum(np.isin(char_mat[i], list('ACGT'))) for i in range(len(taxa))]) / max(1, char_mat.shape[1])
+    anchor_mask = (coverage >= 0.50)
+
+    n_t = len(taxa)                                                          # 2586-2596
+    pairwise_phys = np.zeros((n_t, n_t), dtype=np.float64)
+    for i in range(n_t):
+        for j in range(i + 1, n_t):
+            v = np.isin(char_mat[i], list('ACGT')) & np.isin(char_mat[j], list('ACGT'))
+            diffs = np.sum((char_mat[i] != char_mat[j]) & v)
+            tot = np.sum(v)
+            pairwise_phys[i, j] = diffs / max(1, tot)
+            pairwise_phys[j, i] = pairwise_phys[i, j]
+
+    return {"seq_dict": seq_dict, "aln_taxa": list(aln_taxa), "taxa": taxa, "times": times,
+            "dates_map": dates_map, "sub_indices": sub_indices, "cross_attn": cross_attn,
+            "taxa_repr": taxa_repr, "coverage": coverage, "anchor_mask": anchor_mask,
+            "pairwise_phys": pairwise_phys, "n_codons": int(n_codons), "L": int(L),
+            "n_taxa_raw": int(n_taxa_raw), "model": model, "weights_path": resolved,
+            "weights_sha256": sha256_of(resolved), "weights_bytes": resolved.stat().st_size}
+
+
+# THE tn93 BINARY IS *NOT* HIDDEN FOR THIS GROUP, and that is a deliberate reversal of what
+# `_gen_dating` does two hundred lines up. The model-free tables hide it so the PACKAGE branch is
+# pinned (DATING Q3); here the binary's own matrix is what `prepare_alignment` feeds the transformer
+# as `dist_matrix`, so hiding it would change a MODEL INPUT and the whole chain with it.
+#
+# MEASURED at this commit, the two branches on korber: the site-averaged cross-taxa attention moves
+# by max |delta| 1.70e-03 (9.8 % RELATIVE), the embeddings by 4.07e-02, and the covariance kernel
+# they produce by 3.33e-01 on entries of magnitude 1 -- a third of full correlation. That is not
+# rounding; the two TN93 matrices genuinely disagree, and the difference propagates through a model
+# that is not invariant to its distance input. Pagel's lambda* lands at 0.8591 (binary) against
+# 0.8537 (package) in latent mode and 0.6984 against 0.5884 in tn93 mode, and PGLS t_MRCA at 1633.07
+# against 1625.03 and 1841.61 against 1849.32.
+#
+# The binary branch is pinned because it is the configuration the reference's PUBLISHED numbers were
+# produced under -- `hyphaeon dating -a examples/korber_env_gp160.fasta --root-taxon CONSENSUS
+# --no-tree --method all` on a machine with tn93 installed -- and reproducing those is what this
+# phase is measured against. An application whose own TN93 follows the package branch (which is what
+# fixtures/dataset/tn93_distance_matrix.json pins, and what @veg/hyphaeon-js mirrors) will therefore
+# NOT reproduce `model_outputs` here, and the gap will show up loudly against this table rather than
+# quietly inside a date. That is the right place for it to show up, and it is an engine question --
+# which TN93 the dating pillar is defined against -- not something a fixture should decide by
+# choosing the branch that happens to make the app agree.
+def gen_dating_model(w: Writer, model_sha: Optional[str]) -> Dict[str, Any]:
+    import torch
+
+    ns, provenance = load_dating_reference()
+    ns["torch"] = torch
+
+    def sig(fn: str, call: str) -> str:
+        return f"signature: {call}. Reference {provenance[fn]}, lifted by ast and executed without importing hyphaeon (torch is bound into the namespace for the one body that needs it at call time)."
+
+    device = torch.device("cpu")
+    fasta, root_taxon = DATING_MODEL_EXAMPLE
+    ch = _latent_chain(ns, fasta, root_taxon, device)
+    n_aln = len(ch["aln_taxa"])
+    embed_dim = int(ch["taxa_repr"].shape[1])
+
+    # ---- model_outputs: the two matrices everything below is built on -----------------------
+    row_sums = np.asarray(ch["cross_attn"]).sum(axis=1)
+    cases = [case(
+        "000_korber_env_gp160_cpu",
+        {"alignment": fasta, "root_taxon": root_taxon, "device": "cpu", "use_tn93": True,
+         "prune_duplicates": False, "max_species": None, "taxa": ch["aln_taxa"],
+         "n_codons": ch["n_codons"], "embed_dim": embed_dim},
+        {"mean_cross_attn": _f32_matrix(ch["cross_attn"]), "mean_taxa_repr": _f32_matrix(ch["taxa_repr"])},
+        "1e-5",
+        "splits.extract_cross_taxa_attentions_and_embeddings(model, msa_codons, msa_aas, tree_cache), "
+        "hyphaeon/splits.py:24-155, on the tensors prepare_alignment builds for "
+        "`hyphaeon dating -a examples/korber_env_gp160.fasta --root-taxon CONSENSUS --no-tree --method all` "
+        "(max_species=None, prune_duplicates=False, use_tn93=True), CPU. "
+        f"SHAPES: msa_codons is [{ch['n_codons']}, {n_aln}, 1] -- batch_size IS the site count L and ALL sites run, "
+        "invariable ones included, unlike inference.predict_site_lrts which runs the variable ones only; so the dating "
+        "pass cannot ride the report's forward pass. num_species "
+        f"{n_aln}, window_size 1, embed_dim {embed_dim}. "
+        f"mean_cross_attn is [{n_aln}, {n_aln}] and its ROWS DO NOT SUM TO 1 "
+        f"(measured {float(row_sums.min()):.6f} to {float(row_sums.max()):.6f}): the softmax was over all num_species+1 "
+        "nodes and splits.py:131 drops the root from both axes. "
+        "THIS TABLE IS NOT A PARITY TARGET FOR THE JAVASCRIPT LIBRARY -- nothing in @veg/hyphaeon-js computes it. It is "
+        "the pinned INPUT for the kernel and the latent search below, and the reference for the runtime's taxa-graph "
+        "check. Both arrays are float32 upstream and are written as the shortest decimal that identifies each float32.")]
+    w.write("dating", "model_outputs", cases)
+
+    # ---- compute_neural_covariance_kernel ----------------------------------------------------
+    K_neural = ns["compute_neural_covariance_kernel"](ch["cross_attn"], ch["taxa_repr"])
+    eigK = np.linalg.eigvalsh(K_neural)
+    a_c = np.asarray(ch["cross_attn"]) - np.mean(ch["cross_attn"], axis=0, keepdims=True)
+    cases = [case(
+        "000_korber_env_gp160",
+        {"cross_attn": fixture_ref("model_outputs", "000_korber_env_gp160_cpu", "mean_cross_attn"),
+         "taxa_repr": fixture_ref("model_outputs", "000_korber_env_gp160_cpu", "mean_taxa_repr"),
+         "n": n_aln, "embed_dim": embed_dim},
+        {"K_neural": K_neural},
+        "1e-5",
+        sig("compute_neural_covariance_kernel", "compute_neural_covariance_kernel(cross_attn, taxa_repr=None, mds_coords=None) -> (n, n)")
+        + " THE REAL ONE, and the reason this table's class is 1e-5 and not 1e-9: numpy matmuls the FLOAT32 inputs with "
+        "sgemm (dating.py:96, 107), whose accumulation order is the BLAS implementation's, so no float64 port can be "
+        "bit-exact. MEASURED: recomputing this same kernel in float64 from the same inputs moves it by max |delta| "
+        "1.954e-06. "
+        f"CONDITIONING, because no reader will guess it: mean_cross_attn's entries run {float(np.asarray(ch['cross_attn']).min()):.8f} "
+        f"to {float(np.asarray(ch['cross_attn']).max()):.8f}, but after column centring max |a_c| = {float(np.abs(a_c).max()):.8f} "
+        f"and rms = {float(np.sqrt(np.mean(a_c.astype(np.float64) ** 2))):.6e} -- the correlation divides by a quantity "
+        "about forty times smaller than the raw entries, which is why a 1e-8 perturbation of the attention shows up as "
+        "8e-6 in K. INVARIANTS a port must hold: unit diagonal, symmetry, and PSD -- the eigenvalues here run "
+        f"{float(eigK.min()):.16g} to {float(eigK.max()):.16g}, strictly positive, so the np.maximum(w, 0) clamps "
+        "downstream at dating.py:1347 and 1490 never bind on this example.")]
+
+    rng = np.random.default_rng(SYNTH_SEED)
+    synth_attn = np.abs(rng.normal(0.007, 0.001, size=(6, 6))).astype(np.float32)
+    synth_repr = rng.normal(0.0, 1.0, size=(6, 8)).astype(np.float32)
+    cases.append(case(
+        "001_attention_only",
+        {"cross_attn": synth_attn, "taxa_repr": None, "n": 6, "embed_dim": 0},
+        {"K_neural": ns["compute_neural_covariance_kernel"](synth_attn, None)},
+        "1e-9",
+        sig("compute_neural_covariance_kernel", "compute_neural_covariance_kernel(cross_attn, taxa_repr=None)")
+        + " taxa_repr=None takes the unfused arm at dating.py:115 and K_neural IS K_attn. The application always supplies "
+        "the embeddings, so this arm is dead on the product's path; it is three lines and it is pinned anyway."))
+    cases.append(case(
+        "002_length_mismatch_ignores_repr",
+        {"cross_attn": synth_attn, "taxa_repr": synth_repr[:4], "n": 6, "embed_dim": 8},
+        {"K_neural": ns["compute_neural_covariance_kernel"](synth_attn, synth_repr[:4])},
+        "1e-9",
+        sig("compute_neural_covariance_kernel", "compute_neural_covariance_kernel(cross_attn, taxa_repr)")
+        + " `len(taxa_repr) == n` at dating.py:104 is a ROW count, and a mismatch SILENTLY drops the embedding half with "
+        "no error and no flag -- the returned matrix is K_attn alone and looks exactly like a fused one. Pinned because "
+        "a port that raised here, or that fused anyway, would both be defensible and both be wrong."))
+    const_attn = np.tile(np.float32(0.01), (5, 5))
+    const_attn[1] = np.float32(0.02)
+    cases.append(case(
+        "003_constant_rows_zero_variance",
+        {"cross_attn": const_attn, "taxa_repr": None, "n": 5, "embed_dim": 0},
+        {"K_neural": ns["compute_neural_covariance_kernel"](const_attn, None)},
+        "1e-9",
+        sig("compute_neural_covariance_kernel", "compute_neural_covariance_kernel(cross_attn)")
+        + " every column is constant, so a_cov is identically zero, a_std is floored at sqrt(1e-12) = 1e-6 and a_denom = "
+        "1e-12 is NOT > 1e-12: the `where=` guard fails for every entry and np.divide leaves its `out` untouched. "
+        "`out` is np.eye(n) (dating.py:99), so the answer is the IDENTITY -- ones on the diagonal, zeros off it -- and "
+        "not a zero matrix. A port that wrote zeros, or that let 0/1e-12 through as 0.0, gets the off-diagonal right by "
+        "accident and the diagonal right only because of the fill_diagonal on the next line."))
+    small_attn = np.array([[0.20, 0.10, 0.30, 0.15, 0.25],
+                           [0.05, 0.35, 0.20, 0.30, 0.10],
+                           [0.30, 0.20, 0.10, 0.25, 0.15],
+                           [0.10, 0.25, 0.35, 0.05, 0.25],
+                           [0.25, 0.15, 0.20, 0.20, 0.20]], dtype=np.float32)
+    small_repr = np.array([[1.0, 0.0, -1.0], [0.5, 0.5, 0.0], [-1.0, 1.0, 0.5],
+                           [0.25, -0.75, 1.0], [0.0, 0.0, 0.0]], dtype=np.float32)
+    cases.append(case(
+        "004_synthetic_n5_fused",
+        {"cross_attn": small_attn, "taxa_repr": small_repr, "n": 5, "embed_dim": 3},
+        {"K_neural": ns["compute_neural_covariance_kernel"](small_attn, small_repr),
+         "K_attn_only": ns["compute_neural_covariance_kernel"](small_attn, None)},
+        "1e-9",
+        sig("compute_neural_covariance_kernel", "compute_neural_covariance_kernel(cross_attn, taxa_repr)")
+        + " five taxa and three embedding dimensions, small enough to check by hand, with BOTH halves recorded so the "
+        "50/50 fusion at dating.py:113 can be verified as an average rather than inferred from the total. Row 4 of the "
+        "embeddings is all zeros, so its centred row is the negated column mean and its correlations are still defined."))
+    w.write("dating", "compute_neural_covariance_kernel", cases)
+
+    # ---- the isometric calibration's Hamming distances ---------------------------------------
+    tiny = ["ACGTACGTAC", "ACGTACGTAA", "ACGWACGTAA", "AC--ACGTAC", "NNNNNNNNNN"]
+    tiny_names = ["a", "b", "iupac", "gapped", "unresolved"]
+
+    def hamming(seqs):
+        cm = np.array([list(s) for s in seqs])
+        n = len(seqs)
+        out = np.zeros((n, n), dtype=np.float64)
+        for i in range(n):
+            for j in range(i + 1, n):
+                v = np.isin(cm[i], list('ACGT')) & np.isin(cm[j], list('ACGT'))
+                out[i, j] = out[j, i] = np.sum((cm[i] != cm[j]) & v) / max(1, np.sum(v))
+        return out
+
+    cases = [case(
+        "000_korber_env_gp160",
+        {"alignment": fasta, "taxa": ch["taxa"]},
+        {"matrix": ch["pairwise_phys"], "n": len(ch["taxa"])},
+        "exact",
+        "The inline block at dating.py:2586-2596, which is what calibrates `alpha` in latent mode. It is NOT TN93, "
+        "despite optimize_latent_convex_hull_root's docstring at dating.py:718 saying 'Hamming / TN93': it is a raw "
+        "p-distance over the columns where BOTH sequences carry an unambiguous A, C, G or T, with no multiple-hit "
+        "correction at all. Feeding a TN93 matrix here would change alpha and therefore every rate and every date the "
+        "latent mode produces. exact, not toleranced: both sides divide one integer by another. The 142 taxa are the "
+        "DATED ones in alignment order (CONSENSUS dropped), read from examples/korber_env_gp160.fasta through "
+        "parse_alignment_sequences and verify_coding_alignment and NOT through the '*' -> '-' rewrite the tn93 tables "
+        "use -- '*' is not ACGT either way, so the two agree here."),
+        case("001_tiny_alphabet",
+             {"alignment": None, "taxa": tiny_names, "sequences": tiny},
+             {"matrix": hamming(tiny), "n": len(tiny)},
+             "exact",
+             "Five ten-column sequences that pin the mask: an IUPAC W and a gap are each excluded from BOTH the "
+             "numerator and the denominator, so 'gapped' is at distance 0 from 'a' over the eight columns they share; "
+             "and a row of N has NO resolved column against anything, so `tot` is 0, the denominator is max(1, 0) = 1 "
+             "and the pair scores 0.0 -- indistinguishable from two identical sequences, which is the reference's own "
+             "behaviour and is worth a reader knowing. The diagonal is left at 0 because the loop runs j > i only.")]
+    w.write("dating", "pairwise_acgt_hamming", cases)
+
+    # ---- optimize_latent_convex_hull_root ----------------------------------------------------
+    z_sub = np.asarray(ch["taxa_repr"])[ch["sub_indices"]]
+    times = ch["times"]
+    lat = ns["optimize_latent_convex_hull_root"](
+        z_sub, times, taxa_names=ch["taxa"], pairwise_phys_dists=ch["pairwise_phys"],
+        anchor_mask=ch["anchor_mask"], device=device)
+    # The trajectory, by re-running the reference at each cut-off. Deterministic: closed-form init,
+    # fixed step count, no RNG (dating.py:768-795), so run k is run 250 truncated at k.
+    trajectory = {}
+    for k in LATENT_TRAJECTORY_STEPS:
+        trajectory[str(k)] = ns["optimize_latent_convex_hull_root"](
+            z_sub, times, taxa_names=ch["taxa"], pairwise_phys_dists=ch["pairwise_phys"],
+            anchor_mask=ch["anchor_mask"], max_iter=k, device=device)["weights"]
+
+    lat_out = {k: lat[k] for k in ("z_root", "weights", "dists", "dists_latent", "alpha",
+                                   "anchor_taxa", "temporal_r", "temporal_r2", "mu_ols", "t_mrca_ols")}
+    lat_out["anchor_mask"] = lat["anchor_mask"]
+    lat_out["weights_trajectory"] = trajectory
+    n_masked = int(np.sum(~ch["anchor_mask"]))
+    cases = [case(
+        "000_korber_env_gp160",
+        {"taxon_repr": fixture_ref("model_outputs", "000_korber_env_gp160_cpu", "mean_taxa_repr", rows=ch["sub_indices"]),
+         "times": times, "taxa_names": ch["taxa"],
+         "pairwise_phys_dists": fixture_ref("pairwise_acgt_hamming", "000_korber_env_gp160", "matrix"),
+         "anchor_mask": [bool(b) for b in ch["anchor_mask"]],
+         "learning_rate": 0.05, "max_iter": 250, "embed_dim": embed_dim},
+        lat_out,
+        "1e-5",
+        sig("optimize_latent_convex_hull_root", "optimize_latent_convex_hull_root(taxon_repr, times, taxa_names, pairwise_phys_dists, anchor_mask, learning_rate=0.05, max_iter=250)")
+        + f" THE ACCEPTANCE CASE: {len(ch['taxa'])} dated taxa, {n_masked} of them masked out of the anchor set at "
+        "<50 % ACGT coverage (dating.py:2578-2582) while STAYING in the parameter vector at logit -1e4. "
+        "`weights_trajectory` records the softmax weights at steps "
+        + ", ".join(str(k) for k in LATENT_TRAJECTORY_STEPS)
+        + ", generated by re-running the reference function at each max_iter. It is not decoration: 250 is a HARD STOP "
+        "on a non-convex surface with no stopping criterion, the correlation is still climbing at step 250, and a port "
+        "that arrives at the right endpoint with the wrong Adam update will diverge on the next alignment. "
+        "The class is 1e-5 because the reference runs the loop in float32 (dating.py:769-770) and JavaScript has no "
+        "float32 arithmetic; MEASURED, the whole float64 trajectory lands at max |dw| 3.823e-07, |dz_root| 2.611e-07, "
+        "|d dists| 1.190e-07 and |d temporal_r| 1.500e-08, with the same six anchor taxa in the same order. "
+        "`alpha` is fitted over ALL pairs including the masked one (dating.py:752), and a float64 port costs 7.96e-08 "
+        "RELATIVE because np.linalg.norm returns float32 there. `t_mrca_ols` is a DIAGNOSTIC from np.polyfit on the "
+        "uncentred calendar axis (dating.py:804-806); the number a report shows comes from run_ols_dating on these "
+        "same `dists`.")]
+
+    srng = np.random.default_rng(SYNTH_SEED + 1)
+    z_small = srng.normal(0.0, 1.0, size=(6, 4))
+    t_small = np.array([1990.0, 1993.5, 1997.0, 2001.25, 2005.0, 2010.5])
+    names_small = [f"s{i}" for i in range(6)]
+    phys_small = hamming(["ACGTACGTACGT", "ACGTACGTACGA", "ACGTACGTAAGA", "ACGTTCGTAAGA",
+                          "ACGTTCGAAAGA", "ACGTTCGAAATA"])
+    for slug, kwargs, note in [
+        ("001_no_phys_dists", {"pairwise_phys_dists": None},
+         "the alpha FALLBACK at dating.py:756-757: with no physical distances alpha is 0.05 / mean(d_latent), a "
+         "HARD-CODED 0.05 substitutions per site. Every rate and every date downstream of that arm is a scale guess and "
+         "not a measurement, and an application that takes it must say so."),
+        ("002_anchor_mask_under_three", {"pairwise_phys_dists": phys_small, "anchor_mask": [True, True, False, False, False, False]},
+         "fewer than three ELIGIBLE taxa: dating.py:744-745 SILENTLY resets the mask to all-true, so a caller who masked "
+         "almost everything gets an unmasked answer and no signal that it happened. The recorded anchor_mask is the "
+         "reset one, which is how a port can tell."),
+        ("003_ineligible_stays_in_the_vector", {"pairwise_phys_dists": phys_small, "anchor_mask": [True, True, True, True, False, False]},
+         "two masked taxa at logit -1e4 (dating.py:773). They contribute nothing to z_root and nothing to the loss, "
+         "their softmax weight underflows to exactly 0 and their gradient is exactly 0 so Adam leaves them alone -- but "
+         "they are STILL in the parameter vector and still in the softmax normalisation, and dropping them would change "
+         "the answer. Their weights are recorded so a port that 'helpfully' excludes them fails here."),
+        ("004_synthetic_n6", {"pairwise_phys_dists": phys_small},
+         "six taxa in four dimensions, no mask, small enough to step through by hand alongside the trajectory."),
+    ]:
+        kw = {"taxa_names": names_small, "learning_rate": 0.05, "max_iter": 250, **kwargs}
+        res = ns["optimize_latent_convex_hull_root"](z_small, t_small, device=device, **kw)
+        out = {k: res[k] for k in ("z_root", "weights", "dists", "dists_latent", "alpha",
+                                   "anchor_taxa", "temporal_r", "temporal_r2", "mu_ols", "t_mrca_ols")}
+        out["anchor_mask"] = res["anchor_mask"]
+        out["weights_trajectory"] = {str(k): ns["optimize_latent_convex_hull_root"](
+            z_small, t_small, device=device, **{**kw, "max_iter": k})["weights"] for k in LATENT_TRAJECTORY_STEPS}
+        cases.append(case(slug,
+                          {"taxon_repr": z_small, "times": t_small, "embed_dim": 4, **kw},
+                          out, "1e-5",
+                          sig("optimize_latent_convex_hull_root", "optimize_latent_convex_hull_root(taxon_repr, times, ...)") + " " + note))
+    w.write("dating", "optimize_latent_convex_hull_root", cases)
+
+    # ---- the two fits, on the reference's own covariance ------------------------------------
+    # dating.py:2698-2709 again, now over the SUBSET (2777-2782): the <50 % coverage holdout is
+    # reserved from the fit, so n = 141 of 142 and cov_train is the 141x141 slice of the 143x143
+    # kernel. The index lists below are into the KERNEL's own taxon order, which is why they are
+    # recorded as `rows`/`cols` on the reference rather than as a re-sliced copy.
+    is_train = ch["coverage"] >= 0.50
+    train_local = [i for i in range(len(ch["taxa"])) if is_train[i]]
+    train_in_kernel = [ch["sub_indices"][i] for i in train_local]
+    train_times = times[train_local]
+    # The RAW seq_dict, as run_mrca_dating passes it (dating.py:2481, 2657) -- not the '*' -> '-'
+    # rewrite DATING_STAR_TO_GAP applies to the model-free tables. With the binary on PATH the binary
+    # does that rewrite itself (dataset.py:840/844), so these divergences are the published ones:
+    # MEASURED, they reproduce fixtures/dating/run_mrca_dating.json's korber `dists` exactly.
+    dists_tn93, root_desc = ns["compute_tree_free_divergences"](
+        ch["seq_dict"], ch["taxa"], ch["dates_map"], root_taxon=root_taxon)
+    dists_by_mode = {"latent": np.asarray(lat["dists"], dtype=np.float64),
+                     "tn93": np.asarray(dists_tn93, dtype=np.float64)}
+    cov_train = np.asarray(K_neural)[np.ix_(train_in_kernel, train_in_kernel)]
+    cov_ref = fixture_ref("compute_neural_covariance_kernel", "000_korber_env_gp160", "K_neural",
+                          rows=train_in_kernel, cols=train_in_kernel)
+
+    reml_cases: List[Dict[str, Any]] = []
+    pgls_cases: List[Dict[str, Any]] = []
+    lambdas = {}
+    for idx, mode in enumerate(("tn93", "latent")):
+        dd = dists_by_mode[mode][train_local]
+        reml = ns["estimate_reml_pagel_lambda"](train_times, dd, cov_train)
+        lambdas[mode] = float(reml["best_lambda"])
+        # The objective, lifted out of the same body by calling it on a grid: minimize_scalar's own
+        # xatol is 1e-5, so best_lambda alone cannot say WHICH of the two is wrong when a port
+        # disagrees, and the profile can.
+        profile = _reml_profile(train_times, dd, cov_train, REML_LAMBDA_GRID)
+        reml_cases.append(case(
+            f"{idx:03d}_korber_{mode}",
+            {"times": train_times, "dists": dd, "cov_matrix": cov_ref, "n": len(train_times),
+             "lambda_grid": REML_LAMBDA_GRID},
+            {"best_lambda": lambdas[mode], "status": reml["status"], "neg_reml_profile": profile},
+            "1e-9",
+            sig("estimate_reml_pagel_lambda", "estimate_reml_pagel_lambda(times, dists, cov_matrix) -> {best_lambda, status, w_K, V}")
+            + f" korber under --distance-mode {mode}: the SAME covariance, fitted against two different response "
+            "vectors. THE PROFILE IS THE TEST AND best_lambda IS NOT. `neg_reml_profile` is "
+            "-2 log L_REML(lambda) = (n-2) log sigma^2 + log det C + log det Xt_Cinv_X at the fixed lambda_grid, all "
+            "float64 on float64 inputs, and it is compared at 1e-9. `best_lambda` comes out of "
+            "scipy.optimize.minimize_scalar(method='bounded') at its default xatol of 1e-5, so two correct "
+            "implementations of this objective will not choose the same iterates; it is compared at 1e-4 ABSOLUTE, "
+            "which is the optimiser's own tolerance and not a concession. MEASURED for the record: a faithful "
+            "transcription of _minimize_scalar_bounded takes scipy's own 12 evaluations here and lands within 1.3e-08."))
+        for ci_method in ("fieller", "delta"):
+            eff_ridge = float(np.clip(1.0 - lambdas[mode], 0.01, 0.20))
+            res = ns["run_pgls_dating"](train_times, dd, cov_train, ridge=eff_ridge,
+                                        pagel_lambda=lambdas[mode], ci_method=ci_method,
+                                        seq_len=3 * ch["L"], n_boot=1000)
+            pgls_cases.append(case(
+                f"{len(pgls_cases):03d}_korber_{mode}_{ci_method}",
+                {"times": train_times, "dists": dd, "cov_matrix": cov_ref, "ridge": eff_ridge,
+                 "pagel_lambda": lambdas[mode], "t_ref": None, "ci_method": ci_method,
+                 "seq_len": 3 * ch["L"], "n_boot": 1000, "n": len(train_times)},
+                {k: v for k, v in res.items() if k != "times"},
+                "1e-9",
+                sig("run_pgls_dating", "run_pgls_dating(times, dists, cov_matrix, ridge, pagel_lambda, t_ref=None, ci_method='fieller', seq_len=None, n_boot=1000)")
+                + f" korber under --distance-mode {mode}, ci_method '{ci_method}'. `pagel_lambda` is an INPUT here, "
+                "pinned at the value the REML table above produces, so this case measures the FIT and not the "
+                "optimiser -- which is why it can be held at 1e-9 while the chained answer cannot. MEASURED at this "
+                "commit with the reference's own lambda: a float64 spectral port reproduces every field of this record "
+                "at worst |delta| 2.5e-11, t_mrca to 1.2e-11 years. "
+                "TWO NUMBERS UNDER ONE NAME (DATING Q8): the CLI PRINTS `nugget ridge = "
+                f"{eff_ridge:.4f}` -- its own clip of 1 - lambda* into [0.01, 0.20], and the value passed in as `ridge` "
+                f"-- while the returned record ships 'ridge': {float(res['ridge']):.12g}, because pagel_lambda is not "
+                "None so the ridge argument NEVER reaches the covariance (dating.py:1352-1357) and 1466 recomputes the "
+                "field as 1 - eff_lam. A page must not show both."))
+
+    # synthetic REML arms
+    srng2 = np.random.default_rng(SYNTH_SEED + 2)
+    t8 = np.array([2000.0, 2001.0, 2002.0, 2003.5, 2005.0, 2006.0, 2008.0, 2010.0])
+    d8 = np.array([0.010, 0.014, 0.019, 0.026, 0.031, 0.037, 0.046, 0.055])
+    eye8 = np.eye(8)
+    reml_cases.append(case(
+        f"{len(reml_cases):03d}_identity_kernel",
+        {"times": t8, "dists": d8, "cov_matrix": eye8, "n": 8, "lambda_grid": REML_LAMBDA_GRID},
+        {"best_lambda": float(ns["estimate_reml_pagel_lambda"](t8, d8, eye8)["best_lambda"]),
+         "status": "OPTIMAL_REML",
+         "neg_reml_profile": _reml_profile(t8, d8, eye8, REML_LAMBDA_GRID)},
+        "1e-9",
+        sig("estimate_reml_pagel_lambda", "estimate_reml_pagel_lambda(times, dists, cov_matrix)")
+        + " C(lambda) = lambda*I + (1-lambda)*I = I for EVERY lambda, so the objective is exactly flat and the returned "
+        "lambda is whichever point the bracket happens to stop at -- a degenerate case that says nothing about "
+        "phylogenetic signal and everything about the minimiser. The flat profile is the assertion; best_lambda is "
+        "recorded for completeness and is not worth a tight bound."))
+    rank_def = np.ones((6, 6))
+    t6 = np.array([1999.0, 2000.5, 2002.0, 2004.0, 2006.5, 2009.0])
+    d6 = np.array([0.008, 0.011, 0.015, 0.021, 0.028, 0.034])
+    reml_cases.append(case(
+        f"{len(reml_cases):03d}_rank_deficient_kernel",
+        {"times": t6, "dists": d6, "cov_matrix": rank_def, "n": 6, "lambda_grid": REML_LAMBDA_GRID},
+        {"best_lambda": float(ns["estimate_reml_pagel_lambda"](t6, d6, rank_def)["best_lambda"]),
+         "status": "OPTIMAL_REML",
+         "neg_reml_profile": _reml_profile(t6, d6, rank_def, REML_LAMBDA_GRID)},
+        "1e-9",
+        sig("estimate_reml_pagel_lambda", "estimate_reml_pagel_lambda(times, dists, cov_matrix)")
+        + " an all-ones kernel: rank 1, so five of the six eigenvalues are zero up to rounding and np.maximum(w, 0) at "
+        "dating.py:1506 clamps whichever came out negative. The clip of lambda into [0.001, 0.999] at 1352 is what "
+        "keeps C invertible -- w_c is floored at 1-lambda >= 0.001 -- and this case is where a port that skipped the "
+        "clamp or the clip produces infinities."))
+
+    # synthetic PGLS arms
+    K6 = np.eye(6) * 0.6 + 0.4
+    pgls_cases.append(case(
+        f"{len(pgls_cases):03d}_additive_ridge_no_lambda",
+        {"times": t6, "dists": d6, "cov_matrix": K6, "ridge": 0.05, "pagel_lambda": None,
+         "t_ref": None, "ci_method": "fieller", "seq_len": None, "n_boot": 1000, "n": 6},
+        {k: v for k, v in ns["run_pgls_dating"](t6, d6, K6, ridge=0.05, pagel_lambda=None).items() if k != "times"},
+        "1e-9",
+        sig("run_pgls_dating", "run_pgls_dating(times, dists, cov_matrix, ridge=0.05, pagel_lambda=None)")
+        + " the ADDITIVE arm at dating.py:1355-1357, C = K + ridge*I, which is the only way the `ridge` argument ever "
+        "reaches the covariance. The CLI never takes it (2799-2802 always passes a lambda), and in this arm the "
+        "returned 'ridge' is the argument itself rather than 1 - eff_lam."))
+    d6_back = np.array([0.034, 0.028, 0.021, 0.015, 0.011, 0.008])
+    pgls_cases.append(case(
+        f"{len(pgls_cases):03d}_non_positive_rate",
+        {"times": t6, "dists": d6_back, "cov_matrix": K6, "ridge": 0.05, "pagel_lambda": 0.5,
+         "t_ref": None, "ci_method": "fieller", "seq_len": None, "n_boot": 1000, "n": 6},
+        {k: v for k, v in ns["run_pgls_dating"](t6, d6_back, K6, ridge=0.05, pagel_lambda=0.5).items() if k != "times"},
+        "1e-9",
+        sig("run_pgls_dating", "run_pgls_dating(times, dists, cov_matrix, ...)")
+        + " a clock running BACKWARDS: mu <= 1e-12, so status is NON_POSITIVE_RATE, t_mrca and se_mrca come back NaN, "
+        "no interval is computed at all and fieller_g is NaN (dating.py:1390-1392). The same ladder run_ols_dating has."))
+    d6_flat = np.array([0.030, 0.0301, 0.0302, 0.0304, 0.0306, 0.0308])
+    pgls_cases.append(case(
+        f"{len(pgls_cases):03d}_mrca_after_earliest_sample",
+        {"times": t6, "dists": d6_flat, "cov_matrix": K6, "ridge": 0.05, "pagel_lambda": 0.5,
+         "t_ref": None, "ci_method": "fieller", "seq_len": None, "n_boot": 1000, "n": 6},
+        {k: v for k, v in ns["run_pgls_dating"](t6, d6_flat, K6, ridge=0.05, pagel_lambda=0.5).items() if k != "times"},
+        "1e-9",
+        sig("run_pgls_dating", "run_pgls_dating(times, dists, cov_matrix, ...)")
+        + " the ancestor lands INSIDE the sampling window, and the reference DISCARDS the estimate rather than flagging "
+        "it: t_mrca and se_mrca are NaN and both intervals stay [NaN, NaN] (dating.py:1396-1399), which a page has to "
+        "be able to say out loud."))
+    t3 = np.array([2001.0, 2005.0, 2010.0])
+    d3 = np.array([0.010, 0.020, 0.032])
+    K3 = np.eye(3) * 0.7 + 0.3
+    pgls_cases.append(case(
+        f"{len(pgls_cases):03d}_n_equals_3",
+        {"times": t3, "dists": d3, "cov_matrix": K3, "ridge": 0.05, "pagel_lambda": 0.8,
+         "t_ref": None, "ci_method": "fieller", "seq_len": None, "n_boot": 1000, "n": 3},
+        {k: v for k, v in ns["run_pgls_dating"](t3, d3, K3, ridge=0.05, pagel_lambda=0.8).items() if k != "times"},
+        "1e-9",
+        sig("run_pgls_dating", "run_pgls_dating(times, dists, cov_matrix, ...)")
+        + " the smallest n the function accepts (it raises at n < 3, dating.py:1320-1321). df = max(1, n-2) = 1, so "
+        "t.ppf(0.975, 1) = 12.706 and the intervals are enormous -- which is the correct answer and is what a reader "
+        "must see rather than a narrow one."))
+    w.write("dating", "estimate_reml_pagel_lambda", reml_cases)
+    w.write("dating", "run_pgls_dating", pgls_cases)
+
+    return {"dating_reference_source": provenance,
+            "dating_model_example": {
+                "command": f"hyphaeon dating -a examples/{fasta} --root-taxon {root_taxon} --no-tree --method all --cpu",
+                "alignment": fasta, "root_taxon": root_taxon, "device": "cpu",
+                "n_taxa": n_aln, "n_dated": len(ch["taxa"]), "n_train": len(train_local),
+                "n_codons": ch["n_codons"], "embed_dim": embed_dim,
+                "pagel_lambda": lambdas, "root_description_tn93": root_desc,
+                "root_description_latent": f"latent_convex_hull (α={lat['alpha']:.5f} subs/site/unit, R={lat['temporal_r']:+.3f})",
+                "model_safetensors_sha256": ch["weights_sha256"],
+                "model_safetensors_bytes": ch["weights_bytes"],
+                "trajectory_steps": LATENT_TRAJECTORY_STEPS,
+                "reml_lambda_grid": REML_LAMBDA_GRID}}
+
+
+def _reml_profile(times, dists, cov_matrix, grid) -> List[float]:
+    """`estimate_reml_pagel_lambda`'s objective (dating.py:1514-1537) on a fixed grid.
+
+    The objective is a CLOSURE inside the lifted body, so it cannot be reached by name; it is
+    restated here, once, and the restatement is checked by the fact that the grid's argmin brackets
+    the `best_lambda` the lifted body returns (asserted below).
+    """
+    import scipy.linalg as la
+    n = len(times)
+    t_ref = float(np.mean(times))
+    X = np.column_stack([times - t_ref, np.ones(n)])
+    w_K, V = la.eigh(cov_matrix)
+    w_K = np.maximum(w_K, 0.0)
+    Z = V.T @ X
+    u = V.T @ np.asarray(dists, dtype=np.float64)
+    out = []
+    for lam in grid:
+        w_c = lam * w_K + (1.0 - lam)
+        inv_w = 1.0 / np.maximum(w_c, 1e-12)
+        Zs = Z * inv_w[:, None]
+        A = Z.T @ Zs
+        b = Zs.T @ u
+        try:
+            beta = la.solve(A, b)
+        except Exception:
+            out.append(1e9)
+            continue
+        res_ss = float(np.sum((u ** 2) * inv_w) - beta.T @ b)
+        if res_ss <= 0:
+            out.append(1e9)
+            continue
+        sigma2 = res_ss / max(1, n - 2)
+        _, ld = np.linalg.slogdet(A)
+        out.append(float((n - 2) * np.log(sigma2) + float(np.sum(np.log(np.maximum(w_c, 1e-12)))) + ld))
+    return out
+
+
 def gen_attribution(w: Writer, model_sha: str) -> None:
     from hyphaeon.attribution import attribute_selection
     from hyphaeon.inference import predict_site_lrts
@@ -2250,18 +2876,18 @@ def gen_e2e(w: Writer, model_sha: str, only_cases: List[str] | None = None) -> N
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--only", action="append", choices=["stats", "filter", "evaluation", "epistasis", "phenotype", "dataset", "dates", "dating", "attribution", "dms", "e2e"], help="generate only these modules")
+    ap.add_argument("--only", action="append", choices=["stats", "filter", "evaluation", "epistasis", "phenotype", "dataset", "dates", "dating", "dating_model", "attribution", "dms", "e2e"], help="generate only these modules")
     ap.add_argument("--e2e-case", action="append", help="within e2e, generate only the cases whose name contains one of these substrings; the manifest keeps the other cases' counts, sizes and wall times")
     ap.add_argument("--skip-model", action="store_true", help="skip attribution, dms and e2e (no weights needed)")
     ap.add_argument("--skip-e2e", action="store_true")
     args = ap.parse_args()
 
-    wanted = set(args.only) if args.only else {"stats", "filter", "evaluation", "epistasis", "phenotype", "dataset", "dates", "dating", "attribution", "dms", "e2e"}
+    wanted = set(args.only) if args.only else {"stats", "filter", "evaluation", "epistasis", "phenotype", "dataset", "dates", "dating", "dating_model", "attribution", "dms", "e2e"}
     # Fixtures always record the canonical MDS sign convention: every in-process load_alignment_and_tree call
     # (attribution, dms, the dataset cases that do not pass mds_sign explicitly, filter e2e) reads this env var.
     os.environ["HYPHAEON_MDS_SIGN"] = "canonical"
     if args.skip_model:
-        wanted -= {"attribution", "dms", "e2e"}
+        wanted -= WEIGHTS_GROUPS
     if args.skip_e2e:
         wanted -= {"e2e"}
 
@@ -2271,20 +2897,24 @@ def main() -> int:
     w = Writer()
     model_sha = sha256_of(MODEL_PATH) if MODEL_PATH.exists() else None
     model_bytes = MODEL_PATH.stat().st_size if MODEL_PATH.exists() else None
-    if wanted & {"attribution", "dms", "e2e"} and model_sha is None:
+    # Only MODEL_SHA_GROUPS is gated on a local file: `dating_model` resolves its weights through
+    # hyphaeon.weights, which falls back to the Hugging Face cache exactly as the reference CLI does,
+    # and hashes whatever it actually loaded.
+    if wanted & MODEL_SHA_GROUPS and model_sha is None:
         raise SystemExit(f"model weights not found at {MODEL_PATH}; set HYPHAEON_WEIGHTS or use --skip-model")
     # A partial run that touches no model-dependent module keeps the previous run's weights record:
     # attribution/, dms/ and e2e/ are still on disk and their provenance is still the hash that made
     # them. Nulling it because THIS run needed no weights would falsify those files (and
     # js/test/fixtures.test.js asserts the field is a sha256). `dates` is the module this is for: it
     # is four string parsers and needs no weights, no torch and no model.
-    if model_sha is None and not (wanted & {"attribution", "dms", "e2e"}):
-        model_sha = previous.get("model_safetensors_sha256")
-        model_bytes = previous.get("model_safetensors_bytes")
+    if not (wanted & MODEL_SHA_GROUPS):
+        model_sha = previous.get("model_safetensors_sha256", model_sha)
+        model_bytes = previous.get("model_safetensors_bytes", model_bytes)
     t0 = time.time()
     steps = [("stats", lambda: gen_stats(w)), ("filter", lambda: gen_filter(w)), ("evaluation", lambda: gen_evaluation(w)),
              ("epistasis", lambda: gen_epistasis(w)), ("phenotype", lambda: gen_phenotype(w)), ("dataset", lambda: gen_dataset(w)),
              ("dates", lambda: gen_dates(w)), ("dating", lambda: gen_dating(w)),
+             ("dating_model", lambda: gen_dating_model(w, model_sha)),
              ("attribution", lambda: gen_attribution(w, model_sha)), ("dms", lambda: gen_dms(w, model_sha)), ("e2e", lambda: gen_e2e(w, model_sha, args.e2e_case))]
     extra: Dict[str, Any] = {}
     for name, fn in steps:
@@ -2371,6 +3001,13 @@ def main() -> int:
             "DATING Q5: run_restricted_spline_clock_dating solves UNCENTRED normal equations on a calendar axis (dating.py:1857-1871). MEASURED cond(X_sp.T X_sp) = 9.307e12 on korber, so about five significant figures of the spline's t_mrca survive: partial-pivot Gaussian elimination reproduces LAPACK's answer to 1.1e-8 years there and 9.3e-7 on H1N1, and merely reassociating the reference's own products (multiplying by the identity C_inv first, as it does) moves it by 3.5e-10. The spline fixtures are pinned at 1e-5 for that reason; centring would change the answer and is not done.",
             "DATING Q6: verify_coding_alignment SILENTLY MUTATES the alignment it is handed, trimming L mod 3 trailing nucleotides (dating.py:163-174, auto_trim_trailing defaults True) and printing a notice to stdout, and every distance downstream is then computed on the trimmed sequences. MEASURED on examples/H1N1_2009_pandemic.fasta: without the trim every one of its 95 divergences is wrong and t_MRCA moves from 2009.0426391755814 to 2009.0426390275454. examples/korber_env_gp160.fasta is 2943 nt and is unaffected.",
             "DATING Q7: run_ols_dating initialises ci_bootstrap to None at 1246 and never assigns it, so it ships in the exported JSON as a permanent null (1285). Its three bootstrap ci_methods -- poisson, residual-boot/wild and jackknife/loocv -- are reached by an if/elif chain whose ELSE is Fieller, so an unrecognised ci_method string silently becomes Fieller rather than raising.",
+            "DATING Q8: two different numbers ship under the name 'ridge'. run_mrca_dating:2792 computes effective_ridge = clip(1 - lambda*, 0.01, 0.20), PRINTS it as `nugget ridge = ...` and passes it to run_pgls_dating -- which then ignores it completely, because pagel_lambda is not None and the covariance takes the Pagel branch at dating.py:1352-1353. Line 1466 recomputes the returned field as 1 - eff_lam. MEASURED on korber under tn93 divergences: the CLI prints 0.2000 and the JSON ships pgls.ridge = 0.30157452782705985. A page must not show both, and a port must not 'use the ridge'.",
+            "DATING Q9: the covariance kernel is eigendecomposed twice per fit and the first result is thrown away. estimate_reml_pagel_lambda returns w_K and V at dating.py:1545-1546 precisely so run_pgls_dating can reuse them, but that reuse branch (1331-1336) fires only when ridge == 'auto', and run_mrca_dating:2799 always passes a float -- so la.eigh runs again at 1347 on the same matrix. run_restricted_spline_clock_dating decomposes it a third time at 1845 whenever the model ran. At the taxon caps an application works at, that is two wasted O(N^3) per date.",
+            "DATING Q10: loading the model silently changes the SPLINE. dating.py:2842-2844 sets spline_cov = cov_train whenever the neural path ran, so the restricted spline is an OLS spline without the model and a GLS spline with it, on IDENTICAL divergences. MEASURED on korber under tn93 divergences: spline.beta_0 moves from -4.386825916889575 to -1.7112000894725579, spline.t_mrca from 1938.7746674292187 to 1864.5477949, and the clock selection flips from Restricted Spline to Linear PGLS. Phase 3's shipped spline number therefore changes when the model-based estimators are switched on; that is a consequence to state, not a regression.",
+            "DATING Q11: --distance-mode auto is NOT 'tn93 unless there is a tree'. With no tree and the model available it resolves to LATENT (dating.py:2519-2523), so under `--method all` the divergences fed to every estimator, the ordinary least-squares one included, are alpha * ||z_i - z_root|| from the convex-hull root rather than TN93 distances. MEASURED on korber: ols.t_mrca is 1893.91 under tn93 and 1926.81 under latent, ols.mu 0.001169 against 0.000555. A report must name the DIVERGENCE SOURCE and not only the estimator, or the two are indistinguishable to a reader.",
+            "DATING Q12: optimize_latent_convex_hull_root's loss is not the correlation it reports. dating.py:786-789 computes cov with torch.mean (divisor m) while both standard deviations use torch's default correction=1 (divisor m-1), so the maximised quantity is Pearson's r scaled by (m-1)/m. It is monotone in r, so the argmax is unmoved and the trajectory is unaffected in any way a reader could see -- and temporal_r at 803 is recomputed with np.corrcoef, so the REPORTED correlation is a true r. Flagged rather than fixed: changing the loss would change the Adam steps.",
+            "DATING Q13: the latent root is a fixed 250-step Adam trajectory, not a converged optimum. dating.py:778-795 runs exactly max_iter steps at lr 0.05 from a closed-form initialisation with no stopping criterion and no RNG, so it is perfectly reproducible and perfectly arbitrary: measured upstream, one extra step moves t_MRCA by 1.2e-3 years, 250 more move it by 0.26 years, and the correlation is still climbing at the cut-off. Any port must replay the trajectory rather than optimise the objective -- a better optimiser reproduces nothing. fixtures/dating/optimize_latent_convex_hull_root.json records the weights at ten intermediate steps for exactly this reason.",
+            "DATING Q14: splits.extract_cross_taxa_attentions_and_embeddings is correct only at window_size == 1. splits.py:152 divides the accumulated attention by batch_size * num_layers where the sum ran over batch_size * window_size sites, and :147 takes the central codon index alone while the docstring claims pooling across all sites. Both are exact at the only configuration the exporter emits (window_size 1) and both would be wrong above it.",
         ],
         "counts": counts,
         "bytes": sizes,
