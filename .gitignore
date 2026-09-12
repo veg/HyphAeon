@@ -87,5 +87,12 @@ tests/test_drosophila_preparation.py
 weights/
 *.pt
 *.safetensors
+# …except the suite weights at the repository root. They were tracked on the js-port line
+# (phase-4b) and the reconcile onto main silently untracked them, because main's ignore list
+# carries the blanket rule above. CI's parity job runs the Python reference with
+# HYPHAEON_WEIGHTS=$ENGINE_DIR/model.safetensors and HF_HUB_OFFLINE=1, so a missing file is not
+# a slow path, it is every reference run dying at startup (measured: 23 of 23 failed at ~2.6 s
+# on veg/primaeon run 34714101215).
+!/model.safetensors
 REVIEW.md
 parity/
