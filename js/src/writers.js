@@ -918,3 +918,341 @@ export function graphml(edges, nodes = []) {
 	out += '</graph></graphml>';
 	return out;
 }
+
+// ---------------------------------------------------------------------------------------------
+// hyphaeon/temporal.py:762-860 — the three tables and the summary of the temporal pillar
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * `repr(np.float32(x))` — the shortest decimal that round-trips through float32, formatted as numpy
+ * formats it (and therefore as `DataFrame.to_csv` writes a float32 column).
+ *
+ * WHY A SECOND REPR AT ALL. `_sites_summary.csv` mixes dtypes inside one row: `lrt`, `q_static`,
+ * `p_perm`, `q_perm`, `r2_fpca`, the three `t_half`/`fwhm` fields and the four `Wave_k_loading`
+ * columns are float32, while `p_static`, `peak_date`, `peak_intensity`, `mean_intensity` and `auc`
+ * are float64. That is why the acceptance fixture shows `3.062294` for the LRT beside the full
+ * `0.040064235090731856` for the static p — one `pyFloatRepr` for the whole row would print eight or
+ * nine junk digits on eleven of the twenty-seven columns and the file would not diff.
+ *
+ * THE FORMAT RULE, established by probing numpy 2.3.3 / pandas 3.0.5 rather than assumed:
+ * scientific notation iff the DECIMAL EXPONENT OF THE VALUE is < −4 or >= 6 — note "of the value",
+ * not of the rounded digit string. `np.float32(1e-4)` is 9.99999975e-05, whose exponent is −5, so it
+ * prints `1e-04` (scientific, with the carried digit exponent), while `np.float32(2e-4)` is
+ * 2.00000009e-04, exponent −4, and prints `0.0002` (positional). Two values one digit apart, two
+ * different forms; a rule keyed on the digit string gets both wrong. The high cut at 6 is likewise
+ * measured: `999999.94` is positional and `1e+06` is not.
+ *
+ * The exponent field is at least two digits with an explicit sign (`1e-08`, `1e+20`), matching
+ * numpy rather than Python's float repr, which shares the two-digit padding but cuts at
+ * −4 / 16 instead.
+ *
+ * @param {number} x any finite number; it is rounded to float32 first, as storing it in the
+ *   reference's float32 column does
+ * @returns {string} `'nan'`, `'inf'`, `'-inf'` for the non-finite cases (pandas writes NaN as the
+ *   empty string in CSV, which is the caller's business, not this function's)
+ */
+export function pyFloat32Repr(x) {
+	if (Number.isNaN(x)) return 'nan';
+	if (x === Infinity) return 'inf';
+	if (x === -Infinity) return '-inf';
+	const v = Math.fround(x);
+	if (v === 0) return Object.is(v, -0) ? '-0.0' : '0.0';
+	const neg = v < 0;
+	const a = Math.abs(v);
+
+	// The exponent of the VALUE, before any shortest-digit rounding can carry it upward. 20 digits
+	// is far more than a float32 needs and cannot itself carry (the nearest float32 to a power of
+	// ten is ~6e-8 away in relative terms).
+	const rawExp = parseInt(a.toExponential(20).split('e')[1], 10);
+
+	// The shortest digit string that round-trips through float32: float32 needs at most 9.
+	let digits = '';
+	let digitExp = 0;
+	for (let p = 1; p <= 9; p++) {
+		const r = roundSignificantHalfEven(a, p, rawExp);
+		if (Math.fround(Number(r.digits[0] + '.' + r.digits.slice(1) + 'e' + r.exp)) === a) {
+			digits = r.digits.replace(/0+$/, '') || '0';
+			digitExp = r.exp;
+			break;
+		}
+	}
+	if (digits === '') throw new RangeError(`pyFloat32Repr: no 9-digit round trip for ${x}`);
+
+	let out;
+	if (rawExp < -4 || rawExp >= 6) {
+		out =
+			digits[0] +
+			(digits.length > 1 ? '.' + digits.slice(1) : '') +
+			'e' +
+			(digitExp < 0 ? '-' : '+') +
+			String(Math.abs(digitExp)).padStart(2, '0');
+	} else {
+		const decpt = digitExp + 1;
+		if (decpt <= 0) out = '0.' + '0'.repeat(-decpt) + digits;
+		else if (decpt >= digits.length) out = digits + '0'.repeat(decpt - digits.length) + '.0';
+		else out = digits.slice(0, decpt) + '.' + digits.slice(decpt);
+	}
+	return neg ? '-' + out : out;
+}
+
+/**
+ * `a` rounded to `p` significant decimal digits, HALF-TO-EVEN on the exact binary value, with the
+ * carry (999… → 1000…) folded back into the exponent.
+ *
+ * WHY NOT `toExponential(p - 1)`. ECMAScript specifies ties AWAY FROM ZERO there, and dragon4 —
+ * which is what numpy prints with — rounds half to even. MEASURED on the acceptance fixture: the
+ * float32 2009.53125 is exactly halfway between the 8-digit decimals 2009.5312 and 2009.5313, so
+ * `toExponential(7)` gives `2009.5313` and numpy writes `2009.5312`. Twelve of the acceptance run's
+ * `t_half_end` cells land on that tie, which is precisely the kind of difference a CSV diff turns
+ * into twelve spurious failures.
+ *
+ * The exact expansion is the same BigInt construction {@link pyFormatFixed} uses: a double is
+ * `mant · 2^exp2` exactly, so the quotient and its remainder against `10^k` decide the rounding with
+ * no floating point in the loop.
+ *
+ * @param {number} a positive, finite
+ * @param {number} p significant digits, >= 1
+ * @param {number} rawExp floor(log10(a))
+ * @returns {{digits: string, exp: number}} `digits` has exactly p characters
+ */
+function roundSignificantHalfEven(a, p, rawExp) {
+	const view = new DataView(new ArrayBuffer(8));
+	view.setFloat64(0, a);
+	const bits = view.getBigUint64(0);
+	const expBits = Number((bits >> 52n) & 0x7ffn);
+	let mant = bits & ((1n << 52n) - 1n);
+	let exp2;
+	if (expBits === 0) {
+		exp2 = -1074;
+	} else {
+		mant |= 1n << 52n;
+		exp2 = expBits - 1075;
+	}
+	let exp = rawExp;
+	for (let attempt = 0; attempt < 3; attempt++) {
+		const k = exp - p + 1;
+		let num = mant;
+		let den = 1n;
+		if (exp2 >= 0) num <<= BigInt(exp2);
+		else den <<= BigInt(-exp2);
+		if (k >= 0) den *= 10n ** BigInt(k);
+		else num *= 10n ** BigInt(-k);
+		let q = num / den;
+		const twice = (num % den) * 2n;
+		if (twice > den || (twice === den && (q & 1n) === 1n)) q += 1n;
+		const s = q.toString();
+		if (s.length === p) return { digits: s, exp };
+		// A carry lengthened the digit string (999 → 1000), or the exponent estimate was one high.
+		exp += s.length > p ? 1 : -1;
+	}
+	throw new RangeError(`pyFloat32Repr: could not round ${a} to ${p} significant digits`);
+}
+
+/**
+ * Python's `round(x, n)` — correctly rounded half-to-EVEN on the exact binary value, then converted
+ * back to the nearest double, which is what `_Py_dg_dtoa`/`strtod` do inside `double_round`.
+ *
+ * `temporal.py:840-860` rounds five summary fields (`timespan_years`, `t_min`, `t_max` to 2 places,
+ * `bandwidth_years` to 4, each wave share to 2), and `toFixed` is NOT the same function: it rounds
+ * half away from zero on the decimal expansion.
+ *
+ * @param {number} x
+ * @param {number} digits
+ * @returns {number}
+ */
+export function pyRound(x, digits) {
+	if (!Number.isFinite(x)) return x;
+	return Number(pyFormatFixed(x, digits));
+}
+
+/** The 27 columns of `_sites_summary.csv`, in the reference's order (temporal.py:763-791). */
+export const TEMPORAL_SITES_COLUMNS = Object.freeze([
+	'site', 'ref_aa', 'derived_aa', 'mutation_label', 'domain', 'cross_classification', 'classification',
+	'is_confirmed_sweep', 'is_concordant_sweep', 'is_rescued_sweep', 'lrt', 'p_static', 'q_static',
+	'p_perm', 'q_perm', 'r2_fpca', 'peak_date', 'peak_intensity', 't_half_start', 't_half_end',
+	'fwhm_years', 'mean_intensity', 'auc', 'Wave_1_loading', 'Wave_2_loading', 'Wave_3_loading', 'Wave_4_loading'
+]);
+
+/** The 6 columns of `_curves.csv` (temporal.py:800-808). */
+export const TEMPORAL_CURVES_COLUMNS = Object.freeze(['site', 'mutation_label', 'time', 'selection_intensity', 'sweep_velocity', 'prevalence']);
+
+/** The 5 columns of `_waves.csv` (temporal.py:814-820). */
+export const TEMPORAL_WAVES_COLUMNS = Object.freeze(['time', 'wave_1', 'wave_2', 'wave_3', 'wave_4']);
+
+/** `_summary.json`'s keys, in the reference's insertion order (temporal.py:841-859). */
+export const TEMPORAL_SUMMARY_KEYS = Object.freeze([
+	'alignment', 'tree', 'taxa_total', 'taxa_timestamped', 'codons_total', 'codons_variable',
+	'codons_invariable', 'timespan_years', 't_min', 't_max', 'bandwidth_years', 'sig_static_q10',
+	'stage1_candidates', 'confirmed_sweeps', 'concordant_sweeps', 'rescued_sweeps',
+	'filtered_static_noise', 'fpca_wave_variance_pct', 'runtime_sec'
+]);
+
+/** Summary fields Python holds as float (so `2009.0` prints as `2009.0`, not `2009`). */
+export const TEMPORAL_SUMMARY_FLOAT_KEYS = new Set(['timespan_years', 't_min', 't_max', 'bandwidth_years', 'fpca_wave_variance_pct', 'runtime_sec']);
+
+/** Summary fields Python holds as int. */
+export const TEMPORAL_SUMMARY_INT_KEYS = new Set([
+	'taxa_total', 'taxa_timestamped', 'codons_total', 'codons_variable', 'codons_invariable',
+	'sig_static_q10', 'stage1_candidates', 'confirmed_sweeps', 'concordant_sweeps', 'rescued_sweeps',
+	'filtered_static_noise'
+]);
+
+/** A float32 CSV cell: pandas writes NaN as the empty string (`na_rep=''`). */
+function f32Cell(/** @type {number} */ v) {
+	return Number.isNaN(v) ? '' : pyFloat32Repr(v);
+}
+
+/** A float64 CSV cell. */
+function f64Cell(/** @type {number} */ v) {
+	return Number.isNaN(v) ? '' : pyFloatRepr(v);
+}
+
+/**
+ * `_sites_summary.csv` — one row per codon, site order 1 … L, byte-equal to
+ * `df_sites.to_csv(index=False)` (temporal.py:763-793).
+ *
+ * The dtype of each column is the dtype of the array the reference builds it from, which is why the
+ * eleven float32 columns go through {@link pyFloat32Repr} and the five float64 ones through
+ * `pyFloatRepr`. Booleans print Python's `True`/`False`.
+ *
+ * @param {{
+ *   L: number, refAas: ArrayLike<string>, derivedAas: ArrayLike<string>, mutationLabels: ArrayLike<string>,
+ *   domains: ArrayLike<string>, crossClassification: ArrayLike<string>, classification: ArrayLike<string>,
+ *   isConfirmedSweep: ArrayLike<number|boolean>, isConcordant: ArrayLike<number|boolean>, isRescued: ArrayLike<number|boolean>,
+ *   lrts: ArrayLike<number>, pStatic: ArrayLike<number>, qStatic: ArrayLike<number>,
+ *   pPerm: ArrayLike<number>, qPerm: ArrayLike<number>, r2Fpca: ArrayLike<number>,
+ *   peakTimes: ArrayLike<number>, peakIntensities: ArrayLike<number>,
+ *   tHalfStart: ArrayLike<number>, tHalfEnd: ArrayLike<number>, fwhm: ArrayLike<number>,
+ *   meanIntensity: ArrayLike<number>, aucs: ArrayLike<number>, loadings: ArrayLike<number>, K?: number
+ * }} t `loadings` is row-major `L*K` float32 values.
+ * @returns {string}
+ */
+export function temporalSitesCsv(t) {
+	const K = t.K ?? 4;
+	const lines = [TEMPORAL_SITES_COLUMNS.join(',')];
+	for (let s = 0; s < t.L; s++) {
+		const cells = [
+			String(s + 1),
+			t.refAas[s], t.derivedAas[s], t.mutationLabels[s], t.domains[s],
+			t.crossClassification[s], t.classification[s],
+			t.isConfirmedSweep[s] ? 'True' : 'False',
+			t.isConcordant[s] ? 'True' : 'False',
+			t.isRescued[s] ? 'True' : 'False',
+			f32Cell(t.lrts[s]),
+			f64Cell(t.pStatic[s]),
+			f32Cell(t.qStatic[s]),
+			f32Cell(t.pPerm[s]),
+			f32Cell(t.qPerm[s]),
+			f32Cell(t.r2Fpca[s]),
+			f64Cell(t.peakTimes[s]),
+			f64Cell(t.peakIntensities[s]),
+			f32Cell(t.tHalfStart[s]),
+			f32Cell(t.tHalfEnd[s]),
+			f32Cell(t.fwhm[s]),
+			f64Cell(t.meanIntensity[s]),
+			f64Cell(t.aucs[s])
+		];
+		for (let k = 0; k < 4; k++) cells.push(f32Cell(k < K ? t.loadings[s * K + k] : 0));
+		lines.push(csvRow(cells));
+	}
+	return lines.join('\n') + '\n';
+}
+
+/**
+ * `_curves.csv` — long format, the stage-one candidates only (or the first `min(L, 20)` sites when
+ * nothing passed the floor), T rows each (temporal.py:794-811).
+ *
+ * UPSTREAM BUG REPLICATED (and this is the one that would look like a port defect if it were not):
+ * `selection_intensity` and `sweep_velocity` are written from the SAME array (temporal.py:807-808),
+ * so the two columns are identical in all 14,760 rows of the acceptance fixture. Reproducing it is
+ * what lets the file diff clean against the reference; a surface must name it as an upstream bug
+ * rather than present two columns as two quantities.
+ *
+ * Every numeric cell is float64: the reference passes each value through Python's `float()` before
+ * the DataFrame is built, so even the float32-sourced fields print as float64 here.
+ *
+ * @param {{ exportSites: ArrayLike<number>, mutationLabels: ArrayLike<string>, denseT: ArrayLike<number>,
+ *   velocity: ArrayLike<number>, curves: ArrayLike<number>, T: number }} t `exportSites` is
+ *   0-based; the `site` column is 1-based.
+ * @returns {string}
+ */
+export function temporalCurvesCsv({ exportSites, mutationLabels, denseT, velocity, curves, T }) {
+	const lines = [TEMPORAL_CURVES_COLUMNS.join(',')];
+	for (let i = 0; i < exportSites.length; i++) {
+		const s = exportSites[i];
+		const label = mutationLabels[s];
+		const o = s * T;
+		for (let tIdx = 0; tIdx < T; tIdx++) {
+			const v = velocity[o + tIdx];
+			lines.push(csvRow([String(s + 1), label, f64Cell(denseT[tIdx]), f64Cell(v), f64Cell(v), f64Cell(curves[o + tIdx])]));
+		}
+	}
+	return lines.join('\n') + '\n';
+}
+
+/**
+ * `_waves.csv` — the time axis and the four collective modes, zero-padded when fewer than four
+ * exist (temporal.py:814-820).
+ *
+ * The sign of each wave is a CONVENTION, not a property of the data (D28, `WAVE_SIGN.md`): this file
+ * leaves the page, so whatever produced `waves` must record which convention it used.
+ *
+ * @param {{ denseT: ArrayLike<number>, waves: ArrayLike<number>, nWaves: number, T: number }} t
+ *   `waves` is row-major `4*T`.
+ * @returns {string}
+ */
+export function temporalWavesCsv({ denseT, waves, nWaves, T }) {
+	const lines = [TEMPORAL_WAVES_COLUMNS.join(',')];
+	for (let tIdx = 0; tIdx < T; tIdx++) {
+		const cells = [f64Cell(denseT[tIdx])];
+		for (let k = 0; k < 4; k++) cells.push(f64Cell(k < nWaves ? waves[k * T + tIdx] : 0));
+		lines.push(csvRow(cells));
+	}
+	return lines.join('\n') + '\n';
+}
+
+/**
+ * `_summary.json` — `json.dump(summary_meta, f, indent=2)` (temporal.py:840-860).
+ *
+ * Three things the reference does that a reimplementation would "improve": `timespan_years` and
+ * `bandwidth_years` carry the word "years" whatever `--time-units` was; the rounding is Python's
+ * round-half-to-even at 2 and 4 places, not `toFixed`; and `fpca_wave_variance_pct` is
+ * `round(v * 100, 2)` over the FIRST FOUR shares of a spectrum normalised by the WHOLE spectrum, so
+ * the four need not sum to 100 (the acceptance run's sum to 95.27).
+ *
+ * @param {{
+ *   alignment: string, tree?: string|null, taxaTotal: number, taxaTimestamped: number,
+ *   codonsTotal: number, codonsVariable: number, codonsInvariable: number,
+ *   timespan: number, tMin: number, tMax: number, bandwidth: number, sigStaticQ10: number,
+ *   stage1Candidates: number, confirmedSweeps: number, concordantSweeps: number,
+ *   rescuedSweeps: number, filteredStaticNoise: number, varExplained: ArrayLike<number>,
+ *   runtimeSec?: number|null
+ * }} t
+ * @returns {string}
+ */
+export function temporalSummaryJson(t) {
+	const waves = [];
+	for (let i = 0; i < 4 && i < t.varExplained.length; i++) waves.push(pyRound(t.varExplained[i] * 100, 2));
+	const meta = {
+		alignment: t.alignment,
+		tree: t.tree ?? null,
+		taxa_total: t.taxaTotal,
+		taxa_timestamped: t.taxaTimestamped,
+		codons_total: t.codonsTotal,
+		codons_variable: t.codonsVariable,
+		codons_invariable: t.codonsInvariable,
+		timespan_years: pyRound(t.timespan, 2),
+		t_min: pyRound(t.tMin, 2),
+		t_max: pyRound(t.tMax, 2),
+		bandwidth_years: pyRound(t.bandwidth, 4),
+		sig_static_q10: t.sigStaticQ10,
+		stage1_candidates: t.stage1Candidates,
+		confirmed_sweeps: t.confirmedSweeps,
+		concordant_sweeps: t.concordantSweeps,
+		rescued_sweeps: t.rescuedSweeps,
+		filtered_static_noise: t.filteredStaticNoise,
+		fpca_wave_variance_pct: waves,
+		runtime_sec: t.runtimeSec === null || t.runtimeSec === undefined ? null : pyRound(t.runtimeSec, 2)
+	};
+	return pyJsonDumps(meta, { indent: 2, floatKeys: TEMPORAL_SUMMARY_FLOAT_KEYS, intKeys: TEMPORAL_SUMMARY_INT_KEYS });
+}
