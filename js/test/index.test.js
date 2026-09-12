@@ -69,8 +69,11 @@ const PUBLIC_SURFACE = [
 	'OUTPUT_NAMES_V1',
 	'OUTPUT_SPEC',
 	'OUTPUT_SPEC_V1',
+	'TAXA_OUTPUT_NAMES',
+	'TAXA_OUTPUT_SPEC',
 	'VERIFIED_MODEL_SHA256',
 	'WINDOW_SIZE_DEFAULT',
+	'taxaOutputDivisors',
 	'validateInputBundle',
 	// preprocess/symmetricEigen.js
 	'symmetricEigen',

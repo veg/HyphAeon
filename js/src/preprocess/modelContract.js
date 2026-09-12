@@ -51,6 +51,10 @@
  *     zero diagonal, finite and non-negative distances) with the ranges read from the new spec.
  *   - `OUTPUT_SPEC` (the single-output DM3 artifact), `VERIFIED_MODEL_SHA256`, `OUTPUT_SPEC_V1` and
  *     `OUTPUT_NAMES_V1` are unchanged.
+ *   - `TAXA_OUTPUT_SPEC` / `TAXA_OUTPUT_NAMES` / `taxaOutputDivisors` describe a SECOND artifact,
+ *     `<variant>_taxa.onnx`, added for the dating pillar. They do not change the backbone contract:
+ *     `OUTPUT_SPEC_V1` is still the whole of `<variant>.onnx`, and a runtime that never dates never
+ *     loads the other file. See the block above `TAXA_OUTPUT_SPEC` for why it is separate.
  */
 
 /** Codon table order of `GENETIC_CODE` in dataset.py:27-35: TCAG, third position fastest. */
@@ -300,3 +304,78 @@ export const OUTPUT_SPEC_V1 = Object.freeze([
 
 /** Every output name of the three-output export, in graph order. */
 export const OUTPUT_NAMES_V1 = Object.freeze(OUTPUT_SPEC_V1.map((s) => s.name));
+
+/**
+ * THE DATING PILLAR'S GRAPH, `<variant>_taxa.onnx` (`hyphaeon export-onnx`). A SEPARATE ARTIFACT
+ * from `<variant>.onnx`, with the same four inputs (`INPUT_SPEC`) and these two outputs. The
+ * runtime learns it exists from `models/manifest.json`: `variants.<v>.taxa_onnx_sha256` and
+ * `onnx.taxa_outputs`, both optional — a manifest without them means the dating graph was not
+ * built, and the model-based estimators are unavailable rather than approximated.
+ *
+ * WHY A SEPARATE ARTIFACT. Measured on the real graph, onnxruntime 1.30.0 CPU: onnxruntime does
+ * NOT prune a graph to the requested fetch list — fetching `['lrt']` from a prototype that carried
+ * these two outputs on the backbone cost the same as fetching all five (189.0 vs 188.2 ms at
+ * N=143/B=24). Carrying them on the backbone therefore taxed every MEME, BUSTED, epistasis, DMS
+ * and phenotype site by 2.5–7.3% at one thread and 15–19% at eight, forever, for outputs only the
+ * dating pillar reads. `hyphaeon/export.py` `TaxaGraph` holds the full measurement.
+ *
+ * BOTH OUTPUTS ARE SUMS OVER THE CALL'S SITES, NOT MEANS, and the names say so. The reference
+ * (`hyphaeon/splits.py:24-155` `extract_cross_taxa_attentions_and_embeddings`) receives the whole
+ * alignment in one call and divides at :151-153; the runtime cannot make that call, so it
+ * accumulates these sums across its site batches and divides once:
+ *
+ *     cross_attn = SUM(cross_attn_sum) / (L * num_layers)      // splits.py:152
+ *     taxa_repr  = SUM(taxa_repr_sum)  /  L                    // splits.py:153
+ *
+ * `num_layers` is the row-layer count (6 for this checkpoint, `model_config.json`); `L` is the
+ * total number of sites fed, which for dating is EVERY site, invariable ones included — unlike
+ * `predict_site_lrts`, which runs variable sites only. Accumulate in float64: the graph emits
+ * float32 sums and re-adding them in float32 reintroduces the reassociation error the export
+ * verification measures.
+ *
+ * Shapes, from `hyphaeon/splits.py`:
+ *   - `cross_attn_sum` — `attn_weights[:, :, 1:, 1:].mean(dim=1).sum(dim=0)` accumulated over row
+ *     layers (splits.py:131-132). The root is dropped from BOTH axes, so rows do NOT sum to 1
+ *     (the softmax ran over all `num_species + 1` keys); measured row sums are ~0.98 at 143 taxa
+ *     and ~0.85 at 20. `compute_neural_covariance_kernel` (`hyphaeon/dating.py:78`) expects
+ *     exactly that and centres across taxa before correlating.
+ *   - `taxa_repr_sum` — `x_full[:, 1:, central_idx, :].sum(dim=0)` (splits.py:147-149): the exact
+ *     sibling of `root_repr` one index over, taxa 1..N instead of the [ROOT] token at 0.
+ *
+ * Upstream quirks recorded, not fixed (flag upstream; the port replicates them):
+ *   - splits.py:152 divides by `batch_size * num_layers` where the sum ran over
+ *     `batch_size * window_size` sites per layer. The two agree only at `window_size == 1`, which
+ *     is the only configuration exported (`WINDOW_SIZE_DEFAULT`).
+ *   - splits.py:147 takes `central_idx` alone while its docstring claims pooling "across all codon
+ *     sites".
+ *   - splits.py builds the embeddings and runs the column layers OUTSIDE `torch.no_grad()`
+ *     (:52-78 precede the `with` at :98), so the reference holds an autograd graph it never uses.
+ */
+export const TAXA_OUTPUT_SPEC = Object.freeze([
+	Object.freeze({
+		name: 'cross_attn_sum',
+		dtype: 'float32',
+		dims: ['num_species', 'num_species'],
+		note: 'taxon-by-taxon attention, mean over heads, summed over this call\'s sites and over row layers; divide by L * num_layers'
+	}),
+	Object.freeze({
+		name: 'taxa_repr_sum',
+		dtype: 'float32',
+		dims: ['num_species', 'embed_dim'],
+		note: 'per-taxon embedding at the central window position, summed over this call\'s sites; divide by L'
+	})
+]);
+
+/** Every output name of the dating graph, in graph order. */
+export const TAXA_OUTPUT_NAMES = Object.freeze(TAXA_OUTPUT_SPEC.map((s) => s.name));
+
+/**
+ * The divisors the caller applies to the accumulated sums. `numLayers` is the graph's row-layer
+ * count and `totalSites` the number of sites actually fed across every call.
+ */
+export function taxaOutputDivisors(totalSites, numLayers) {
+	return Object.freeze({
+		cross_attn_sum: totalSites * numLayers,
+		taxa_repr_sum: totalSites
+	});
+}
