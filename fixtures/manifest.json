@@ -1,7 +1,7 @@
 {
  "generator": "scripts/gen_fixtures.py",
- "engine_commit": "a4738ab9fc0255da9ba129cbc61f71e15d13e3dd",
- "generated_at": "2026-09-12T13:24:11-0700",
+ "engine_commit": "8a3ce788bc8988aee20a14c73ac67c93b371cb34",
+ "generated_at": "2026-09-12T14:20:22-0700",
  "model_safetensors_sha256": "0278dff092601acca959aa64bf6742ad17a38a5e6e31eabd424d6d224eea6ebd",
  "model_safetensors_bytes": 9842824,
  "environment": {
@@ -166,6 +166,12 @@
    "run_pgls_dating": 8,
    "run_restricted_spline_clock_dating_gls": 2,
    "run_mrca_dating_model": 2
+  },
+  "temporal": {
+   "numeric": 22,
+   "thin_svd": 6,
+   "root": 8,
+   "chain": 11
   }
  },
  "bytes": {
@@ -237,10 +243,14 @@
   "dating/estimate_reml_pagel_lambda.json": 27220,
   "dating/run_pgls_dating.json": 79093,
   "dating/run_restricted_spline_clock_dating_gls.json": 21245,
-  "dating/run_mrca_dating_model.json": 126499
+  "dating/run_mrca_dating_model.json": 126499,
+  "temporal/numeric.json": 62874,
+  "temporal/thin_svd.json": 58950,
+  "temporal/root.json": 74410,
+  "temporal/chain.json": 211562
  },
- "total_bytes": 8972771,
- "elapsed_seconds": 15.3,
+ "total_bytes": 9380567,
+ "elapsed_seconds": 1.5,
  "e2e_wall_seconds": {
   "meme_bat_oas1": 1.7,
   "meme_Smc6": 1.6,
@@ -347,5 +357,7 @@
    0.99,
    0.999
   ]
- }
+ },
+ "temporal_rng": "temporal.run_temporal_surveillance stage two: np.random.RandomState(42).permutation(N) (MT19937); the library uses xoshiro256** per-draw substreams (D17), so p_perm, q_perm, is_confirmed_sweep and both classification columns are statistical class only. Every chain case but one runs at n_permutations=0, where the estimator is deterministic.",
+ "temporal_wave_sign": "temporal.py has NO sign convention and writes the solver's raw right singular vectors. The library's default is `waveSign: 'canonical'` (D28, WAVE_SIGN.md): each retained v_j is flipped so its largest-magnitude entry is positive, BEFORE the loadings are computed. thin_svd.json records both `v_raw` and `v_canonical` so a replay can pin either."
 }

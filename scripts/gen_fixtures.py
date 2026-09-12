@@ -91,7 +91,7 @@ import tempfile
 import time
 from io import StringIO
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from importlib.metadata import version as importlib_version
@@ -3032,18 +3032,496 @@ def gen_e2e(w: Writer, model_sha: str, only_cases: List[str] | None = None) -> N
 
 
 # --------------------------------------------------------------------------
+# temporal.py -- the temporal-selection pillar (PLAN-TEMPORAL.md, phase 5)
+# --------------------------------------------------------------------------
+#
+# Three tables, and the reason each is generated the way it is:
+#
+#   numeric.json   np.linspace / np.gradient / np.trapezoid / np.var, straight out of numpy. The
+#                  whole deterministic half of the pillar is these four routines applied to a
+#                  [L, T] matrix, and each has a detail a "mathematically equivalent" transcription
+#                  gets wrong -- linspace's assigned endpoint, gradient's EXACT-equality uniformity
+#                  test and its one-sided edges, trapezoid's pairwise reduction, var's two passes.
+#                  Cases are chosen to put both branches of each on the record.
+#
+#   thin_svd.json  np.linalg.svd(..., full_matrices=False) on small matrices, recorded as the
+#                  quantities the library's Gram-route `dominantTimeModes` must reproduce: the
+#                  singular values, the RAW right singular vectors, the same vectors under the
+#                  canonical sign convention (D28), the rank-k projector V_k V_k^T (which is
+#                  invariant to BOTH sign and rotation and is therefore the primary comparison),
+#                  and the per-row projection residual the fPCA gate reads. One case has two
+#                  DELIBERATELY EQUAL singular values: there the individual vectors are not
+#                  comparable at all and the replay must assert that rather than tolerate it.
+#
+#   chain.json     the REAL `run_temporal_surveillance`, run end to end on synthetic 12-taxon /
+#                  8-codon inputs with the model and the alignment loader stubbed out. Nothing is
+#                  retyped, so the fixture cannot drift from the reference body; what is stubbed is
+#                  exactly the two things this port does not own (a forward pass and an alignment
+#                  loader), and the arithmetic under test is the reference's own. Each case carries
+#                  the four output FILES as text, so one fixture pins the chain and the byte-equal
+#                  writers together.
+#
+#   root.json      `infer_root_sequence` on its own, because the consensus window rule
+#                  (max(3, min(25, int(0.05*N)))), the bincount tie-break and the two unknown-residue
+#                  defaults are not reachable from the chain cases at every N.
+#
+# Neither weights nor a model are needed (the forward pass is an INPUT here), but torch is: temporal.py
+# imports it at module scope and `infer_root_sequence` takes a tensor.
+#
+# THE ONE THING THESE FIXTURES CANNOT PIN. `rng = np.random.RandomState(42)` (temporal.py:651) is
+# MT19937 and the library's generator is xoshiro256** by design (D17), so `p_perm`, `q_perm`,
+# `is_confirmed_sweep`, both classification columns and the three sweep counts are comparable in
+# STATISTICAL class only. Every chain case that is meant to be compared element-wise therefore runs
+# at n_permutations=0, where `p_cand = (1 + 0) / (0 + 1) = 1.0` for every candidate and the whole
+# chain becomes deterministic -- which also drives the escape hatch, since nothing can then clear
+# p <= 0.05. One case runs a real null and is marked "statistical" so the class is on the record too.
+
+TEMPORAL_SYNTH_L = 8
+TEMPORAL_SYNTH_N = 12
+TEMPORAL_SYNTH_T = 16
+
+
+def _temporal_reference():
+    """hyphaeon.temporal with the model and the alignment loader replaced by stubs.
+
+    Returns the module itself: the caller monkeypatches, runs, and restores. Importing the real
+    module (rather than lifting its source) is what keeps the fixture honest -- the arithmetic under
+    test is the reference's own bytes.
+    """
+    import hyphaeon.temporal as temporal_mod
+    return temporal_mod
+
+
+def _aa_invariable(a_tokens: np.ndarray) -> np.ndarray:
+    """dataset.py:1132-1137 `is_aa_invariable`: at most one distinct amino-acid token below 20
+    across ALL taxa, computed before any date filtering. AA level, not codon level."""
+    out = np.zeros(a_tokens.shape[0], dtype=bool)
+    for s in range(a_tokens.shape[0]):
+        vals = {int(v) for v in a_tokens[s] if v < 20}
+        out[s] = len(vals) <= 1
+    return out
+
+
+def _run_temporal_stubbed(a_tokens: np.ndarray, lrts: np.ndarray, attns: np.ndarray,
+                          taxa: List[str], dates: Dict[str, float], out_dir: Path,
+                          **kwargs: Any) -> Dict[str, Any]:
+    """Run the real `run_temporal_surveillance` with `load_model`, `get_device`,
+    `prepare_alignment` and `compute_adaptive_safe_batch_size` stubbed.
+
+    `a_tokens` is [L, N_taxa] amino-acid tokens, `lrts` [L] float32 and `attns` [L, N_taxa] float32:
+    the three things a forward pass would have produced. Everything downstream is the reference's.
+    """
+    import torch
+
+    temporal_mod = _temporal_reference()
+    L, n_taxa = a_tokens.shape
+    inv = _aa_invariable(a_tokens)
+    a_tensor = torch.from_numpy(a_tokens.astype(np.int64)).unsqueeze(-1)   # [L, N, 1], as dataset.py builds it
+    c_tensor = torch.zeros((L, n_taxa, 1), dtype=torch.long)              # codon tokens: never read by the arithmetic
+
+    class _StubModel:
+        def eval(self):
+            return self
+
+        def forward_cached(self, c_chunk, a_chunk, tree_cache, return_attentions=False):
+            n = c_chunk.shape[0]
+            lo = tree_cache["cursor"]
+            tree_cache["cursor"] = lo + n
+            y = torch.from_numpy(np.asarray(lrts[lo:lo + n], dtype=np.float32).reshape(n, 1))
+            ra = torch.from_numpy(np.asarray(attns[lo:lo + n], dtype=np.float32))
+            return y, None, ra
+
+    cache = {"cursor": 0}
+    saved = {name: getattr(temporal_mod, name) for name in
+             ("load_model", "get_device", "prepare_alignment", "compute_adaptive_safe_batch_size")}
+    temporal_mod.load_model = lambda **kw: _StubModel()
+    temporal_mod.get_device = lambda cpu=False: torch.device("cpu")
+    temporal_mod.prepare_alignment = lambda *a, **kw: (c_tensor, a_tensor, None, None, inv, taxa, L, cache)
+    temporal_mod.compute_adaptive_safe_batch_size = lambda *a, **kw: L
+    try:
+        with contextlib.redirect_stdout(StringIO()):
+            result = temporal_mod.run_temporal_surveillance(
+                alignment_path="synthetic.fasta", tree_path=None, dates_source=dict(dates),
+                output_prefix=str(out_dir / "t"), **kwargs)
+    finally:
+        for name, fn in saved.items():
+            setattr(temporal_mod, name, fn)
+    files = {key: (out_dir / f"t_{suffix}").read_text()
+             for key, suffix in (("sites_csv", "sites_summary.csv"), ("curves_csv", "curves.csv"),
+                                 ("waves_csv", "waves.csv"), ("summary_json", "summary.json"))}
+    return {"files": files, "metadata": result["metadata"]}
+
+
+def _temporal_synthetic(seed: int, L: int, n_taxa: int, *, sweepers: List[Tuple[int, int, float]],
+                        gap_taxon: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray, np.ndarray, List[str], Dict[str, float]]:
+    """A small alignment whose amino acids turn over in time at chosen codons.
+
+    `sweepers` is a list of (site, derived token, the fraction of the timeline before which taxa
+    still carry the root residue): a taxon sampled after that point carries the derived residue, so
+    the smoothed attribution at that site rises through the window and the site becomes a candidate.
+    Every other site is invariable, which is what a real surveillance alignment looks like.
+    """
+    rng = np.random.default_rng(seed)
+    dates = np.sort(rng.uniform(2020.0, 2021.0, n_taxa)).astype(np.float32)
+    taxa = [f"seq{i:02d}" for i in range(n_taxa)]
+    a = np.zeros((L, n_taxa), dtype=np.int64)
+    for s in range(L):
+        a[s, :] = (s * 3) % 20                      # one residue everywhere: invariable by construction
+    for site, derived, frac in sweepers:
+        cut = 2020.0 + frac
+        a[site, :] = np.where(dates >= cut, derived, a[site, 0])
+    if gap_taxon is not None:
+        a[:, gap_taxon] = 20                        # the whole column unknown: the Q2 root-taxon path
+    lrts = rng.uniform(0.0, 6.0, L).astype(np.float32)
+    attns = rng.dirichlet(np.ones(n_taxa), size=L).astype(np.float32)   # each row sums to 1, as model.py:471 does
+    return a, lrts, attns, taxa, {t: float(d) for t, d in zip(taxa, dates)}
+
+
+def gen_temporal(w: Writer) -> Dict[str, Any]:
+    import tempfile
+
+    # ---- numeric.json ----------------------------------------------------------------------
+    lin_sig = ("signature: np.linspace(start, stop, num) with endpoint=True -> y[i] = i*step + start, "
+               "then y[num-1] = stop ASSIGNED, not computed (numpy/_core/function_base.py).")
+    grad_sig = ("signature: np.gradient(f, x, edge_order=1) -> numpy reduces to the uniform branch only when "
+                "(np.diff(x) == np.diff(x)[0]).all() EXACTLY; otherwise the three-point non-uniform coefficients "
+                "a=-hs/(hd(hd+hs)), b=(hs-hd)/(hs*hd), c=hd/(hs(hd+hs)). Edges at edge_order=1 are one-sided "
+                "first differences (numpy/lib/_function_base_impl.py).")
+    trap_sig = "signature: np.trapezoid(y, x) -> (np.diff(x) * (y[1:] + y[:-1]) / 2).sum(), reduced PAIRWISE."
+    var_sig = "signature: np.var(x, ddof=0) -> two passes, both pairwise: mean = sum(x)/n, then sum((x-mean)**2)/n."
+
+    numeric_cases: List[Dict[str, Any]] = []
+    # linspace: the acceptance run's own axis, the normalised axis, and the degenerate counts.
+    for name, (start, stop, num, note) in {
+        "acceptance_axis_T60": (2009.2490234375, 2009.9150390625, 60, "the acceptance run's own time axis: two float32 dates, T=60"),
+        "acceptance_axis_T250": (2009.2490234375, 2009.9150390625, 250, "the CLI default T=250 on the same span"),
+        "normalised_axis_T60": (0.0, 1.0, 60, "norm_dense_t, temporal.py:557"),
+        "normalised_axis_T250": (0.0, 1.0, 250, "norm_dense_t at the CLI default"),
+        "two_points": (0.0, 1.0, 2, "T=2: the only shape where np.gradient has no interior"),
+        "single_point": (5.0, 9.0, 1, "num=1: numpy's div=0 branch, [start], and the endpoint assignment is skipped"),
+        "degenerate_span": (3.0, 3.0, 5, "stop == start: step is 0 and every element is start"),
+    }.items():
+        y = np.linspace(start, stop, num)
+        d = np.diff(y)
+        numeric_cases.append(case("linspace_" + name, {"start": start, "stop": stop, "num": num},
+                                  {"y": y, "uniform_for_gradient": bool(len(d) < 2 or np.all(d == d[0])),
+                                   "distinct_spacings": int(len(np.unique(d)))},
+                                  "exact",
+                                  lin_sig + " " + note + " MEASURED: a linspace axis is NOT uniformly spaced in "
+                                  "floating point, so np.gradient takes its non-uniform branch for every real time axis."))
+
+    rng = np.random.default_rng(SYNTH_SEED + 51)
+    grid60 = np.linspace(2009.2490234375, 2009.9150390625, 60)
+    norm60 = np.linspace(0.0, 1.0, 60)
+    uniform60 = np.arange(60, dtype=np.float64) * 0.25          # exactly uniform: the OTHER branch
+    for name, (f, x, note) in {
+        "pulse_on_acceptance_axis": (np.exp(-0.5 * ((grid60 - 2009.6) / 0.05) ** 2), grid60,
+                                     "a Gaussian pulse on the acceptance axis: the non-uniform interior branch"),
+        "ramp_on_normalised_axis": (norm60 ** 2, norm60, "a quadratic on the normalised axis (also non-uniform in float)"),
+        "pulse_on_uniform_axis": (np.exp(-0.5 * ((uniform60 - 7.0) / 1.0) ** 2), uniform60,
+                                  "an EXACTLY uniform axis: numpy's scalar-spacing shortcut, (f[i+1]-f[i-1])/(2h)"),
+        "random_on_acceptance_axis": (rng.normal(size=60), grid60, "noise, so the edges cannot agree by symmetry"),
+        "two_points": (np.array([1.5, -2.25]), np.array([0.0, 0.5]), "T=2: both entries are the same one-sided difference"),
+        "constant": (np.zeros(60), grid60, "an all-zero row: every invariable site, and the source of peak_date == dense_t[0]"),
+    }.items():
+        g = np.gradient(f, x, axis=0)
+        numeric_cases.append(case("gradient_" + name, {"f": f, "x": x},
+                                  {"gradient": g, "positive_part": np.maximum(0.0, g),
+                                   "var_of_positive_part": float(np.var(np.maximum(0.0, g))),
+                                   "trapezoid_over_x": float(_trapezoid_np(np.maximum(0.0, g), x))},
+                                  "1e-9", grad_sig + " " + trap_sig + " " + var_sig + " " + note))
+
+    for name, (y, x, note) in {
+        "positive_pulse_acceptance_axis": (np.maximum(0.0, np.gradient(np.exp(-0.5 * ((grid60 - 2009.6) / 0.05) ** 2), grid60)), grid60,
+                                           "the episodic branch's own integrand over real calendar time (temporal.py:581)"),
+        "unit_interval": (norm60 ** 3, norm60, "the fixation branch integrates over the normalised axis (temporal.py:577)"),
+        "negative_values": (np.linspace(-1.0, 1.0, 60), grid60, "trapezoid does not clamp; the caller does"),
+        "two_points": (np.array([2.0, 4.0]), np.array([0.0, 3.0]), "one trapezoid"),
+        "single_point": (np.array([7.0]), np.array([1.0]), "no trapezoid: numpy sums an empty array to 0"),
+    }.items():
+        numeric_cases.append(case("trapezoid_" + name, {"y": y, "x": x},
+                                  {"integral": float(_trapezoid_np(y, x))}, "1e-9", trap_sig + " " + note))
+
+    for name, (x, note) in {
+        "acceptance_scale": (rng.uniform(0.0, 2e-2, 60), "the scale a real velocity row has (the acceptance run's max is 0.0207)"),
+        "wide_dynamic_range": (np.concatenate([np.zeros(50), rng.uniform(0, 1e6, 10)]), "a one-pass E[x^2]-E[x]^2 loses every digit here"),
+        "constant": (np.full(60, 3.25), "variance 0 exactly"),
+        "single": (np.array([4.0]), "n=1 with ddof=0 is 0.0, not NaN"),
+    }.items():
+        numeric_cases.append(case("var_" + name, {"x": x},
+                                  {"var": float(np.var(x)), "std": float(np.std(x)), "mean": float(np.mean(x))},
+                                  "1e-9", var_sig + " " + note))
+    w.write("temporal", "numeric", numeric_cases)
+
+    # ---- thin_svd.json ---------------------------------------------------------------------
+    svd_sig = ("signature: np.linalg.svd(Z, full_matrices=False) as temporal.py:673 and :731 call it. The library "
+               "replaces it with dominantTimeModes(Z, rows, T, k), which eigendecomposes the T x T Gram Z^T Z and "
+               "returns the right singular vectors only -- NEITHER call site reads U. Compare `sigma`, `projector` "
+               "and `sse` at the strict class (all three are sign- and rotation-invariant); compare `v_canonical` "
+               "only under the D28 sign convention, and only where the adjacent gap is above 0.05.")
+
+    def svd_case(name: str, Z: np.ndarray, k: int, notes: str) -> Dict[str, Any]:
+        u, s, vt = np.linalg.svd(Z, full_matrices=False)
+        kept = min(k, vt.shape[0])
+        V = vt[:kept]
+        pivot = np.argmax(np.abs(V), axis=1)
+        flip = np.array([-1.0 if V[j, pivot[j]] < 0 else 1.0 for j in range(kept)])
+        v_canon = V * flip[:, None]
+        P = V.T @ V
+        recon = u[:, :kept] @ np.diag(s[:kept]) @ vt[:kept, :]
+        sse = np.sum((Z - recon) ** 2, axis=1)
+        sst = np.sum(Z ** 2, axis=1) + 1e-8
+        total = float(np.sum(s ** 2))
+        gaps = [float((s[j] - (s[j + 1] if j + 1 < len(s) else 0.0)) / s[0]) if s[0] > 0 else 0.0 for j in range(kept)]
+        return case(name, {"Z": Z, "rows": int(Z.shape[0]), "T": int(Z.shape[1]), "k": k},
+                    {"sigma": s, "var_explained": (s ** 2) / total if total > 0 else np.zeros(len(s)),
+                     "frobenius_sq": total, "v_raw": V, "v_canonical": v_canon, "sign_flips": flip,
+                     "projector": P, "sse": sse, "sst": sst,
+                     "r2": np.clip(1.0 - sse / sst, 0.0, 1.0), "gaps": gaps},
+                    "1e-9", svd_sig + " " + notes)
+
+    T16 = 16
+    t16 = np.linspace(0.0, 1.0, T16)
+    shapes = np.stack([np.sin(np.pi * t16), np.cos(2 * np.pi * t16), np.exp(-((t16 - 0.3) / 0.1) ** 2), t16 - 0.5])
+    srng = np.random.default_rng(SYNTH_SEED + 52)
+    mix = srng.normal(size=(6, 4)) * np.array([4.0, 3.0, 2.0, 1.0])
+    Z_tall = mix @ shapes + 0.01 * srng.normal(size=(6, T16))
+    Z_tall = (Z_tall - Z_tall.mean(axis=1, keepdims=True)) / (Z_tall.std(axis=1, keepdims=True) + 1e-8)
+    svd_cases = [
+        svd_case("rows_below_T_6x16", Z_tall, 4,
+                 "rows < T: the Gram is singular in its trailing T-rows directions, which the rank cap min(rows, T) discards. "
+                 "This is the shape BOTH reference call sites have in practice."),
+        svd_case("rows_above_T_16x6", Z_tall.T[:, :6].T if False else
+                 ((lambda M: (M - M.mean(axis=1, keepdims=True)) / (M.std(axis=1, keepdims=True) + 1e-8))(
+                     srng.normal(size=(16, 6)) @ np.diag([5.0, 4.0, 3.0, 2.0, 1.0, 0.5]))), 4,
+                 "rows > T: a full-rank T x T Gram."),
+    ]
+    # Rank deficiency: a matrix built from two shapes only, so sigma[2:] are numerically zero.
+    Z_rank2 = (mix[:, :2] @ shapes[:2])
+    Z_rank2 = (Z_rank2 - Z_rank2.mean(axis=1, keepdims=True)) / (Z_rank2.std(axis=1, keepdims=True) + 1e-8)
+    svd_cases.append(svd_case("rank_deficient_two_shapes", Z_rank2, 4,
+                              "rank 2: sigma[2] and sigma[3] are ~0, so v_3 and v_4 are ARBITRARY null-space directions. "
+                              "numpy writes them out; the replay must assert they are flagged rank-deficient and NOT compared. "
+                              "The projector and the residuals are still exact, because Z*v is ~0 for those directions."))
+    # Two exactly equal singular values: the rotation case no sign rule fixes.
+    q1 = np.zeros(T16); q1[0] = 1.0
+    q2 = np.zeros(T16); q2[1] = 1.0
+    Z_deg = np.stack([3.0 * q1, 3.0 * q2, 1.0 * (q1 + q2) / np.sqrt(2)])
+    svd_cases.append(svd_case("two_equal_singular_values", Z_deg, 2,
+                              "sigma[0] == sigma[1] EXACTLY by construction: the two right singular vectors span a plane the "
+                              "solver may return arbitrarily rotated, so v_raw and v_canonical are NOT comparable and the "
+                              "replay asserts the near-degeneracy flag fires instead of widening a tolerance. The projector "
+                              "P = V_k V_k^T IS comparable, and is the only thing that should be."))
+    svd_cases.append(svd_case("single_row", (lambda M: (M - M.mean()) / (M.std() + 1e-8))(np.sin(3 * t16))[None, :], 4,
+                              "rows = 1: nModes = 1, so `waves` has ONE row and the other three are the zeros "
+                              "temporal.py:816-819 writes."))
+    svd_cases.append(svd_case("all_zero_rows", np.zeros((5, T16)), 4,
+                              "an all-zero Z: sum(s**2) == 0, so temporal.py:733 writes var_explained = zeros(4) and the "
+                              "four waves are arbitrary. Everything here is zero and nothing is comparable but the zeros."))
+    w.write("temporal", "thin_svd", svd_cases)
+
+    # ---- root.json -------------------------------------------------------------------------
+    import torch
+
+    temporal_mod = _temporal_reference()
+    root_sig = ("signature: infer_root_sequence(a_tensor [L,N,1], taxa, taxa_dates, valid_taxa_mask, root_taxon) -> "
+                "(root_aas, root_indices). The window is max(3, min(25, int(0.05*N))) of the EARLIEST dated columns "
+                "(temporal.py:366) -- 3 below 60 dated taxa and 25 above 500, which is not 'the earliest 5%' in either "
+                "tail; the modal residue is bincount + argmax, so the LOWEST amino-acid index wins a tie.")
+    root_cases: List[Dict[str, Any]] = []
+    rrng = np.random.default_rng(SYNTH_SEED + 53)
+    for n in (10, 60, 100, 600):
+        L = 6
+        toks = rrng.integers(0, 21, size=(L, n)).astype(np.int64)
+        dates = np.sort(rrng.uniform(2000.0, 2020.0, n)).astype(np.float32)
+        mask = np.ones(n, dtype=bool)
+        taxa = [f"t{i}" for i in range(n)]
+        aas, idx = temporal_mod.infer_root_sequence(torch.from_numpy(toks).unsqueeze(-1), taxa,
+                                                    taxa_dates=dates, valid_taxa_mask=mask, root_taxon=None)
+        root_cases.append(case(f"consensus_window_N{n}", {"a": toks, "taxa": taxa, "taxa_dates": dates, "root_taxon": None},
+                               {"root_indices": idx, "root_aas": aas,
+                                "n_early": int(max(3, min(25, int(0.05 * n))))},
+                               "exact", root_sig + f" N={n}: the window is {max(3, min(25, int(0.05 * n)))} columns."))
+    # The bincount tie-break, made visible: two residues tied at the same count.
+    tied = np.array([[0, 3, 0, 3, 20, 20, 20, 20, 20, 20]], dtype=np.int64)
+    dates_t = np.linspace(2000.0, 2001.0, 10).astype(np.float32)
+    aas, idx = temporal_mod.infer_root_sequence(torch.from_numpy(tied).unsqueeze(-1), [f"t{i}" for i in range(10)],
+                                                taxa_dates=dates_t, valid_taxa_mask=np.ones(10, bool), root_taxon=None)
+    root_cases.append(case("bincount_tie_lowest_index_wins", {"a": tied, "taxa": [f"t{i}" for i in range(10)],
+                                                              "taxa_dates": dates_t, "root_taxon": None},
+                           {"root_indices": idx, "root_aas": aas}, "exact",
+                           root_sig + " the window is 3 columns holding tokens 0, 3, 0, so A wins on count; the all-20 "
+                           "columns exercise the 'no valid residue in the window' fallback to the whole matrix."))
+    # Window with no valid residue at all -> index 0.
+    allgap = np.full((2, 8), 20, dtype=np.int64)
+    d8 = np.linspace(2000.0, 2001.0, 8).astype(np.float32)
+    aas, idx = temporal_mod.infer_root_sequence(torch.from_numpy(allgap).unsqueeze(-1), [f"t{i}" for i in range(8)],
+                                                taxa_dates=d8, valid_taxa_mask=np.ones(8, bool), root_taxon=None)
+    root_cases.append(case("no_valid_residue_anywhere", {"a": allgap, "taxa": [f"t{i}" for i in range(8)],
+                                                         "taxa_dates": d8, "root_taxon": None},
+                           {"root_indices": idx, "root_aas": aas}, "exact",
+                           root_sig + " nothing below 20 anywhere: root_idx falls to 0 and REV_AA_MAP.get(0, '-') is 'A', "
+                           "so the documented '-' default at temporal.py:390 is UNREACHABLE."))
+    # The explicit root-taxon path and its Alanine bug (Q2).
+    gapped = np.array([[5, 5, 5, 5], [20, 7, 7, 7], [9, 9, 9, 9]], dtype=np.int64)
+    d4 = np.array([2000.0, 2000.5, 2001.0, 2001.5], dtype=np.float32)
+    aas, idx = temporal_mod.infer_root_sequence(torch.from_numpy(gapped).unsqueeze(-1), ["a", "b", "c", "d"],
+                                                taxa_dates=d4, valid_taxa_mask=np.ones(4, bool), root_taxon="a")
+    root_cases.append(case("explicit_root_taxon_unknown_becomes_alanine", {"a": gapped, "taxa": ["a", "b", "c", "d"],
+                                                                           "taxa_dates": d4, "root_taxon": "a"},
+                           {"root_indices": idx, "root_aas": aas}, "exact",
+                           root_sig + " UPSTREAM BUG (temporal.py:355) replicated: taxon 'a' carries an unknown residue "
+                           "at site 2, which becomes index 0 = ALANINE rather than a sentinel. Every taxon then reads as "
+                           "differing from the root there, so an invariable site acquires a trajectory and a wrong "
+                           "mutation label. The 'X' default at temporal.py:356 is likewise unreachable."))
+    aas, idx = temporal_mod.infer_root_sequence(torch.from_numpy(gapped).unsqueeze(-1), ["a", "b", "c", "d"],
+                                                taxa_dates=d4, valid_taxa_mask=np.array([False, True, True, True]),
+                                                root_taxon="a")
+    root_cases.append(case("root_taxon_filtered_out_falls_through", {"a": gapped, "taxa": ["a", "b", "c", "d"],
+                                                                     "valid_taxa_mask": [False, True, True, True],
+                                                                     "taxa_dates": d4[:3].tolist(), "root_taxon": "a"},
+                           {"root_indices": idx, "root_aas": aas}, "exact",
+                           root_sig + " the named root taxon is in `taxa` but carries no date, so the filtered search finds "
+                           "nothing and the function falls through to the early-sample consensus over the remaining three."))
+    w.write("temporal", "root", root_cases)
+
+    # ---- chain.json ------------------------------------------------------------------------
+    chain_sig = ("signature: run_temporal_surveillance(alignment, tree, dates_source=dict, output_prefix, ...) with "
+                 "load_model / get_device / prepare_alignment / compute_adaptive_safe_batch_size STUBBED, so the model's "
+                 "three outputs (lrts, mean_attns) and the alignment (a, inv, taxa) are INPUTS and everything from "
+                 "temporal.py:463 onward is the reference's own code. Outputs are the four files it writes, verbatim.")
+    chain_cases: List[Dict[str, Any]] = []
+    L, NT, T = TEMPORAL_SYNTH_L, TEMPORAL_SYNTH_N, TEMPORAL_SYNTH_T
+
+    def chain(name: str, notes: str, tol: str = "1e-9", *, seed: int = 0, sweepers=None,
+              gap_taxon=None, l=L, n=NT, lrt_values=None, **kwargs):
+        a, lrts, attns, taxa, dates = _temporal_synthetic(SYNTH_SEED + 60 + seed, l, n,
+                                                          sweepers=sweepers or [], gap_taxon=gap_taxon)
+        if lrt_values is not None:
+            lrts = np.asarray(lrt_values, dtype=np.float32)
+        with tempfile.TemporaryDirectory() as td:
+            res = _run_temporal_stubbed(a, lrts, attns, taxa, dates, Path(td), **kwargs)
+        meta = dict(res["metadata"])
+        meta["runtime_sec"] = None
+        return case(name,
+                    {"a": a, "lrts": lrts, "mean_attns": attns, "taxa": taxa, "dates": dates,
+                     "inv": _aa_invariable(a), "options": jsonable(kwargs)},
+                    {"sites_csv": res["files"]["sites_csv"], "curves_csv": res["files"]["curves_csv"],
+                     "waves_csv": res["files"]["waves_csv"], "summary_json": res["files"]["summary_json"],
+                     "metadata": meta},
+                    tol, chain_sig + " " + notes)
+
+    # Derived tokens must DIFFER from the site's root residue, which _temporal_synthetic sets to
+    # (site * 3) % 20 -- otherwise the "sweep" is a no-op and the site stays invariable.
+    sweep5 = [(1, 4, 0.25), (2, 7, 0.40), (3, 10, 0.55), (5, 16, 0.70), (6, 1, 0.82)]
+    sweep4 = sweep5[:4]
+    chain_cases.append(chain(
+        "episodic_calendar_B0", seed=1, sweepers=sweep5, num_time_points=T, n_permutations=0,
+        notes="THE DETERMINISTIC CASE. n_permutations=0 makes p_cand = (1+0)/(0+1) = 1.0 for every candidate, so nothing "
+              "clears p <= 0.05, the count is zero and the calendar ESCAPE HATCH (temporal.py:692-693) fires on "
+              "(p <= 0.10) | (lrt >= 3.84) -- which is why this case can be compared byte for byte while a real null "
+              "cannot. Exercises: episodic metric, the calendar gradient axis, the calendar energy floors, the fPCA gate "
+              "and the four-way classification."))
+    chain_cases.append(chain(
+        "episodic_calendar_B50", seed=1, sweepers=sweep5, num_time_points=T, n_permutations=50,
+        tol="statistical",
+        notes="the same inputs with a REAL date-shuffling null at B=50. p_perm, q_perm, is_confirmed_sweep, both "
+              "classification columns and the three sweep counts come from numpy's MT19937 at RandomState(42) and the "
+              "library's xoshiro256** cannot reproduce them -- they are compared in statistical class only. Everything "
+              "upstream of the shuffle (every trajectory, velocity, peak, width, area, the candidate set, r2_fpca and the "
+              "wave variance shares) is IDENTICAL to the B=0 case above and is compared strictly there."))
+    chain_cases.append(chain(
+        "fixation_generations", seed=2, sweepers=sweep5, num_time_points=T, n_permutations=0,
+        time_units="generations",
+        notes="the non-calendar regime: sweep_mode resolves to 'fixation', duplicates are NOT pruned, the gradient axis "
+              "becomes the normalised [0,1] axis, the bandwidth loses its 2.0 ceiling, the energy floors become the "
+              "dimensionless 0.010 / 0.005, the metric becomes the amplitude shift from the first grid point divided by "
+              "site_scale, and the SOLITARY REGIME drops the R^2 gate entirely. Note the dates are still calendar numbers "
+              "here -- 'generations' changes the arithmetic, not the parser."))
+    chain_cases.append(chain(
+        "fixation_forced_on_calendar", seed=2, sweepers=sweep5, num_time_points=T, n_permutations=0,
+        sweep_mode="fixation",
+        notes="sweep_mode and time_units are INDEPENDENT: forcing 'fixation' on a calendar run takes the fixation metric "
+              "and the fixation permutation statistic while keeping the CALENDAR gradient axis and the CALENDAR energy "
+              "floors. A port that conflates the two switches passes fixation_generations and fails here."))
+    chain_cases.append(chain(
+        "explicit_root_taxon_with_gaps", seed=3, sweepers=sweep5, gap_taxon=0, num_time_points=T,
+        n_permutations=0, root_taxon="seq00",
+        notes="UPSTREAM BUG Q2 end to end: the named root taxon's column is entirely unknown, so every root residue "
+              "becomes Alanine (temporal.py:355) and INVARIABLE sites acquire nonzero curves, velocities, peak dates and "
+              "wave loadings -- while ~inv still keeps them out of stage one. This is the one configuration in which the "
+              "model's outputs at invariable sites actually matter."))
+    chain_cases.append(chain(
+        "no_candidates", seed=4, sweepers=[], num_time_points=T, n_permutations=0,
+        notes="every site invariable, so stage one selects NOTHING. The stage-two block is skipped whole (r2_fpca stays "
+              "0.0, p_perm and q_perm stay 1.0), the escape hatch does not fire (n_stage1 == 0 guards it), the wave stage "
+              "falls back to argsort(-peak_intensities) over ALL sites -- a tie among identical zeros, which is why the "
+              "port sorts stably -- and _curves.csv falls back to arange(min(L, 20)) instead of the candidate set."))
+    chain_cases.append(chain(
+        "one_candidate_solitary", seed=5, sweepers=[(2, 7, 0.5)], num_time_points=T, n_permutations=0,
+        notes="exactly one candidate: n_stage1 < 2 so the SVD gate is skipped and r2_fpca is set to 1.0 by fiat "
+              "(temporal.py:678-679), and n_stage1 <= 3 puts the run in the solitary regime, where the R^2 gate is not "
+              "applied and the escape hatch is not reachable."))
+    chain_cases.append(chain(
+        "four_candidates_vacuous_gate", seed=1, sweepers=sweep4, num_time_points=T, n_permutations=0,
+        notes="UPSTREAM BUG Q8: with exactly four candidates k_eff = min(4, C) = 4, and mean-centred rows span at most "
+              "min(C, T-1) = 3 dimensions, so the top-4 subspace contains the whole row space and EVERY candidate scores "
+              "r2_fpca = 1.0. The gate discriminates nothing and the reference prints it as a perfect fit. C <= 3 is "
+              "already the solitary regime, so C = 4 is the only live case."))
+    chain_cases.append(chain(
+        "tau_peak_explicit_default_overridden", seed=1, sweepers=sweep5, num_time_points=T,
+        n_permutations=0, tau_peak=1e-4,
+        notes="UPSTREAM BUG Q1: temporal.py:604/610 test the VALUE (`tau_peak is None or tau_peak == 1e-4`), not whether "
+              "the caller supplied one, so passing the documented default explicitly is silently overridden to 0.5e-4. "
+              "This case must produce exactly the same mask as episodic_calendar_B0, which passes nothing."))
+    chain_cases.append(chain(
+        "rescued_sweeps_high_q_static", seed=1, sweepers=sweep5, num_time_points=T, n_permutations=0,
+        lrt_values=[0.4, 3.9, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4],
+        notes="the only case that reaches RESCUED_SWEEP. Exactly ONE of the five variable sites carries an LRT above the "
+              "escape hatch's 3.84 (p_static = 0.0241) and the other four sit at p = 0.2635, so Benjamini-Hochberg over "
+              "the five-site variable family gives that site q_static = 0.0241 * 5 / 1 = 0.1205, just ABOVE the 0.10 cut. "
+              "The hatch confirms it and the static scan does not call it: `RESCUED_SWEEP`. Every other chain case lands "
+              "on CONCORDANT_SWEEP, and neither bundled example produces either label, so without this case two of the "
+              "four cross-classification branches would be untested. Note how narrow the margin is -- the headline "
+              "'18 rescued' of the acceptance run is a property of an FDR threshold on a 273-site family, not of the data."))
+    chain_cases.append(chain(
+        "larger_grid_T64", seed=7,
+        sweepers=[(1, 4, 0.18), (2, 7, 0.32), (3, 10, 0.45), (5, 16, 0.58), (6, 1, 0.70), (7, 8, 0.84)],
+        l=12, n=24, num_time_points=64, n_permutations=0,
+        notes="a wider case (12 codons, 24 taxa, T=64) so the wave decomposition has a real spectrum and the FWHM search "
+              "has room: exercises the same chain at a shape where a one-off indexing error in the [L, T] buffers shows."))
+    w.write("temporal", "chain", chain_cases)
+
+    return {
+        "temporal_rng": "temporal.run_temporal_surveillance stage two: np.random.RandomState(42).permutation(N) (MT19937); "
+                        "the library uses xoshiro256** per-draw substreams (D17), so p_perm, q_perm, is_confirmed_sweep and "
+                        "both classification columns are statistical class only. Every chain case but one runs at "
+                        "n_permutations=0, where the estimator is deterministic.",
+        "temporal_wave_sign": "temporal.py has NO sign convention and writes the solver's raw right singular vectors. The "
+                              "library's default is `waveSign: 'canonical'` (D28, WAVE_SIGN.md): each retained v_j is "
+                              "flipped so its largest-magnitude entry is positive, BEFORE the loadings are computed. "
+                              "thin_svd.json records both `v_raw` and `v_canonical` so a replay can pin either.",
+    }
+
+
+def _trapezoid_np(y, x):
+    fn = getattr(np, "trapezoid", getattr(np, "trapz"))
+    return fn(y, x)
+
+
+# --------------------------------------------------------------------------
 # main
 # --------------------------------------------------------------------------
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--only", action="append", choices=["stats", "filter", "evaluation", "epistasis", "phenotype", "dataset", "dates", "dating", "dating_model", "attribution", "dms", "e2e"], help="generate only these modules")
+    ap.add_argument("--only", action="append", choices=["stats", "filter", "evaluation", "epistasis", "phenotype", "dataset", "dates", "dating", "dating_model", "temporal", "attribution", "dms", "e2e"], help="generate only these modules")
     ap.add_argument("--e2e-case", action="append", help="within e2e, generate only the cases whose name contains one of these substrings; the manifest keeps the other cases' counts, sizes and wall times")
     ap.add_argument("--skip-model", action="store_true", help="skip attribution, dms and e2e (no weights needed)")
     ap.add_argument("--skip-e2e", action="store_true")
     args = ap.parse_args()
 
-    wanted = set(args.only) if args.only else {"stats", "filter", "evaluation", "epistasis", "phenotype", "dataset", "dates", "dating", "dating_model", "attribution", "dms", "e2e"}
+    wanted = set(args.only) if args.only else {"stats", "filter", "evaluation", "epistasis", "phenotype", "dataset", "dates", "dating", "dating_model", "temporal", "attribution", "dms", "e2e"}
     # Fixtures always record the canonical MDS sign convention: every in-process load_alignment_and_tree call
     # (attribution, dms, the dataset cases that do not pass mds_sign explicitly, filter e2e) reads this env var.
     os.environ["HYPHAEON_MDS_SIGN"] = "canonical"
@@ -3075,7 +3553,7 @@ def main() -> int:
     steps = [("stats", lambda: gen_stats(w)), ("filter", lambda: gen_filter(w)), ("evaluation", lambda: gen_evaluation(w)),
              ("epistasis", lambda: gen_epistasis(w)), ("phenotype", lambda: gen_phenotype(w)), ("dataset", lambda: gen_dataset(w)),
              ("dates", lambda: gen_dates(w)), ("dating", lambda: gen_dating(w)),
-             ("dating_model", lambda: gen_dating_model(w, model_sha)),
+             ("dating_model", lambda: gen_dating_model(w, model_sha)), ("temporal", lambda: gen_temporal(w)),
              ("attribution", lambda: gen_attribution(w, model_sha)), ("dms", lambda: gen_dms(w, model_sha)), ("e2e", lambda: gen_e2e(w, model_sha, args.e2e_case))]
     extra: Dict[str, Any] = {}
     for name, fn in steps:
