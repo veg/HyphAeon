@@ -1,8 +1,9 @@
 """
 hyphaeon/export.py
 ------------------
-ONNX export of the HyphAeon backbone (three outputs) and the BUSTED head, plus
-models/manifest.json with the hashes every runtime surface verifies against.
+ONNX export of the HyphAeon backbone (three outputs), the BUSTED head and the
+dating pillar's taxa graph (two outputs), plus models/manifest.json with the
+hashes every runtime surface verifies against.
 
 WHY THIS FILE EXISTS
 
@@ -24,6 +25,17 @@ one graph per weight variant with all three:
 
 and a second graph, busted_head.onnx, that maps a whole alignment's root_repr
 [1, L, embed_dim] plus a key-padding mask [1, L] to the BUSTED head outputs.
+
+A third graph per variant, <variant>_taxa.onnx, takes the SAME four inputs and
+returns the two reductions the dating pillar's model-based estimators need:
+
+    outputs  cross_attn_sum float32 [num_species, num_species]
+             taxa_repr_sum  float32 [num_species, embed_dim]
+
+It is a separate artifact rather than two more backbone outputs because
+onnxruntime does not prune a graph to the requested fetch list -- measured, with
+numbers, in TaxaGraph's docstring. The backbone's bytes and hashes are untouched
+by its arrival.
 
 Ported from (same repository, branch feat/js-port, base commit 3cb9cc6):
     hyphaeon/model.py  PhyloAxialTransformer.precompute_tree_cache  (tree augmentation, Markov bias, RoPE)
@@ -127,6 +139,10 @@ BUSTED_HEAD_INIT_SEED = 0
 
 INPUT_NAMES = ["msa_codons", "msa_aas", "dist_matrix", "mds_coords"]
 OUTPUT_NAMES = ["lrt", "mean_root_attns", "root_repr"]
+# The dating pillar's graph, general_taxa.onnx / viral_taxa.onnx. A SEPARATE
+# artifact, not two more outputs on the backbone -- see TaxaGraph's docstring
+# for the measurement that decided it.
+TAXA_OUTPUT_NAMES = ["cross_attn_sum", "taxa_repr_sum"]
 BUSTED_INPUT_NAMES = ["root_repr", "mask"]
 BUSTED_OUTPUT_NAMES = ["cls_prob", "pred_gene_lrt", "omega_prop", "syn_var", "pred_omega3", "pred_logp"]
 
@@ -247,6 +263,195 @@ class BackboneGraph(nn.Module):
         mean_root_attns = all_attns.mean(dim=(0, 2)).view(batch_size, num_species)
 
         return y_lrt_soft.view(batch_size), mean_root_attns, root_repr
+
+
+# --------------------------------------------------------------------------- #
+# Taxa graph (the dating pillar)
+# --------------------------------------------------------------------------- #
+
+class TaxaGraph(nn.Module):
+    """
+    splits.py extract_cross_taxa_attentions_and_embeddings (splits.py:24-155),
+    expressed as a traceable function of the same four inputs BackboneGraph
+    takes, with the tree cache folded in exactly as BackboneGraph folds it.
+
+    WHAT IT EMITS, AND WHY THE BACKBONE COULD NOT
+
+        cross_attn_sum  float32 [num_species, num_species]
+        taxa_repr_sum   float32 [num_species, embed_dim]
+
+    The dating pillar's two model-based estimators -- the GLS fit whose error
+    covariance is built from cross-taxa attention (dating.py:78
+    compute_neural_covariance_kernel) and the latent root search
+    (dating.py:701 optimize_latent_convex_hull_root) -- need the taxon-by-taxon
+    attention block and the per-taxon hidden state. The backbone's
+    mean_root_attns and root_repr are the ROOT token's attention ROW
+    (attn[:, :, 0, 1:]) and the ROOT token's VECTOR (x_full[:, 0, c, :]).
+    The dating pillar needs attn[:, :, 1:, 1:] and x_full[:, 1:, c, :] --
+    matrices where those are vectors, one index over on an axis whose 0 entry
+    is all the backbone keeps. Neither is derivable from the other; reshaping
+    the root row into a matrix would be inventing numbers.
+
+    WHY THE AVERAGING IS INSIDE THE GRAPH
+
+    The unreduced per-site tensor cannot exist. [L, num_heads, N, N] float32 at
+    the manifest's taxon_cap of 512 and 12 heads is 12.6 MB per site: a
+    1000-codon alignment would be 12.6 GB and a 10,000-codon surveillance set
+    126 GB. Reduced over heads and layers inside the graph it is N*N floats per
+    call, independent of L.
+
+    WHY THIS IS A SEPARATE ARTIFACT AND NOT TWO MORE BACKBONE OUTPUTS
+
+    Measured, because runtime/src/feeds.js asserts the opposite and the claim is
+    load-bearing in three other files: onnxruntime does NOT prune a graph to the
+    requested fetch list. The fetch list selects what is RETURNED, not what is
+    COMPUTED. On a prototype that folded these two reductions into
+    BackboneGraph (onnxruntime 1.30.0 CPU, min of 7 reps after 2 warmups),
+    fetching ['lrt'] alone cost the same as fetching all five outputs --
+    189.0 vs 188.2 ms at N=143/B=24, 309.2 vs 310.6 ms at N=256/B=16 -- and the
+    folded graph cost every caller that only ever wants lrt:
+
+        N= 20 B=64 thr=1    43.9 ->  45.0 ms   1.025x
+        N=143 B=24 thr=1   178.9 -> 188.2 ms   1.052x
+        N=212 B=16 thr=1   211.4 -> 224.8 ms   1.064x
+        N=256 B=16 thr=1   287.4 -> 308.4 ms   1.073x
+        N=143 B=24 thr=8    52.5 ->  60.6 ms   1.154x
+        N=256 B=16 thr=8    83.5 ->  99.4 ms   1.190x
+
+    +2.5% to +7.3% single-threaded and +15% to +19% at 8 threads, on every MEME,
+    BUSTED, epistasis, DMS and phenotype site of every run on every surface,
+    forever, for outputs only the dating pillar reads. The browser is
+    multi-threaded whenever crossOriginIsolated, which is the production
+    configuration, so the 19% is the number that would ship. A separate
+    artifact buys all of that back for 7.4 MiB on disk that is fetched only when
+    someone dates an alignment, and leaves general.onnx and viral.onnx --
+    their bytes, their hashes, their fixtures and the whole parity surface --
+    untouched.
+
+    The reductions are SUMS over the sites in the call, not means. splits.py
+    receives the whole alignment in one call and divides at :151-153 by
+    batch_size * num_layers and by batch_size. The runtime cannot make that one
+    call (korber's 981 codons at 143 taxa is 18.6 GB of activations at the
+    runtime's own measured constant), so it batches sites, accumulates these
+    sums and divides once by L * num_layers and by L. A per-call mean would have
+    to be re-multiplied by the call's batch size to be accumulated, losing
+    precision for nothing.
+
+    Upstream quirks replicated, not fixed:
+      - splits.py:152 divides by batch_size * num_layers where the sum ran over
+        batch_size * window_size sites per layer. The two agree only at
+        window_size == 1, which is the only configuration exported.
+      - splits.py:147 takes central_idx alone while its docstring claims pooling
+        "across all codon sites".
+      - splits.py builds the embeddings and runs the column layers OUTSIDE
+        torch.no_grad() (:52-78 precede the `with` at :98), so the reference
+        holds an autograd graph it never uses. Cost only; the export is traced
+        under no_grad regardless.
+
+    The chunking in splits.py:85-96 is a memory device, not arithmetic: it
+    changes only the float32 summation order. The graph sums over the whole
+    call at once, so the two reassociate differently -- quantified in
+    scripts/verify_onnx.py, which is where the claim that this module mirrors
+    splits.py is actually tested.
+    """
+
+    def __init__(self, model: PhyloAxialTransformer):
+        super().__init__()
+        self.model = model
+
+    def forward(self, msa_codons, msa_aas, dist_matrix, mds_coords):
+        m = self.model
+        batch_size, num_species, window_size = msa_codons.shape
+        central_idx = window_size // 2
+
+        # splits.py:53-62 == BackboneGraph step 1. The reference reads
+        # mds_pos_static out of tree_cache; precompute_tree_cache (model.py:329)
+        # computes it as mds_proj(mds_coords), which is what is inlined here.
+        codon_emb = m.codon_embedding(msa_codons)
+        aa_emb = m.aa_embedding(msa_aas)
+        x = torch.cat([codon_emb, aa_emb], dim=-1)
+        x = x + m.pos_embedding.unsqueeze(1)
+        phylo_pos = m.mds_proj(mds_coords)
+        x = x + phylo_pos.unsqueeze(2)
+
+        root = m.root_token.expand(batch_size, 1, window_size, -1)
+        x_full = torch.cat([root, x], dim=1)
+        num_nodes = num_species + 1
+
+        # precompute_tree_cache: augment MDS and the distance matrix with [ROOT].
+        # splits.py reads static_phylo_biases / static_rope_coss / static_rope_sins
+        # out of the cache; model.py:277-337 builds them from exactly this.
+        root_mds = torch.zeros_like(mds_coords[:, :1, :])
+        mds_full = torch.cat([root_mds, mds_coords], dim=1)
+
+        root_dist = torch.norm(mds_coords, dim=-1, keepdim=True)
+        dist_top = torch.cat([torch.zeros_like(root_dist[:, :1, :]), root_dist.transpose(1, 2)], dim=2)
+        dist_bot = torch.cat([root_dist, dist_matrix], dim=2)
+        dist_full = torch.cat([dist_top, dist_bot], dim=1)
+        dist_tensor = dist_full.unsqueeze(1)
+
+        # splits.py:74-78: column layers (none when window_size == 1).
+        for i in range(len(m.col_layers)):
+            col_in = (x_full.reshape(batch_size * num_nodes, window_size, m.embed_dim)
+                      if window_size > 1 else x_full.reshape(batch_size * num_nodes, m.embed_dim))
+            col_out = m.col_layers[i](col_in)
+            x_full = col_out.reshape(batch_size, num_nodes, window_size, m.embed_dim)
+
+        # splits.py:81-145: row layers, accumulating the cross-taxa block.
+        x0_dup = x_full.transpose(1, 2).contiguous().view(batch_size * window_size, num_nodes, m.embed_dim)
+        cross_attn_sum = torch.zeros(num_species, num_species, dtype=x_full.dtype, device=x_full.device)
+
+        for i, layer in enumerate(m.row_layers):
+            row_in = x_full.transpose(1, 2).contiguous().view(batch_size * window_size, num_nodes, m.embed_dim)
+
+            decay_rate = F.softplus(layer.phylo_w1)
+            markov_kernel = EPS0 + (1.0 - EPS0) * torch.exp(-decay_rate * dist_tensor)
+            phylo_bias = torch.log(markov_kernel.clamp(min=1e-5))
+
+            half_dim = layer.head_dim // 2
+            m_exp = mds_full.unsqueeze(1).unsqueeze(3)
+            f_exp = layer.rope_freqs.unsqueeze(0).unsqueeze(2)
+            angles = (m_exp * f_exp).sum(dim=-1)
+            cos = torch.cos(angles)
+            sin = torch.sin(angles)
+
+            q = layer.q_proj(row_in).view(batch_size * window_size, num_nodes, layer.num_heads, layer.head_dim).transpose(1, 2)
+            k = layer.k_proj(row_in).view(batch_size * window_size, num_nodes, layer.num_heads, layer.head_dim).transpose(1, 2)
+            v = layer.v_proj(row_in).view(batch_size * window_size, num_nodes, layer.num_heads, layer.head_dim).transpose(1, 2)
+
+            q1, q2 = q[..., :half_dim], q[..., half_dim:]
+            k1, k2 = k[..., :half_dim], k[..., half_dim:]
+            q = torch.cat([q1 * cos - q2 * sin, q1 * sin + q2 * cos], dim=-1)
+            k = torch.cat([k1 * cos - k2 * sin, k1 * sin + k2 * cos], dim=-1)
+
+            scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(layer.head_dim)
+            scores = scores + phylo_bias
+            attn_weights = torch.softmax(scores, dim=-1)
+
+            # splits.py:130-132, verbatim:
+            #     cross_taxa = attn_weights[:, :, 1:, 1:]
+            #     accum_attn += cross_taxa.mean(dim=1).sum(dim=0)
+            # Mean over heads, sum over this call's sites, accumulated over
+            # layers. The root is dropped from BOTH axes, so rows do not sum to
+            # 1 (the softmax ran over all num_nodes keys) -- on korber the row
+            # sums are ~0.9815, and compute_neural_covariance_kernel expects
+            # exactly that.
+            cross_attn_sum = cross_attn_sum + attn_weights[:, :, 1:, 1:].mean(dim=1).sum(dim=0)
+
+            out = torch.matmul(attn_weights, v)
+            out = out.transpose(1, 2).contiguous().view(batch_size * window_size, num_nodes, layer.embed_dim)
+            out = layer.out_proj(out) + layer.alpha_skip * x0_dup
+            row_out = m.row_norms[i](row_in + out)
+            x_full = row_out.reshape(batch_size, window_size, num_nodes, m.embed_dim).transpose(1, 2)
+
+        # splits.py:147-149, verbatim:
+        #     taxa_emb_site = x_full[:, 1:, central_idx, :]
+        #     accum_taxa_repr += taxa_emb_site.sum(dim=0)
+        # The exact sibling of root_repr one index over: taxa 1..N instead of
+        # the [ROOT] token at 0, summed over this call's sites.
+        taxa_repr_sum = x_full[:, 1:, central_idx, :].sum(dim=0)
+
+        return cross_attn_sum, taxa_repr_sum
 
 
 def _cross_attention(mha: nn.MultiheadAttention, query, key, key_padding_mask):
@@ -449,6 +654,37 @@ def export_backbone(weights_path: str, out_path: Path) -> str:
     return exporter
 
 
+def export_taxa_graph(weights_path: str, out_path: Path) -> str:
+    """
+    general_taxa.onnx / viral_taxa.onnx: the dating pillar's graph. Same four
+    inputs as the backbone, two batch-reduced outputs, no lrt head. See
+    TaxaGraph for why it is a separate artifact.
+    """
+    model = build_backbone(weights_path)
+    graph = TaxaGraph(model).eval()
+    args = _example_inputs()
+    dynamic_axes = {
+        "msa_codons": {0: "batch", 1: "num_species"},
+        "msa_aas": {0: "batch", 1: "num_species"},
+        "dist_matrix": {0: "batch", 1: "num_species", 2: "num_species"},
+        "mds_coords": {0: "batch", 1: "num_species"},
+        # Both outputs are reduced over the batch, so neither carries it. That
+        # is what makes their size independent of how the runtime batches sites.
+        "cross_attn_sum": {0: "num_species", 1: "num_species"},
+        "taxa_repr_sum": {0: "num_species"},
+    }
+    B, N = torch.export.Dim("batch"), torch.export.Dim("num_species")
+    dynamic_shapes = ({0: B, 1: N}, {0: B, 1: N}, {0: B, 1: N, 2: N}, {0: B, 1: N})
+    exporter = _onnx_export(graph, args, out_path, INPUT_NAMES, TAXA_OUTPUT_NAMES, dynamic_axes, dynamic_shapes)
+    _pin_output_dim(out_path, "taxa_repr_sum", 1, model.embed_dim)
+    _smoke_test_dynamic(out_path, graph, _example_inputs(num_species=13, batch=2), INPUT_NAMES)
+    # A second size, because these outputs are reduced over the batch and a
+    # tracer that baked the example batch into the reduction would still pass a
+    # single re-run. verify_onnx.py's batch-invariance check is the full test.
+    _smoke_test_dynamic(out_path, graph, _example_inputs(num_species=13, batch=5), INPUT_NAMES)
+    return exporter
+
+
 def _pin_output_dim(onnx_path, output_name: str, axis: int, value: int) -> None:
     """
     The tracer names root_repr's last axis after the Gather that produced it
@@ -557,7 +793,15 @@ def write_manifest(models_dir: Path, variants: Dict[str, dict], exported_with: d
         "taxon_cap": TAXON_CAP,
         "default_taxon_cap": DEFAULT_TAXON_CAP,
         "dropped_heads_policy": "omit",
-        "onnx": {"opset": OPSET_VERSION, "inputs": list(INPUT_NAMES), "outputs": list(OUTPUT_NAMES)},
+        "onnx": {
+            "opset": OPSET_VERSION,
+            "inputs": list(INPUT_NAMES),
+            "outputs": list(OUTPUT_NAMES),
+            # The dating graph's outputs. Deliberately NOT merged into
+            # "outputs": that list is what a backbone session fetches by
+            # default, and these two live on a different artifact.
+            "taxa_outputs": list(TAXA_OUTPUT_NAMES),
+        },
         "prng": {"algorithm": "xoshiro256**", "default_seed": 42},
         "reference_version": REFERENCE_VERSION,
         "exported_with": exported_with,
@@ -570,7 +814,8 @@ def write_manifest(models_dir: Path, variants: Dict[str, dict], exported_with: d
 
 
 def run_export(variants, models_dir: Path, general_weights: Optional[str] = None,
-               hf_dir: Optional[Path] = None, skip_busted: bool = False) -> dict:
+               hf_dir: Optional[Path] = None, skip_busted: bool = False,
+               skip_backbone: bool = False, skip_taxa: bool = False) -> dict:
     import onnx
     models_dir = Path(models_dir)
     hf_dir = Path(hf_dir) if hf_dir else models_dir / "_hf"
@@ -588,13 +833,28 @@ def run_export(variants, models_dir: Path, general_weights: Optional[str] = None
     for variant in variants:
         weights = resolve_variant_weights(variant, general_weights, hf_dir)
         out = models_dir / f"{variant}.onnx"
-        print(f"[*] Exporting {variant} backbone from {weights} -> {out}")
-        exporters[variant] = export_backbone(weights, out)
-        onnx.checker.check_model(str(out))
-        entry = {
-            "safetensors_sha256": sha256_file(weights),
-            "onnx_sha256": sha256_file(out),
-        }
+        prev = manifest_variants.get(variant, {})
+        if skip_backbone and out.exists():
+            # Carry the committed backbone forward untouched. Adding the dating
+            # graph must not rewrite general.onnx / viral.onnx: their hashes are
+            # verified by every runtime surface, quoted in web/caveats.json and
+            # mcp/caveats.json, stamped into the prebaked gallery records and
+            # pinned by the parity fixtures. Re-exporting them to identical
+            # numbers would still churn all of that for nothing.
+            print(f"[=] Keeping {variant} backbone as committed: {out}")
+            exporters[variant] = prev.get("exported_with", "unchanged")
+            entry = {
+                "safetensors_sha256": prev.get("safetensors_sha256") or sha256_file(weights),
+                "onnx_sha256": sha256_file(out),
+            }
+        else:
+            print(f"[*] Exporting {variant} backbone from {weights} -> {out}")
+            exporters[variant] = export_backbone(weights, out)
+            onnx.checker.check_model(str(out))
+            entry = {
+                "safetensors_sha256": sha256_file(weights),
+                "onnx_sha256": sha256_file(out),
+            }
         if variant == "general" and not skip_busted:
             bh = models_dir / "busted_head.onnx"
             print(f"[*] Exporting BUSTED head from {weights} -> {bh}")
@@ -603,9 +863,18 @@ def run_export(variants, models_dir: Path, general_weights: Optional[str] = None
             entry["busted_head_onnx_sha256"] = sha256_file(bh)
         elif variant == "general" and "busted_head_onnx_sha256" in manifest_variants.get("general", {}):
             entry["busted_head_onnx_sha256"] = manifest_variants["general"]["busted_head_onnx_sha256"]
+        if not skip_taxa:
+            tx = models_dir / f"{variant}_taxa.onnx"
+            print(f"[*] Exporting {variant} dating graph from {weights} -> {tx}")
+            exporters[f"{variant}_taxa"] = export_taxa_graph(weights, tx)
+            onnx.checker.check_model(str(tx))
+            entry["taxa_onnx_sha256"] = sha256_file(tx)
+        elif "taxa_onnx_sha256" in prev:
+            entry["taxa_onnx_sha256"] = prev["taxa_onnx_sha256"]
         entry.update(VARIANTS.get(variant, {}))
         manifest_variants[variant] = entry
-        print(f"[✓] {variant}: exporter={exporters[variant]} sha256={entry['onnx_sha256']}")
+        print(f"[✓] {variant}: exporter={exporters[variant]} sha256={entry['onnx_sha256']}"
+              + (f" taxa={entry['taxa_onnx_sha256']}" if "taxa_onnx_sha256" in entry else ""))
 
     ordered = {k: manifest_variants[k] for k in ("general", "viral") if k in manifest_variants}
     ordered.update({k: v for k, v in manifest_variants.items() if k not in ordered})
@@ -630,6 +899,10 @@ def configure_parser(parser: argparse.ArgumentParser) -> None:
                         help="Directory holding model.<variant>.safetensors downloaded from HF (default: <out>/_hf)")
     parser.add_argument("--skip-busted-head", action="store_true",
                         help="Do not export busted_head.onnx")
+    parser.add_argument("--skip-backbone", action="store_true",
+                        help="Keep the committed <variant>.onnx; re-hash it but do not re-export it")
+    parser.add_argument("--skip-taxa-graph", action="store_true",
+                        help="Do not export <variant>_taxa.onnx (the dating graph)")
 
 
 def command(args: argparse.Namespace) -> dict:
@@ -640,6 +913,8 @@ def command(args: argparse.Namespace) -> dict:
         general_weights=args.general_weights,
         hf_dir=Path(args.hf_dir) if args.hf_dir else None,
         skip_busted=args.skip_busted_head,
+        skip_backbone=args.skip_backbone,
+        skip_taxa=args.skip_taxa_graph,
     )
 
 
