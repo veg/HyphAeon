@@ -14,7 +14,7 @@
  *      only place that loads the package the way an app does.
  *   2. THE PUBLIC SURFACE IS A COMMITMENT. `index.js` re-exports whole modules deliberately (its
  *      header says why), which means adding an export to any file under `src/preprocess/` publishes
- *      it, and deleting one breaks a pinned consumer. Listing all 265 names here turns both into a
+ *      it, and deleting one breaks a pinned consumer. Listing all 287 names here turns both into a
  *      visible diff in the pull request that causes them, rather than a discovery in `hyphaeon-app`.
  *   3. THE EXPORTS MAP IS LOAD-BEARING, not decoration. `package.json` exposes exactly `.`, so a
  *      deep import into `src/preprocess/…` must FAIL — otherwise consumers pin internal paths, and
@@ -115,6 +115,7 @@ const PUBLIC_SURFACE = [
 	'stripQuotes',
 	'treeTaxa',
 	// preprocess/tn93.js
+	'tn93CrossDistanceMatrix',
 	'TN93_FALLBACK_MAX',
 	'TN93_MATCH_MODE',
 	'TN93_MAX_AMBIG_FRACTION',
@@ -130,6 +131,11 @@ const PUBLIC_SURFACE = [
 	'tn93DistanceMatrix',
 	'tn93NucleotideFrequency',
 	'tn93SaturatedPairs',
+	// preprocess/consensus.js
+	'CONSENSUS_EMPTY_CHAR',
+	'CONSENSUS_SKIP',
+	'consensusSequence',
+	'timeDecayConsensusSequence',
 	// preprocess/patristic.js
 	'computeFastDistMatrix',
 	'patristicMatrix',
@@ -321,6 +327,24 @@ const PUBLIC_SURFACE = [
 	'meanPairwiseDivergence',
 	'medianOffDiagonal',
 	'sniffAlignmentFormat',
+	// dating.js
+	'CI_METHODS_PORTED',
+	'CI_METHODS_UNPORTED',
+	'DATING_STATUS',
+	'EARLIEST_ALIASES',
+	'FIELLER_STATUS',
+	'SYNTHETIC_CONSENSUS_KEY',
+	'TIME_DECAY_ROOT_KEY',
+	'UNWEIGHTED_CONSENSUS_ALIASES',
+	'clockFittedAndPredicted',
+	'computeDeltaMrcaInterval',
+	'computeFiellerMrcaInterval',
+	'computeRcsBasis',
+	'computeTreeFreeDivergences',
+	'precisionWeightedEnsemble',
+	'residualScale',
+	'runOlsDating',
+	'runRestrictedSplineClockDating',
 	// dates.js
 	'ARCHIVAL_1959_DECIMAL',
 	'ARCHIVAL_1959_MARKERS',

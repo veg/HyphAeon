@@ -683,6 +683,13 @@ export function tn93DistanceMatrix(sequences, taxa, options = {}) {
 			// dataset.py:805 `if d is None or d == "-" or d < 0 or np.isnan(d): d = 1.0` (dead on the
 			// package path), and dataset.py:795-799's `except (ValueError, OverflowError): d = 1.0`,
 			// which the isNaN arm covers because Math.log returns NaN where CPython raises.
+			//
+			// NOT CAUGHT HERE, deliberately, and the SIBLING `tn93CrossDistanceMatrix` DOES catch it:
+			// this function's throw is a pinned contract (diagnostics.js turns it into the
+			// TN93_SATURATED_PAIRS refusal a reader is shown, test/diagnostics.test.js:290-299), so
+			// completing dataset.py:795-799's `except (ValueError, OverflowError): d = 1.0` here would
+			// silently turn a refusal into a distance of 1.0 for the selection pillar. Recorded as a
+			// port gap rather than changed under a pillar that did not ask for it.
 			if (d < 0 || Number.isNaN(d)) d = TN93_SATURATION_SENTINEL;
 			const f = Math.fround(d);
 			dist[i * n + j] = f;
@@ -703,6 +710,113 @@ export function tn93DistanceMatrix(sequences, taxa, options = {}) {
 		}
 	}
 	for (let i = 0; i < n; i++) dist[i * n + i] = 0.0;
+	return dist;
+}
+
+/**
+ * `compute_tn93_cross_distance_matrix(seq_dict, taxa_all, taxa_landmarks)`, dataset.py:824-928:
+ * the RECTANGULAR float32 [n, m] matrix of every taxon against a handful of landmarks, row-major.
+ * The tree-free dating path (dating.py:624-698) computes every root-to-tip divergence with it —
+ * one landmark, the root sequence — so this is the shape that pillar actually uses, not the square
+ * sibling above.
+ *
+ * Everything downstream of the numbers is the reference's and is done here: the `-1.0` prefill so a
+ * pair that was never written is distinguishable from a measured zero, the float32 rounding,
+ * `d < 0 or isnan -> 1.0`, the landmark self-zeros (set BEFORE `max_d` is read, as dataset.py:917
+ * does, and again after the imputation), and the `max(1.0, max_d)` fill. An EMPTY axis returns the
+ * all-sentinel matrix with no imputation at all, exactly as dataset.py:836 does.
+ *
+ * THE `*` QUESTION IS THE CALLER'S, AND IT IS NOT COSMETIC. dataset.py rewrites `*` to `-` only in
+ * the branch that writes FASTA for the compiled `tn93` binary (dataset.py:840, 844); the Python
+ * package branch this file mirrors passes `*` through, where the package's character map sends it
+ * to the catch-all unknown. The two engines therefore disagree on any alignment containing `*`.
+ * MEASURED on examples/korber_env_gp160.fasta (2389 asterisks across 18 of 143 sequences): with
+ * `*` rewritten to `-` before this call, all 142 root divergences reproduce the reference's
+ * compiled-binary run EXACTLY (max |Δ| = 0.0); without it, 18 of them differ and `Z59ZR.ZHU` moves
+ * from 0.06076440 to 0.11056680. The library mirrors both branches faithfully and rewrites nothing;
+ * the application decides, per pillar, which convention its reference-of-record used, and records
+ * the choice in the run's provenance.
+ *
+ * @param {Map<string, string>|Record<string, string>} sequences taxon -> aligned sequence
+ * @param {string[]} taxaAll the rows, in order
+ * @param {string[]} taxaLandmarks the columns, in order
+ * @param {{matchMode?: string, maxAmbigFraction?: number, ignoreGaps?: boolean, threshold?: number,
+ *   pairwiseDistances?: (allSeqs: string[], landmarkSeqs: string[], taxaAll: string[], taxaLandmarks: string[], threshold: number) => ArrayLike<number>}} [options]
+ *   `pairwiseDistances` replaces the per-pair computation with an external engine's raw numbers,
+ *   read at [i * m + j]; `null`/`undefined` for a pair means "not written" and is imputed below,
+ *   exactly as a pair the binary omitted from its CSV leaves dataset.py's matrix at -1.0.
+ * @returns {Float32Array} length taxaAll.length * taxaLandmarks.length, row-major
+ */
+export function tn93CrossDistanceMatrix(sequences, taxaAll, taxaLandmarks, options = {}) {
+	const get = sequences instanceof Map ? (/** @type {string} */ t) => sequences.get(t) : (/** @type {string} */ t) => sequences[t];
+	const n = taxaAll.length;
+	const m = taxaLandmarks.length;
+	const dist = new Float32Array(n * m);
+	// dataset.py:834 `np.full((n, m), -1.0, dtype=np.float32)`.
+	dist.fill(TN93_MISSING_SENTINEL);
+	// dataset.py:835-836: an empty axis returns the prefilled matrix, imputation not reached.
+	if (n === 0 || m === 0) return dist;
+
+	const read = (/** @type {string} */ t) => {
+		const s = get(t);
+		if (typeof s !== 'string') throw new Error(`tn93CrossDistanceMatrix: no sequence for taxon '${t}'`);
+		return s;
+	};
+	const allSeqs = taxaAll.map(read);
+	const lmSeqs = taxaLandmarks.map(read);
+	const provider =
+		typeof options.pairwiseDistances === 'function'
+			? options.pairwiseDistances(allSeqs, lmSeqs, taxaAll, taxaLandmarks, options.threshold ?? TN93_REPORTING_THRESHOLD)
+			: null;
+	const encAll = provider ? null : allSeqs.map(encodeSequence);
+	const encLm = provider ? null : lmSeqs.map(encodeSequence);
+
+	// dataset.py:893-914, landmark-major: `for j, lm: for i, t:`.
+	for (let j = 0; j < m; j++) {
+		for (let i = 0; i < n; i++) {
+			if (taxaAll[i] === taxaLandmarks[j]) {
+				dist[i * m + j] = 0.0;
+				continue;
+			}
+			let d;
+			if (provider) d = provider[i * m + j];
+			else {
+				// dataset.py:903-906's `except (ValueError, OverflowError): d = 1.0`. The tn93
+				// package RAISES on a saturated pair (math.log of a non-positive corrected
+				// proportion) rather than returning a sentinel, and `pyLog` above mirrors that.
+				// NOTE the asymmetry with the square sibling above, which does NOT catch: that one's
+				// throw is a pinned contract (diagnostics.js renders it as the TN93_SATURATED_PAIRS
+				// refusal), while this one is new and mirrors its reference branch as written.
+				// A `ZeroDivisionError` — a pair with NO overlapping non-gap position — is uncaught
+				// upstream too and still kills the run, here as there.
+				try {
+					d = tn93DistanceEnc(encAll[i], encLm[j], options);
+				} catch {
+					d = TN93_SATURATION_SENTINEL;
+				}
+			}
+			if (d === null || d === undefined) continue; // never written; left at the sentinel
+			if (d < 0 || Number.isNaN(d)) d = TN93_SATURATION_SENTINEL;
+			dist[i * m + j] = Math.fround(d);
+		}
+	}
+
+	// dataset.py:917-919, then :921-924, then :925-927. `taxa_idx` is built from taxa_all, so a name
+	// repeated there resolves to its LAST row — replicated by scanning forwards and keeping the last.
+	const rowOf = new Map();
+	for (let i = 0; i < n; i++) rowOf.set(taxaAll[i], i);
+	for (let j = 0; j < m; j++) {
+		const i = rowOf.get(taxaLandmarks[j]);
+		if (i !== undefined) dist[i * m + j] = 0.0;
+	}
+	let maxD = -Infinity;
+	for (let k = 0; k < dist.length; k++) if (dist[k] > maxD) maxD = dist[k];
+	const fill = Math.fround(Math.max(TN93_SATURATION_SENTINEL, maxD > 0 ? maxD : TN93_FALLBACK_MAX));
+	for (let k = 0; k < dist.length; k++) if (dist[k] < 0.0) dist[k] = fill;
+	for (let j = 0; j < m; j++) {
+		const i = rowOf.get(taxaLandmarks[j]);
+		if (i !== undefined) dist[i * m + j] = 0.0;
+	}
 	return dist;
 }
 

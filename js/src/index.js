@@ -51,7 +51,8 @@ export * from './preprocess/parse.js'; // parseAlignmentSequences + the CPython 
 export * from './preprocess/tokenizer.js'; // CODON_LIST, GENETIC_CODE, AA_MAP, CODON_TO_AA, codonToken, aaToken, tokenizeSequence
 export * from './preprocess/variability.js'; // isAaInvariable, invariableMask, isSiteVariable, siteVariability
 export * from './preprocess/tree.js'; // NewickError, parseNewickTrees, readNewick, extractTree, matchTaxa, treeTaxa, branch-length predicates
-export * from './preprocess/tn93.js'; // dataset.py:715-821 + the tn93 1.2.2 package: tn93Distance, tn93DistanceMatrix, tn93Counts, tn93SaturatedPairs, TN93_* (D22 tree-free distances; a leaf)
+export * from './preprocess/consensus.js'; // dating.py:225-310: consensusSequence, timeDecayConsensusSequence (the tree-free root anchors; a leaf)
+export * from './preprocess/tn93.js'; // dataset.py:715-821 + :824-928 (tn93CrossDistanceMatrix) + the tn93 1.2.2 package: tn93Distance, tn93DistanceMatrix, tn93Counts, tn93SaturatedPairs, TN93_* (D22 tree-free distances; a leaf)
 // One level up.
 export * from './preprocess/patristic.js'; // rootDistances, patristicRow, patristicMatrix, computeFastDistMatrix, rescaleDistances
 export * from './preprocess/downsample.js'; // pruneIdenticalSequences, downsampleTaxaFaithPd, stridePreselect
@@ -75,4 +76,5 @@ export * from './dms.js'; // epistasis.py:449-631, 724-768: runInsilicoSelection
 export * from './permulations.js'; // phenotype.py:275-374: computePhylogeneticCovariance, generatePermulations, findAnyByName, pyRegexSource (before phenotype.js, which imports it)
 export * from './phenotype.js'; // phenotype.py:48-274 and 347-646: PRESETS, PHENOTYPE_THRESHOLDS, resolvePhenotypeVector, runPhenotypeAssociation, parsePhenotypeTable, pyFnmatch, pyRepr*, pyFloatStr
 export * from './diagnostics.js'; // PLAN.md §4.3 pre-flight: diagnose, DIAGNOSTIC_CODES, DIAGNOSTIC_THRESHOLDS
+export * from './dating.js'; // dating.py: the model-free dating estimators - runOlsDating, the Fieller and delta intervals, the restricted spline clock, computeTreeFreeDivergences (no model, no RNG; the policy and the prose are the app's)
 export * from './dates.js'; // temporal.py:73-245 + dating.py:317-384: parseDate/extractDate/parseHeaderDate/parseFlexibleDate and their exact-Python numeric wrappers, DATE_RULES (a leaf; the file/table/JSON ingestion around them is the app's)
