@@ -124,3 +124,64 @@ export function percentile(x, q) {
 	// numpy/lib/_function_base_impl.py `_lerp`
 	return t >= 0.5 ? hi - diff * (1 - t) : lo + diff * t;
 }
+
+/**
+ * `float(np.mean(x[lo:lo+n]))` in float64: pairwise sum, then one divide.
+ *
+ * Added for `hyphaeon/temporal.py`, which reduces float64 `[L, T]` trajectory matrices along the
+ * contiguous axis in four places (temporal.py:709-710, 728-730, 738-739, 785) — numpy reduces a
+ * C-contiguous last axis pairwise, per row.
+ *
+ * @param {ArrayLike<number>} x
+ * @param {number} [lo]
+ * @param {number} [n]
+ * @returns {number}
+ */
+export function numpyMeanFloat64(x, lo = 0, n = x.length - lo) {
+	if (n <= 0) return NaN;
+	return numpyPairwiseSum(x, lo, n, identity) / n;
+}
+
+/**
+ * `float(np.var(x[lo:lo+n]))` in float64 with `ddof = 0` — the statistic
+ * `hyphaeon/temporal.py:642` uses for the episodic date-shuffling null.
+ *
+ * numpy's `_var` is TWO passes and both of them are pairwise: `arrmean = umr_sum(arr)/div`, then
+ * `umr_sum((arr − arrmean)**2)/div`. A one-pass `E[x²] − E[x]²` is a different (and much worse)
+ * float, and a running accumulation is a different float again — which matters because the null's
+ * decision is a `>=` comparison against `v_obs` computed by the same routine, so any asymmetry
+ * between the two sides biases the exceedance count.
+ *
+ * @param {ArrayLike<number>} x
+ * @param {number} [lo]
+ * @param {number} [n]
+ * @returns {number}
+ */
+export function numpyVarFloat64(x, lo = 0, n = x.length - lo) {
+	if (n <= 0) return NaN;
+	const mean = numpyPairwiseSum(x, lo, n, identity) / n;
+	const dev = new Float64Array(n);
+	for (let i = 0; i < n; i++) {
+		const d = x[lo + i] - mean;
+		dev[i] = d * d;
+	}
+	return numpyPairwiseSum(dev, 0, n, identity) / n;
+}
+
+/**
+ * `float(np.std(x[lo:lo+n]))` in float64, `ddof = 0` — `sqrt` of {@link numpyVarFloat64}, which is
+ * how numpy computes it (`_std` calls `_var` and takes the square root of the result).
+ *
+ * @param {ArrayLike<number>} x
+ * @param {number} [lo]
+ * @param {number} [n]
+ * @returns {number}
+ */
+export function numpyStdFloat64(x, lo = 0, n = x.length - lo) {
+	return Math.sqrt(numpyVarFloat64(x, lo, n));
+}
+
+/** Float64 accumulation: no rounding between additions. */
+function identity(/** @type {number} */ v) {
+	return v;
+}
