@@ -33,6 +33,18 @@
  *   3. `t_half_start`, `t_half_end` and `fwhm_arr` are declared float32 (temporal.py:584-586), so
  *      the float64 grid dates are DOWNCAST on assignment — `Math.fround` at exactly those stores.
  *
+ * WHAT THE NULL COSTS, measured on this machine (node 22, x64 under Rosetta on an Apple-silicon Mac,
+ * so this is a floor and a native arm64 browser should be 1.5-2x faster). The work is
+ * `W = B · C · T · (nnz/C + 7)` — the matmul plus a fixed ~7T for the statistic, which DOMINATES at
+ * realistic sparsity. On the acceptance alignment (C = 246, N = 95, T = 60, nnz = 1000, so the mean
+ * derived fraction is 0.043 and 96 % of the attribution matrix is zero): 28 ms at B = 100 and 253 ms
+ * at B = 1000, i.e. **R = 0.65e9 units/s**. The BigInt PRNG is 23 ms of that 253 — 9 %, and not worth
+ * replacing. Two decisions are measured rather than assumed: the CSR layout over the candidate rows
+ * is 2.1x faster than a dense scan with a zero test (0.30e9 before it), and taking the gradient over
+ * the whole matrix in one call instead of row by row is most of the rest. An application budgeting
+ * the section should use R = 0.65e9 and re-measure; the plan's own estimate of 1.0e9 was taken on a
+ * kernel with no `Xoshiro256` in it.
+ *
  * UPSTREAM QUIRKS REPLICATED AND FLAGGED HERE (PLAN.md §5.3 rule 3 — port faithfully, fix upstream):
  *   Q1 `tau_peak == 1e-4` is tested by VALUE (temporal.py:604, 610), so a caller who passes the
  *      documented default explicitly is silently overridden to 0.5e-4. {@link resolveEnergyFloors}
@@ -737,17 +749,17 @@ export function temporalPermStat(curves, rows, T, { sweepMode, gradT = null, nor
 		return out;
 	}
 	if (!gradT) throw new TypeError('temporalPermStat: the episodic branch needs gradT');
-	// One row buffer and one gradient buffer, reused across rows: the null calls this on every draw,
-	// so an allocation per row here is what turns a 13 s job into a 40 s one with GC pauses.
-	const grad = scratch && scratch.length >= 2 * T ? scratch : new Float64Array(2 * T);
-	const row = grad.subarray(0, T);
-	const g = grad.subarray(T, 2 * T);
+	// The gradient is taken over the WHOLE matrix in one call rather than row by row, so no row is
+	// ever copied into a scratch: the null calls this on every draw, and a per-row copy plus a
+	// subarray there measured as a third of the kernel's time. The arithmetic is identical —
+	// numpyGradientRows builds its coefficients once from gradT and applies them per row.
+	// `scratch` must hold rows*T if it is supplied; anything shorter is ignored.
+	const grad = scratch && scratch.length >= rows * T ? scratch : new Float64Array(rows * T);
+	numpyGradientRows(curves, rows, T, gradT, /** @type {Float64Array} */ (grad));
 	for (let r = 0; r < rows; r++) {
 		const o = r * T;
-		for (let t = 0; t < T; t++) row[t] = curves[o + t];
-		numpyGradientRows(row, 1, T, gradT, g);
-		for (let t = 0; t < T; t++) if (!(g[t] > 0)) g[t] = 0;
-		out[r] = numpyVarFloat64(g, 0, T);
+		for (let t = o; t < o + T; t++) if (!(grad[t] > 0)) grad[t] = 0;
+		out[r] = numpyVarFloat64(grad, o, T);
 	}
 	return out;
 }
@@ -808,11 +820,47 @@ export function temporalNullDraws({ candAttrs, C, N, T, WT, vObs, sweepMode, gra
 	const curves = new Float64Array(C * T);
 	const stat = new Float64Array(C);
 	const baseRow = new Int32Array(N);
-	const scratch = new Float64Array(2 * T);
+	const scratch = new Float64Array(C * T);
+	// CSR over the candidate attributions, built ONCE. MEASURED on the acceptance alignment: only
+	// 4.3 % of the [C, N] matrix is nonzero, because `delta_root` is an indicator of carrying a
+	// derived residue, so a dense scan spends 95 loads and branches per candidate to do four
+	// multiply-accumulate chains. The row order is preserved exactly, so the sum is the same sum in
+	// the same order as {@link smoothTrajectories}'s and `v_obs` stays comparable to `v_p` bit for
+	// bit at the `>=` tie boundary.
+	const rowPtr = new Int32Array(C + 1);
+	for (let c = 0; c < C; c++) {
+		let k = 0;
+		for (let n = 0; n < N; n++) if (candAttrs[c * N + n] !== 0) k++;
+		rowPtr[c + 1] = rowPtr[c] + k;
+	}
+	const nnz = rowPtr[C];
+	const colIdx = new Int32Array(nnz);
+	const val = new Float64Array(nnz);
+	{
+		let k = 0;
+		for (let c = 0; c < C; c++) {
+			for (let n = 0; n < N; n++) {
+				const v = candAttrs[c * N + n];
+				if (v !== 0) {
+					colIdx[k] = n;
+					val[k] = v;
+					k++;
+				}
+			}
+		}
+	}
 	for (let b = fromDraw; b < toDraw; b++) {
 		const perm = temporalDrawPermutation(N, seed, b);
 		for (let n = 0; n < N; n++) baseRow[n] = perm[n] * T;
-		smoothTrajectories(candAttrs, C, N, WT, T, { baseRow, out: curves });
+		curves.fill(0);
+		for (let c = 0; c < C; c++) {
+			const oo = c * T;
+			for (let k = rowPtr[c]; k < rowPtr[c + 1]; k++) {
+				const v = val[k];
+				const p0 = baseRow[colIdx[k]];
+				for (let t = 0; t < T; t++) curves[oo + t] += v * WT[p0 + t];
+			}
+		}
 		temporalPermStat(curves, C, T, { sweepMode, gradT, normDenseT, scratch, out: stat });
 		for (let c = 0; c < C; c++) if (stat[c] >= vObs[c]) counts[c]++;
 		if (onProgress) onProgress({ phase: 'temporal-null', done: b + 1 - fromDraw, total: toDraw - fromDraw });
