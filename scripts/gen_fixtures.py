@@ -2499,6 +2499,7 @@ def gen_dating_model(w: Writer, model_sha: Optional[str]) -> Dict[str, Any]:
 
     reml_cases: List[Dict[str, Any]] = []
     pgls_cases: List[Dict[str, Any]] = []
+    spline_gls_cases: List[Dict[str, Any]] = []
     lambdas = {}
     for idx, mode in enumerate(("tn93", "latent")):
         dd = dists_by_mode[mode][train_local]
@@ -2547,6 +2548,40 @@ def gen_dating_model(w: Writer, model_sha: Optional[str]) -> Dict[str, Any]:
                 f"-- while the returned record ships 'ridge': {float(res['ridge']):.12g}, because pagel_lambda is not "
                 "None so the ridge argument NEVER reaches the covariance (dating.py:1352-1357) and 1466 recomputes the "
                 "field as 1 - eff_lam. A page must not show both."))
+
+        # The spline, on the SAME covariance -- DATING Q10. dating.py:2842-2844 hands
+        # `spline_cov = cov_train` to run_restricted_spline_clock_dating whenever the neural path
+        # produced a covariance, so loading the model turns the restricted spline into a GLS spline
+        # on divergences that did not move. The model-free table for this function
+        # (run_restricted_spline_clock_dating.json) is generated without weights and therefore
+        # cannot carry these; they are here, under the same name plus `_gls`, because the group that
+        # can build a covariance is the group gated behind the checkpoint.
+        eff_ridge = float(np.clip(1.0 - lambdas[mode], 0.01, 0.20))
+        sp_gls = ns["run_restricted_spline_clock_dating"](train_times, dd, cov_matrix=cov_train,
+                                                          ridge=eff_ridge, n_boot=500, seed=PERM_SEED)
+        sp_free = ns["run_restricted_spline_clock_dating"](train_times, dd, cov_matrix=None,
+                                                           ridge=eff_ridge, n_boot=500, seed=PERM_SEED)
+        spline_gls_cases.append(case(
+            f"{len(spline_gls_cases):03d}_korber_{mode}_gls",
+            {"times": train_times, "dists": dd, "cov_matrix": cov_ref, "ridge": eff_ridge,
+             "n_boot": 500, "seed": PERM_SEED, "n": len(train_times)},
+            {k: v for k, v in sp_gls.items() if k not in ("fitted", "residuals")},
+            "1e-5",
+            sig("run_restricted_spline_clock_dating",
+                "run_restricted_spline_clock_dating(times, dists, cov_matrix, ridge=0.05, n_boot=500, seed=42) -> dict")
+            + f" korber under --distance-mode {mode}, WITH the neural covariance (DATING Q10). "
+            "The same function, the same times and the same dists as the model-free table, and a different answer: "
+            f"beta_0 {float(sp_free['beta_0'])!r} -> {float(sp_gls['beta_0'])!r}, "
+            f"t_mrca {float(sp_free['t_mrca'])!r} -> {float(sp_gls['t_mrca'])!r}, "
+            f"is_nonlinear_preferred {bool(sp_free['is_nonlinear_preferred'])} -> {bool(sp_gls['is_nonlinear_preferred'])}. "
+            "So a record that shows a spline beside a PGLS fit must show THIS spline. "
+            "TOLERANCE 1e-5 RELATIVE ON EVERY FIELD EXCEPT t_mrca, and t_mrca is NOT held at 1e-5 years here: "
+            "it is -beta_0/beta_1 on the UNCENTRED calendar axis (DATING Q5), and under --distance-mode latent "
+            f"beta_1 is {float(sp_gls['beta_1']):.3e}, so the lever arm is about {abs(float(sp_gls['t_mrca'])):.0f} "
+            "years per unit relative error in the slope. MEASURED: a float64 port of this function, fed a kernel "
+            "rebuilt from the float32 model_outputs table, reproduces beta_1 to 1.0e-4 relative under latent and "
+            "1.4e-6 under tn93, i.e. t_mrca to 0.4 years and 1.5e-4 years respectively. The number is the "
+            "reference's, and it is only that well determined."))
 
     # synthetic REML arms
     srng2 = np.random.default_rng(SYNTH_SEED + 2)
@@ -2667,6 +2702,7 @@ def gen_dating_model(w: Writer, model_sha: Optional[str]) -> Dict[str, Any]:
         "must see rather than a narrow one."))
     w.write("dating", "estimate_reml_pagel_lambda", reml_cases)
     w.write("dating", "run_pgls_dating", pgls_cases)
+    w.write("dating", "run_restricted_spline_clock_dating_gls", spline_gls_cases)
 
     return {"dating_reference_source": provenance,
             "dating_model_example": {

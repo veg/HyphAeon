@@ -116,6 +116,10 @@ const EXPECTED_COUNTS = {
 	compute_fieller_mrca_interval: 9,
 	run_ols_dating: 12,
 	run_restricted_spline_clock_dating: 5,
+	// The covariance arm, DATING Q10: the same function fitted with the neural kernel the PGLS fit
+	// uses, in both distance modes. It lives in its own table because the model-free one is generated
+	// without the checkpoint and could not carry a covariance.
+	run_restricted_spline_clock_dating_gls: 2,
 	run_mrca_dating: 3,
 	// phase 4, replayed by test/dating-model.test.js
 	model_outputs: 1,

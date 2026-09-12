@@ -88,7 +88,8 @@ import {
 	optimizeLatentConvexHullRoot,
 	pairwiseAcgtHammingMatrix,
 	parseAlignmentSequences,
-	runPglsDating
+	runPglsDating,
+	runRestrictedSplineClockDating
 } from '../src/index.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -532,6 +533,98 @@ const PGLS_EXPORT_KEYS = [
 	'method', 'status', 'mu', 'd0', 't_ref', 't_mrca', 'se_mu', 'se_d0', 'se_mrca', 'ci_fieller',
 	'fieller_g', 'ci_delta', 'ci_mrca', 'ci_method', 'r2', 'ridge', 'pagel_lambda', 'sigma2', 'rmse', 'n'
 ];
+
+/**
+ * DATING Q10, and the reason this table exists at all: `run_restricted_spline_clock_dating` is in
+ * src/dating.js, the model-free half, yet dating.py:2842-2844 hands it `cov_train` the moment the
+ * neural path produced one. So the SAME function, on times and dists that did not move, answers
+ * differently once the model is loaded — and a record that prints a spline beside a PGLS fit has to
+ * print this one. The fixture's own note carries the before/after for both distance modes.
+ *
+ * TOLERANCE. Every field at the table's 1e-5, RELATIVE where the magnitude is large, except
+ * `t_mrca` under `--distance-mode latent`. That one is `−beta_0/beta_1` on an UNCENTRED calendar
+ * axis (DATING Q5) with `beta_1 = 9.09e-6`, a lever arm of about 2·10³ years per unit relative
+ * error in the slope: MEASURED here, beta_1 lands at 1.0e-4 relative and `t_mrca` therefore at
+ * 0.4 years. That is the conditioning of the reference's own construction, not slack — the tn93
+ * case, whose slope is a hundred times larger, is held at 1e-3 years and lands at 1.5e-4.
+ */
+const SPLINE_GLS_EXPORT_KEYS = [
+	'method', 't_mrca', 'ci_mrca', 'rate_ancestral', 'ci_rate_ancestral', 'rate_recent',
+	'ci_rate_recent', 'rate_ratio', 'beta_0', 'beta_1', 'beta_2', 'beta', 'ci_beta_2', 'knots',
+	'rss', 'aic', 'rss_linear', 'aic_linear', 'delta_aic', 'f_stat', 'p_f_test',
+	'is_nonlinear_preferred', 'r2', 'rmse', 'n'
+];
+
+/** Years absolute on the date and its interval; everything else relative at the table's bound. */
+const SPLINE_GLS_YEAR_TOLERANCE = { '000_korber_tn93_gls': 1e-3, '001_korber_latent_gls': 1.0 };
+
+describe('run_restricted_spline_clock_dating with the neural covariance (DATING Q10)', () => {
+	for (const c of load('run_restricted_spline_clock_dating_gls')) {
+		it(`${c.name}: the GLS spline, every field within ${c.tolerance} relative`, () => {
+			const rel = TOL[c.tolerance];
+			const years = SPLINE_GLS_YEAR_TOLERANCE[c.name];
+			expect(years, `no year tolerance recorded for ${c.name}`).toBeGreaterThan(0);
+			const cov = flat(resolveRef(c.inputs.cov_matrix));
+			const got = runRestrictedSplineClockDating(c.inputs.times.map(decode), c.inputs.dists.map(decode), {
+				covMatrix: cov,
+				ridge: c.inputs.ridge
+			});
+
+			const failures = [];
+			const check = (label, g, want) => {
+				const w = decode(want);
+				if (typeof w === 'boolean' || typeof w === 'string') {
+					if (!Object.is(g, w)) failures.push(`${label}: expected ${w}, got ${g}`);
+					return;
+				}
+				// `t_mrca` and its interval are DATES: a tolerance on one is a duration, not a ratio.
+				const isDate = label.startsWith('t_mrca') || label.startsWith('ci_mrca');
+				const tol = isDate ? years : Math.max(rel * Math.abs(w), 1e-12);
+				const f = near(g, w, tol, label);
+				if (f) failures.push(f);
+			};
+			for (const k of SPLINE_GLS_EXPORT_KEYS) {
+				const want = c.outputs[k];
+				if (Array.isArray(want)) want.forEach((v, i) => check(`${k}[${i}]`, got[k][i], v));
+				else check(k, got[k], want);
+			}
+			expect(failures, failures.slice(0, 5).join('\n')).toEqual([]);
+
+			// Non-vacuity: the covariance must actually have changed the answer. The model-free fit on
+			// the same inputs is a different spline, and if the option were ignored this would pass by
+			// accident.
+			const free = runRestrictedSplineClockDating(c.inputs.times.map(decode), c.inputs.dists.map(decode));
+			expect(Math.abs(free.beta_0 - got.beta_0)).toBeGreaterThan(1e-6);
+
+			// The key SET and its ORDER are the download contract, and adding the option must not have
+			// moved them.
+			expect(Object.keys(got).filter((k) => SPLINE_GLS_EXPORT_KEYS.includes(k))).toEqual(SPLINE_GLS_EXPORT_KEYS);
+		});
+	}
+
+	it('the null covariance leaves phase 3\'s arithmetic bit for bit alone', () => {
+		// The identity branch still runs `normalEquations` and the plain sums; passing an explicit
+		// identity goes down the dense C_inv path instead and must NOT be treated as the same thing.
+		const c = load('run_restricted_spline_clock_dating_gls')[0];
+		const t = c.inputs.times.map(decode);
+		const d = c.inputs.dists.map(decode);
+		const a = runRestrictedSplineClockDating(t, d);
+		const b = runRestrictedSplineClockDating(t, d, { covMatrix: null });
+		expect(b.beta_0).toBe(a.beta_0);
+		expect(b.t_mrca).toBe(a.t_mrca);
+		expect(b.rss).toBe(a.rss);
+		expect(b.r2).toBe(a.r2);
+	});
+
+	it('refuses a covariance of the wrong size rather than reading past it', () => {
+		const c = load('run_restricted_spline_clock_dating_gls')[0];
+		expect(() =>
+			runRestrictedSplineClockDating(c.inputs.times.map(decode), c.inputs.dists.map(decode), {
+				covMatrix: new Float64Array(9)
+			})
+		).toThrow(/cov_matrix must be/);
+	});
+});
 
 describe('run_pgls_dating (dating.py:1299-1473)', () => {
 	for (const c of load('run_pgls_dating')) {

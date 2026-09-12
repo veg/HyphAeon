@@ -95,9 +95,11 @@
  * whenever the neural path ran, so on IDENTICAL divergences the spline's `beta_0` moves from
  * -4.386825916889575 to -1.7112000894725579, its `t_mrca` from 1938.7746674292187 to 1864.5477949,
  * and the clock selection flips from Restricted Spline to Linear PGLS. `runRestrictedSplineClockDating`
- * here takes no covariance and is therefore the MODEL-FREE spline — the right answer when no model
- * ran, and the wrong one to show beside a PGLS fit. An application that runs both must say which
- * spline it drew.
+ * therefore TAKES a `covMatrix`/`ridge` option: pass the same `cov_train` the PGLS fit was given and
+ * it is the GLS spline, pass nothing and it is the model-free one, and the two are different answers
+ * to different questions. An application that runs both must say which spline it drew.
+ * `fixtures/dating/run_restricted_spline_clock_dating_gls.json` pins the covariance arm in both
+ * distance modes; the model-free table is the `_gls`-less one, generated without the checkpoint.
  *
  * FULL-CHAIN VERIFICATION (measured in this session, tn93 binary off PATH, `*` rewritten to `-`,
  * `verify_coding_alignment`'s `L mod 3` trim applied): the chain parse -> parse_header_timestamp ->
@@ -113,6 +115,7 @@ import { numpyPairwiseSum, percentile } from './numeric/reduce.js';
 import { brentq } from './numeric/optimize.js';
 import { consensusSequence, timeDecayConsensusSequence } from './preprocess/consensus.js';
 import { tn93CrossDistanceMatrix, tn93DistanceMatrix } from './preprocess/tn93.js';
+import { symmetricEigen } from './preprocess/symmetricEigen.js';
 
 const identity = (/** @type {number} */ v) => v;
 
@@ -559,6 +562,68 @@ function normalEquations(X, y, n, p) {
 }
 
 /**
+ * `C_inv = v @ np.diag(1.0 / (np.maximum(w, 0.0) + ridge)) @ v.T` (dating.py:1846-1848), dense and
+ * row-major. The reference materialises it; `run_pgls_dating` on the same kernel does not, and the
+ * difference is the reference's own (DATING Q9's sibling), so it is replicated rather than fused.
+ */
+function denseInverseCovariance(covMatrix, n, ridge) {
+	const { values, vectors } = symmetricEigen(covMatrix, n);
+	const invW = new Float64Array(n);
+	for (let k = 0; k < n; k++) invW[k] = 1.0 / (Math.max(values[k], 0.0) + ridge);
+	const Cinv = new Float64Array(n * n);
+	const term = new Float64Array(n);
+	for (let i = 0; i < n; i++) {
+		for (let j = i; j < n; j++) {
+			for (let k = 0; k < n; k++) term[k] = vectors[i * n + k] * invW[k] * vectors[j * n + k];
+			const v = sum64(term);
+			Cinv[i * n + j] = v;
+			Cinv[j * n + i] = v;
+		}
+	}
+	return Cinv;
+}
+
+/** `X.T @ C_inv @ X` and `X.T @ C_inv @ y` for a row-major n x p design and a dense `C_inv`. */
+function weightedNormalEquations(X, y, Cinv, n, p) {
+	// `Xt_Cinv = X.T @ C_inv`, p x n (dating.py:1852, :1861).
+	const XtC = new Float64Array(p * n);
+	const buf = new Float64Array(n);
+	for (let a = 0; a < p; a++) {
+		for (let j = 0; j < n; j++) {
+			for (let i = 0; i < n; i++) buf[i] = X[i * p + a] * Cinv[i * n + j];
+			XtC[a * n + j] = sum64(buf);
+		}
+	}
+	const A = new Float64Array(p * p);
+	const rhs = new Float64Array(p);
+	for (let a = 0; a < p; a++) {
+		for (let b = 0; b < p; b++) {
+			for (let i = 0; i < n; i++) buf[i] = XtC[a * n + i] * X[i * p + b];
+			A[a * p + b] = sum64(buf);
+		}
+		for (let i = 0; i < n; i++) buf[i] = XtC[a * n + i] * y[i];
+		rhs[a] = sum64(buf);
+	}
+	return { A, rhs };
+}
+
+/** `r.T @ C_inv @ r`, and with `Cinv === null` the plain `sum(r**2)` phase 3 already computed. */
+function quadraticForm(r, Cinv, n) {
+	const buf = new Float64Array(n);
+	if (Cinv === null) {
+		for (let i = 0; i < n; i++) buf[i] = r[i] * r[i];
+		return sum64(buf);
+	}
+	const Cr = new Float64Array(n);
+	for (let i = 0; i < n; i++) {
+		for (let j = 0; j < n; j++) buf[j] = Cinv[i * n + j] * r[j];
+		Cr[i] = sum64(buf);
+	}
+	for (let i = 0; i < n; i++) buf[i] = r[i] * Cr[i];
+	return sum64(buf);
+}
+
+/**
  * `run_restricted_spline_clock_dating(times, dists, cov_matrix, ridge, n_boot, seed)`,
  * dating.py:1809-1968: the three-knot restricted cubic spline clock, its nested F test against the
  * straight line, and the automatic preference rule.
@@ -579,12 +644,33 @@ function normalEquations(X, y, n, p) {
  * at the 1e-8 level and is "improving during a port", so it is not done, and the spline's
  * `t_mrca` is pinned at 1e-5 years absolute while the OLS fit is pinned at 1e-9.
  *
- * `cov_matrix` is always None on the phase-3 path (PGLS is phase 4), so `C_inv` is the identity and
- * multiplying by it is exact; the ridge is unused. `nBoot` defaults to 0 — see B1 in the header.
+ * `covMatrix` IS REACHED THE MOMENT THE MODEL RUNS, and phase 3's claim that it never is has
+ * expired. dating.py:2844 passes `spline_cov = cov_train` whenever the neural path produced a
+ * covariance, so the restricted spline becomes a GLS spline with the model loaded and an OLS
+ * spline without it, ON IDENTICAL DIVERGENCES (DATING Q10). MEASURED on korber at
+ * `--distance-mode tn93`, where the divergence vector is bit-identical either way:
+ * `beta_0` −4.386825916889575 → −1.7112000894725579, `t_mrca` 1938.7746674292187 → 1864.54779490812,
+ * and the clock selection flips from Restricted Spline to Linear PGLS. A page that draws a spline
+ * beside a PGLS fit must draw THIS one.
+ *
+ * THE TWO ESTIMATORS REGULARISE THE SAME KERNEL TWO DIFFERENT WAYS, and that is upstream's, not
+ * this port's. `run_pgls_dating` builds `C = λK + (1−λ)I` (1353); this builds
+ * `C = max(K, 0) + ridge·I` (1846) with `ridge = clip(1−λ*, 0.01, 0.20)` from 2792. At the
+ * acceptance case's λ* = 0.8591 that is `K + 0.1409·I` against `0.8591·K + 0.1409·I` — NOT
+ * proportional, so the two fits in one record are weighted by genuinely different covariances.
+ * Replicated as written; raised as an engine question rather than reconciled here.
+ *
+ * WHEN `covMatrix` IS NULL THE ARITHMETIC IS UNCHANGED, deliberately: the identity branch still
+ * runs `normalEquations` and the plain sums, so no phase-3 number moves by a single bit. The dense
+ * `C_inv = V diag(1/(max(w,0)+ridge)) Vᵀ` of 1847 is materialised only on the covariance branch —
+ * two n³ matmuls where `run_pgls_dating` needs none, which is the reference's own choice.
+ *
+ * `nBoot` defaults to 0 — see B1 in the header.
  *
  * @param {ArrayLike<number>} times
  * @param {ArrayLike<number>} dists
- * @param {{nBoot?: number}} [options]
+ * @param {{nBoot?: number, covMatrix?: ArrayLike<number>|null, ridge?: number}} [options]
+ *   `covMatrix` row-major n*n; `ridge` is the additive nugget of 1846, default 0.05 as upstream.
  * @returns {Record<string, any>} the reference's key set, in the reference's order
  * @throws {RangeError} n < 5 (dating.py:1837), or nBoot !== 0
  */
@@ -604,6 +690,14 @@ export function runRestrictedSplineClockDating(times, dists, options = {}) {
 		);
 	}
 
+	const covMatrix = options.covMatrix ?? null;
+	const ridge = options.ridge ?? 0.05;
+	if (covMatrix != null && covMatrix.length !== n * n) {
+		throw new RangeError(`cov_matrix must be ${n}x${n} (got ${covMatrix.length} entries).`);
+	}
+	// dating.py:1845-1850. `null` keeps phase 3's exact arithmetic; see the header.
+	const Cinv = covMatrix == null ? null : denseInverseCovariance(covMatrix, n, ridge);
+
 	let tMin = t[0];
 	for (let i = 1; i < n; i++) if (t[i] < tMin) tMin = t[i];
 	const knots = Float64Array.from([tMin, percentile(t, 50), percentile(t, 90)]);
@@ -616,15 +710,11 @@ export function runRestrictedSplineClockDating(times, dists, options = {}) {
 		Xlin[i * pLin] = 1;
 		Xlin[i * pLin + 1] = t[i];
 	}
-	const eqLin = normalEquations(Xlin, d, n, pLin);
+	const eqLin = Cinv === null ? normalEquations(Xlin, d, n, pLin) : weightedNormalEquations(Xlin, d, Cinv, n, pLin);
 	const betaLin = solveDense(eqLin.A, eqLin.rhs, pLin);
 	const resLin = new Float64Array(n);
-	const resLin2 = new Float64Array(n);
-	for (let i = 0; i < n; i++) {
-		resLin[i] = d[i] - (betaLin[0] + betaLin[1] * t[i]);
-		resLin2[i] = resLin[i] * resLin[i];
-	}
-	const rssLin = sum64(resLin2);
+	for (let i = 0; i < n; i++) resLin[i] = d[i] - (betaLin[0] + betaLin[1] * t[i]);
+	const rssLin = quadraticForm(resLin, Cinv, n);
 	const aicLin = n * Math.log(Math.max(1e-12, rssLin / n)) + 2 * 2;
 
 	// 2. the spline: X_sp = [1, times, B]
@@ -635,7 +725,7 @@ export function runRestrictedSplineClockDating(times, dists, options = {}) {
 		Xsp[i * pSp + 1] = t[i];
 		for (let j = 0; j < ncols; j++) Xsp[i * pSp + 2 + j] = B[i * ncols + j];
 	}
-	const eqSp = normalEquations(Xsp, d, n, pSp);
+	const eqSp = Cinv === null ? normalEquations(Xsp, d, n, pSp) : weightedNormalEquations(Xsp, d, Cinv, n, pSp);
 	const betaSp = solveDense(eqSp.A, eqSp.rhs, pSp);
 	const fittedSp = new Float64Array(n);
 	const resSp = new Float64Array(n);
@@ -647,7 +737,7 @@ export function runRestrictedSplineClockDating(times, dists, options = {}) {
 		resSp[i] = d[i] - v;
 		resSp2[i] = resSp[i] * resSp[i];
 	}
-	const rssSp = sum64(resSp2);
+	const rssSp = quadraticForm(resSp, Cinv, n);
 	const aicSp = n * Math.log(Math.max(1e-12, rssSp / n)) + 2 * 3;
 	const deltaAic = aicLin - aicSp;
 
@@ -676,11 +766,26 @@ export function runRestrictedSplineClockDating(times, dists, options = {}) {
 	const ciMuRec = [muRecent, muRecent];
 	const ciBeta2 = [betaSp[2], betaSp[2]];
 
-	// generalised R², with C_inv the identity
-	const weightedMean = sum64(d) / Math.max(1e-12, n);
-	const totRes2 = new Float64Array(n);
-	for (let i = 0; i < n; i++) totRes2[i] = (d[i] - weightedMean) * (d[i] - weightedMean);
-	const ssTot = sum64(totRes2);
+	// generalised R² (dating.py:1934-1938): `1ᵀC⁻¹1`, a C⁻¹-weighted mean, and a C⁻¹-weighted total
+	// sum of squares. With C_inv the identity these collapse to n, the plain mean and `sum(r²)`,
+	// which is what phase 3 computed and what the null branch still computes bit for bit.
+	const ones = new Float64Array(n).fill(1);
+	const oneCinvOne = Cinv === null ? n : quadraticForm(ones, Cinv, n);
+	let weightedMean;
+	if (Cinv === null) {
+		weightedMean = sum64(d) / Math.max(1e-12, n);
+	} else {
+		const buf = new Float64Array(n);
+		const Cd = new Float64Array(n);
+		for (let i = 0; i < n; i++) {
+			for (let j = 0; j < n; j++) buf[j] = Cinv[i * n + j] * d[j];
+			Cd[i] = sum64(buf);
+		}
+		weightedMean = sum64(Cd) / Math.max(1e-12, oneCinvOne);
+	}
+	const totRes = new Float64Array(n);
+	for (let i = 0; i < n; i++) totRes[i] = d[i] - weightedMean;
+	const ssTot = quadraticForm(totRes, Cinv, n);
 	const r2Sp = Math.max(0.0, 1.0 - rssSp / Math.max(1e-12, ssTot));
 
 	return {
