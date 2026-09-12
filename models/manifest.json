@@ -5,12 +5,14 @@
       "safetensors_sha256": "0278dff092601acca959aa64bf6742ad17a38a5e6e31eabd424d6d224eea6ebd",
       "onnx_sha256": "aa10e8e0f059436bd8a6f59e1fb3f0137e845533b9c65009230c7de6b91ef22c",
       "busted_head_onnx_sha256": "2ad554e02b5580b813a915d8fbd8a4fa925c7679977adb596388fdc8d4c1c116",
+      "taxa_onnx_sha256": "eb44892de6074c2806f858c17f3ead6fe8d7b1e8b9b3aa067efca20fbe4a1f10",
       "trained_on": "TOGA mammalian, 742 species",
       "regime": "deep / cross-species"
     },
     "viral": {
       "safetensors_sha256": "b6b0d8d09518fa5068f955ffc14179cbf6f4fd375119d89776d9461143b84595",
       "onnx_sha256": "c3ea5795b397e64fdf2b80b0018c2e41ec2ac630cd827002b85c744580b6a2e2",
+      "taxa_onnx_sha256": "5fa5167f3828bfd767205fbd2093bb62301908fbf1494901ab7cf59fb4181200",
       "trained_on": "base + ~9,300 Datamonkey viral",
       "regime": "viral / shallow"
     }
@@ -30,6 +32,10 @@
       "lrt",
       "mean_root_attns",
       "root_repr"
+    ],
+    "taxa_outputs": [
+      "cross_attn_sum",
+      "taxa_repr_sum"
     ]
   },
   "prng": {
