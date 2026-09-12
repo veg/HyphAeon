@@ -1,0 +1,281 @@
+[
+ {
+  "name": "000_korber_bounded",
+  "inputs": {
+   "mu": 0.0011690322000749895,
+   "d0": 0.11415106391019024,
+   "cov_beta": [
+    [
+     3.266577976839609e-08,
+     3.686893847019e-21
+    ],
+    [
+     3.686893847019e-21,
+     4.497022392565688e-07
+    ]
+   ],
+   "t_ref": 1991.5567375886526,
+   "df": 139,
+   "alpha": 0.05,
+   "min_time": 1983.5
+  },
+  "outputs": {
+   "ci": [
+    1850.9002494025494,
+    1916.7928417692187
+   ],
+   "g": 0.0934397139636253,
+   "status": "BOUNDED"
+  },
+  "tolerance": "1e-9",
+  "notes": "signature: compute_fieller_mrca_interval(mu, d0, cov_beta, t_ref, df, alpha=0.05, min_time=None) -> ([lo, hi], {g, status}). Reference hyphaeon/dating.py:839-887, lifted by ast and executed without importing hyphaeon. BOUNDED, the acceptance case's own five scalars: cov_beta is reconstructed from se_mu/se_d0 with the off-diagonal the centred fit actually produces (3.687e-21)"
+ },
+ {
+  "name": "001_korber_bounded_clamped",
+  "inputs": {
+   "mu": 0.0011690322000749895,
+   "d0": 0.11415106391019024,
+   "cov_beta": [
+    [
+     3.266577976839609e-08,
+     3.686893847019e-21
+    ],
+    [
+     3.686893847019e-21,
+     4.497022392565688e-07
+    ]
+   ],
+   "t_ref": 1991.5567375886526,
+   "df": 139,
+   "alpha": 0.05,
+   "min_time": 1900.0
+  },
+  "outputs": {
+   "ci": [
+    1850.9002494025494,
+    1900.0
+   ],
+   "g": 0.0934397139636253,
+   "status": "BOUNDED"
+  },
+  "tolerance": "1e-9",
+  "notes": "signature: compute_fieller_mrca_interval(mu, d0, cov_beta, t_ref, df, alpha=0.05, min_time=None) -> ([lo, hi], {g, status}). Reference hyphaeon/dating.py:839-887, lifted by ast and executed without importing hyphaeon. BOUNDED with the min_time clamp BITING: the same fit with an artificially recent earliest sample truncates the upper bound and leaves the lower alone"
+ },
+ {
+  "name": "002_korber_bounded_unclamped",
+  "inputs": {
+   "mu": 0.0011690322000749895,
+   "d0": 0.11415106391019024,
+   "cov_beta": [
+    [
+     3.266577976839609e-08,
+     3.686893847019e-21
+    ],
+    [
+     3.686893847019e-21,
+     4.497022392565688e-07
+    ]
+   ],
+   "t_ref": 1991.5567375886526,
+   "df": 139,
+   "alpha": 0.05,
+   "min_time": null
+  },
+  "outputs": {
+   "ci": [
+    1850.9002494025494,
+    1916.7928417692187
+   ],
+   "g": 0.0934397139636253,
+   "status": "BOUNDED"
+  },
+  "tolerance": "1e-9",
+  "notes": "signature: compute_fieller_mrca_interval(mu, d0, cov_beta, t_ref, df, alpha=0.05, min_time=None) -> ([lo, hi], {g, status}). Reference hyphaeon/dating.py:839-887, lifted by ast and executed without importing hyphaeon. BOUNDED with min_time=None: nothing is clamped at all"
+ },
+ {
+  "name": "003_unbounded_g_above_1",
+  "inputs": {
+   "mu": 0.001,
+   "d0": 0.1,
+   "cov_beta": [
+    [
+     1e-06,
+     0.0
+    ],
+    [
+     0.0,
+     1e-06
+    ]
+   ],
+   "t_ref": 2000.0,
+   "df": 20,
+   "alpha": 0.05,
+   "min_time": 1990.0
+  },
+  "outputs": {
+   "ci": [
+    "-Infinity",
+    1967.6056398669318
+   ],
+   "g": 4.351243503329173,
+   "status": "UNBOUNDED_ANTIQUITY"
+  },
+  "tolerance": "1e-9",
+  "notes": "signature: compute_fieller_mrca_interval(mu, d0, cov_beta, t_ref, df, alpha=0.05, min_time=None) -> ([lo, hi], {g, status}). Reference hyphaeon/dating.py:839-887, lifted by ast and executed without importing hyphaeon. UNBOUNDED_ANTIQUITY, g >= 1: the rate is not bounded away from zero, A <= 0, and the interval is genuinely half-infinite"
+ },
+ {
+  "name": "004_unbounded_g_above_1_no_min_time",
+  "inputs": {
+   "mu": 0.001,
+   "d0": 0.1,
+   "cov_beta": [
+    [
+     1e-06,
+     0.0
+    ],
+    [
+     0.0,
+     1e-06
+    ]
+   ],
+   "t_ref": 2000.0,
+   "df": 20,
+   "alpha": 0.05,
+   "min_time": null
+  },
+  "outputs": {
+   "ci": [
+    "-Infinity",
+    2000.0
+   ],
+   "g": 4.351243503329173,
+   "status": "UNBOUNDED_ANTIQUITY"
+  },
+  "tolerance": "1e-9",
+  "notes": "signature: compute_fieller_mrca_interval(mu, d0, cov_beta, t_ref, df, alpha=0.05, min_time=None) -> ([lo, hi], {g, status}). Reference hyphaeon/dating.py:839-887, lifted by ast and executed without importing hyphaeon. UNBOUNDED_ANTIQUITY, g >= 1: the rate is not bounded away from zero, A <= 0, and the interval is genuinely half-infinite"
+ },
+ {
+  "name": "005_non_positive_rate",
+  "inputs": {
+   "mu": 1e-13,
+   "d0": 0.1,
+   "cov_beta": [
+    [
+     1e-08,
+     0.0
+    ],
+    [
+     0.0,
+     1e-08
+    ]
+   ],
+   "t_ref": 2000.0,
+   "df": 20,
+   "alpha": 0.05,
+   "min_time": 1990.0
+  },
+  "outputs": {
+   "ci": [
+    "NaN",
+    "NaN"
+   ],
+   "g": "NaN",
+   "status": "NON_POSITIVE_RATE"
+  },
+  "tolerance": "1e-9",
+  "notes": "signature: compute_fieller_mrca_interval(mu, d0, cov_beta, t_ref, df, alpha=0.05, min_time=None) -> ([lo, hi], {g, status}). Reference hyphaeon/dating.py:839-887, lifted by ast and executed without importing hyphaeon. the mu <= 1e-12 guard (dating.py:856): NaN interval, NaN g, status NON_POSITIVE_RATE, and the t distribution is never touched"
+ },
+ {
+  "name": "006_negative_rate",
+  "inputs": {
+   "mu": -0.002,
+   "d0": 0.1,
+   "cov_beta": [
+    [
+     1e-08,
+     0.0
+    ],
+    [
+     0.0,
+     1e-08
+    ]
+   ],
+   "t_ref": 2000.0,
+   "df": 20,
+   "alpha": 0.05,
+   "min_time": 1990.0
+  },
+  "outputs": {
+   "ci": [
+    "NaN",
+    "NaN"
+   ],
+   "g": "NaN",
+   "status": "NON_POSITIVE_RATE"
+  },
+  "tolerance": "1e-9",
+  "notes": "signature: compute_fieller_mrca_interval(mu, d0, cov_beta, t_ref, df, alpha=0.05, min_time=None) -> ([lo, hi], {g, status}). Reference hyphaeon/dating.py:839-887, lifted by ast and executed without importing hyphaeon. the mu <= 1e-12 guard (dating.py:856): NaN interval, NaN g, status NON_POSITIVE_RATE, and the t distribution is never touched"
+ },
+ {
+  "name": "007_korber_alpha_001",
+  "inputs": {
+   "mu": 0.0011690322000749895,
+   "d0": 0.11415106391019024,
+   "cov_beta": [
+    [
+     3.266577976839609e-08,
+     3.686893847019e-21
+    ],
+    [
+     3.686893847019e-21,
+     4.497022392565688e-07
+    ]
+   ],
+   "t_ref": 1991.5567375886526,
+   "df": 139,
+   "alpha": 0.01,
+   "min_time": 1983.5
+  },
+  "outputs": {
+   "ci": [
+    1827.7555226231302,
+    1922.0256553626398
+   ],
+   "g": 0.16303243360340883,
+   "status": "BOUNDED"
+  },
+  "tolerance": "1e-9",
+  "notes": "signature: compute_fieller_mrca_interval(mu, d0, cov_beta, t_ref, df, alpha=0.05, min_time=None) -> ([lo, hi], {g, status}). Reference hyphaeon/dating.py:839-887, lifted by ast and executed without importing hyphaeon. alpha is honoured (a 99 % interval is wider than the 95 % one above), and df is floored at 1"
+ },
+ {
+  "name": "008_df_floor",
+  "inputs": {
+   "mu": 0.002,
+   "d0": 0.05,
+   "cov_beta": [
+    [
+     1e-09,
+     0.0
+    ],
+    [
+     0.0,
+     1e-08
+    ]
+   ],
+   "t_ref": 2000.0,
+   "df": 0,
+   "alpha": 0.05,
+   "min_time": 1995.0
+  },
+  "outputs": {
+   "ci": [
+    1968.6746695174168,
+    1979.2223548864156
+   ],
+   "g": 0.04036190970103236,
+   "status": "BOUNDED"
+  },
+  "tolerance": "1e-9",
+  "notes": "signature: compute_fieller_mrca_interval(mu, d0, cov_beta, t_ref, df, alpha=0.05, min_time=None) -> ([lo, hi], {g, status}). Reference hyphaeon/dating.py:839-887, lifted by ast and executed without importing hyphaeon. alpha is honoured (a 99 % interval is wider than the 95 % one above), and df is floored at 1"
+ }
+]

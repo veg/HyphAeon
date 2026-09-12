@@ -1,7 +1,7 @@
 {
  "generator": "scripts/gen_fixtures.py",
- "engine_commit": "43600985fd3fb23ff05339b65aacf2606b2437cf",
- "generated_at": "2026-09-11T21:13:18-0700",
+ "engine_commit": "d998cabbf05916e4ad3d1fe69a5cc3c4cc191eb1",
+ "generated_at": "2026-09-12T11:47:05-0700",
  "model_safetensors_sha256": "0278dff092601acca959aa64bf6742ad17a38a5e6e31eabd424d6d224eea6ebd",
  "model_safetensors_bytes": 9842824,
  "environment": {
@@ -59,7 +59,14 @@
   "DATES Q7: extract_date_from_string's calendar delimiter class is [\\|/_\\s] and does NOT include '-' (temporal.py:218-239), pattern 2 requires two to four decimals, and pattern 4 has no '^' alternative. MEASURED on examples/H1N1_2009_pandemic.fasta: 5 of 100 headers are undated, three because pattern 2 matches an isolate number (4218.01) that then fails the gate and re.search never offers the second match, and two because their decimal year is written to one place (|2009.4, |2009.8). The non-calendar patterns use a WIDER class that does include '-', and re.IGNORECASE.",
   "DATES Q8: the Korber/LANL two-digit year pivots at 30 (dating.py:344, 351), hard-coded, so 2030 onwards reads as 1930; both rules add a flat 0.5 for mid-year. MEASURED on examples/korber_env_gp160.fasta: temporal.extract_date_from_string dates 0 of 143 headers and dating.parse_header_timestamp dates 142 (CONSENSUS is the miss), all through this rule.",
   "DATES Q9: (?:WPI|wpi) and (?:DPI|dpi) (dating.py:355, 360) match neither 'Wpi' nor 'wPI', while the non-calendar unit patterns are re.IGNORECASE throughout. Both return the elapsed time RAW onto the same axis a decimal year is on, with nothing downstream distinguishing them.",
-  "DATES Q10: the non-calendar path accepts Infinity, because float('inf') >= 0.0 is True (temporal.py:92-93), and rejects a negative real and a literal 'nan' by the same comparison without falling through to the embedded-number search."
+  "DATES Q10: the non-calendar path accepts Infinity, because float('inf') >= 0.0 is True (temporal.py:92-93), and rejects a negative real and a literal 'nan' by the same comparison without falling through to the embedded-number search.",
+  "DATING Q1: run_restricted_spline_clock_dating's bootstrap NEVER RUNS. dating.py:1917 calls la.lstsq(b_X, b_d, rcond=None) where `la` is scipy.linalg (dating.py:35), whose keyword is `cond` -- `rcond` is numpy's. VERIFIED on scipy 1.16.2: every one of the 500 replicates raises `TypeError: lstsq() got an unexpected keyword argument 'rcond'. Did you mean 'cond'?`, the bare `except Exception: pass` at 1924 swallows it, len(boot_t0) == 0 < 20, and all FOUR spline intervals (ci_mrca, ci_rate_ancestral, ci_rate_recent, ci_beta_2) collapse to their point estimates. MEASURED: korber publishes a 95 % interval of [1938.7746674292187, 1938.7746674292187] for a quantity whose interval, with `cond=`, is about 55 years wide. The fixtures pin the DEGENERATE intervals, so a port that 'fixes' the typo fails; it also means phase 3 needs no PCG64 bootstrap parity anywhere.",
+  "DATING Q2: run_restricted_spline_clock_dating reads dB[-1, 0] (dating.py:1884) -- the derivative at the LAST ROW IN INPUT ORDER, not at t_max. rate_recent, rate_ratio and therefore is_nonlinear_preferred depend on the ORDER OF THE FASTA. On examples/korber_env_gp160.fasta the last training row happens to be t_max = 1997.5, so the published rate ratio (0.0397) is right by luck.",
+  "DATING Q3: the two TN93 engines disagree on any alignment containing '*'. dataset.compute_tn93_cross_distance_matrix rewrites '*' to '-' in the branch that writes FASTA for the compiled `tn93` binary (dataset.py:840, 844) and the Python-package branch does not, where '*' falls through to the character map's catch-all unknown. MEASURED on examples/korber_env_gp160.fasta (2389 asterisks across 18 of 143 sequences): 18 of 142 root divergences differ, 17 at ~1.7e-3 relative and Z59ZR.ZHU at 0.82 relative (0.06076440 with the binary, 0.11056680 without), which moves t_MRCA by 0.097 years and the lower Fieller bound by 0.285. Nothing in the output JSON says which engine ran. fixtures/dating/run_mrca_dating.json carries BOTH korber runs so the size of the gap is in the record; every other dating fixture is generated with the binary hidden AND '*' rewritten to '-', which reproduces a compiled-tn93 run exactly (max |delta| = 0.0).",
+  "DATING Q4: two spellings of the same tail. run_ols_dating:1269 computes the regression p as `1.0 - stats.f.cdf(...)` while the nested F test at 1877 correctly uses `stats.f.sf(...)`. The cancellation floors the reported p at one ulp of 1: MEASURED, F = 80 gives 2.109424e-15 against a true 2.097939e-15, F = 100 gives 1.110223e-16 against 4.524211e-18 (24x wrong), and every F above that is pinned at 1.110223e-16. examples/H1N1_2009_pandemic.fasta reports exactly that value. The port calls `1 - fCdf`, deliberately; note that scipy's f.cdf itself returns one ulp BELOW 1 there where the correctly rounded double is 1.0, so p_value is the one field that cannot be held tighter than 1e-15 absolute.",
+  "DATING Q5: run_restricted_spline_clock_dating solves UNCENTRED normal equations on a calendar axis (dating.py:1857-1871). MEASURED cond(X_sp.T X_sp) = 9.307e12 on korber, so about five significant figures of the spline's t_mrca survive: partial-pivot Gaussian elimination reproduces LAPACK's answer to 1.1e-8 years there and 9.3e-7 on H1N1, and merely reassociating the reference's own products (multiplying by the identity C_inv first, as it does) moves it by 3.5e-10. The spline fixtures are pinned at 1e-5 for that reason; centring would change the answer and is not done.",
+  "DATING Q6: verify_coding_alignment SILENTLY MUTATES the alignment it is handed, trimming L mod 3 trailing nucleotides (dating.py:163-174, auto_trim_trailing defaults True) and printing a notice to stdout, and every distance downstream is then computed on the trimmed sequences. MEASURED on examples/H1N1_2009_pandemic.fasta: without the trim every one of its 95 divergences is wrong and t_MRCA moves from 2009.0426391755814 to 2009.0426390275454. examples/korber_env_gp160.fasta is 2943 nt and is unaffected.",
+  "DATING Q7: run_ols_dating initialises ci_bootstrap to None at 1246 and never assigns it, so it ships in the exported JSON as a permanent null (1285). Its three bootstrap ci_methods -- poisson, residual-boot/wild and jackknife/loocv -- are reached by an if/elif chain whose ELSE is Fieller, so an unrecognised ci_method string silently becomes Fieller rather than raising."
  ],
  "counts": {
   "stats": {
@@ -133,6 +140,17 @@
    "extract_date_from_string": 44,
    "parse_header_timestamp": 26,
    "_parse_timestamp_flexible": 19
+  },
+  "dating": {
+   "generate_consensus_sequence": 6,
+   "generate_time_decay_consensus_sequence": 8,
+   "compute_tn93_cross_distance_matrix": 5,
+   "compute_tree_free_divergences": 7,
+   "compute_rcs_basis": 5,
+   "compute_fieller_mrca_interval": 9,
+   "run_ols_dating": 12,
+   "run_restricted_spline_clock_dating": 5,
+   "run_mrca_dating": 3
   }
  },
  "bytes": {
@@ -187,10 +205,19 @@
   "dates/parse_date_to_decimal.json": 65040,
   "dates/extract_date_from_string.json": 26169,
   "dates/parse_header_timestamp.json": 11468,
-  "dates/_parse_timestamp_flexible.json": 9030
+  "dates/_parse_timestamp_flexible.json": 9030,
+  "dating/generate_consensus_sequence.json": 7561,
+  "dating/generate_time_decay_consensus_sequence.json": 35729,
+  "dating/compute_tn93_cross_distance_matrix.json": 9499,
+  "dating/compute_tree_free_divergences.json": 37194,
+  "dating/compute_rcs_basis.json": 23430,
+  "dating/compute_fieller_mrca_interval.json": 7198,
+  "dating/run_ols_dating.json": 35316,
+  "dating/run_restricted_spline_clock_dating.json": 20820,
+  "dating/run_mrca_dating.json": 172214
  },
- "total_bytes": 5876690,
- "elapsed_seconds": 0.9,
+ "total_bytes": 6225651,
+ "elapsed_seconds": 9.0,
  "e2e_wall_seconds": {
   "meme_bat_oas1": 1.7,
   "meme_Smc6": 1.6,
@@ -227,5 +254,21 @@
   "extract_date_from_string": "hyphaeon/temporal.py:196-245",
   "parse_header_timestamp": "hyphaeon/dating.py:317-364",
   "_parse_timestamp_flexible": "hyphaeon/dating.py:367-384"
+ },
+ "dating_reference_source": {
+  "verify_coding_alignment": "hyphaeon/dating.py:135-222",
+  "generate_consensus_sequence": "hyphaeon/dating.py:225-245",
+  "generate_time_decay_consensus_sequence": "hyphaeon/dating.py:248-310",
+  "compute_tree_free_divergences": "hyphaeon/dating.py:624-698",
+  "compute_fieller_mrca_interval": "hyphaeon/dating.py:839-887",
+  "run_ols_dating": "hyphaeon/dating.py:1170-1296",
+  "compute_rcs_basis": "hyphaeon/dating.py:1774-1806",
+  "run_restricted_spline_clock_dating": "hyphaeon/dating.py:1809-1968",
+  "parse_header_timestamp": "hyphaeon/dating.py:317-364",
+  "parse_alignment_sequences": "hyphaeon/dataset.py:252-364",
+  "compute_tn93_distance_matrix": "hyphaeon/dataset.py:715-821",
+  "compute_tn93_cross_distance_matrix": "hyphaeon/dataset.py:824-928",
+  "parse_date_to_decimal": "hyphaeon/temporal.py:73-151",
+  "extract_date_from_string": "hyphaeon/temporal.py:196-245"
  }
 }

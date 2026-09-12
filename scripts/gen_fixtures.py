@@ -59,6 +59,18 @@ Options: --only <module> (repeatable), --skip-model, --skip-e2e.
     numpy and pandas, because both modules import torch at module scope and the
     parsers use none of it. A run that touches no model-dependent module keeps
     the previous manifest's weights record rather than nulling it.
+
+  * `--only dating` needs no weights either, and the same `ast` lift
+    (load_dating_reference) gives it the estimators of hyphaeon/dating.py and the
+    two TN93 matrix builders of hyphaeon/dataset.py. Eight of its nine tables are
+    produced that way, with no torch in this process; the ninth runs the reference
+    CLI itself (`python -m hyphaeon.cli dating`), because the per-taxon table, the
+    clock-model selection sentence and the ensemble are INLINE in run_mrca_dating
+    and there is no function to lift. Every dating table is generated with the
+    compiled `tn93` binary hidden from PATH (the rule scripts/parity.py enforces
+    for every other analysis) so the Python-package distance path is what is
+    pinned -- see DATING Q3 for what that costs and why the alignments also get
+    '*' rewritten to '-' first.
 """
 
 from __future__ import annotations
@@ -1507,6 +1519,514 @@ def gen_dates(w: Writer) -> None:
 
 
 # --------------------------------------------------------------------------
+# dating (no weights, no torch for the eight function tables: the estimators
+# of dating.py are lifted out of the checked-out source by `ast`, exactly as
+# the date parsers are; only the one end-to-end table runs the reference CLI)
+# --------------------------------------------------------------------------
+
+# The reference bodies phase 3 ports. Lifted by name with their line ranges, never retyped, so a
+# fixture cannot drift away from the body it claims to describe (js/test/dating.test.js asserts the
+# ranges against `dating_reference_source`).
+DATING_FUNCTIONS = {
+    "hyphaeon/dating.py": [
+        "verify_coding_alignment",
+        "generate_consensus_sequence",
+        "generate_time_decay_consensus_sequence",
+        "compute_tree_free_divergences",
+        "compute_fieller_mrca_interval",
+        "run_ols_dating",
+        "compute_rcs_basis",
+        "run_restricted_spline_clock_dating",
+        "parse_header_timestamp",
+    ],
+    "hyphaeon/dataset.py": [
+        "parse_alignment_sequences",
+        "compute_tn93_distance_matrix",
+        "compute_tn93_cross_distance_matrix",
+    ],
+    # parse_header_timestamp delegates to temporal.py's calendar reader (dating.py:335), which in
+    # turn calls parse_date_to_decimal, so both come along. They are the same bodies gen_dates lifts
+    # under `date_reference_source`; the two provenance maps overlapping is the point -- it is how a
+    # reader sees that the dating pillar's times come from the date pillar's parsers.
+    "hyphaeon/temporal.py": ["parse_date_to_decimal", "extract_date_from_string"],
+}
+
+# `compute_tn93_*_distance_matrix` PREFERS the compiled `tn93` binary when one is on PATH, and the
+# binary branch rewrites '*' to '-' while the Python-package branch does not (dataset.py:840/844 vs
+# :896). Every fixture here is generated with the binary hidden, the same rule
+# scripts/parity.py::path_without_tn93_binary() enforces, so the tables are reproducible on any
+# machine. See DATING Q3 in fixtures/manifest.json for the measured size of the disagreement.
+TN93_HIDDEN_PATH = "/usr/bin:/bin:/usr/sbin:/sbin"
+
+
+def load_dating_reference(engine_root: Path = REPO):
+    """
+    Execute the dating estimators out of the checked-out Python WITHOUT importing hyphaeon.
+
+    dating.py imports torch transitively (through hyphaeon.inference) and dataset.py imports it
+    directly, and not one of the functions below touches a model: lifting them by `ast` keeps eight
+    arithmetic tables out of a full model environment, exactly as load_date_reference() does for the
+    date parsers. VERIFIED at this commit: the lifted bodies, run on examples/korber_env_gp160.fasta
+    and examples/H1N1_2009_pandemic.fasta, reproduce `hyphaeon dating`'s published record field for
+    field (t_MRCA 1893.91095511759 and 2009.0426391755814 respectively).
+
+    @returns (namespace, {function name: "<file>:<first line>-<last line>"})
+    """
+    import re as _re
+    import datetime as _datetime
+    import pandas as _pd
+    import scipy.linalg as _la
+    import scipy.optimize as _optimize
+    import scipy.stats as _stats
+    from typing import Optional as _Optional, Tuple as _Tuple
+
+    ns: Dict[str, Any] = {
+        "np": np, "la": _la, "stats": _stats, "optimize": _optimize, "pd": _pd,
+        "re": _re, "datetime": _datetime, "os": os, "csv": csv, "math": math,
+        "shutil": shutil, "tempfile": tempfile, "subprocess": subprocess,
+        "Any": Any, "Dict": Dict, "List": List, "Optional": _Optional, "Tuple": _Tuple,
+    }
+    provenance: Dict[str, str] = {}
+    for rel, names in DATING_FUNCTIONS.items():
+        path = engine_root / rel
+        source = path.read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        by_name = {n.name: n for n in tree.body if isinstance(n, ast.FunctionDef)}
+        for name in names:
+            node = by_name[name]
+            provenance[name] = f"{rel}:{node.lineno}-{node.end_lineno}"
+            exec(compile(ast.get_source_segment(source, node), str(path), "exec"), ns)  # noqa: S102
+    return ns, provenance
+
+
+# The two real cases, and why each is here. korber is the flagship: 143 sequences, 142 dated by the
+# Korber two-digit-year rule, ONE coverage holdout (Z59ZR.ZHU at 17.6 % ACGT), an EXPLICIT root
+# sequence in the file (case 1 of compute_tree_free_divergences) and a spline that WINS the
+# selection test. H1N1 fails differently on every axis: no root sequence, so the same flag falls
+# through to case 4's time-decay consensus at the adaptive gamma = 2/delta_t = 3.0030; no holdout;
+# ONE outlier where korber has none; the spline is REJECTED (delta_AIC = -1.04); and the alignment
+# length is not a multiple of 3, so verify_coding_alignment's silent trim (DATING Q6) fires and the
+# distances are computed on trimmed sequences. Between them every arm of the selection rule and both
+# arms of the per-taxon date inversion are exercised.
+DATING_EXAMPLES = [
+    ("korber_env_gp160.fasta", "CONSENSUS"),
+    ("H1N1_2009_pandemic.fasta", "CONSENSUS"),
+]
+
+# The application rewrites '*' to '-' on the dating path before any distance is computed, because
+# that is what the reference's own binary branch does and it is the convention the published numbers
+# were produced under. MEASURED: with the rewrite, the Python-package branch reproduces a
+# compiled-tn93 run of korber EXACTLY (max |delta| = 0.0 over all 142 divergences); without it, 18
+# differ and Z59ZR.ZHU moves from 0.06076440 to 0.11056680, which moves t_MRCA by 0.097 years and
+# the lower Fieller bound by 0.285.
+DATING_STAR_TO_GAP = True
+
+
+def _dating_case_inputs(ns, fasta: str, root_taxon: str, star_to_gap: bool = True):
+    """parse -> verify_coding_alignment's trim -> dates -> tree-free divergences -> coverage holdout.
+
+    Every step is the reference's own function or the reference's own inline block (dating.py:2481,
+    2482, 2487-2497, 2687-2695, 2698-2709); the two inline blocks are four lines each and are the
+    only part of the chain this file spells out, because they are not functions upstream.
+    """
+    seq_dict = ns["parse_alignment_sequences"](str(EXAMPLES / fasta))
+    ns["verify_coding_alignment"](seq_dict)               # MUTATES seq_dict (DATING Q6)
+    if star_to_gap:
+        seq_dict = {k: v.replace("*", "-") for k, v in seq_dict.items()}
+    dates_map = {t: ns["parse_header_timestamp"](t) for t in seq_dict}
+    dated = [t for t in seq_dict if not np.isnan(dates_map[t]) and t != root_taxon]
+    divergences, root_desc = ns["compute_tree_free_divergences"](seq_dict, dated, dates_map, root_taxon=root_taxon)
+    times = np.array([dates_map[t] for t in dated], dtype=np.float64)
+    n_cols = len(seq_dict[dated[0]])
+    coverage = np.array([sum(1 for c in seq_dict[t] if c in "ACGT") / n_cols for t in dated])
+    is_train = coverage >= 0.50
+    train_idx = np.where(is_train)[0] if (not is_train.all() and int(is_train.sum()) >= 3) else np.arange(len(dated))
+    return {"seq_dict": seq_dict, "taxa": dated, "dates_map": dates_map, "times": times,
+            "dists": np.asarray(divergences, dtype=np.float64), "root_description": root_desc,
+            "coverage": coverage, "is_train": is_train, "train_idx": train_idx, "n_cols": n_cols}
+
+
+# Hand-built inputs, small enough to check by eye, that pin every branch the two real cases do not
+# reach. Each block is (what it pins, payload), flattened in declared order.
+DATING_CONSENSUS_BLOCKS = [
+    ("iupac_and_star_count", "the skip set is EXACTLY '-', '?' and 'N' (dating.py:239): '*' and every IUPAC code are COUNTED, so R wins column 2 and * wins column 3",
+     {"seq_dict": {"a": "AR*-", "b": "CRN?", "c": "GR*N"}, "taxa": ["a", "b", "c"]}),
+    ("ties_first_seen", "ties go to the FIRST character seen in the caller's taxon order, because Python's max over dict.items() returns the first maximum in insertion order",
+     {"seq_dict": {"a": "AC", "b": "CA", "c": "GG"}, "taxa": ["a", "b", "c"]}),
+    ("ties_reversed_order", "the same alignment with the taxa REVERSED: every tied column flips, which is the whole point of the previous case",
+     {"seq_dict": {"a": "AC", "b": "CA", "c": "GG"}, "taxa": ["c", "b", "a"]}),
+    ("all_abstain_and_lowercase", "a column where every taxon abstains becomes '-' (dating.py:242), and lower case is upper-cased first (dating.py:237)",
+     {"seq_dict": {"a": "-?Na", "b": "N--c", "c": "?N-a"}, "taxa": ["a", "b", "c"]}),
+    ("taxa_defaults_to_all", "taxa=None defaults to every key of the alignment, in insertion order (dating.py:231)",
+     {"seq_dict": {"a": "ACGT", "b": "ACGA", "c": "TCGA"}, "taxa": None}),
+]
+
+DATING_DECAY_BLOCKS = [
+    ("gamma_flat_arm", "the adaptive gamma ladder (dating.py:284-287): 0.05 * delta_t >= 1 takes the flat 0.05 arm -- here delta_t = 40 years",
+     {"seq_dict": {"a": "AAAA", "b": "CCCC", "c": "CCCC", "d": "CCCC"},
+      "dates_map": {"a": 1960.0, "b": 2000.0, "c": 2000.0, "d": 2000.0}, "taxa": None, "gamma": None, "half_life": None}),
+    ("gamma_two_over_span", "the OTHER arm, gamma = 2/delta_t, on a short span -- delta_t = 0.5, so gamma = 4.0 and the early sequence outweighs three late ones",
+     {"seq_dict": {"a": "AAAA", "b": "CCCC", "c": "CCCC", "d": "CCCC"},
+      "dates_map": {"a": 2009.0, "b": 2009.5, "c": 2009.5, "d": 2009.5}, "taxa": None, "gamma": None, "half_life": None}),
+    ("explicit_gamma_wins", "an explicit gamma wins over the ladder, and a half_life wins over both (gamma = ln2/half_life); --decay-half-life has NO CLI flag, so this arm is unreachable from `hyphaeon dating`",
+     {"seq_dict": {"a": "AAAA", "b": "CCCC", "c": "CCCC", "d": "CCCC"},
+      "dates_map": {"a": 2009.0, "b": 2009.5, "c": 2009.5, "d": 2009.5}, "taxa": None, "gamma": 0.5, "half_life": None}),
+    ("half_life_wins", "half_life beats an explicit gamma (dating.py:279-282)",
+     {"seq_dict": {"a": "AAAA", "b": "CCCC", "c": "CCCC", "d": "CCCC"},
+      "dates_map": {"a": 2009.0, "b": 2009.5, "c": 2009.5, "d": 2009.5}, "taxa": None, "gamma": 0.5, "half_life": 0.25}),
+    ("zero_span", "a zero span gives gamma = 0.0 and uniform weights, i.e. the unweighted consensus with float weights",
+     {"seq_dict": {"a": "AAAA", "b": "CCCC", "c": "CCCC"},
+      "dates_map": {"a": 2009.0, "b": 2009.0, "c": 2009.0}, "taxa": None, "gamma": None, "half_life": None}),
+    ("no_dates_at_all", "NOT ONE taxon carries a usable date: the reference falls back to the UNWEIGHTED consensus over the ORIGINAL taxa list, with eff_gamma 0.0 (dating.py:270-272)",
+     {"seq_dict": {"a": "AAAA", "b": "CCCC", "c": "CCCC"},
+      "dates_map": {"a": float("nan"), "b": float("nan")}, "taxa": None, "gamma": None, "half_life": None}),
+    ("undated_taxa_dropped", "undated taxa are dropped from the WEIGHTING but the alignment length is read from the first SURVIVOR (dating.py:294)",
+     {"seq_dict": {"a": "AAAA", "b": "CCCC", "c": "GGGG"},
+      "dates_map": {"b": 2009.0, "c": 2009.5}, "taxa": None, "gamma": None, "half_life": None}),
+]
+
+# (name, mu, d0, cov_beta, t_ref, df, alpha, min_time) -- every branch of dating.py:854-887.
+DATING_FIELLER_BLOCKS = [
+    ("BOUNDED, the acceptance case's own five scalars: cov_beta is reconstructed from se_mu/se_d0 with the off-diagonal the centred fit actually produces (3.687e-21)",
+     [("korber_bounded", 0.0011690322000749895, 0.11415106391019024,
+       [[3.2665779768396094e-08, 3.686893847019e-21], [3.686893847019e-21, 4.497022392565688e-07]],
+       1991.5567375886526, 139, 0.05, 1983.5)]),
+    ("BOUNDED with the min_time clamp BITING: the same fit with an artificially recent earliest sample truncates the upper bound and leaves the lower alone",
+     [("korber_bounded_clamped", 0.0011690322000749895, 0.11415106391019024,
+       [[3.2665779768396094e-08, 3.686893847019e-21], [3.686893847019e-21, 4.497022392565688e-07]],
+       1991.5567375886526, 139, 0.05, 1900.0)]),
+    ("BOUNDED with min_time=None: nothing is clamped at all",
+     [("korber_bounded_unclamped", 0.0011690322000749895, 0.11415106391019024,
+       [[3.2665779768396094e-08, 3.686893847019e-21], [3.686893847019e-21, 4.497022392565688e-07]],
+       1991.5567375886526, 139, 0.05, None)]),
+    ("UNBOUNDED_ANTIQUITY, g >= 1: the rate is not bounded away from zero, A <= 0, and the interval is genuinely half-infinite",
+     [("unbounded_g_above_1", 0.001, 0.1, [[1.0e-06, 0.0], [0.0, 1.0e-06]], 2000.0, 20, 0.05, 1990.0),
+      ("unbounded_g_above_1_no_min_time", 0.001, 0.1, [[1.0e-06, 0.0], [0.0, 1.0e-06]], 2000.0, 20, 0.05, None)]),
+    ("the mu <= 1e-12 guard (dating.py:856): NaN interval, NaN g, status NON_POSITIVE_RATE, and the t distribution is never touched",
+     [("non_positive_rate", 1e-13, 0.1, [[1e-08, 0.0], [0.0, 1e-08]], 2000.0, 20, 0.05, 1990.0),
+      ("negative_rate", -0.002, 0.1, [[1e-08, 0.0], [0.0, 1e-08]], 2000.0, 20, 0.05, 1990.0)]),
+    ("alpha is honoured (a 99 % interval is wider than the 95 % one above), and df is floored at 1",
+     [("korber_alpha_001", 0.0011690322000749895, 0.11415106391019024,
+       [[3.2665779768396094e-08, 3.686893847019e-21], [3.686893847019e-21, 4.497022392565688e-07]],
+       1991.5567375886526, 139, 0.01, 1983.5),
+      ("df_floor", 0.002, 0.05, [[1e-09, 0.0], [0.0, 1e-08]], 2000.0, 0, 0.05, 1995.0)]),
+]
+
+# (name, x, knots) for compute_rcs_basis.
+DATING_RCS_BLOCKS = [
+    ("the acceptance case's own knots, evaluated on both sides of every one of them; x <= knots[0] gives an identically zero column AND zero derivative, which is what makes the ancestral extrapolation strictly linear",
+     [("korber_knots", [1970.0, 1983.5, 1984.0, 1990.0, 1992.5, 1995.0, 1995.5, 1997.5, 2100.0],
+       [1983.5, 1992.5, 1995.5])]),
+    ("four knots give TWO non-linear columns (k - 2), so the column count is pinned rather than assumed",
+     [("four_knots", [0.0, 1.0, 2.0, 3.0, 4.0, 5.0], [1.0, 2.0, 3.0, 4.0])]),
+    ("a unit-spaced three-knot basis, small enough to check by hand",
+     [("unit_knots", [-1.0, 0.0, 0.5, 1.0, 1.5, 2.0, 3.0], [0.0, 1.0, 2.0])]),
+]
+
+
+def gen_dating(w: Writer) -> None:
+    saved_path = os.environ.get("PATH", "")
+    try:
+        return _gen_dating(w)
+    finally:
+        os.environ["PATH"] = saved_path     # a full run still needs `hyphy` on PATH for e2e
+
+
+def _gen_dating(w: Writer) -> None:
+    ns, provenance = load_dating_reference()
+    os.environ["PATH"] = TN93_HIDDEN_PATH   # dataset.py prefers a compiled `tn93`; hide it (Q3)
+
+    def sig(fn: str, call: str) -> str:
+        return f"signature: {call}. Reference {provenance[fn]}, lifted by ast and executed without importing hyphaeon."
+
+    def strip(d: Dict[str, Any], keys) -> Dict[str, Any]:
+        return {k: v for k, v in d.items() if k not in keys}
+
+    real = {fa: _dating_case_inputs(ns, fa, root, star_to_gap=DATING_STAR_TO_GAP) for fa, root in DATING_EXAMPLES}
+    korber, h1n1 = real["korber_env_gp160.fasta"], real["H1N1_2009_pandemic.fasta"]
+
+    # ---- generate_consensus_sequence -------------------------------------------------------
+    cases: List[Dict[str, Any]] = []
+    for slug, note, payload in DATING_CONSENSUS_BLOCKS:
+        cases.append(case(f"{len(cases):03d}_{slug}", payload,
+                          {"consensus": ns["generate_consensus_sequence"](payload["seq_dict"], payload["taxa"])},
+                          "exact", sig("generate_consensus_sequence", "generate_consensus_sequence(seq_dict, taxa=None) -> str") + " " + note))
+    # A real slice: the first 12 korber sequences over their first 300 columns, so the table carries
+    # an IUPAC-bearing column distribution no hand-built case would produce.
+    slice_taxa = korber["taxa"][:12]
+    slice_dict = {t: korber["seq_dict"][t][:300] for t in slice_taxa}
+    cases.append(case(f"{len(cases):03d}_korber_slice", {"seq_dict": slice_dict, "taxa": slice_taxa},
+                      {"consensus": ns["generate_consensus_sequence"](slice_dict, slice_taxa)}, "exact",
+                      sig("generate_consensus_sequence", "generate_consensus_sequence(seq_dict, taxa) -> str")
+                      + " MEASURED slice: the first 12 dated sequences of examples/korber_env_gp160.fasta over columns 0-299, after '*' was rewritten to '-'."))
+    w.write("dating", "generate_consensus_sequence", cases)
+
+    # ---- generate_time_decay_consensus_sequence ---------------------------------------------
+    cases = []
+    for slug, note, payload in DATING_DECAY_BLOCKS:
+        seq, eff = ns["generate_time_decay_consensus_sequence"](
+            payload["seq_dict"], payload["dates_map"], payload["taxa"], gamma=payload["gamma"], half_life=payload["half_life"])
+        cases.append(case(f"{len(cases):03d}_{slug}", payload, {"consensus": seq, "eff_gamma": eff}, "exact",
+                          sig("generate_time_decay_consensus_sequence",
+                              "generate_time_decay_consensus_sequence(seq_dict, dates_map, taxa=None, gamma=None, half_life=None) -> (str, float)") + " " + note))
+    # The real gamma ladder case: H1N1's own span picks the 2/delta_t arm, and the resulting
+    # sequence IS the root every one of its 95 divergences is measured from.
+    h_taxa = h1n1["taxa"]
+    h_seq, h_eff = ns["generate_time_decay_consensus_sequence"](h1n1["seq_dict"], h1n1["dates_map"], h_taxa)
+    cases.append(case(f"{len(cases):03d}_h1n1_time_decay_root",
+                      {"alignment": "H1N1_2009_pandemic.fasta", "taxa": h_taxa,
+                       "dates_map": {t: h1n1["dates_map"][t] for t in h_taxa}, "gamma": None, "half_life": None,
+                       "preprocessing": "parse_alignment_sequences -> verify_coding_alignment (trims the 1 trailing nt; DATING Q6) -> '*' rewritten to '-' (none present)"},
+                      {"consensus": h_seq, "eff_gamma": h_eff}, "exact",
+                      sig("generate_time_decay_consensus_sequence",
+                          "generate_time_decay_consensus_sequence(seq_dict, dates_map, taxa) -> (str, float)")
+                      + f" MEASURED on examples/H1N1_2009_pandemic.fasta: 95 of 100 headers are dated (fixtures/dates Q7 loses five), the span is"
+                        f" {float(np.max(h1n1['times']) - np.min(h1n1['times'])):.6f} years, so the adaptive ladder takes its SECOND arm and eff_gamma = 2/delta_t = {h_eff:.4f}"
+                        f" -- the number the reference prints in root_description. This synthetic sequence must match character for character or all 95 divergences are wrong."))
+    w.write("dating", "generate_time_decay_consensus_sequence", cases)
+
+    # ---- compute_tn93_cross_distance_matrix --------------------------------------------------
+    cases = []
+    tiny = {"a": "ACGTACGTAC", "b": "ACGTACGTAA", "c": "ACGTTCGTAA", "root": "ACGTACGTAC", "onebase": "AAAAAAAAAA"}
+    for name, all_t, lm_t, note in [
+        ("identical_landmark_is_row", ["a", "b", "c", "root"], ["root"],
+         "a landmark that is ALSO a row is forced to 0.0 twice (dataset.py:917-919 and again after the imputation), even though 'a' and 'root' are byte-identical and would score 0.0 anyway"),
+        ("two_landmarks", ["a", "b", "c"], ["a", "c"],
+         "the rectangular shape proper: an N x M matrix read row-major, which case 3's earliest-cohort branch averages across"),
+        ("degenerate_pair_saturates", ["a", "onebase", "b"], ["onebase"],
+         "a pair whose pairwise counts leave a base absent: tn93.calculate_distance falls back to its fixed 1.0 SENTINEL, which is not a measured distance and is indistinguishable in the matrix from an imputed entry. (A pair with NO overlapping non-gap position raises ZeroDivisionError instead, uncaught upstream, which is why no such case is here)"),
+        ("empty_landmarks", ["a", "b"], [],
+         "an empty axis returns the all -1.0 prefill with NO imputation at all (dataset.py:835-836) -- the one way a caller can see the sentinel"),
+    ]:
+        mat = ns["compute_tn93_cross_distance_matrix"](tiny, all_t, lm_t)
+        cases.append(case(f"{len(cases):03d}_{name}", {"seq_dict": tiny, "taxa_all": all_t, "taxa_landmarks": lm_t, "threshold": 100.0},
+                          {"matrix": mat, "shape": list(mat.shape)}, "exact",
+                          sig("compute_tn93_cross_distance_matrix", "compute_tn93_cross_distance_matrix(seq_dict, taxa_all, taxa_landmarks, threshold=100.0) -> np.ndarray[float32]")
+                          + " " + note + " Generated with the compiled tn93 binary hidden, so the PYTHON PACKAGE branch is what is pinned; the matrix is float32 and a port must round to float32 too."))
+    mat = ns["compute_tn93_cross_distance_matrix"](slice_dict, slice_taxa, [slice_taxa[0]])
+    cases.append(case(f"{len(cases):03d}_korber_slice", {"seq_dict": slice_dict, "taxa_all": slice_taxa, "taxa_landmarks": [slice_taxa[0]], "threshold": 100.0},
+                      {"matrix": mat, "shape": list(mat.shape)}, "exact",
+                      sig("compute_tn93_cross_distance_matrix", "compute_tn93_cross_distance_matrix(seq_dict, taxa_all, taxa_landmarks) -> np.ndarray[float32]")
+                      + " MEASURED slice: the first 12 dated korber sequences over columns 0-299, each against the first of them."))
+    w.write("dating", "compute_tn93_cross_distance_matrix", cases)
+
+    # ---- compute_tree_free_divergences -------------------------------------------------------
+    # Four cases plus the two quirks in their ORDER; the real alignments are named rather than
+    # inlined (the dataset fixtures' convention) because a 143 x 2943 seq_dict is 420 KB of input.
+    cases = []
+    tf_dict = {"early": "ACGTACGTACGT", "mid": "ACGTACGTACGA", "late": "ACGTTCGTACGA", "earliest": "ACGTACGTACGT", "twin": "ACGTACGTACGT"}
+    tf_dates = {"early": 2000.0, "mid": 2005.0, "late": 2010.0, "earliest": 2000.0, "twin": 2000.00001}
+    tf_dated = ["early", "mid", "late", "twin"]
+    for name, root_taxon, dated, note in [
+        ("case1_explicit_root", "earliest", tf_dated,
+         "CASE 1 is tested FIRST and is a LITERAL, case-sensitive key test (dating.py:643), so a sequence actually NAMED 'earliest' beats the magic string of case 3 -- which is exactly what this alignment does"),
+        ("case2_unweighted_consensus", "MODAL_consensus", tf_dated,
+         "CASE 2: the magic strings are matched with .lower(), and the consensus is inserted under '__SYNTHETIC_CONSENSUS__' in a COPY of the alignment -- a key that would collide with a real sequence of that name"),
+        ("case3_earliest_cohort", "earliest_cohort", ["early", "mid", "late", "twin"],
+         "CASE 3 with 'earliest' removed from the alignment's reach by naming the cohort alias: 'early' and 'twin' are 1e-5 years apart, inside the 1e-4 tie window (~53 minutes), so the cohort is n=2 and the divergences are the MEAN of two columns. Note the root stays IN the regression at divergence 0, unlike case 1"),
+        ("case4_time_decay", None, tf_dated,
+         "CASE 4, the default: no root_taxon at all, so the time-decay weighted consensus anchors it and root_description carries the effective gamma to four decimals"),
+        ("case4_unknown_root_name", "not_a_taxon", tf_dated,
+         "a root_taxon that is neither a key nor a magic string falls all the way through to case 4 SILENTLY -- no error, no warning, a different root"),
+    ]:
+        dv, desc = ns["compute_tree_free_divergences"](tf_dict, dated, tf_dates, root_taxon=root_taxon)
+        cases.append(case(f"{len(cases):03d}_{name}",
+                          {"seq_dict": tf_dict, "dated_taxa": dated, "dates_map": tf_dates, "root_taxon": root_taxon,
+                           "decay_gamma": None, "decay_half_life": None},
+                          {"divergences": dv, "root_description": desc}, "exact",
+                          sig("compute_tree_free_divergences", "compute_tree_free_divergences(seq_dict, dated_taxa, dates_map, root_taxon=None, decay_gamma=None, decay_half_life=None) -> (np.ndarray, str)") + " " + note))
+    for fa, root in DATING_EXAMPLES:
+        r = real[fa]
+        cases.append(case(f"{len(cases):03d}_{Path(fa).stem}",
+                          {"alignment": fa, "root_taxon": root, "decay_gamma": None, "decay_half_life": None,
+                           "dated_taxa": r["taxa"], "dates_map": {t: r["dates_map"][t] for t in r["taxa"]},
+                           "preprocessing": "parse_alignment_sequences -> verify_coding_alignment (DATING Q6 trim) -> '*' rewritten to '-' (DATING Q3)"},
+                          {"divergences": r["dists"], "root_description": r["root_description"]}, "exact",
+                          sig("compute_tree_free_divergences", "compute_tree_free_divergences(seq_dict, dated_taxa, dates_map, root_taxon) -> (np.ndarray, str)")
+                          + f" MEASURED end to end on examples/{fa}: {len(r['taxa'])} dated taxa, root_description '{r['root_description']}'."
+                            " The values are float32 distances widened to float64, so a port that stays in float64 is wrong by ~6e-8 relative for free; this is pinned EXACT."))
+    w.write("dating", "compute_tree_free_divergences", cases)
+
+    # ---- compute_rcs_basis --------------------------------------------------------------------
+    cases = []
+    for note, rows in DATING_RCS_BLOCKS:
+        for name, x, knots in rows:
+            B, dB = ns["compute_rcs_basis"](np.array(x, dtype=float), np.array(knots, dtype=float))
+            cases.append(case(f"{len(cases):03d}_{name}", {"x": x, "knots": knots},
+                              {"B": B, "dB": dB, "ncols": int(B.shape[1])}, "1e-9",
+                              sig("compute_rcs_basis", "compute_rcs_basis(x, knots) -> (B, dB)") + " " + note))
+    for fa, _ in DATING_EXAMPLES:
+        r = real[fa]
+        t_fit = r["times"][r["train_idx"]]
+        knots = [float(np.min(t_fit)), float(np.median(t_fit)), float(np.percentile(t_fit, 90))]
+        B, dB = ns["compute_rcs_basis"](t_fit, np.array(knots))
+        cases.append(case(f"{len(cases):03d}_{Path(fa).stem}_fit_knots", {"x": t_fit, "knots": knots},
+                          {"B": B, "dB": dB, "ncols": int(B.shape[1])}, "1e-9",
+                          sig("compute_rcs_basis", "compute_rcs_basis(times, knots) -> (B, dB)")
+                          + f" The spline clock's own basis on examples/{fa}'s fit subset. The knots are np.median and np.percentile(..., 90) at numpy's"
+                            " 'linear' method and are on the deterministic critical path -- a knot that moves changes F, p, delta_AIC and the model"
+                            " selection -- so the port's percentile must be bit-exact, not merely close. dB's LAST ROW, column 0, is the number"
+                            " run_restricted_spline_clock_dating reads for rate_recent, IN INPUT ORDER rather than at t_max (DATING Q2)."))
+    w.write("dating", "compute_rcs_basis", cases)
+
+    # ---- compute_fieller_mrca_interval --------------------------------------------------------
+    cases = []
+    for note, rows in DATING_FIELLER_BLOCKS:
+        for name, mu, d0, cov, t_ref, df, alpha, min_time in rows:
+            ci, info = ns["compute_fieller_mrca_interval"](mu, d0, np.array(cov, dtype=float), t_ref, df, alpha=alpha, min_time=min_time)
+            cases.append(case(f"{len(cases):03d}_{name}",
+                              {"mu": mu, "d0": d0, "cov_beta": cov, "t_ref": t_ref, "df": df, "alpha": alpha, "min_time": min_time},
+                              {"ci": ci, "g": info["g"], "status": info["status"]}, "1e-9",
+                              sig("compute_fieller_mrca_interval", "compute_fieller_mrca_interval(mu, d0, cov_beta, t_ref, df, alpha=0.05, min_time=None) -> ([lo, hi], {g, status})") + " " + note))
+    w.write("dating", "compute_fieller_mrca_interval", cases)
+
+    # ---- run_ols_dating -----------------------------------------------------------------------
+    STRIP_OLS = ("residuals", "fitted", "times")   # dating.py:3168 strips exactly these on export
+    cases = []
+    rng = np.random.default_rng(SYNTH_SEED)
+    guard_rows = [
+        ("n_equals_3", np.array([2000.0, 2001.0, 2002.0]), np.array([0.010, 0.0205, 0.0312]),
+         "the smallest fit the reference accepts (n < 3 raises, dating.py:1190), with df = max(1, n - 2) = 1 so t_crit is the Cauchy quantile 12.706. NOT exactly collinear on purpose: with a residual sum of zero the Fieller discriminant is a difference of two equal products and its SIGN is decided by the last bit of t_crit, so no two implementations agree on which branch it takes"),
+        ("mrca_after_earliest_sample", np.array([2000.0, 2001.0, 2002.0, 2003.0, 2004.0]), np.array([-0.00048, 0.00052, 0.00149, 0.00253, 0.00348]),
+         "status MRCA_AFTER_EARLIEST_SAMPLE: t_mrca lands INSIDE the sampling window, and the reference DISCARDS the estimate rather than flagging it -- t_mrca and se_mrca come back NaN and BOTH intervals stay [NaN, NaN], which a page must be able to say out loud"),
+        ("non_positive_rate", np.array([2000.0, 2001.0, 2002.0, 2003.0, 2004.0]), np.array([0.05, 0.04, 0.03, 0.02, 0.01]),
+         "status NON_POSITIVE_RATE: a clock running backwards gives mu <= 1e-12, so no interval is computed at all and fieller_g is NaN"),
+        ("zero_variance_dists", np.array([2000.0, 2001.0, 2002.0, 2003.0, 2004.0, 2005.0]), np.array([0.02] * 6),
+         "np.std(dists) <= 1e-8 SHORT-CIRCUITS the correlation to r = 0.0 (dating.py:1266) rather than letting np.corrcoef divide by zero; mu is then 0 and the status is NON_POSITIVE_RATE. This is also the case that exercises the 1e-15 FLOORS under se_mu and se_d0 (dating.py:1210-1211): the residuals are identically zero, so sigma2 and the whole covariance matrix are zero and both standard errors come back as sqrt(1e-15) exactly -- and it does so WITHOUT reaching the interval branches, where a zero covariance would put the Fieller discriminant on a knife edge"),
+    ]
+    for name, t_vals, d_vals, note in guard_rows:
+        with np.errstate(all="ignore"):
+            res = ns["run_ols_dating"](t_vals, d_vals, ci_method="fieller")
+        cases.append(case(f"{len(cases):03d}_{name}", {"times": t_vals, "dists": d_vals, "t_ref": None, "ci_method": "fieller"},
+                          strip(res, STRIP_OLS), "1e-9",
+                          sig("run_ols_dating", "run_ols_dating(times, dists, t_ref=None, ci_method='fieller') -> dict") + " " + note))
+    # The one input that makes the reference RAISE rather than return: every sampling time identical,
+    # so X.T @ X is singular and la.inv (dating.py:1208) throws before any status is reached.
+    zt = np.array([2000.0] * 6)
+    zd = np.array([0.01, 0.02, 0.03, 0.02, 0.01, 0.02])
+    try:
+        ns["run_ols_dating"](zt, zd, ci_method="fieller")
+        raise AssertionError("expected LinAlgError on a zero-variance times vector")
+    except np.linalg.LinAlgError as exc:
+        cases.append(case(f"{len(cases):03d}_zero_variance_times_raises", {"times": zt, "dists": zd, "t_ref": None, "ci_method": "fieller"},
+                          {"raises": f"numpy.linalg.LinAlgError: {exc}"}, "exact",
+                          sig("run_ols_dating", "run_ols_dating(times, dists) -> dict")
+                          + " every sampling time identical: Sum(x) = Sum(x^2) = 0, the 2x2 normal equations are singular, and scipy's la.inv"
+                            " (dating.py:1208) raises `singular matrix` before the status branch is reached. The port must REFUSE here too rather"
+                            " than returning an infinite rate -- this is the one case in the table with no record to compare."))
+    # A well-behaved synthetic fit under both ported ci_methods, so the dispatch at 1248-1258 is pinned.
+    syn_t = np.sort(rng.uniform(1990.0, 2020.0, 40))
+    syn_d = 0.0015 * (syn_t - 1975.0) + rng.normal(0.0, 0.0008, 40)
+    for ci_method in ("fieller", "delta", "linear", "FIELLER"):
+        res = ns["run_ols_dating"](syn_t, syn_d, ci_method=ci_method)
+        cases.append(case(f"{len(cases):03d}_synthetic_{ci_method}", {"times": syn_t, "dists": syn_d, "t_ref": None, "ci_method": ci_method},
+                          strip(res, STRIP_OLS), "1e-9",
+                          sig("run_ols_dating", f"run_ols_dating(times, dists, ci_method={ci_method!r}) -> dict")
+                          + " ci_method is dispatched on .lower() and echoed back UN-NORMALISED; 'delta' and 'linear' select ci_delta, everything"
+                            " else (including an unrecognised string) falls through to ci_fieller. ci_bootstrap ships as a permanent null (DATING Q7)."))
+    # An explicit t_ref, which no CLI path uses but the signature offers.
+    res = ns["run_ols_dating"](syn_t, syn_d, t_ref=2000.0)
+    cases.append(case(f"{len(cases):03d}_synthetic_explicit_t_ref", {"times": syn_t, "dists": syn_d, "t_ref": 2000.0, "ci_method": "fieller"},
+                      strip(res, STRIP_OLS), "1e-9",
+                      sig("run_ols_dating", "run_ols_dating(times, dists, t_ref=2000.0) -> dict")
+                      + " an explicit t_ref breaks the orthogonality the centred parameterisation buys, so Sum(x) is no longer ~0 and the 2x2 normal equations'"
+                        " off-diagonal term is load-bearing; a port that assumed a diagonal XtX fails HERE and nowhere else."))
+    # The two real fits.
+    for fa, _ in DATING_EXAMPLES:
+        r = real[fa]
+        t_fit = r["times"][r["train_idx"]]
+        d_fit = r["dists"][r["train_idx"]]
+        res = ns["run_ols_dating"](t_fit, d_fit, ci_method="fieller", seq_len=3 * (r["n_cols"] // 3))
+        held = [r["taxa"][i] for i in range(len(r["taxa"])) if not r["is_train"][i]]
+        cases.append(case(f"{len(cases):03d}_{Path(fa).stem}", {"times": t_fit, "dists": d_fit, "t_ref": None, "ci_method": "fieller"},
+                          strip(res, STRIP_OLS), "1e-9",
+                          sig("run_ols_dating", "run_ols_dating(times, dists, ci_method='fieller') -> dict")
+                          + f" THE ACCEPTANCE FIT. examples/{fa}: {len(r['taxa'])} dated taxa, {len(t_fit)} in the fit"
+                            + (f" ({len(held)} reserved by the coverage rule: {', '.join(held)} below 50 % ACGT)" if held else " (no coverage holdout)")
+                            + f". Reproduces `hyphaeon dating -a {fa} --root-taxon CONSENSUS --no-tree --method ols`:"
+                              f" t_MRCA {res['t_mrca']!r}, Fieller {list(map(float, res['ci_fieller']))!r}, r2 {res['r2']!r}."
+                              " NOTE min_time here is the earliest TRAINING time, not the earliest sample."))
+    w.write("dating", "run_ols_dating", cases)
+
+    # ---- run_restricted_spline_clock_dating ---------------------------------------------------
+    STRIP_SPLINE = ("fitted", "residuals")          # dating.py:3170
+    cases = []
+    for name, t_vals, d_vals, note in [
+        ("n_equals_5", np.array([2000.0, 2001.0, 2002.0, 2003.0, 2004.0]), np.array([0.010, 0.021, 0.031, 0.042, 0.052]),
+         "the smallest fit the reference accepts (n < 5 raises, dating.py:1838)"),
+        ("negative_ancestral_slope", np.array([2000.0, 2001.0, 2002.0, 2003.0, 2004.0, 2005.0]), np.array([0.05, 0.04, 0.03, 0.02, 0.015, 0.01]),
+         "beta_1 <= 1e-9: t_mrca falls back to the LINEAR null's own intercept ratio, and rate_ratio is forced to 1.0 -- which, with the positive-ancestral-rate conjunct, is what stops a backwards clock from being 'preferred'"),
+    ]:
+        with np.errstate(all="ignore"):
+            res = ns["run_restricted_spline_clock_dating"](t_vals, d_vals, cov_matrix=None, ridge=0.05, n_boot=500, seed=PERM_SEED)
+        cases.append(case(f"{len(cases):03d}_{name}", {"times": t_vals, "dists": d_vals, "cov_matrix": None, "ridge": 0.05, "n_boot": 500, "seed": PERM_SEED},
+                          strip(res, STRIP_SPLINE), "1e-5",
+                          sig("run_restricted_spline_clock_dating", "run_restricted_spline_clock_dating(times, dists, cov_matrix=None, ridge=0.05, n_boot=500, seed=42) -> dict") + " " + note
+                          + " The four CIs are EQUAL to their point estimates because the bootstrap is dead upstream (DATING Q1); a port that 'fixes' it fails here, deliberately."))
+    res = ns["run_restricted_spline_clock_dating"](syn_t, syn_d, cov_matrix=None)
+    cases.append(case(f"{len(cases):03d}_synthetic", {"times": syn_t, "dists": syn_d, "cov_matrix": None, "ridge": 0.05, "n_boot": 500, "seed": PERM_SEED},
+                      strip(res, STRIP_SPLINE), "1e-5",
+                      sig("run_restricted_spline_clock_dating", "run_restricted_spline_clock_dating(times, dists) -> dict")
+                      + " a straight-line synthetic: the F test does not reject, delta_AIC is negative and is_nonlinear_preferred is False."))
+    for fa, _ in DATING_EXAMPLES:
+        r = real[fa]
+        t_fit = r["times"][r["train_idx"]]
+        d_fit = r["dists"][r["train_idx"]]
+        res = ns["run_restricted_spline_clock_dating"](t_fit, d_fit, cov_matrix=None, ridge=0.05, n_boot=500, seed=PERM_SEED)
+        cases.append(case(f"{len(cases):03d}_{Path(fa).stem}", {"times": t_fit, "dists": d_fit, "cov_matrix": None, "ridge": 0.05, "n_boot": 500, "seed": PERM_SEED},
+                          strip(res, STRIP_SPLINE), "1e-5",
+                          sig("run_restricted_spline_clock_dating", "run_restricted_spline_clock_dating(times, dists) -> dict")
+                          + f" examples/{fa}: F = {res['f_stat']!r}, p = {res['p_f_test']!r}, delta_AIC = {res['delta_aic']!r},"
+                            f" rate ratio {res['rate_ratio']!r}, is_nonlinear_preferred = {res['is_nonlinear_preferred']!r}."
+                            " TOLERANCE 1e-5 AND NOT 1e-9, MEASURED: the reference solves the UNCENTRED normal equations on a calendar axis"
+                            " (DATING Q5), cond(Xt X) = 9.307e12 on korber, so only ~5 significant figures of t_mrca survive; partial-pivot"
+                            " Gaussian elimination reproduces LAPACK's answer to 1.1e-8 years on korber and 9.3e-7 on H1N1, and merely"
+                            " REASSOCIATING the reference's own products moves it by 3.5e-10. Centring would change the answer and is forbidden."))
+    w.write("dating", "run_restricted_spline_clock_dating", cases)
+
+    # ---- run_mrca_dating, end to end through the reference CLI ---------------------------------
+    # The per-taxon block (dating.py:3000-3062), the clock-model selection sentence and the ensemble
+    # are INLINE in run_mrca_dating and are not functions, so they cannot be lifted by name. Running
+    # the reference's own CLI is the only way to pin them without retyping a line of it.
+    cases = []
+    with tempfile.TemporaryDirectory() as td:
+        for fa, root in DATING_EXAMPLES:
+            for star_to_gap in ((True, False) if fa.startswith("korber") else (True,)):
+                src = EXAMPLES / fa
+                align = str(src)
+                if star_to_gap:
+                    txt = src.read_text()
+                    cleaned = "\n".join(ln if ln.startswith(">") else ln.replace("*", "-") for ln in txt.splitlines()) + "\n"
+                    align = os.path.join(td, f"{Path(fa).stem}_star_to_gap.fasta")
+                    Path(align).write_text(cleaned)
+                out = os.path.join(td, "out.json")
+                argv = [sys.executable, "-m", "hyphaeon.cli", "dating", "-a", align, "--root-taxon", root, "--no-tree", "--method", "ols", "-o", out]
+                proc = subprocess.run(argv, cwd=REPO, env={**os.environ, "PATH": TN93_HIDDEN_PATH, "PYTHONUNBUFFERED": "1"}, capture_output=True, text=True)
+                if proc.returncode != 0 or not os.path.exists(out):
+                    raise RuntimeError(f"dating CLI exit {proc.returncode}\n{proc.stdout[-2000:]}\n{proc.stderr[-2000:]}")
+                data = null_timings(basenames(json.load(open(out))))
+                data["alignment"] = fa
+                name = f"{Path(fa).stem}{'' if star_to_gap else '_star_unmodified'}"
+                cases.append(case(name,
+                                  {"argv": ["hyphaeon", "dating", "-a", fa, "--root-taxon", root, "--no-tree", "--method", "ols", "-o", "<out.json>"],
+                                   "star_to_gap": star_to_gap, "tn93_binary_on_path": False, "python": platform.python_version()},
+                                  {"result": data}, "1e-5",
+                                  "signature: hyphaeon.dating.run_mrca_dating, reached through `python -m hyphaeon.cli dating`. The per-taxon table"
+                                  " (dating.py:3000-3062: fitted_divergence, predicted_date, divergence_residual, temporal_residual, z_score, is_outlier,"
+                                  " is_holdout), the clock-model selection sentence and the ensemble are INLINE in run_mrca_dating and have no function to"
+                                  " lift, so this case runs the reference itself. Generated with the compiled tn93 binary off PATH."
+                                  + (" '*' was rewritten to '-' in the alignment before the run, which is what the reference's own BINARY branch does and what"
+                                     " the application does on the dating path." if star_to_gap else
+                                     " '*' LEFT AS IS, so the Python-package branch scores it as an unknown: this case exists only to measure DATING Q3's size"
+                                     " against its sibling above, and is NOT the app's convention.")
+                                  + " Per-field classes for the replay: strings, integers, booleans, sampling_date and root_divergence EXACT; the ols block"
+                                    " 1e-9 absolute (p_value excepted, see DATING Q4); the spline block and every predicted_date 1e-5 absolute (DATING Q5)."))
+    w.write("dating", "run_mrca_dating", cases)
+
+    return {"dating_reference_source": provenance}
+
+
+# --------------------------------------------------------------------------
 # attribution + dms (model-dependent, bat_oas1 only)
 # --------------------------------------------------------------------------
 
@@ -1730,13 +2250,13 @@ def gen_e2e(w: Writer, model_sha: str, only_cases: List[str] | None = None) -> N
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--only", action="append", choices=["stats", "filter", "evaluation", "epistasis", "phenotype", "dataset", "dates", "attribution", "dms", "e2e"], help="generate only these modules")
+    ap.add_argument("--only", action="append", choices=["stats", "filter", "evaluation", "epistasis", "phenotype", "dataset", "dates", "dating", "attribution", "dms", "e2e"], help="generate only these modules")
     ap.add_argument("--e2e-case", action="append", help="within e2e, generate only the cases whose name contains one of these substrings; the manifest keeps the other cases' counts, sizes and wall times")
     ap.add_argument("--skip-model", action="store_true", help="skip attribution, dms and e2e (no weights needed)")
     ap.add_argument("--skip-e2e", action="store_true")
     args = ap.parse_args()
 
-    wanted = set(args.only) if args.only else {"stats", "filter", "evaluation", "epistasis", "phenotype", "dataset", "dates", "attribution", "dms", "e2e"}
+    wanted = set(args.only) if args.only else {"stats", "filter", "evaluation", "epistasis", "phenotype", "dataset", "dates", "dating", "attribution", "dms", "e2e"}
     # Fixtures always record the canonical MDS sign convention: every in-process load_alignment_and_tree call
     # (attribution, dms, the dataset cases that do not pass mds_sign explicitly, filter e2e) reads this env var.
     os.environ["HYPHAEON_MDS_SIGN"] = "canonical"
@@ -1764,7 +2284,7 @@ def main() -> int:
     t0 = time.time()
     steps = [("stats", lambda: gen_stats(w)), ("filter", lambda: gen_filter(w)), ("evaluation", lambda: gen_evaluation(w)),
              ("epistasis", lambda: gen_epistasis(w)), ("phenotype", lambda: gen_phenotype(w)), ("dataset", lambda: gen_dataset(w)),
-             ("dates", lambda: gen_dates(w)),
+             ("dates", lambda: gen_dates(w)), ("dating", lambda: gen_dating(w)),
              ("attribution", lambda: gen_attribution(w, model_sha)), ("dms", lambda: gen_dms(w, model_sha)), ("e2e", lambda: gen_e2e(w, model_sha, args.e2e_case))]
     extra: Dict[str, Any] = {}
     for name, fn in steps:
@@ -1844,6 +2364,13 @@ def main() -> int:
             "DATES Q8: the Korber/LANL two-digit year pivots at 30 (dating.py:344, 351), hard-coded, so 2030 onwards reads as 1930; both rules add a flat 0.5 for mid-year. MEASURED on examples/korber_env_gp160.fasta: temporal.extract_date_from_string dates 0 of 143 headers and dating.parse_header_timestamp dates 142 (CONSENSUS is the miss), all through this rule.",
             "DATES Q9: (?:WPI|wpi) and (?:DPI|dpi) (dating.py:355, 360) match neither 'Wpi' nor 'wPI', while the non-calendar unit patterns are re.IGNORECASE throughout. Both return the elapsed time RAW onto the same axis a decimal year is on, with nothing downstream distinguishing them.",
             "DATES Q10: the non-calendar path accepts Infinity, because float('inf') >= 0.0 is True (temporal.py:92-93), and rejects a negative real and a literal 'nan' by the same comparison without falling through to the embedded-number search.",
+            "DATING Q1: run_restricted_spline_clock_dating's bootstrap NEVER RUNS. dating.py:1917 calls la.lstsq(b_X, b_d, rcond=None) where `la` is scipy.linalg (dating.py:35), whose keyword is `cond` -- `rcond` is numpy's. VERIFIED on scipy 1.16.2: every one of the 500 replicates raises `TypeError: lstsq() got an unexpected keyword argument 'rcond'. Did you mean 'cond'?`, the bare `except Exception: pass` at 1924 swallows it, len(boot_t0) == 0 < 20, and all FOUR spline intervals (ci_mrca, ci_rate_ancestral, ci_rate_recent, ci_beta_2) collapse to their point estimates. MEASURED: korber publishes a 95 % interval of [1938.7746674292187, 1938.7746674292187] for a quantity whose interval, with `cond=`, is about 55 years wide. The fixtures pin the DEGENERATE intervals, so a port that 'fixes' the typo fails; it also means phase 3 needs no PCG64 bootstrap parity anywhere.",
+            "DATING Q2: run_restricted_spline_clock_dating reads dB[-1, 0] (dating.py:1884) -- the derivative at the LAST ROW IN INPUT ORDER, not at t_max. rate_recent, rate_ratio and therefore is_nonlinear_preferred depend on the ORDER OF THE FASTA. On examples/korber_env_gp160.fasta the last training row happens to be t_max = 1997.5, so the published rate ratio (0.0397) is right by luck.",
+            "DATING Q3: the two TN93 engines disagree on any alignment containing '*'. dataset.compute_tn93_cross_distance_matrix rewrites '*' to '-' in the branch that writes FASTA for the compiled `tn93` binary (dataset.py:840, 844) and the Python-package branch does not, where '*' falls through to the character map's catch-all unknown. MEASURED on examples/korber_env_gp160.fasta (2389 asterisks across 18 of 143 sequences): 18 of 142 root divergences differ, 17 at ~1.7e-3 relative and Z59ZR.ZHU at 0.82 relative (0.06076440 with the binary, 0.11056680 without), which moves t_MRCA by 0.097 years and the lower Fieller bound by 0.285. Nothing in the output JSON says which engine ran. fixtures/dating/run_mrca_dating.json carries BOTH korber runs so the size of the gap is in the record; every other dating fixture is generated with the binary hidden AND '*' rewritten to '-', which reproduces a compiled-tn93 run exactly (max |delta| = 0.0).",
+            "DATING Q4: two spellings of the same tail. run_ols_dating:1269 computes the regression p as `1.0 - stats.f.cdf(...)` while the nested F test at 1877 correctly uses `stats.f.sf(...)`. The cancellation floors the reported p at one ulp of 1: MEASURED, F = 80 gives 2.109424e-15 against a true 2.097939e-15, F = 100 gives 1.110223e-16 against 4.524211e-18 (24x wrong), and every F above that is pinned at 1.110223e-16. examples/H1N1_2009_pandemic.fasta reports exactly that value. The port calls `1 - fCdf`, deliberately; note that scipy's f.cdf itself returns one ulp BELOW 1 there where the correctly rounded double is 1.0, so p_value is the one field that cannot be held tighter than 1e-15 absolute.",
+            "DATING Q5: run_restricted_spline_clock_dating solves UNCENTRED normal equations on a calendar axis (dating.py:1857-1871). MEASURED cond(X_sp.T X_sp) = 9.307e12 on korber, so about five significant figures of the spline's t_mrca survive: partial-pivot Gaussian elimination reproduces LAPACK's answer to 1.1e-8 years there and 9.3e-7 on H1N1, and merely reassociating the reference's own products (multiplying by the identity C_inv first, as it does) moves it by 3.5e-10. The spline fixtures are pinned at 1e-5 for that reason; centring would change the answer and is not done.",
+            "DATING Q6: verify_coding_alignment SILENTLY MUTATES the alignment it is handed, trimming L mod 3 trailing nucleotides (dating.py:163-174, auto_trim_trailing defaults True) and printing a notice to stdout, and every distance downstream is then computed on the trimmed sequences. MEASURED on examples/H1N1_2009_pandemic.fasta: without the trim every one of its 95 divergences is wrong and t_MRCA moves from 2009.0426391755814 to 2009.0426390275454. examples/korber_env_gp160.fasta is 2943 nt and is unaffected.",
+            "DATING Q7: run_ols_dating initialises ci_bootstrap to None at 1246 and never assigns it, so it ships in the exported JSON as a permanent null (1285). Its three bootstrap ci_methods -- poisson, residual-boot/wild and jackknife/loocv -- are reached by an if/elif chain whose ELSE is Fieller, so an unrecognised ci_method string silently becomes Fieller rather than raising.",
         ],
         "counts": counts,
         "bytes": sizes,

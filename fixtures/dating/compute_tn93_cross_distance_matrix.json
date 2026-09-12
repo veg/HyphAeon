@@ -1,0 +1,243 @@
+[
+ {
+  "name": "000_identical_landmark_is_row",
+  "inputs": {
+   "seq_dict": {
+    "a": "ACGTACGTAC",
+    "b": "ACGTACGTAA",
+    "c": "ACGTTCGTAA",
+    "root": "ACGTACGTAC",
+    "onebase": "AAAAAAAAAA"
+   },
+   "taxa_all": [
+    "a",
+    "b",
+    "c",
+    "root"
+   ],
+   "taxa_landmarks": [
+    "root"
+   ],
+   "threshold": 100.0
+  },
+  "outputs": {
+   "matrix": [
+    [
+     0.0
+    ],
+    [
+     0.10871099680662155
+    ],
+    [
+     0.2396010011434555
+    ],
+    [
+     0.0
+    ]
+   ],
+   "shape": [
+    4,
+    1
+   ]
+  },
+  "tolerance": "exact",
+  "notes": "signature: compute_tn93_cross_distance_matrix(seq_dict, taxa_all, taxa_landmarks, threshold=100.0) -> np.ndarray[float32]. Reference hyphaeon/dataset.py:824-928, lifted by ast and executed without importing hyphaeon. a landmark that is ALSO a row is forced to 0.0 twice (dataset.py:917-919 and again after the imputation), even though 'a' and 'root' are byte-identical and would score 0.0 anyway Generated with the compiled tn93 binary hidden, so the PYTHON PACKAGE branch is what is pinned; the matrix is float32 and a port must round to float32 too."
+ },
+ {
+  "name": "001_two_landmarks",
+  "inputs": {
+   "seq_dict": {
+    "a": "ACGTACGTAC",
+    "b": "ACGTACGTAA",
+    "c": "ACGTTCGTAA",
+    "root": "ACGTACGTAC",
+    "onebase": "AAAAAAAAAA"
+   },
+   "taxa_all": [
+    "a",
+    "b",
+    "c"
+   ],
+   "taxa_landmarks": [
+    "a",
+    "c"
+   ],
+   "threshold": 100.0
+  },
+  "outputs": {
+   "matrix": [
+    [
+     0.0,
+     0.2396010011434555
+    ],
+    [
+     0.10871099680662155,
+     0.10871099680662155
+    ],
+    [
+     0.2396010011434555,
+     0.0
+    ]
+   ],
+   "shape": [
+    3,
+    2
+   ]
+  },
+  "tolerance": "exact",
+  "notes": "signature: compute_tn93_cross_distance_matrix(seq_dict, taxa_all, taxa_landmarks, threshold=100.0) -> np.ndarray[float32]. Reference hyphaeon/dataset.py:824-928, lifted by ast and executed without importing hyphaeon. the rectangular shape proper: an N x M matrix read row-major, which case 3's earliest-cohort branch averages across Generated with the compiled tn93 binary hidden, so the PYTHON PACKAGE branch is what is pinned; the matrix is float32 and a port must round to float32 too."
+ },
+ {
+  "name": "002_degenerate_pair_saturates",
+  "inputs": {
+   "seq_dict": {
+    "a": "ACGTACGTAC",
+    "b": "ACGTACGTAA",
+    "c": "ACGTTCGTAA",
+    "root": "ACGTACGTAC",
+    "onebase": "AAAAAAAAAA"
+   },
+   "taxa_all": [
+    "a",
+    "onebase",
+    "b"
+   ],
+   "taxa_landmarks": [
+    "onebase"
+   ],
+   "threshold": 100.0
+  },
+  "outputs": {
+   "matrix": [
+    [
+     1.0
+    ],
+    [
+     0.0
+    ],
+    [
+     1.0
+    ]
+   ],
+   "shape": [
+    3,
+    1
+   ]
+  },
+  "tolerance": "exact",
+  "notes": "signature: compute_tn93_cross_distance_matrix(seq_dict, taxa_all, taxa_landmarks, threshold=100.0) -> np.ndarray[float32]. Reference hyphaeon/dataset.py:824-928, lifted by ast and executed without importing hyphaeon. a pair whose pairwise counts leave a base absent: tn93.calculate_distance falls back to its fixed 1.0 SENTINEL, which is not a measured distance and is indistinguishable in the matrix from an imputed entry. (A pair with NO overlapping non-gap position raises ZeroDivisionError instead, uncaught upstream, which is why no such case is here) Generated with the compiled tn93 binary hidden, so the PYTHON PACKAGE branch is what is pinned; the matrix is float32 and a port must round to float32 too."
+ },
+ {
+  "name": "003_empty_landmarks",
+  "inputs": {
+   "seq_dict": {
+    "a": "ACGTACGTAC",
+    "b": "ACGTACGTAA",
+    "c": "ACGTTCGTAA",
+    "root": "ACGTACGTAC",
+    "onebase": "AAAAAAAAAA"
+   },
+   "taxa_all": [
+    "a",
+    "b"
+   ],
+   "taxa_landmarks": [],
+   "threshold": 100.0
+  },
+  "outputs": {
+   "matrix": [
+    [],
+    []
+   ],
+   "shape": [
+    2,
+    0
+   ]
+  },
+  "tolerance": "exact",
+  "notes": "signature: compute_tn93_cross_distance_matrix(seq_dict, taxa_all, taxa_landmarks, threshold=100.0) -> np.ndarray[float32]. Reference hyphaeon/dataset.py:824-928, lifted by ast and executed without importing hyphaeon. an empty axis returns the all -1.0 prefill with NO imputation at all (dataset.py:835-836) -- the one way a caller can see the sentinel Generated with the compiled tn93 binary hidden, so the PYTHON PACKAGE branch is what is pinned; the matrix is float32 and a port must round to float32 too."
+ },
+ {
+  "name": "004_korber_slice",
+  "inputs": {
+   "seq_dict": {
+    "A92UG.037": "ATGAGAGTGATGGGGATAGAGAGG---AATTATCCTTGCTGG---TGGACATGGGGGATTATG------------------------ATCTTGGGGATGATAATAATTTGT---------------AATACTGCA---GAAAACTTGTGGGTTACTGTCTACTATGGGGTACCTATATGGAAGGATGCAAATACC------ACCTTATTTTGTGCATCAGATGCGAAAGCATATGATACAGAAGTGCATAATGTCTGGGCTACGCATGCCTGTGTACCTACAGACCCCAGCCCACAAGAA",
+    "B84US.NY5CG": "ATGAGAGCGAAGGGGACCAGGAAG---AATTATCAGCACTTG---TGGAGATGGGGCACGATG------------------------CTCCTTGGGATGTTAATGATCTGT---------------AGTGCTGCA---GAACAATTGTGGGTCACAGTCTATTATGGGGTACCTGTGTGGAAAGAAGCAACCACC------ACTCTATTTTGTGCCTCGGATGCTAAAGCATATGACACAGAGGTACATAATGTTTGGGCCACACATGCCTGTGTACCCACAGACCCTAACCCACAAGAA",
+    "B95US.C15-26.1BH": "----AAGTGAAGGAGACCAGGAAG---AATTGTCAGCGCTTG---TGGAGATGGGGCATCATG------------------------CTCCTTGGGATGTTGATGATCTGT---------------AGAGCTGAA---GAAAAATTGTGGGTCACAGTCTATTATGGGGTACCTGTGTGGAAAGAAGCAACTACC------ACTCTATTTTGTGCATCAGATGCTAAAGCATATAATACAGAGAAACATAATGTTTGGGCCACACACGCCTGTGTACCCACAGATCCCAACCCACAAGAA",
+    "B87AU.MBC925": "ATGAGAGTGAAGGGGATCAGGAAG---AATTATCAGCACTTG---TGGAGATGGGGCACCATG------------------------CTCCTTGGGTTATTAATGATCTGT---------------AGTGCTGCA---GACAAATTGTGGGTCACAGTCTATTATGGGGTACCTGTGTGGAAAGAAGCAACCACC------ACTCTATTTTGTGCATCAGATGCTAAAGCATATGATACAGAGGTACATAATGTTTGGGCCACACATGCCTGTGTACCCACAGACCCCAACCCACAAGAA",
+    "B93TH.067A": "ATGAGAGTGACGGGGATCAGGAAG---AATTATCAGCATTTA---TGGAGATGGGGCACCATG------------------------CTCCTTGGGATGTTGATGATCTGT---------------AGTGCTGCA---GAAAACTTGTGGGTCACAGTCTATTATGGGGTACCTGTATGGAAAGAAGCAAACACC------ACTCTATTTTGTGCATCAGATGCTGAAGCATATGATACAGAGGTACATAATGTTTGGGCCACACATGCCTGTGTACCCACAGACCCCAACCCACAAGAA",
+    "J94SE.SE92809": "ACGAGAGTGATGGAGACACAGAAG---AATTGGCAGACCTTG---TGGAGAGGGGGCCTCATG------------------------ATCTTTGGAATGTTAATGATTTGT---------------AAGGCAAAA---GAAGACTTGTGGGTCACAGTCTATTATGGGGTACCTGTGTGGAAAGATGCAAAGACC------ACTTTATTTTGCGCATCTGATGCTAAAGCATATAGTACTGAAAAACATAATGTCTGGGCTACACATGCTTGTGTACCCACAGATCCAAGCCCACAAGAG",
+    "B95US.C24-10.1BH": "----GAGTGATGGGGATCAGGAAG---AGTTGGCAGCACTGG---TGGAAATGGGGGGGAATG------------------ATG---CTCCTTGGAACATTGATGATCTGT---------------AGTGCTGAG---AATAAGTTGTGGGTCACAGTCTATTATGGGGTACCTGTATGGAAAGAAGCAACCACC------ACTCTATTTTGTGCATCAGATGCTAAAGCATATAGTACAGAGGTACATAATGTTTGGGCCACACATGCCTGTGTGCCCACAGACCCCAGCCCACAAGAA",
+    "C96ZM.751.3": "ATGAGAGTGAAGGGGATAATGAGG---AATTGGCAACAATGG---TGGATATGGGGCATCTTA------------------------GGCTTTTGGATGCTATTGATGTGT---------------AATGCAATG---GGGAAATTGTGGGTCACAGTCTACTATGGGGTACCTGTGTGGAAAGAAGCAAAAACT------ACTTTATTTTGTGCATCAGATGCTAAAGCATATGAGACAGAAGTGCATAATGTTTGGGCTACACATGCCTGTGTACCCACAGACCCCAACCCACAAGAA",
+    "C93IN.301904": "ATGAGAGTGAGGGGGACACTGAGG---AATTATCAACAATGG---TGGATATGGGGCGTCTTA------------------------GGCTTTTGGATGTTAATGATTTGT---------------AATGTGGGG---GGAAACTTGTGGGTCACAGTCTATTATGGGGTACCTGTGTGGAAAGAAGCAAAAACT------ACTCTATTCTGTGCATCAGATGCTAAAGCATATGAGAAAGAAGTGCATAATGTCTGGGCTACACATGCCTGTGTACCCACAGACCCCAACCCACAAGAA",
+    "B86US.JRFL": "ATGAGAGTGAAGGGGATCAGGAAG---AGTTATCAGTACTTG---TGGAAAGGGGGCACCTTG------------------------CTCCTTGGGATATTAATGATCTGT---------------AGTGCTGTA---GAAAAGTTGTGGGTCACAGTCTATTATGGGGTACCTGTGTGGAAAGAAGCAACCACC------ACTCTATTTTGTGCATCAGATGCTAAAGCATATGATACAGAGGTACATAATGTTTGGGCCACACATGCCTGTGTACCCACAGACCCCAACCCACAAGAA",
+    "B95US.C12-1.0BH": "----GAGTGACGGAGATCAGGAGG---ATTTGTCAGAACTGT---TGGAGATGGGGCGCCTTG------------------------CTCCTCGGGATATTAATGATCTGT---------------AATGCTACA---GAAAAATTGTGGGTCACAGTCTATTATGGAGTACCTGTATGGAAAGAAGCAGCCACC------ACTCTATTTTGTGCATCAGATGCTAAAGCATATGATAAGGAGATGCATAATGTTTGGGCCACACATGCTTGTGTACCCACAGACTCCAACCCACAAGAA",
+    "B86AU.MBC200": "ATGAGAGTGAAGGGGATCAGGAGG---AATTGTCAGCACTTG---TGGAGATGGGGCACCATG------------------------CTCCTTGGGATGTTAATGATCTGT---------------AGTGCTGCA---GAACACTTGTGGGTCACAGTCTATTATGGGGTACCTGTGTGGAGAGAGGCAACCACC------ACTCTATTCTGTGCATCAGATGCTAGAGCATATGATACAGAGGTACATAATGTTTGGGCCACGCATGCCTGTGTACCCACAGACCCCAACCCACAAGCA"
+   },
+   "taxa_all": [
+    "A92UG.037",
+    "B84US.NY5CG",
+    "B95US.C15-26.1BH",
+    "B87AU.MBC925",
+    "B93TH.067A",
+    "J94SE.SE92809",
+    "B95US.C24-10.1BH",
+    "C96ZM.751.3",
+    "C93IN.301904",
+    "B86US.JRFL",
+    "B95US.C12-1.0BH",
+    "B86AU.MBC200"
+   ],
+   "taxa_landmarks": [
+    "A92UG.037"
+   ],
+   "threshold": 100.0
+  },
+  "outputs": {
+   "matrix": [
+    [
+     0.0
+    ],
+    [
+     0.23798300325870514
+    ],
+    [
+     0.25403401255607605
+    ],
+    [
+     0.21378600597381592
+    ],
+    [
+     0.20551100373268127
+    ],
+    [
+     0.24008700251579285
+    ],
+    [
+     0.26205700635910034
+    ],
+    [
+     0.2176699936389923
+    ],
+    [
+     0.21301299333572388
+    ],
+    [
+     0.21961599588394165
+    ],
+    [
+     0.26054099202156067
+    ],
+    [
+     0.21441000699996948
+    ]
+   ],
+   "shape": [
+    12,
+    1
+   ]
+  },
+  "tolerance": "exact",
+  "notes": "signature: compute_tn93_cross_distance_matrix(seq_dict, taxa_all, taxa_landmarks) -> np.ndarray[float32]. Reference hyphaeon/dataset.py:824-928, lifted by ast and executed without importing hyphaeon. MEASURED slice: the first 12 dated korber sequences over columns 0-299, each against the first of them."
+ }
+]

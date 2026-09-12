@@ -197,6 +197,7 @@ reproduce a numpy stream.
 | `epistasis/` | 3 | `compute_branch_coselection_network` on a 40×12 float32 matrix with planted co-selected sites (function defaults, CLI defaults, loose, strict); `extract_epistatic_sectors_tse` on the resulting graphs (exact with `n_permutations=0`, statistical with B = 2000, focal taxon, components fallback); `compute_sector_permutation_test` (statistical, plus exact degenerate cases) |
 | `phenotype/` | 3 | `resolve_phenotype_vector` (presets, explicit list, regex, pipe list, glob, `.*` patterns, CSV/TSV discrete and continuous under `phenotype/inputs/`); `compute_phylogenetic_covariance` on `Smc6.nwk` and `bat_oas1.nwk`; `generate_permulations` (binary and continuous, B = 200) |
 | `dates/` | 4 | `parse_date_to_decimal` (the [1800, 2100] gate, CPython `float()` spellings, ISO and partial ISO, `/` and `.` delimiters, the 28/30 day cap, invalid components, the leap divisor; the 20 non-calendar values replayed under `generations`, `days` and `arbitrary`; and an unknown `time_units`, which takes the calendar path); `extract_date_from_string` (the four calendar patterns and their `[\|/_\s]` class, the three non-calendar ones, and eight **measured real headers** — the five of 100 in `examples/H1N1_2009_pandemic.fasta` this function cannot date, and three of the 143 in `examples/korber_env_gp160.fasta`, of which it dates none); `parse_header_timestamp` **verbatim, 1959 anchor included**; `_parse_timestamp_flexible`. All `exact`: the conversion is integer arithmetic plus one division |
+| `dating/` | 9 | the model-free half of the ChronAeon pillar, all generated with the compiled `tn93` binary hidden and `*` rewritten to `-`: `generate_consensus_sequence` and `generate_time_decay_consensus_sequence` (the skip set, the first-in-insertion-order tie break, and every arm of the γ ladder, including H1N1's own adaptive γ = 3.0030); `compute_tn93_cross_distance_matrix` (the rectangular N×M float32 matrix, the landmark self-zeros, the `max(1.0, max_d)` imputation, the empty-axis shortcut); `compute_tree_free_divergences` (all four root cases, their ORDER, and both bundled alignments end to end); `compute_rcs_basis`; `compute_fieller_mrca_interval` (BOUNDED, the `min_time` clamp, UNBOUNDED_ANTIQUITY at g ≥ 1, the `mu ≤ 1e-12` guard); `run_ols_dating` and `run_restricted_spline_clock_dating` on the two real fits plus their guards; and `run_mrca_dating`, the reference CLI's own record, which is the only way to pin the per-taxon table, the clock-model sentence and the ensemble — they are inline in `run_mrca_dating` and there is no function to lift. Regenerate with `--only dating`; it needs no weights |
 | `dataset/` | 13 | tokenizer over all 64 codons plus gaps/ambiguity/lowercase/U and the raw tables; `parse_alignment_sequences` on every `examples/*.fasta` and on synthetic PHYLIP/NEXUS/FASTA/gz files under `dataset/inputs/`; `extract_tree_from_string_or_file`; `compute_fast_dist_matrix`; `compute_mds_coordinates` (with `gram`); `load_alignment_and_tree` on Smc6 and bat_oas1 (full N×N, N×4, tokens, invariable mask, rescale flag); the > 10 rescale rule on synthetic trees; `prune_identical_sequences`; duplicates through the loader; Faith's PD downsampling (synthetic, ties, camelid 128 → 64); the tree-free TN93 path (`tn93_distance`, `tn93_distance_matrix`, `load_alignment_and_tree_tn93` — see "TN93 and tree-free mode") |
 | `attribution/` | 1 | `attribute_selection` on bat_oas1, `min_lrt` 3.84 |
 | `dms/` | 1 | `run_insilico_selection_dms` on bat_oas1 restricted to the sites with LRT ≥ 3.84 (`target_sites` is supported), default focal taxon and `r_ferr` |
@@ -241,3 +242,21 @@ The port replicates the Python as it is (PLAN.md §5.3 rule 3). The full list is
   `math.log` of a non-positive corrected proportion (a saturated pair) →
   `ValueError`, and `2 / sum(nucleotide_frequency)` on a pair with no overlapping
   non-gap position → `ZeroDivisionError`. Neither is caught.
+* The dating estimators carry seven of their own (`DATING Q1`–`Q7` in
+  `known_quirks`). Four are worth knowing before reading a number:
+  **Q1**, `run_restricted_spline_clock_dating`'s bootstrap raises on *every*
+  replicate (`la.lstsq(..., rcond=)` where `scipy.linalg` wants `cond=`) inside a
+  bare `except`, so all four of its confidence intervals ship as zero-width — the
+  flagship example publishes `[1938.7746674292187, 1938.7746674292187]` for a
+  quantity whose real interval is ~55 years wide. The fixtures pin the degenerate
+  intervals, so a port that "fixes" the typo fails, and the pillar needs no
+  bootstrap RNG at all. **Q3**, the two TN93 engines disagree on any alignment
+  containing `*` — the binary branch rewrites it to `-`, the package branch does
+  not — and nothing in the output says which ran; measured on korber, 18 of 142
+  root divergences differ and `t_MRCA` moves 0.097 years, which is why
+  `dating/run_mrca_dating.json` carries both runs. **Q4**, the regression p-value
+  is spelt `1 - f.cdf` where `f.sf` was meant and is therefore pinned at
+  1.11e-16 for any `F ≳ 100`. **Q6**, `verify_coding_alignment` silently trims
+  `L mod 3` trailing nucleotides from the caller's own dict, and every distance
+  downstream is computed on the trimmed sequences (it fires on
+  `examples/H1N1_2009_pandemic.fasta` and not on `korber_env_gp160`).
