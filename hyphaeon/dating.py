@@ -1205,7 +1205,10 @@ def run_ols_dating(
     # Residual variance and covariance matrix
     res = dists - X @ beta_ols
     sigma2 = float(np.sum(res ** 2) / max(1, n - 2))
-    cov_beta = sigma2 * la.inv(X.T @ X)
+    try:
+        cov_beta = sigma2 * la.inv(X.T @ X)
+    except la.LinAlgError:
+        cov_beta = sigma2 * la.pinv(X.T @ X)
 
     se_mu = float(np.sqrt(max(1e-15, cov_beta[0, 0])))
     se_d0 = float(np.sqrt(max(1e-15, cov_beta[1, 1])))
@@ -1786,19 +1789,20 @@ def compute_rcs_basis(
     if k < 3:
         raise ValueError("At least 3 knots are required for restricted cubic splines.")
     t1, tk_1, tk = knots[0], knots[-2], knots[-1]
-    denom = (tk - t1) ** 2
+    denom = max(1e-14, (tk - t1) ** 2)
+    diff_k = max(1e-14, tk - tk_1)
 
     cols, d_cols = [], []
     for j in range(k - 2):
         tj = knots[j]
         term1 = np.maximum(0.0, x - tj) ** 3
-        term2 = ((tk - tj) / (tk - tk_1)) * (np.maximum(0.0, x - tk_1) ** 3)
-        term3 = ((tk_1 - tj) / (tk - tk_1)) * (np.maximum(0.0, x - tk) ** 3)
+        term2 = ((tk - tj) / diff_k) * (np.maximum(0.0, x - tk_1) ** 3)
+        term3 = ((tk_1 - tj) / diff_k) * (np.maximum(0.0, x - tk) ** 3)
         cols.append((term1 - term2 + term3) / denom)
 
         d1 = 3.0 * (np.maximum(0.0, x - tj) ** 2)
-        d2 = ((tk - tj) / (tk - tk_1)) * (3.0 * (np.maximum(0.0, x - tk_1) ** 2))
-        d3 = ((tk_1 - tj) / (tk - tk_1)) * (3.0 * (np.maximum(0.0, x - tk) ** 2))
+        d2 = ((tk - tj) / diff_k) * (3.0 * (np.maximum(0.0, x - tk_1) ** 2))
+        d3 = ((tk_1 - tj) / diff_k) * (3.0 * (np.maximum(0.0, x - tk) ** 2))
         d_cols.append((d1 - d2 + d3) / denom)
 
     B = np.column_stack(cols) if cols else np.empty((len(x), 0))

@@ -1594,6 +1594,10 @@ def cmd_autoclock(args):
             quiet=getattr(args, "quiet", False),
             n_landmarks=getattr(args, "n_landmarks", "auto"),
             max_memory_mb=getattr(args, "max_memory_mb", 1024.0),
+            rooting_mode=getattr(args, "rooting_mode", "convex_decay"),
+            contemporaneous_dyads=getattr(args, "contemporaneous_dyads", True),
+            dyad_max_days=getattr(args, "dyad_max_days", 90.0),
+            dyad_max_dist=getattr(args, "dyad_max_dist", 0.010),
         )
     else:
         engine = AutoClockDeconvolution(
@@ -1613,12 +1617,24 @@ def cmd_autoclock(args):
             quiet=getattr(args, "quiet", False),
             n_landmarks=getattr(args, "n_landmarks", "auto"),
             max_memory_mb=getattr(args, "max_memory_mb", 1024.0),
+            rooting_mode=getattr(args, "rooting_mode", "convex_decay"),
+            contemporaneous_dyads=getattr(args, "contemporaneous_dyads", True),
+            dyad_max_days=getattr(args, "dyad_max_days", 90.0),
+            dyad_max_dist=getattr(args, "dyad_max_dist", 0.010),
         )
 
     results = engine.run(
         plot=getattr(args, "plot", False) or (getattr(args, "plot_path", None) is not None),
         plot_path=getattr(args, "plot_path", None)
     )
+
+    if results.get("n_contemporaneous_clusters", 0) > 0:
+        print(f"\n[★] Contemporaneous Direct Transmission Screening:")
+        print(f"    Discovered {results['n_contemporaneous_clusters']} point-source transmission clusters ({results.get('n_contemporaneous_taxa', 0)} taxa) sampled <= {getattr(args, 'dyad_max_days', 90.0):.0f} days apart.")
+        if "transmission_mode_counts" in results:
+            print(f"    Dual-Track Transmission Breakdown:")
+            for mode, cnt in results["transmission_mode_counts"].items():
+                print(f"      - {mode}: {cnt}")
 
     if getattr(args, "output", None) and not str(args.output).endswith("/"):
         out_p = Path(args.output)
@@ -1969,6 +1985,10 @@ def main():
     autoclock_parser.add_argument("--min-delta-aicc", type=float, default=15.0, help="Minimum AICc improvement (AICc(K=1) - min AICc(K>=2)) required to justify splitting a subcommunity (default: 15.0)")
     autoclock_parser.add_argument("--n-landmarks", default="auto", help="Number of landmark sequences for Nyström low-rank approximation ('auto' or integer, default: auto)")
     autoclock_parser.add_argument("--max-memory-mb", type=float, default=1024.0, help="Maximum RAM budget (MB) for adaptive landmark matrix allocation (default: 1024.0)")
+    autoclock_parser.add_argument("--rooting-mode", choices=["convex_decay", "consensus", "earliest"], default="convex_decay", help="Rooting mode for tree-free root-to-tip divergence anchoring: 'convex_decay' (time-decay weighted consensus across cohort, default), 'consensus' (unweighted modal consensus), or 'earliest' (earliest sampled sequence)")
+    autoclock_parser.add_argument("--contemporaneous-dyads", action=argparse.BooleanOptionalAction, default=True, help="Enable screening for contemporaneous direct transmission dyads and point-source clusters (default: enabled)")
+    autoclock_parser.add_argument("--dyad-max-days", type=float, default=90.0, help="Maximum sampling interval in days for contemporaneous transmission dyads (default: 90.0 days)")
+    autoclock_parser.add_argument("--dyad-max-dist", type=float, default=0.010, help="Maximum Tamura-Nei 93 distance for contemporaneous transmission dyads (default: 0.010 subs/site)")
     autoclock_parser.add_argument("--plot", action="store_true", help="Generate publication diagnostic figures (.png and .pdf)")
     autoclock_parser.add_argument("--plot-path", default=None, help="Custom output path for diagnostic plot")
     autoclock_parser.add_argument("--quiet", action="store_true", help="Suppress verbose logging")

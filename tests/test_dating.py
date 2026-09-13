@@ -309,3 +309,79 @@ class TestClockDatingModels:
         assert Path(res["tree_path"]).exists()
         assert Path(res["classified_metadata_path"]).exists()
         assert (tmp_path / "hier_out" / "fig_hierarchical_autoclock_diagnostic.png").exists()
+
+    def test_autoclock_contemporaneous_dyads_and_convex_decay(self, tmp_path):
+        """Test contemporaneous direct transmission dyad screening and convex decay consensus rooting."""
+        from pathlib import Path
+        import pandas as pd
+        from hyphaeon.autoclock import run_hierarchical_autoclock, detect_contemporaneous_dyads
+
+        # Create 6 taxa:
+        # Pair 1 (t1, t2): sampled 5 days apart, distance 0.000 (identical) -> Contemporaneous Dyad
+        # Pair 2 (t3, t4): sampled 30 days apart, distance 0.005 -> Contemporaneous Dyad
+        # Non-dyad (t5, t6): sampled 4 years apart, distance 0.050
+        taxa = [f"iso_{i}" for i in range(1, 7)]
+        dates_map = {
+            "iso_1": 2015.000,
+            "iso_2": 2015.014, # ~5 days later
+            "iso_3": 2016.100,
+            "iso_4": 2016.182, # ~30 days later
+            "iso_5": 2010.000,
+            "iso_6": 2014.000,
+        }
+        seqs = {
+            "iso_1": "ACGT" * 50,
+            "iso_2": "ACGT" * 50, # identical to iso_1
+            "iso_3": "ACGT" * 49 + "ACGA", # 1 substitution from iso_1
+            "iso_4": "ACGT" * 49 + "ACGC", # 1 substitution from iso_1
+            "iso_5": "AAAA" * 50,
+            "iso_6": "CCCC" * 50,
+        }
+
+        # 1. Test direct detect_contemporaneous_dyads function
+        dyads_df, dyad_map = detect_contemporaneous_dyads(
+            taxa=taxa,
+            dates_map=dates_map,
+            seq_dict=seqs,
+            dyad_max_days=90.0,
+            dyad_max_dist=0.010,
+        )
+        assert len(dyads_df) >= 2
+        assert "iso_1" in dyad_map
+        assert "iso_2" in dyad_map
+        assert "iso_3" in dyad_map
+        assert "iso_4" in dyad_map
+        assert "iso_5" not in dyad_map
+        assert "iso_6" not in dyad_map
+
+        # 2. Test full hierarchical autoclock pipeline with convex_decay rooting & dyads
+        fa_p = tmp_path / "dyads_test.fa"
+        with open(fa_p, "w") as f:
+            for t in taxa:
+                f.write(f">{t}\n{seqs[t]}\n")
+        meta_p = tmp_path / "dyads_meta.csv"
+        pd.DataFrame({"id": taxa, "date": [dates_map[t] for t in taxa]}).to_csv(meta_p, index=False)
+
+        res = run_hierarchical_autoclock(
+            alignment_path=fa_p,
+            dates_source=meta_p,
+            max_depth=1,
+            min_leaf_size=2,
+            rooting_mode="convex_decay",
+            contemporaneous_dyads=True,
+            dyad_max_days=90.0,
+            dyad_max_dist=0.010,
+            output_dir=tmp_path / "dyad_run",
+            quiet=True,
+        )
+
+        assert res["rooting_mode"] == "convex_decay"
+        assert res["contemporaneous_dyads_enabled"] is True
+        assert res["n_contemporaneous_clusters"] >= 2
+        assert (tmp_path / "dyad_run" / "contemporaneous_dyads.csv").exists()
+
+        df_class = pd.read_csv(tmp_path / "dyad_run" / "hierarchical_classified_metadata.csv")
+        assert "is_contemporaneous_dyad" in df_class.columns
+        assert "transmission_mode" in df_class.columns
+        assert df_class.loc[df_class["id"] == "iso_1", "is_contemporaneous_dyad"].values[0] == True
+        assert df_class.loc[df_class["id"] == "iso_5", "is_contemporaneous_dyad"].values[0] == False

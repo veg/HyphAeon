@@ -51,6 +51,8 @@ from .dating import (
     run_mrca_dating,
     parse_sample_dates,
     verify_coding_alignment,
+    generate_time_decay_consensus_sequence,
+    generate_consensus_sequence,
 )
 
 
@@ -87,6 +89,155 @@ def select_adaptive_n_landmarks(
     return max(min(n_taxa, min_landmarks), m_opt)
 
 
+def classify_leaf_community(fit: Dict[str, Any]) -> str:
+    """
+    Classifies a leaf community into epidemiological / phylodynamic transmission categories:
+      - Active Transmission Outbreak: tight distance (mean <= 0.018, max <= 0.025), positive rate >= 1.0e-3, R2 >= 0.15
+      - Intermediate / Emergent Cluster: moderate distance (mean <= 0.025), positive rate > 0
+      - Micro-Chain / Pair: sample size < 3
+      - Chronic / Endemic Reservoir: diffuse distance (> 0.025), flat or negative rate, or low linearity
+    """
+    n = fit.get("n_taxa", fit.get("n", 0))
+    mu = fit.get("rate", fit.get("mu", 0.0))
+    r2 = fit.get("r2", 0.0)
+    mean_d = fit.get("mean_dist", 0.0)
+    max_d = fit.get("max_dist", 0.0)
+
+    if n < 3:
+        return "Micro-Chain / Pair"
+
+    if mean_d <= 0.018 and max_d <= 0.025 and mu >= 1.0e-3 and r2 >= 0.15:
+        return "Active Transmission Outbreak"
+
+    if mean_d <= 0.025 and mu > 0.0:
+        return "Intermediate / Emergent Cluster"
+
+    return "Chronic / Endemic Reservoir"
+
+
+def detect_contemporaneous_dyads(
+    taxa: List[str],
+    dates_map: Dict[str, float],
+    seq_dict: Optional[Dict[str, str]] = None,
+    D_matrix: Optional[np.ndarray] = None,
+    dyad_max_days: float = 90.0,
+    dyad_max_dist: float = 0.010,
+    max_dense_n: int = 2500,
+) -> Tuple[pd.DataFrame, Dict[str, Dict[str, Any]]]:
+    """
+    Detects contemporaneous direct transmission dyads and point-source clusters.
+
+    Screens all pairs of sequences sampled within dyad_max_days (default: 90 days)
+    with Tamura-Nei 93 genetic distance <= dyad_max_dist (default: 0.010 subs/site).
+
+    These represent canonical direct transmission events (e.g. partner notification,
+    acute point-source exposure) where near-zero temporal variance prevents standard
+    temporal clock regression from estimating an internal rate.
+
+    Returns:
+        (dyads_df, taxa_dyad_map)
+    """
+    import subprocess
+    import networkx as nx
+
+    n = len(taxa)
+    dates = np.array([dates_map[t] for t in taxa], dtype=np.float64)
+    dyad_pairs: List[Tuple[str, str, float, float]] = []
+
+    if D_matrix is not None:
+        dt_days = np.abs(dates[:, None] - dates[None, :]) * 365.25
+        adj = (dt_days <= dyad_max_days) & (D_matrix <= dyad_max_dist) & (D_matrix >= 0)
+        np.fill_diagonal(adj, False)
+        ii, jj = np.where(np.triu(adj, k=1))
+        for i, j in zip(ii, jj):
+            dyad_pairs.append((taxa[i], taxa[j], float(D_matrix[i, j]), float(dt_days[i, j])))
+    elif n <= max_dense_n and seq_dict is not None:
+        D_computed = compute_tn93_distance_matrix(seq_dict, taxa)
+        dt_days = np.abs(dates[:, None] - dates[None, :]) * 365.25
+        adj = (dt_days <= dyad_max_days) & (D_computed <= dyad_max_dist) & (D_computed >= 0)
+        np.fill_diagonal(adj, False)
+        ii, jj = np.where(np.triu(adj, k=1))
+        for i, j in zip(ii, jj):
+            dyad_pairs.append((taxa[i], taxa[j], float(D_computed[i, j]), float(dt_days[i, j])))
+    else:
+        # Out-of-core screening using tn93 binary
+        tn93_bin = shutil.which("tn93")
+        if tn93_bin and seq_dict is not None:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                tmp_fa = os.path.join(tmpdir, "dyad_in.fa")
+                out_csv = os.path.join(tmpdir, "dyad_out.csv")
+                with open(tmp_fa, "w") as f:
+                    for t in taxa:
+                        s_clean = seq_dict[t].replace("*", "-")
+                        f.write(f">{t}\n{s_clean}\n")
+                try:
+                    subprocess.run(
+                        [tn93_bin, "-t", f"{dyad_max_dist:.4f}", "-l", "1", "-q", "-o", out_csv, tmp_fa],
+                        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                    )
+                    if os.path.exists(out_csv) and os.path.getsize(out_csv) > 0:
+                        df_p = pd.read_csv(out_csv, usecols=["ID1", "ID2", "Distance"], dtype={"ID1": str, "ID2": str})
+                        df_p["d1"] = df_p["ID1"].map(dates_map)
+                        df_p["d2"] = df_p["ID2"].map(dates_map)
+                        df_p["dt"] = (df_p["d1"] - df_p["d2"]).abs() * 365.25
+                        filt = df_p[df_p["dt"] <= dyad_max_days]
+                        for _, row in filt.iterrows():
+                            dyad_pairs.append((str(row["ID1"]), str(row["ID2"]), float(row["Distance"]), float(row["dt"])))
+                except Exception:
+                    pass
+
+    if not dyad_pairs:
+        return pd.DataFrame(columns=[
+            "dyad_id", "cluster_type", "size", "taxa", "earliest_date", "latest_date",
+            "timespan_days", "mean_distance", "min_distance", "max_distance"
+        ]), {}
+
+    G = nx.Graph()
+    for id1, id2, dist, dt in dyad_pairs:
+        G.add_edge(id1, id2, dist=dist, dt=dt)
+
+    comps = sorted(list(nx.connected_components(G)), key=len, reverse=True)
+    dyad_rows = []
+    taxa_dyad_map: Dict[str, Dict[str, Any]] = {}
+
+    for idx, c in enumerate(comps, start=1):
+        members = list(c)
+        m_dates = np.array([dates_map[t] for t in members])
+        sub_g = G.subgraph(members)
+        edge_dists = [d["dist"] for _, _, d in sub_g.edges(data=True)]
+
+        span_days = float(np.ptp(m_dates) * 365.25)
+        mean_d = float(np.mean(edge_dists)) if edge_dists else 0.0
+        min_d = float(np.min(edge_dists)) if edge_dists else 0.0
+        max_d = float(np.max(edge_dists)) if edge_dists else 0.0
+        c_type = "Dyad (Pair)" if len(members) == 2 else f"Point-Source Cluster (N={len(members)})"
+
+        dyad_rows.append({
+            "dyad_id": idx,
+            "cluster_type": c_type,
+            "size": len(members),
+            "taxa": ";".join(members),
+            "earliest_date": float(m_dates.min()),
+            "latest_date": float(m_dates.max()),
+            "timespan_days": span_days,
+            "mean_distance": mean_d,
+            "min_distance": min_d,
+            "max_distance": max_d,
+        })
+
+        for t in members:
+            taxa_dyad_map[t] = {
+                "dyad_id": idx,
+                "cluster_type": c_type,
+                "size": len(members),
+                "timespan_days": span_days,
+                "mean_distance": mean_d,
+            }
+
+    dyads_df = pd.DataFrame(dyad_rows)
+    return dyads_df, taxa_dyad_map
+
+
 class AutoClockDeconvolution:
     """
     Automated Multi-Clock Community Deconvolution Engine for ChronAeon.
@@ -116,6 +267,10 @@ class AutoClockDeconvolution:
         records: Optional[List[SeqRecord]] = None,
         dates_map: Optional[Dict[str, float]] = None,
         meta_df: Optional[pd.DataFrame] = None,
+        rooting_mode: str = "convex_decay",
+        contemporaneous_dyads: bool = True,
+        dyad_max_days: float = 90.0,
+        dyad_max_dist: float = 0.010,
     ):
         if beast_path:
             if not alignment_path:
@@ -157,6 +312,12 @@ class AutoClockDeconvolution:
         self.n_landmarks = n_landmarks
         self.max_memory_mb = float(max_memory_mb)
         self.effective_n_landmarks: Optional[int] = None
+        self.rooting_mode = str(rooting_mode).lower()
+        self.contemporaneous_dyads = contemporaneous_dyads
+        self.dyad_max_days = float(dyad_max_days)
+        self.dyad_max_dist = float(dyad_max_dist)
+        self.dyads_df: Optional[pd.DataFrame] = None
+        self.taxa_dyad_map: Dict[str, Dict[str, Any]] = {}
 
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -756,9 +917,12 @@ class AutoClockDeconvolution:
             d = df["root_divergence"].values
             t = df["sampling_date"].values
             n_c = len(d)
-
-            slope, intercept, r_val, p_val, std_err = stats.linregress(t, d)
-            d_pred = intercept + slope * t
+            if np.ptp(t) > 1e-6:
+                slope, intercept, r_val, p_val, std_err = stats.linregress(t, d)
+                d_pred = intercept + slope * t
+            else:
+                slope, intercept, r_val, p_val, std_err = 0.0, float(np.mean(d)), 0.0, 1.0, 0.0
+                d_pred = np.full_like(d, np.mean(d))
             raw_res = d - d_pred
 
             t_mean = np.mean(t)
@@ -1034,21 +1198,53 @@ class AutoClockDeconvolution:
         self.evaluate_model_selection()
         self.calibrate_optimal_communities()
         self.triage_anomalies()
+
+        if self.contemporaneous_dyads:
+            self._log("\n[*] Screening for contemporaneous direct transmission dyads and point-source clusters...")
+            self.dyads_df, self.taxa_dyad_map = detect_contemporaneous_dyads(
+                taxa=self.taxa,
+                dates_map=self.dates_map,
+                seq_dict=self.seq_dict,
+                D_matrix=self.D_matrix,
+                dyad_max_days=self.dyad_max_days,
+                dyad_max_dist=self.dyad_max_dist,
+                max_dense_n=self.max_dense_n,
+            )
+            dyads_csv = self.output_dir / "contemporaneous_dyads.csv"
+            self.dyads_df.to_csv(dyads_csv, index=False)
+            self._log(f"[✓] Identified {len(self.dyads_df)} contemporaneous transmission clusters ({len(self.taxa_dyad_map)} taxa) sampled <= {self.dyad_max_days:.0f} days apart.")
+
+            meta_csv = self.output_dir / "autoclock_classified_metadata.csv"
+            if meta_csv.exists():
+                m_df = pd.read_csv(meta_csv)
+                m_df["is_contemporaneous_dyad"] = m_df["id"].map(lambda t: t in self.taxa_dyad_map)
+                m_df["contemporaneous_dyad_id"] = m_df["id"].map(lambda t: self.taxa_dyad_map.get(t, {}).get("dyad_id", None))
+                m_df["dyad_timespan_days"] = m_df["id"].map(lambda t: self.taxa_dyad_map.get(t, {}).get("timespan_days", None))
+                m_df["dyad_distance"] = m_df["id"].map(lambda t: self.taxa_dyad_map.get(t, {}).get("mean_distance", None))
+                m_df.to_csv(meta_csv, index=False)
+
         self.save_summary()
         if plot or plot_path:
             self.plot_diagnostics(plot_path)
 
-        return {
+        res = {
             "optimal_k": self.optimal_k,
             "communities": self.community_results,
             "max_eigengap_value": float(self.eigengaps.max()) if self.eigengaps is not None and len(self.eigengaps) > 0 else 0.0,
             "eigengaps": [float(g) for g in self.eigengaps] if self.eigengaps is not None else [],
             "sus_count": int(self.triage_df["is_sus"].sum()) if self.triage_df is not None and not self.triage_df.empty else 0,
+            "rooting_mode": self.rooting_mode,
+            "contemporaneous_dyads_enabled": self.contemporaneous_dyads,
+            "n_contemporaneous_clusters": len(self.dyads_df) if self.dyads_df is not None else 0,
+            "n_contemporaneous_taxa": len(self.taxa_dyad_map) if self.taxa_dyad_map else 0,
             "summary_path": str(self.output_dir / "autoclock_summary.json"),
             "classified_metadata_path": str(self.output_dir / "autoclock_classified_metadata.csv"),
             "model_selection_path": str(self.output_dir / "autoclock_model_selection.csv"),
             "triage_path": str(self.output_dir / "autoclock_sequence_triage.csv"),
         }
+        if self.contemporaneous_dyads:
+            res["contemporaneous_dyads_path"] = str(self.output_dir / "contemporaneous_dyads.csv")
+        return res
 
 
 def run_autoclock_deconvolution(
@@ -1070,6 +1266,10 @@ def run_autoclock_deconvolution(
     max_dense_n: int = 2500,
     n_landmarks: Union[int, str] = "auto",
     max_memory_mb: float = 1024.0,
+    rooting_mode: str = "convex_decay",
+    contemporaneous_dyads: bool = True,
+    dyad_max_days: float = 90.0,
+    dyad_max_dist: float = 0.010,
 ) -> Dict[str, Any]:
     """
     Convenience function to run ChronAeon AutoClock Multi-Clock Community Deconvolution.
@@ -1092,6 +1292,10 @@ def run_autoclock_deconvolution(
         max_dense_n=max_dense_n,
         n_landmarks=n_landmarks,
         max_memory_mb=max_memory_mb,
+        rooting_mode=rooting_mode,
+        contemporaneous_dyads=contemporaneous_dyads,
+        dyad_max_days=dyad_max_days,
+        dyad_max_dist=dyad_max_dist,
     )
     return engine.run(plot=plot, plot_path=plot_path)
 
@@ -1196,6 +1400,10 @@ class HierarchicalAutoClock:
         max_dense_n: int = 2500,
         n_landmarks: Union[int, str] = "auto",
         max_memory_mb: float = 1024.0,
+        rooting_mode: str = "convex_decay",
+        contemporaneous_dyads: bool = True,
+        dyad_max_days: float = 90.0,
+        dyad_max_dist: float = 0.010,
     ):
         if beast_path:
             if not alignment_path:
@@ -1240,6 +1448,10 @@ class HierarchicalAutoClock:
         self.max_dense_n = max_dense_n
         self.n_landmarks = n_landmarks
         self.max_memory_mb = float(max_memory_mb)
+        self.rooting_mode = str(rooting_mode).lower()
+        self.contemporaneous_dyads = contemporaneous_dyads
+        self.dyad_max_days = float(dyad_max_days)
+        self.dyad_max_dist = float(dyad_max_dist)
 
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1250,6 +1462,13 @@ class HierarchicalAutoClock:
         self.dates_map: Dict[str, float] = {}
         self.meta_df: Optional[pd.DataFrame] = None
         self.records_map: Dict[str, SeqRecord] = {}
+        self.D_matrix: Optional[np.ndarray] = None
+        self.taxa_to_idx: Dict[str, int] = {}
+        self.root_dists: Dict[str, float] = {}
+        self.root_desc: str = ""
+        self.global_root_divergences: Optional[np.ndarray] = None
+        self.dyads_df: Optional[pd.DataFrame] = None
+        self.taxa_dyad_map: Dict[str, Dict[str, Any]] = {}
 
         # Deconvolution outputs
         self.tree: Dict[str, Any] = {}
@@ -1260,6 +1479,9 @@ class HierarchicalAutoClock:
     def _log(self, msg: str):
         if not self.quiet:
             print(msg, flush=True)
+
+    def classify_leaf(self, leaf: Dict[str, Any]) -> str:
+        return classify_leaf_community(leaf)
 
     def load_and_validate(self):
         """Load master sequence alignment and timestamps."""
@@ -1326,22 +1548,82 @@ class HierarchicalAutoClock:
 
         self._log(f"[✓] Validated {len(self.taxa)} sequences with timestamps across {self.meta_df['date'].min():.1f} - {self.meta_df['date'].max():.1f}.")
 
+        # Rooting anchor divergence
+        if self.rooting_mode == "convex_decay":
+            root_seq, eff_gamma = generate_time_decay_consensus_sequence(self.seq_dict, self.dates_map, self.taxa)
+            self.root_desc = f"time_decay_consensus_root (gamma={eff_gamma:.4f})"
+            aug_dict = dict(self.seq_dict)
+            aug_dict['__GLOBAL_ROOT__'] = root_seq
+            cross_mat = compute_tn93_cross_distance_matrix(aug_dict, self.taxa, ['__GLOBAL_ROOT__'])
+            self.root_dists = {t: float(cross_mat[i, 0]) for i, t in enumerate(self.taxa)}
+            self.global_root_divergences = np.array([self.root_dists[t] for t in self.taxa], dtype=np.float64)
+            self._log(f"[✓] Anchored root divergences via Global Time-Decay Convex Hull (gamma={eff_gamma:.4f}, mean_div={self.global_root_divergences.mean():.4f}).")
+        elif self.rooting_mode == "consensus":
+            root_seq = generate_consensus_sequence(self.seq_dict, self.taxa)
+            self.root_desc = "unweighted_modal_consensus_root"
+            aug_dict = dict(self.seq_dict)
+            aug_dict['__GLOBAL_ROOT__'] = root_seq
+            cross_mat = compute_tn93_cross_distance_matrix(aug_dict, self.taxa, ['__GLOBAL_ROOT__'])
+            self.root_dists = {t: float(cross_mat[i, 0]) for i, t in enumerate(self.taxa)}
+            self.global_root_divergences = np.array([self.root_dists[t] for t in self.taxa], dtype=np.float64)
+            self._log(f"[✓] Anchored root divergences via Unweighted Consensus (mean_div={self.global_root_divergences.mean():.4f}).")
+        else: # "earliest"
+            valid_dates = [(t, self.dates_map[t]) for t in self.taxa]
+            valid_dates.sort(key=lambda x: x[1])
+            earliest_t = valid_dates[0][0]
+            self.root_desc = f"earliest_taxon_{earliest_t}"
+            aug_dict = dict(self.seq_dict)
+            cross_mat = compute_tn93_cross_distance_matrix(aug_dict, self.taxa, [earliest_t])
+            self.root_dists = {t: float(cross_mat[i, 0]) for i, t in enumerate(self.taxa)}
+            self.global_root_divergences = np.array([self.root_dists[t] for t in self.taxa], dtype=np.float64)
+            self._log(f"[✓] Anchored root divergences via Earliest Sampled Taxon ({earliest_t}, date={valid_dates[0][1]:.2f}).")
+
+        self.taxa_to_idx = {t: i for i, t in enumerate(self.taxa)}
+        if len(self.taxa) <= self.max_dense_n:
+            self._log(f"[*] Precomputing global TN93 distance matrix for N={len(self.taxa)}...")
+            self.D_matrix = compute_tn93_distance_matrix(self.seq_dict, self.taxa)
+            self._log(f"[✓] Global pairwise distance matrix computed.")
+
     def calibrate_node_clock(self, taxa_subset: List[str]) -> Dict[str, Any]:
         """Calibrates fast analytical OLS molecular clock for a node's taxa."""
         c_dates = np.array([self.dates_map[t] for t in taxa_subset], dtype=np.float64)
         earliest_idx = int(np.argmin(c_dates))
         earliest_t = taxa_subset[earliest_idx]
-        earliest_seq = self.seq_dict[earliest_t]
+        n_c = len(taxa_subset)
 
-        seq_mat = np.array([list(self.seq_dict[t]) for t in taxa_subset])
-        earliest_arr = np.array(list(earliest_seq))
-        diffs = np.mean(seq_mat != earliest_arr, axis=1)
+        if self.rooting_mode in ["convex_decay", "consensus"] and getattr(self, "root_dists", None):
+            diffs = np.array([self.root_dists[t] for t in taxa_subset], dtype=np.float64)
+        else:
+            earliest_seq = self.seq_dict[earliest_t]
+            seq_mat = np.array([list(self.seq_dict[t]) for t in taxa_subset])
+            earliest_arr = np.array(list(earliest_seq))
+            diffs = np.mean(seq_mat != earliest_arr, axis=1)
 
         fit = fit_fast_ols_clock(c_dates, diffs)
         fit["earliest_date"] = float(np.min(c_dates))
         fit["latest_date"] = float(np.max(c_dates))
         fit["timespan"] = float(np.max(c_dates) - np.min(c_dates))
         fit["earliest_taxon"] = earliest_t
+
+        # Compute internal pairwise distances
+        if self.D_matrix is not None and all(t in self.taxa_to_idx for t in taxa_subset):
+            sub_indices = [self.taxa_to_idx[t] for t in taxa_subset]
+            D_sub = self.D_matrix[np.ix_(sub_indices, sub_indices)]
+            if n_c > 1:
+                tri_u = D_sub[np.triu_indices(n_c, k=1)]
+                nonzero = tri_u[tri_u > 0]
+                fit["mean_dist"] = float(nonzero.mean()) if len(nonzero) > 0 else 0.0
+                fit["median_dist"] = float(np.median(nonzero)) if len(nonzero) > 0 else 0.0
+                fit["max_dist"] = float(nonzero.max()) if len(nonzero) > 0 else 0.0
+            else:
+                fit["mean_dist"] = 0.0
+                fit["median_dist"] = 0.0
+                fit["max_dist"] = 0.0
+        else:
+            fit["mean_dist"] = float(np.mean(diffs))
+            fit["median_dist"] = float(np.median(diffs))
+            fit["max_dist"] = float(np.max(diffs))
+
         return fit
 
     def deconvolve_node(
@@ -1379,6 +1661,10 @@ class HierarchicalAutoClock:
             "rss": node_fit["rss"],
             "p_value": node_fit["p_val"],
             "earliest_taxon": node_fit["earliest_taxon"],
+            "mean_dist": node_fit.get("mean_dist", 0.0),
+            "median_dist": node_fit.get("median_dist", 0.0),
+            "max_dist": node_fit.get("max_dist", 0.0),
+            "classification": self.classify_leaf(node_fit),
             "is_leaf": False,
             "stopping_reason": None,
             "optimal_k": 1,
@@ -1556,6 +1842,23 @@ class HierarchicalAutoClock:
         self._log(f"Config: max_depth={self.max_depth} | min_leaf_size={self.min_leaf_size} | min_delta_aicc={self.min_delta_aicc} | RAM_budget={self.max_memory_mb:.0f}MB")
         self._log("=" * 80)
 
+        # Contemporaneous direct transmission dyad screening
+        if self.contemporaneous_dyads:
+            self._log("\n[*] Screening for contemporaneous direct transmission dyads and point-source clusters...")
+            self.dyads_df, self.taxa_dyad_map = detect_contemporaneous_dyads(
+                taxa=self.taxa,
+                dates_map=self.dates_map,
+                seq_dict=self.seq_dict,
+                D_matrix=self.D_matrix,
+                dyad_max_days=self.dyad_max_days,
+                dyad_max_dist=self.dyad_max_dist,
+                max_dense_n=self.max_dense_n,
+            )
+            dyads_csv = self.output_dir / "contemporaneous_dyads.csv"
+            self.dyads_df.to_csv(dyads_csv, index=False)
+            self._log(f"[✓] Identified {len(self.dyads_df)} contemporaneous transmission clusters ({len(self.taxa_dyad_map)} taxa) sampled <= {self.dyad_max_days:.0f} days apart (TN93 <= {self.dyad_max_dist:.3f}).")
+            self._log(f"[✓] Saved contemporaneous dyads table to: {dyads_csv}")
+
         self.tree = self.deconvolve_node("root", self.taxa, depth=0, path="root")
         self._collect_leaves_and_outliers(self.tree)
 
@@ -1573,48 +1876,94 @@ class HierarchicalAutoClock:
             l_tmrca = leaf["tmrca"]
             l_r2 = leaf["r2"]
             l_reason = leaf["stopping_reason"]
+            l_class = self.classify_leaf(leaf)
+            l_mean_dist = leaf.get("mean_dist", 0.0)
+            l_max_dist = leaf.get("max_dist", 0.0)
             earliest_t = leaf["earliest_taxon"]
-            earliest_seq = self.seq_dict[earliest_t]
-            earliest_arr = np.array(list(earliest_seq))
 
             for t in leaf["taxa"]:
                 t_date = self.dates_map[t]
-                t_seq_arr = np.array(list(self.seq_dict[t]))
-                dist = float(np.mean(t_seq_arr != earliest_arr))
+                if self.rooting_mode in ["convex_decay", "consensus"] and getattr(self, "root_dists", None):
+                    dist = float(self.root_dists.get(t, 0.0))
+                else:
+                    earliest_seq = self.seq_dict[earliest_t]
+                    t_seq_arr = np.array(list(self.seq_dict[t]))
+                    earliest_arr = np.array(list(earliest_seq))
+                    dist = float(np.mean(t_seq_arr != earliest_arr))
+
                 expected_dist = float(max(0.0, l_rate * (t_date - l_tmrca)))
                 residual = float(dist - expected_dist)
+
+                in_dyad = t in self.taxa_dyad_map
+                dyad_info = self.taxa_dyad_map.get(t, {})
+                dyad_id = dyad_info.get("dyad_id", None)
+                dyad_span = dyad_info.get("timespan_days", None)
+                dyad_dist = dyad_info.get("mean_distance", None)
+
+                if l_class == "Active Transmission Outbreak":
+                    trans_mode = "Active Outbreak + Contemporaneous Dyad" if in_dyad else "Active Transmission Outbreak"
+                elif in_dyad:
+                    trans_mode = "Contemporaneous Transmission Dyad"
+                elif l_class == "Intermediate / Emergent Cluster":
+                    trans_mode = "Intermediate / Emergent Cluster"
+                else:
+                    trans_mode = "Chronic / Endemic Reservoir"
+
                 rows.append({
                     "id": t,
                     "date": t_date,
                     "leaf_community_id": l_id,
                     "hierarchical_path": l_path,
                     "leaf_depth": l_depth,
+                    "leaf_classification": l_class,
+                    "transmission_mode": trans_mode,
                     "leaf_rate": l_rate,
                     "leaf_tmrca": l_tmrca,
                     "leaf_r2": l_r2,
+                    "leaf_mean_dist": l_mean_dist,
+                    "leaf_max_dist": l_max_dist,
                     "stopping_reason": l_reason,
                     "root_distance": dist,
                     "expected_distance": expected_dist,
                     "residual": residual,
+                    "is_contemporaneous_dyad": in_dyad,
+                    "contemporaneous_dyad_id": dyad_id,
+                    "dyad_timespan_days": dyad_span,
+                    "dyad_distance": dyad_dist,
                     "is_outlier": False,
                     "outlier_reason": None,
                 })
 
         for out in self.outliers:
             t = out["id"]
+            in_dyad = t in self.taxa_dyad_map
+            dyad_info = self.taxa_dyad_map.get(t, {})
+            dyad_id = dyad_info.get("dyad_id", None)
+            dyad_span = dyad_info.get("timespan_days", None)
+            dyad_dist = dyad_info.get("mean_distance", None)
+            trans_mode = "Contemporaneous Transmission Dyad" if in_dyad else "Quarantined Outlier"
+
             rows.append({
                 "id": t,
                 "date": out["date"],
                 "leaf_community_id": f"{out['parent_node']}_outlier",
                 "hierarchical_path": f"{out['parent_node']}/outlier",
                 "leaf_depth": -1,
+                "leaf_classification": "Outlier Quarantine",
+                "transmission_mode": trans_mode,
                 "leaf_rate": 0.0,
                 "leaf_tmrca": 0.0,
                 "leaf_r2": 0.0,
+                "leaf_mean_dist": 0.0,
+                "leaf_max_dist": 0.0,
                 "stopping_reason": "outlier_quarantine",
-                "root_distance": 0.0,
+                "root_distance": float(self.root_dists.get(t, 0.0)) if getattr(self, "root_dists", None) else 0.0,
                 "expected_distance": 0.0,
                 "residual": 0.0,
+                "is_contemporaneous_dyad": in_dyad,
+                "contemporaneous_dyad_id": dyad_id,
+                "dyad_timespan_days": dyad_span,
+                "dyad_distance": dyad_dist,
                 "is_outlier": True,
                 "outlier_reason": out["reason"],
             })
@@ -1644,6 +1993,13 @@ class HierarchicalAutoClock:
             "n_outliers": len(self.outliers),
             "max_depth_reached": int(max(leaf["depth"] for leaf in self.leaves)) if self.leaves else 0,
             "elapsed_seconds": float(time.time() - t0),
+            "rooting_mode": self.rooting_mode,
+            "root_description": self.root_desc,
+            "contemporaneous_dyads_enabled": self.contemporaneous_dyads,
+            "n_contemporaneous_clusters": len(self.dyads_df) if self.dyads_df is not None else 0,
+            "n_contemporaneous_taxa": len(self.taxa_dyad_map) if self.taxa_dyad_map else 0,
+            "transmission_mode_counts": self.classified_df["transmission_mode"].value_counts().to_dict() if self.classified_df is not None else {},
+            "leaf_classification_counts": self.classified_df["leaf_classification"].value_counts().to_dict() if self.classified_df is not None else {},
             "stopping_counts": {
                 reason: int(sum(1 for l in self.leaves if l["stopping_reason"] and reason in l["stopping_reason"]))
                 for reason in ["max_depth", "min_leaf_size", "insufficient_timespan", "aicc_parsimony", "no_spectral_bottleneck", "degenerate_clusters", "homogeneous_clock_rates"]
@@ -1659,6 +2015,9 @@ class HierarchicalAutoClock:
                     "tmrca": l["tmrca"],
                     "ci_mrca": l["ci_mrca"],
                     "r2": l["r2"],
+                    "classification": l.get("classification", self.classify_leaf(l)),
+                    "mean_dist": l.get("mean_dist", 0.0),
+                    "max_dist": l.get("max_dist", 0.0),
                     "stopping_reason": l["stopping_reason"],
                     "timespan": l["timespan"],
                 }
@@ -1668,6 +2027,9 @@ class HierarchicalAutoClock:
             "classified_metadata_path": str(meta_csv),
             "summary_path": str(self.output_dir / "hierarchical_summary.json"),
         }
+        if self.contemporaneous_dyads:
+            summary["contemporaneous_dyads_path"] = str(self.output_dir / "contemporaneous_dyads.csv")
+
         sum_json = self.output_dir / "hierarchical_summary.json"
         with open(sum_json, "w") as f:
             json.dump(summary, f, indent=2)
@@ -1736,7 +2098,7 @@ class HierarchicalAutoClock:
                 y = float(leaf_counter[0])
                 leaf_counter[0] += 1
                 coords[nid] = (depth, y)
-                node_labels[nid] = f"{nid} (N={node['n_taxa']}, $\mu$={node['rate']:.1e})"
+                node_labels[nid] = rf"{nid} (N={node['n_taxa']}, $\mu$={node['rate']:.1e})"
                 return y
 
             child_ys = []
@@ -1787,7 +2149,7 @@ class HierarchicalAutoClock:
         ax_c.barh(y_pos, rates, xerr=y_err, color=colors, alpha=0.8, edgecolor="#1e293b", capsize=3.5)
         ax_c.set_yticks(y_pos)
         ax_c.set_yticklabels(c_lids, fontsize=8)
-        ax_c.set_xlabel("Substitution Rate $\mu$ ($10^{-3}$ substitutions/site/year)", fontsize=10)
+        ax_c.set_xlabel(r"Substitution Rate $\mu$ ($10^{-3}$ substitutions/site/year)", fontsize=10)
         ax_c.set_title("(C) Calibrated Evolutionary Rates with 95% Confidence Intervals", weight="bold", fontsize=11)
         ax_c.grid(True, linestyle="--", alpha=0.35)
 
@@ -1803,7 +2165,7 @@ class HierarchicalAutoClock:
             patch.set_facecolor(color_map.get(lid, "#93c5fd"))
 
         ax_d.axvline(0.0, color="red", linestyle="--", lw=1.2, alpha=0.8)
-        ax_d.set_xlabel("Root-to-Tip Residual ($d_i - \hat{d}_i$)", fontsize=10)
+        ax_d.set_xlabel(r"Root-to-Tip Residual ($d_i - \hat{d}_i$)", fontsize=10)
         ax_d.set_title("(D) Goodness-of-Fit Residual Dispersion by Leaf Community", weight="bold", fontsize=11)
         ax_d.grid(True, linestyle="--", alpha=0.35)
 
@@ -1847,6 +2209,10 @@ def run_hierarchical_autoclock(
     max_dense_n: int = 2500,
     n_landmarks: Union[int, str] = "auto",
     max_memory_mb: float = 1024.0,
+    rooting_mode: str = "convex_decay",
+    contemporaneous_dyads: bool = True,
+    dyad_max_days: float = 90.0,
+    dyad_max_dist: float = 0.010,
 ) -> Dict[str, Any]:
     """
     Convenience function to execute recursive Hierarchical AutoClock deconvolution.
@@ -1874,5 +2240,9 @@ def run_hierarchical_autoclock(
         max_dense_n=max_dense_n,
         n_landmarks=n_landmarks,
         max_memory_mb=max_memory_mb,
+        rooting_mode=rooting_mode,
+        contemporaneous_dyads=contemporaneous_dyads,
+        dyad_max_days=dyad_max_days,
+        dyad_max_dist=dyad_max_dist,
     )
     return engine.run(plot=plot, plot_path=plot_path)
