@@ -18,7 +18,7 @@
  * reference's (D31) and that difference is a sentence a reader must be shown, not a number.
  *
  * WHAT THE APPLICATION MUST STILL DECIDE, because the arithmetic here does not: the reference scores
- * EVERY site through the model, invariable ones included (temporal.py:512), which is 4384 forward
+ * EVERY site through the model, invariable ones included (temporal.py:513-520), which is 4384 forward
  * rows against our meme pass's 273 on the acceptance alignment. Nothing in this file needs the
  * invariable rows — `delta_root` is identically zero there under a consensus root, so their curves,
  * velocities and loadings are exactly zero whatever the attention was — but `lrt` and `p_static`
@@ -46,15 +46,15 @@
  * kernel with no `Xoshiro256` in it.
  *
  * UPSTREAM QUIRKS REPLICATED AND FLAGGED HERE (PLAN.md §5.3 rule 3 — port faithfully, fix upstream):
- *   Q1 `tau_peak == 1e-4` is tested by VALUE (temporal.py:604, 610), so a caller who passes the
+ *   Q1 `tau_peak == 1e-4` is tested by VALUE (temporal.py:605, 610), so a caller who passes the
  *      documented default explicitly is silently overridden to 0.5e-4. {@link resolveEnergyFloors}
  *      returns `tauPeakOverridden` so a surface can say so.
- *   Q2 an unknown residue in an EXPLICIT root taxon becomes index 0 = Alanine (temporal.py:355), not
+ *   Q2 an unknown residue in an EXPLICIT root taxon becomes index 0 = Alanine (temporal.py:365), not
  *      a sentinel, so every gapped position of that taxon reads as `A` and invariable sites acquire
  *      nonzero trajectories and wrong mutation labels.
  *   Q3 `n_early = max(3, min(25, int(0.05·N)))` is 3 below 60 dated taxa and 25 above 500 — not
  *      "the earliest 5 %" in either tail.
- *   Q4 `np.argsort` on dates (temporal.py:365) and on `−peak_intensities` (temporal.py:722) is an
+ *   Q4 `np.argsort` on dates (temporal.py:371) and on `−peak_intensities` (temporal.py:722) is an
  *      UNSTABLE quicksort. Both are ported as explicit STABLE sorts keyed on (value, index); the
  *      acceptance run's root window is tie-free (measured: argsort and argsort(kind='stable') agree
  *      on the four selected indices [93,12,38,4] and first diverge at rank 7), but 4111 of that
@@ -71,7 +71,7 @@
  *      so every candidate scores 1. C ≤ 3 is already the solitary regime, so C = 4 is the live case.
  *   Q9 `mean_intensity` is the mean of the VELOCITY, not of the intensity (temporal.py:785).
  *
- * Ported from `hyphaeon/temporal.py` at veg/HyphAeon `phase-5c` (c7f246b): regimes 430-441, root
+ * Ported from `hyphaeon/temporal.py` at veg/HyphAeon `phase-5c` (c7f246b): regimes 433-440, root
  * 337-392, attribution 534-540, smoothing 542-549, metric 551-582, widths 584-597, floors 599-616,
  * null 618-666, gate 667-679, confirmation 681-697, classification 699-716, waves 718-741, labels
  * 743-760. Line numbers are that file.
@@ -90,10 +90,10 @@ const f64 = (/** @type {number} */ v) => v;
 /** `AA_MAP` has 20 residues; every token at or above this is gap / stop / ambiguity (dataset.py:59). */
 export const TEMPORAL_UNKNOWN_AA = 20;
 
-/** The time-unit labels temporal.py:434 prints, and the `.get(..., "units")` default it falls back to. */
+/** The time-unit labels temporal.py:440 prints, and the `.get(..., "units")` default it falls back to. */
 export const TEMPORAL_UNIT_LABELS = Object.freeze({ years: 'yrs', generations: 'gen', days: 'days', arbitrary: 'units' });
 
-/** The three non-calendar unit names (temporal.py:430). Anything else, including a typo, is calendar. */
+/** The three non-calendar unit names (temporal.py:434). Anything else, including a typo, is calendar. */
 export const TEMPORAL_NON_CALENDAR_UNITS = Object.freeze(['generations', 'days', 'arbitrary']);
 
 /** `classification` (temporal.py:701-715): what the dates alone say about a codon. */
@@ -112,7 +112,7 @@ export const TEMPORAL_CROSS_CLASSES = Object.freeze({
 	RESCUED_SWEEP: 'RESCUED_SWEEP'
 });
 
-/** The static-scan FDR cut the cross-classification tests (temporal.py:706, 710, 714). */
+/** The static-scan FDR cut the cross-classification tests (temporal.py:708, 711, 714). */
 export const TEMPORAL_Q_STATIC_CUT = 0.10;
 
 /** χ²₁ at 0.05, the hard-coded LRT the escape hatch ORs in (temporal.py:693). */
@@ -125,11 +125,11 @@ export const TEMPORAL_ESCAPE_P = 0.10;
 export const TEMPORAL_WAVE_K = 4;
 
 // ---------------------------------------------------------------------------------------------
-// S0 — regime switches (temporal.py:430-441)
+// S0 — regime switches (temporal.py:433-440)
 // ---------------------------------------------------------------------------------------------
 
 /**
- * The four switches temporal.py:430-441 derives from `time_units`, `sweep_mode` and
+ * The four switches temporal.py:433-440 derives from `time_units`, `sweep_mode` and
  * `keep_duplicates`, and every branch below keys off one of them.
  *
  * `sweepMode` and `nonCalendar` are INDEPENDENT once resolved: a calendar run may be forced to
@@ -175,7 +175,9 @@ export function resolveTemporalRegime({ timeUnits = 'years', sweepMode = 'auto',
  * Both the 0.05 floor and the 2.0 ceiling of the calendar branch are quantities IN DECIMAL YEARS and
  * are meaningless on any other time coordinate; the non-calendar branch has no ceiling on purpose
  * (a 2.0-unit cap underflows the Gaussian at generation spacing). On the acceptance run the span is
- * 0.671 yr, so 0.05·span = 0.0335 is clipped UP to the 0.05 floor and the floor is what binds.
+ * 0.666015625 yr (t_min 2009.2490234375, t_max 2009.9150390625 — the CLI's own
+ * `h1n1_cpu_waves.csv`), so 0.05·span = 0.0333 is clipped UP to the 0.05 floor and the floor
+ * is what binds.
  *
  * @param {number} timespan `t_max − t_min`, in the run's own units
  * @param {{ timeUnits?: string, bandwidth?: number|null, numTimePoints?: number }} [options]
@@ -194,7 +196,7 @@ export function resolveTemporalBandwidth(timespan, { timeUnits = 'years', bandwi
 
 /**
  * How many earliest-sampled taxa the root consensus is taken over: `max(3, min(25, int(0.05·N)))`
- * (temporal.py:366). Exposed because it is the reference's own rule and not the "earliest 5 %" its
+ * (temporal.py:372). Exposed because it is the reference's own rule and not the "earliest 5 %" its
  * docstring claims — Q3.
  *
  * @param {number} n dated taxon count
@@ -329,8 +331,12 @@ export function stableArgsortAscending(values) {
 
 /**
  * Descending order of `values` as a STABLE sort keyed on (−value, original index) — the stand-in for
- * `np.argsort(-x)` at temporal.py:722, where 4111 of the acceptance run's 4384 peak intensities are
+ * `np.argsort(-x)` at temporal.py:722, where 4137 of the acceptance run's 4384 peak intensities are
  * tied at exactly zero and numpy's quicksort therefore picks an implementation-defined set (Q4).
+ * COUNTED from the reference's own `h1n1_cpu_sites_summary.csv`: 4111 of those ties are the
+ * invariable sites, whose trajectories are identically zero, and 26 are VARIABLE sites whose
+ * positive velocity never left the floor — so the tie block is wider than the invariable mask, and
+ * a port that assumed the two coincided would still be picking a different top-K.
  *
  * @param {ArrayLike<number>} values
  * @returns {Int32Array}
@@ -526,6 +532,13 @@ export function sweepMetric(curves, rows, T, { sweepMode, gradT = null, out = ne
 	}
 	if (!gradT) throw new TypeError('sweepMetric: the episodic branch needs gradT');
 	numpyGradientRows(curves, rows, T, gradT, out);
+	// np.maximum(0.0, ...) (temporal.py:566). `!(x > 0)` also sends NaN to 0, where numpy's maximum
+	// PROPAGATES it. Unreachable on any finite model output — `smoothTrajectories` cannot produce a
+	// NaN curve from finite attributions and finite Nadaraya-Watson weights, and `numpyGradientRows`
+	// is finite differences on a strictly increasing axis — but it IS a divergence, recorded here
+	// rather than absorbed, and it is the only one in this function. A NaN reaching this point would
+	// be clipped to 0 and then carried silently into `peak_intensity`, `auc` and the fPCA gate
+	// instead of announcing itself.
 	for (let i = 0; i < rows * T; i++) if (!(out[i] > 0)) out[i] = 0;
 	return out;
 }
@@ -720,12 +733,22 @@ export function stageOneMask(inv, peakIntensities, aucs, tauPeak, tauAuc) {
  * @param {number} rows
  * @param {number} T
  * @param {{ sweepMode: 'episodic'|'fixation', gradT?: ArrayLike<number>|null,
- *   normDenseT?: ArrayLike<number>|null, scratch?: Float64Array|null, out?: Float64Array }} options
+ *   normDenseT?: ArrayLike<number>|null, scratch?: Float64Array|null, devScratch?: Float64Array|null,
+ *   out?: Float64Array }} options
  * @returns {Float64Array} length rows
  */
-export function temporalPermStat(curves, rows, T, { sweepMode, gradT = null, normDenseT = null, scratch = null, out = new Float64Array(rows) }) {
+export function temporalPermStat(curves, rows, T, { sweepMode, gradT = null, normDenseT = null, scratch = null, devScratch = null, out = new Float64Array(rows) }) {
 	if (sweepMode === 'fixation') {
 		if (!normDenseT) throw new TypeError('temporalPermStat: the fixation branch needs normDenseT');
+		// `scratch` and `devScratch` are the EPISODIC branch's buffers; this branch takes neither and
+		// forms four `Float64Array(T)` of its own per CALL — so per draw when the null drives it, not
+		// per row. MEASURED (node 22.22.0, darwin/x64, C = 246, T = 60, 1,000 calls, best of five,
+		// three processes): 453.4 / 463.0 / 503.6 ms as written against 439.0 / 435.6 / 456.8 ms with
+		// all four hoisted into caller-owned buffers, bit-identical output — 3 %, 6 % and 9 % of this
+		// branch. Left as it is on purpose: four T-length arrays per draw is a different order of
+		// allocation from the episodic branch's one per row per draw, and a few per cent of one
+		// regime's statistic does not pay for two more scratch options on a public pure function.
+		// Re-measure before adding them.
 		const tt = new Float64Array(T);
 		const mt = numpyMeanFloat64(normDenseT, 0, T);
 		for (let t = 0; t < T; t++) tt[t] = normDenseT[t] - mt;
@@ -753,13 +776,37 @@ export function temporalPermStat(curves, rows, T, { sweepMode, gradT = null, nor
 	// ever copied into a scratch: the null calls this on every draw, and a per-row copy plus a
 	// subarray there measured as a third of the kernel's time. The arithmetic is identical —
 	// numpyGradientRows builds its coefficients once from gradT and applies them per row.
-	// `scratch` must hold rows*T if it is supplied; anything shorter is ignored.
-	const grad = scratch && scratch.length >= rows * T ? scratch : new Float64Array(rows * T);
+	// `scratch` must be a Float64Array of at least rows*T if it is supplied; `devScratch` is the same
+	// bargain one level down: `np.var`'s second pass needs the squared deviations AS AN ARRAY (numpy
+	// reduces them pairwise, so the forming loop cannot be fused into a running sum), and without a
+	// caller-owned buffer that is one Float64Array(T) per ROW — 246,000 of them at the acceptance
+	// run's shape (C = 246, N = 95, T = 60) over the reference's default B = 1000 draws
+	// (temporal.py:406). Both guards test `instanceof Float64Array` and not merely a length:
+	// a Float32Array of the right length is an ArrayLike that would silently carry the gradient, or
+	// every squared deviation, in float32. Anything else is IGNORED and the buffer allocated — the
+	// number is then the same number, one allocation slower — rather than throwing on a path that
+	// runs once per row per draw.
+	// WHAT THE DEVIATION BUFFER BUYS, re-measured at round two (node 22.22.0, darwin/x64, C = 246,
+	// N = 95, T = 60, B = 1000, best of five inside a process, three processes on a machine that was
+	// not idle): on the whole null, NOTHING outside the noise — 351.4 / 363.0 / 369.6 ms with it
+	// against 354.5 / 357.9 / 366.0 ms without, ahead in one of the three. Timing `numpyVarFloat64`
+	// alone does show 2.6x-4.1x (see that function's header), but V8 escape-analyses the allocation
+	// away once this kernel is around it. The buffers stay because they remove 246,000 allocations
+	// per null and cannot change an output bit — verified: every float64 bit of `out` and every one
+	// of the 246 exceedance counts is identical with and without them — not because they are faster.
+	const grad = scratch instanceof Float64Array && scratch.length >= rows * T ? scratch : new Float64Array(rows * T);
+	const dev = devScratch instanceof Float64Array && devScratch.length >= T ? devScratch : new Float64Array(T);
 	numpyGradientRows(curves, rows, T, gradT, /** @type {Float64Array} */ (grad));
 	for (let r = 0; r < rows; r++) {
 		const o = r * T;
+		// np.maximum(0.0, ...) (temporal.py:641). `!(x > 0)` also sends NaN to 0, where numpy's
+		// maximum PROPAGATES it; the branch is unreachable here (the gradient of a finite smoothed
+		// curve over a strictly increasing axis is finite, and `nadarayaWatsonWeights` cannot emit a
+		// NaN weight from finite dates), and a NaN that did arrive would otherwise poison `np.var`
+		// and hence the `>=` exceedance test for the whole row. Deliberate, and the only divergence
+		// in this function.
 		for (let t = o; t < o + T; t++) if (!(grad[t] > 0)) grad[t] = 0;
-		out[r] = numpyVarFloat64(grad, o, T);
+		out[r] = numpyVarFloat64(grad, o, T, dev);
 	}
 	return out;
 }
@@ -801,10 +848,39 @@ export function temporalDrawPermutation(N, seed0, drawIndex) {
  * draw must never be counted — the range boundary is the only place a caller may stop — which is
  * what makes the answer independent of where a cancel landed.
  *
- * The kernel is the one described in {@link smoothTrajectories}: a permutation is an `Int32Array(N)`
- * of contiguous row bases into the taxon-major weight matrix, rebuilt per draw at cost N and
- * amortised over T fused multiply-adds per (candidate, taxon) pair. Nothing is allocated inside the
- * draw loop.
+ * The kernel is the one described in {@link smoothTrajectories}: a draw's permutation is turned into
+ * an `Int32Array(N)` of contiguous row bases into the taxon-major weight matrix, rebuilt per draw at
+ * cost N and amortised over T fused multiply-adds per (candidate, taxon) pair.
+ *
+ * WHAT IS ALLOCATED PER DRAW, and what is not — stated exactly, because an earlier revision of this
+ * block claimed "nothing is allocated inside the draw loop" and that was never true. Every buffer
+ * THIS function writes into is allocated ONCE above the loop: the curves, the statistic, the row
+ * bases, the gradient scratch, the deviation scratch {@link temporalPermStat} needs for `np.var`,
+ * and the CSR over the candidate attributions. THREE things are still allocated on every draw:
+ *   - the `Int32Array(N)` {@link temporalDrawPermutation} returns;
+ *   - the `Xoshiro256` its per-draw substream seeding requires (whose splitmix64 expansion also
+ *     makes four BigInts);
+ *   - the coefficient arrays the statistic's own kernel builds per call — three `Float64Array(T−2)`
+ *     inside `numpyGradientRows`'s non-uniform branch, which is the branch a linspace time axis
+ *     takes, in the episodic regime; or the four `Float64Array(T)` the fixation branch of
+ *     {@link temporalPermStat} forms, measured in that branch's own comment.
+ *
+ * MEASURED before leaving them there (node 22.22.0, darwin/x64, C = 246, N = 95, T = 60, B = 1000,
+ * episodic; best of five inside a process, four processes on a machine that was NOT idle, so the
+ * absolutes spread by up to 2.6x and it is the pairing WITHIN each process that carries the signal):
+ *   - the 1,000 permutations are 19.8-51.5 ms against a whole null of 193.6-390.6 ms, 9-14 % of it.
+ *     Writing them into a hoisted `Int32Array` instead is 19.5-51.1 ms — ahead in all four
+ *     processes, but by 0.2-1.1 ms across all 1,000 draws, which is 0.1-0.4 % of the null and well
+ *     inside its own run-to-run spread. Re-seeding ONE hoisted `Xoshiro256` in place on top of that
+ *     is SLOWER in all four (21.3-54.7 ms), because splitmix64 on BigInts costs more than the object
+ *     allocation it avoids. All three variants give identical permutations and identical exceedance
+ *     counts over the 246 candidates.
+ *   - hoisting `numpyGradientRows`'s three coefficient arrays out of the call is SLOWER too, and not
+ *     marginally: 1,000 calls at this shape are 48.9 / 54.6 / 54.8 ms as the function stands against
+ *     77.0 / 85.6 / 86.1 ms reading hoisted module-scope copies, bit-identical output. Rebuilding
+ *     58-element locals beats loading them from outside the function.
+ * So nothing here is hoisted: the measurement says there is nothing to win, and an out-parameter on
+ * {@link temporalDrawPermutation} would make a pure function stateful to buy it.
  *
  * @param {{
  *   candAttrs: ArrayLike<number>, C: number, N: number, T: number,
@@ -821,6 +897,7 @@ export function temporalNullDraws({ candAttrs, C, N, T, WT, vObs, sweepMode, gra
 	const stat = new Float64Array(C);
 	const baseRow = new Int32Array(N);
 	const scratch = new Float64Array(C * T);
+	const devScratch = new Float64Array(T);
 	// CSR over the candidate attributions, built ONCE. MEASURED on the acceptance alignment: only
 	// 4.3 % of the [C, N] matrix is nonzero, because `delta_root` is an indicator of carrying a
 	// derived residue, so a dense scan spends 95 loads and branches per candidate to do four
@@ -861,7 +938,7 @@ export function temporalNullDraws({ candAttrs, C, N, T, WT, vObs, sweepMode, gra
 				for (let t = 0; t < T; t++) curves[oo + t] += v * WT[p0 + t];
 			}
 		}
-		temporalPermStat(curves, C, T, { sweepMode, gradT, normDenseT, scratch, out: stat });
+		temporalPermStat(curves, C, T, { sweepMode, gradT, normDenseT, scratch, devScratch, out: stat });
 		for (let c = 0; c < C; c++) if (stat[c] >= vObs[c]) counts[c]++;
 		if (onProgress) onProgress({ phase: 'temporal-null', done: b + 1 - fromDraw, total: toDraw - fromDraw });
 	}
@@ -898,7 +975,7 @@ export function temporalPermPValues(exceed, drawsCompleted) {
 
 /**
  * Row standardisation `(x − rowmean) / (rowstd + 1e-8)` in float64 — the transform both
- * decompositions start from (temporal.py:668-671, 728-730, 738-739).
+ * decompositions start from (temporal.py:669-671, 728-730, 737-739).
  *
  * The `+1e-8` is Q7's bug in miniature: a constant row has std 0, so it becomes a row of exact
  * zeros rather than an error, and every quantity derived from it is 0 — which the gate then reads
@@ -1220,11 +1297,11 @@ export function temporalMutationLabels({ aValid, L, N, rootIndices, rootAas, dom
 }
 
 // ---------------------------------------------------------------------------------------------
-// The grid (temporal.py:542, 557)
+// The grid (temporal.py:544, 557)
 // ---------------------------------------------------------------------------------------------
 
 /**
- * The two time axes and the gradient axis the whole pillar runs on (temporal.py:542, 557, 561).
+ * The two time axes and the gradient axis the whole pillar runs on (temporal.py:544, 557, 561).
  *
  * `gradT` keys off UNITS, not the sweep mode: a calendar run differentiates against real calendar
  * time (which keeps viral behaviour byte-identical to the pre-`--time-units` reference), a

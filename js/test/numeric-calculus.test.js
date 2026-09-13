@@ -17,6 +17,12 @@
  *   - `np.trapezoid` reduces its half-trapezoids pairwise, and a running accumulation is a
  *     different float.
  *
+ * The file also owns the fixture replay for `numpyVarFloat64` / `numpyStdFloat64` (`src/numeric/
+ * reduce.js`), which the same `fixtures/temporal/numeric.json` covers, and — since round two of the
+ * temporal review — the direct proof that their optional `scratch` buffer is BIT-invisible: the
+ * last describe block compares the two call shapes as float64 bit patterns rather than as values,
+ * including the buffers the guard must refuse.
+ *
  * The cases come from `fixtures/temporal/numeric.json`, written by `scripts/gen_fixtures.py --only
  * temporal` — which calls numpy directly and needs neither weights nor a model — so each is a
  * replay rather than an opinion.
@@ -234,5 +240,115 @@ describe('the fixture table itself', () => {
 		const manifest = JSON.parse(readFileSync(join(FIXTURES, 'manifest.json'), 'utf8'));
 		expect(manifest.counts.temporal.numeric).toBe(CASES.length);
 		expect(CASES.length).toBe(22);
+	});
+});
+
+/**
+ * The `scratch` parameter is a PERFORMANCE affordance on a routine whose whole reason to exist is
+ * that its arithmetic is exactly numpy's. It must therefore be provably invisible: the two call
+ * shapes are asserted BIT-identical, not close, because the null this feeds compares `v_p >= v_obs`
+ * and a single ulp on one side of that test moves an exceedance count.
+ *
+ * The shapes cross both of `numpyPairwiseSum`'s branch boundaries (n < 8, n <= 128, the recursive
+ * halving above it) and both degenerate cases (n = 0 -> NaN, n = 1 -> 0), and the buffers cover the
+ * ones the guard must REJECT — a `Float32Array`, a too-short `Float64Array`, a plain `Array` — since
+ * a rejected buffer takes the allocating path and must land on the same bits as no buffer at all.
+ */
+describe('numpyVarFloat64 / numpyStdFloat64: the scratch buffer is bit-invisible', () => {
+	/** The float64 bit pattern, so NaN compares equal to NaN and −0 does not compare equal to 0. */
+	const bits = (/** @type {number} */ v) => {
+		const b = new Float64Array(1);
+		b[0] = v;
+		return new BigUint64Array(b.buffer)[0];
+	};
+
+	/** Data with a different float character per shape: a plain ramp, an offset ramp that makes the
+	 * one-pass identity fail, a Gaussian bump like a smoothed velocity row, and alternating signs. */
+	const generators = {
+		ramp: (/** @type {number} */ i) => i * 0.25,
+		offset: (/** @type {number} */ i) => 1e8 + i,
+		bump: (/** @type {number} */ i) => 3.7e-4 * Math.exp(-(((i - 30) / 8) ** 2) / 2),
+		alternating: (/** @type {number} */ i) => (i % 2 ? -1 : 1) * (1 + i) ** 1.5
+	};
+	const SHAPES = [0, 1, 2, 7, 8, 9, 15, 16, 128, 129, 137, 246, 512];
+
+	for (const [gname, gen] of Object.entries(generators)) {
+		it(`${gname}: every shape and every lo agrees to the bit, with and without a buffer`, () => {
+			for (const n of SHAPES) {
+				for (const lo of [0, 3]) {
+					const x = Float64Array.from({ length: lo + n + 5 }, (_, i) => gen(i));
+					const exact = new Float64Array(Math.max(n, 1));
+					const roomy = new Float64Array(n + 64).fill(-7); // dirty on purpose
+					for (const [label, scratch] of /** @type {[string, any][]} */ ([
+						['exact-length Float64Array', exact],
+						['over-length dirty Float64Array', roomy],
+						['Float32Array (must be refused)', new Float32Array(n + 8)],
+						['short Float64Array (must be refused)', new Float64Array(Math.max(n - 1, 0))],
+						['plain Array (must be refused)', new Array(n + 8).fill(0)],
+						['null', null],
+						['undefined', undefined]
+					])) {
+						const why = `${gname} n=${n} lo=${lo} scratch=${label}`;
+						expect(bits(numpyVarFloat64(x, lo, n, scratch)), `var ${why}`).toBe(
+							bits(numpyVarFloat64(x, lo, n))
+						);
+						expect(bits(numpyStdFloat64(x, lo, n, scratch)), `std ${why}`).toBe(
+							bits(numpyStdFloat64(x, lo, n))
+						);
+					}
+				}
+			}
+		});
+	}
+
+	it('the degenerate shapes are the documented ones, and the buffer does not change them', () => {
+		const s = new Float64Array(8);
+		expect(Number.isNaN(numpyVarFloat64([1, 2, 3], 0, 0, s))).toBe(true);
+		expect(bits(numpyVarFloat64([1, 2, 3], 0, 0, s))).toBe(bits(numpyVarFloat64([1, 2, 3], 0, 0)));
+		expect(numpyVarFloat64([4], 0, 1, s)).toBe(0);
+		expect(numpyStdFloat64([4], 0, 1, s)).toBe(0);
+	});
+
+	it('one buffer reused across calls gives the same bits as a fresh one each time', () => {
+		// The hot-loop usage: {@link temporalNullDraws} hands the SAME Float64Array to every row of
+		// every draw, so stale deviations from the previous row must not be able to leak in.
+		const T = 60;
+		const shared = new Float64Array(T);
+		const rows = Array.from({ length: 12 }, (_, r) =>
+			Float64Array.from({ length: T }, (_, t) => (r + 1) * Math.sin(t / 3) * 1e-4)
+		);
+		const reused = rows.map((row) => bits(numpyVarFloat64(row, 0, T, shared)));
+		const fresh = rows.map((row) => bits(numpyVarFloat64(row, 0, T, new Float64Array(T))));
+		const none = rows.map((row) => bits(numpyVarFloat64(row, 0, T)));
+		expect(reused).toEqual(none);
+		expect(fresh).toEqual(none);
+	});
+
+	it('a Float32Array buffer would not be harmless, which is why the guard is a type test', () => {
+		// The same two passes with the guard made length-only, to show what is being refused: the
+		// squared deviations round to float32 and the variance moves. MEASURED on the acceptance
+		// run's own velocity rows in the round-two review; this is the smallest case that shows it.
+		const x = Float64Array.from({ length: 60 }, (_, i) => 1e8 + Math.sin(i) * 3);
+		const mean = (() => {
+			let s = 0;
+			for (const v of x) s += v;
+			return s / x.length;
+		})();
+		const dev32 = new Float32Array(60);
+		const dev64 = new Float64Array(60);
+		for (let i = 0; i < 60; i++) {
+			const d = x[i] - mean;
+			dev32[i] = d * d;
+			dev64[i] = d * d;
+		}
+		let s32 = 0;
+		let s64 = 0;
+		for (let i = 0; i < 60; i++) {
+			s32 += dev32[i];
+			s64 += dev64[i];
+		}
+		expect(s32).not.toBe(s64);
+		// and the guarded routine is on the float64 side of that gap
+		expect(bits(numpyVarFloat64(x, 0, 60, dev32))).toBe(bits(numpyVarFloat64(x, 0, 60)));
 	});
 });

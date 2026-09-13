@@ -7,8 +7,8 @@
  * independent accumulators over blocks of up to 128, then recursive halving on a multiple of 8.
  * In float64 the difference from a sequential sum is ~1e-16 relative and invisible at every
  * fixture class; in FLOAT32 it is not. The reference holds site LRTs as float32 arrays and reduces
- * them in float32 (cli.py:485-486 `np.sum(lrts)`, filter.py:269/385/391 `np.mean(...)`,
- * attribution.py `d.mean(axis=1)`, stats.py:78 `np.mean(np.tan(...))` on a float32 input), and a
+ * them in float32 (cli.py:506 `np.sum(lrts)`, filter.py:269/385/391 `np.mean(...)`,
+ * attribution.py:69 `d_mat_np.mean(axis=1)`, stats.py:82 `np.mean(np.tan(...))` on a float32 input), and a
  * float64 or sequentially-ordered sum misses the fixtures by 6e-6 (busted_Smc6
  * total_selection_energy) to 9e-8 (cauchy_combination_p float32_input) — measured with the
  * reference Python by the omnibus and numeric builders, both above the classes those fields are
@@ -83,7 +83,7 @@ export function numpyMeanFloat32(x, lo = 0, n = x.length - lo) {
 /**
  * `float(np.percentile(x, q))` in float64, numpy 2.3's default method `'linear'`.
  *
- * dating.py:1844 picks the restricted cubic spline's second and third knots as
+ * dating.py:1840 picks the restricted cubic spline's second and third knots as
  * `np.median(times)` and `np.percentile(times, 90)`, and a knot that moves changes every spline
  * number downstream of it — F, p, ΔAIC and therefore the model selection — so this is on the
  * deterministic critical path and is held to EXACT agreement with numpy, not to a tolerance.
@@ -129,7 +129,7 @@ export function percentile(x, q) {
  * `float(np.mean(x[lo:lo+n]))` in float64: pairwise sum, then one divide.
  *
  * Added for `hyphaeon/temporal.py`, which reduces float64 `[L, T]` trajectory matrices along the
- * contiguous axis in four places (temporal.py:709-710, 728-730, 738-739, 785) — numpy reduces a
+ * contiguous axis in four places (temporal.py:669-670, 728-730, 737-739, 785) — numpy reduces a
  * C-contiguous last axis pairwise, per row.
  *
  * @param {ArrayLike<number>} x
@@ -152,15 +152,59 @@ export function numpyMeanFloat64(x, lo = 0, n = x.length - lo) {
  * decision is a `>=` comparison against `v_obs` computed by the same routine, so any asymmetry
  * between the two sides biases the exceedance count.
  *
+ * The second pass needs the squared deviations as an ARRAY, because numpy's pairwise reduction is
+ * not a running accumulation and cannot be fused into the loop that forms them. `scratch` lets a
+ * caller in a hot loop own that array instead of allocating one per call: it is read and written
+ * only over `[0, n)`, and the arithmetic is the same arithmetic in the same order either way.
+ *
+ * It must be a REAL `Float64Array`, and the guard tests exactly that rather than `scratch.length`:
+ * a `Float32Array` is an ArrayLike of the right length that would round every squared deviation to
+ * float32 and quietly undo the one thing this routine exists to protect. MEASURED, with the guard
+ * removed so the buffer's dtype is the only difference, on a Gaussian velocity pulse of peak 3.7e-4
+ * and σ = 0.12 yr sampled at the 60 acceptance grid points (`np.linspace(2009.2490234375,
+ * 2009.9150390625, 60)`): the variance is 1.624333401794759e-8 through a float64 buffer and
+ * 1.6243334180487957e-8 through a float32 one, a relative 1.0e-8 — an order of magnitude above the
+ * 1e-9 class the temporal numerics are pinned at, and worse than its size suggests, because the
+ * null compares `v_p >= v_obs` and only one of the two sides would carry the rounding.
+ * Anything that is not a long-enough `Float64Array` is IGNORED and a buffer is allocated instead of
+ * throwing: this is called once per row per draw — 246,000 times at the acceptance run's shape
+ * (C = 246 candidates, N = 95 dated taxa, T = 60) taken at the reference's DEFAULT B = 1000
+ * (temporal.py:406; the acceptance fixture itself was run at B = 100) — a caller
+ * who hands over the wrong buffer then pays an allocation and gets the RIGHT number, and a
+ * `Float64Array` from another realm — a worker, an iframe — fails `instanceof` too, where refusing
+ * would turn a portability wrinkle into a crash instead of a slower run.
+ *
+ * BIT-IDENTICAL, measured rather than argued: over the date-shuffling null's own draw loop at that
+ * shape (episodic regime), every float64 bit of the statistic and every one of the 246 exceedance
+ * counts agrees with and without a buffer.
+ *
+ * HOW MUCH IT IS WORTH (node 22.22.0, darwin/x64, best of five inside each process, three
+ * processes, on a machine that was not idle — read the spreads, not the absolutes):
+ *   - this routine ALONE, 246,000 rows of 60 (what the null calls in 1,000 draws): 212.3-236.9 ms
+ *     allocating against 58.2-84.5 ms with a buffer — 2.6x to 4.1x, so the allocation is most of
+ *     the cost when nothing else is happening.
+ *   - the same calls inside the null's draw loop: NO reproducible difference — 351.4 / 363.0 /
+ *     369.6 ms with the buffer against 354.5 / 357.9 / 366.0 ms without, the buffer ahead in one of
+ *     the three. V8 escape-analyses the allocation away once a kernel is around it, so an isolated
+ *     microbenchmark of this routine is NOT the null's cost.
+ * So the buffer is threaded for what it demonstrably does — it removes 246,000 allocations from a
+ * null and cannot change a single output bit — and not for a wall-clock win on the whole kernel,
+ * which is not there. That ratio is real only when this routine is the only thing running. (Earlier
+ * revisions of this block quoted a 4.9e-9 float32 excursion and a ~38 ms end-to-end win; neither
+ * reproduced. The numbers above are this round's, and the next reader should re-measure rather than
+ * trust them.)
+ *
  * @param {ArrayLike<number>} x
  * @param {number} [lo]
  * @param {number} [n]
+ * @param {Float64Array|null} [scratch] a caller-owned `Float64Array` of at least `n`; anything else
+ *   — shorter, another dtype, another realm, absent — is ignored and one is allocated
  * @returns {number}
  */
-export function numpyVarFloat64(x, lo = 0, n = x.length - lo) {
+export function numpyVarFloat64(x, lo = 0, n = x.length - lo, scratch = null) {
 	if (n <= 0) return NaN;
 	const mean = numpyPairwiseSum(x, lo, n, identity) / n;
-	const dev = new Float64Array(n);
+	const dev = scratch instanceof Float64Array && scratch.length >= n ? scratch : new Float64Array(n);
 	for (let i = 0; i < n; i++) {
 		const d = x[lo + i] - mean;
 		dev[i] = d * d;
@@ -175,10 +219,12 @@ export function numpyVarFloat64(x, lo = 0, n = x.length - lo) {
  * @param {ArrayLike<number>} x
  * @param {number} [lo]
  * @param {number} [n]
+ * @param {Float64Array|null} [scratch] passed straight through to {@link numpyVarFloat64}, and
+ *   subject to the same `instanceof Float64Array` guard there
  * @returns {number}
  */
-export function numpyStdFloat64(x, lo = 0, n = x.length - lo) {
-	return Math.sqrt(numpyVarFloat64(x, lo, n));
+export function numpyStdFloat64(x, lo = 0, n = x.length - lo, scratch = null) {
+	return Math.sqrt(numpyVarFloat64(x, lo, n, scratch));
 }
 
 /** Float64 accumulation: no rounding between additions. */

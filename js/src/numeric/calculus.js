@@ -2,8 +2,8 @@
  * WHY THIS FILE EXISTS
  *
  * The three numpy array routines `hyphaeon/temporal.py` builds its time axis and its sweep metric
- * out of — `np.linspace` (temporal.py:542, 557), `np.gradient` (temporal.py:565, 641) and
- * `np.trapezoid` (temporal.py:577, 581, through the `_trapezoid` alias at temporal.py:68) — spelt
+ * out of — `np.linspace` (temporal.py:544, 557), `np.gradient` (temporal.py:566, 641) and
+ * `np.trapezoid` (temporal.py:577, 581, through the `_trapezoid` alias at temporal.py:66) — spelt
  * the way numpy spells them rather than the way the formulae are usually written. Every one of the
  * three has a detail that a "mathematically equivalent" transcription gets wrong, and all three sit
  * on the deterministic half of the temporal pillar, which PLAN-TEMPORAL.md §5.1 holds at the strict
@@ -13,8 +13,8 @@
  *     `start + i·(stop − start)/(num − 1)` evaluated per element is a different float.
  *   - `gradient` reduces to its uniform branch only when `(np.diff(x) == np.diff(x)[0]).all()` —
  *     EXACT equality. MEASURED on the acceptance run (`np.linspace(2009.2490234375,
- *     2009.9200439453125, 60)`): the 59 spacings take two distinct values,
- *     1.1373228945785739e-2 and 1.1373228946013114e-2, so the NON-uniform branch is what actually
+ *     2009.9150390625, 60)`, numpy 2.3.3): the 59 spacings take two distinct values,
+ *     1.1288400423609346e-2 and 1.128840042383672e-2, so the NON-uniform branch is what actually
  *     runs for a linspace axis. A port that assumes `h = (t_max − t_min)/(T − 1)` misses every
  *     interior velocity.
  *   - `trapezoid` forms the whole array of half-trapezoids and reduces it with numpy's PAIRWISE
@@ -147,7 +147,12 @@ export function numpyGradient(f, x, out = new Float64Array(f.length)) {
 export function numpyGradientRows(M, rows, n, x, out = new Float64Array(rows * n)) {
 	if (n < 2) throw new RangeError('numpyGradientRows: at least 2 columns are required for edge_order=1');
 	const uniform = isUniformSpacing(x);
-	// Coefficients depend only on x, so they are built once and reused across rows.
+	// Coefficients depend only on x, so they are built once per CALL and reused across every row of
+	// it. Per call, not once ever: the non-uniform branch allocates three `Float64Array(n − 2)` every
+	// time, and the temporal null calls this once per draw. MEASURED (node 22.22.0, darwin/x64,
+	// 246 x 60 rows, 1,000 calls, best of five, three processes) before leaving it that way: 48.9 /
+	// 54.6 / 54.8 ms as written against 77.0 / 85.6 / 86.1 ms reading hoisted module-scope copies,
+	// bit-identical output — rebuilding 58-element locals beats loading them from outside.
 	let a = null;
 	let b = null;
 	let c = null;
