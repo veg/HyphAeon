@@ -61,8 +61,11 @@
  *     library cannot, and under D22 it no longer needs to: that tree goes tree-free instead of
  *     taking the reference's "HyPhy not found" branch. `notices.branchLengthsMissing` still reports
  *     the fact; `needsBranchLengths` (tree.js) is still the predicate.
- *   - The tn93 BINARY. dataset.py:738-784 prefers it; tn93.js is the Python package's algorithm,
- *     which measured identical on the bundled examples (see its header).
+ *   - Compute a TN93 distance. Since 2026-09-13 tn93.js carries no TN93 implementation at all: the
+ *     compiled veg/tn93 engine is the only one, injected as `options.tn93Options.pairwiseDistances`
+ *     and MANDATORY on this path (see tn93.js's header for why there is no fallback). A caller that
+ *     reaches the tree-free branch without one gets `Tn93EngineRequiredError`, which is a wiring
+ *     bug, not a property of the alignment.
  *   - Neighbour joining for display (PLAN.md D22): a separate module.
  *   - Files, gzip, printing.
  *   - A reference sequence. dataset.py has none: taxa are the tree/alignment intersection in tree
@@ -133,8 +136,13 @@ import { tn93DistanceMatrix, tn93SaturatedPairs } from './tn93.js';
  *   the alignment text; 'tn93' / 'none' / 'skip' request the tree-free path, as `nwk_path` does at
  *   dataset.py:956
  * @param {{maxSpecies?: number|null, pruneDuplicates?: boolean, referenceName?: string,
- *   useTn93?: boolean, tn93Options?: {matchMode?: string, maxAmbigFraction?: number,
- *   ignoreGaps?: boolean}}} [options]
+ *   useTn93?: boolean, tn93Options?: {threshold?: number, pairwiseDistances?: Function}}} [options]
+ *   `tn93Options.pairwiseDistances` is the compiled TN93 engine and is MANDATORY on any input that
+ *   takes the tree-free path (`useTn93`, a 'tn93'/'none'/'skip' tree mode, no tree, or a tree with
+ *   no branch lengths): the library computes no distances of its own and `tn93DistanceMatrix`
+ *   throws `Tn93EngineRequiredError` without it. Whether an input takes that path is not knowable
+ *   from the caller's arguments alone — a topology-only tree is discovered while parsing — so a
+ *   caller that may be handed any alignment should pass an engine every time.
  * @returns {LoadedAlignment}
  */
 export function loadAlignmentAndTree(alignmentText, treeText = null, options = {}) {
@@ -243,7 +251,7 @@ export function loadAlignmentAndTree(alignmentText, treeText = null, options = {
  * @param {'requested'|'no_tree'|'no_branch_lengths'} reason
  * @param {boolean} branchLengthsMissing
  * @param {{maxSpecies: number|null, pruneDuplicates: boolean, referenceName: string|undefined,
- *   tn93Options: object}} options
+ *   tn93Options: {threshold?: number, pairwiseDistances?: Function}}} options
  * @returns {LoadedAlignment}
  */
 function tn93Assembly(seqDict, tree, reason, branchLengthsMissing, { maxSpecies, pruneDuplicates, referenceName, tn93Options }) {

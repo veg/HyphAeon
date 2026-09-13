@@ -38,10 +38,14 @@ import {
 	medianOffDiagonal
 } from '../src/diagnostics.js';
 import { loadAlignmentAndTree } from '../src/preprocess/assemble.js';
+import { Tn93EngineRequiredError } from '../src/preprocess/tn93.js';
 import { Xoshiro256 } from '../src/numeric/prng.js';
+import { fixtureSquareEngine, stubTn93Options } from './helpers/tn93-engine.js';
 
 const EXAMPLES = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'examples');
+const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'fixtures');
 const readExample = (name) => readFileSync(join(EXAMPLES, name), 'utf8');
+const readFixture = (rel) => JSON.parse(readFileSync(join(FIXTURES, rel), 'utf8'));
 
 /** Six taxa, eight stop-free codons, mutually distinct, divergence well above the star-like floor. */
 const SEQS = {
@@ -75,7 +79,13 @@ const LONG_SEQS = {
 
 const codes = (r) => r.warnings.map((w) => w.code);
 const find = (r, code) => r.warnings.find((w) => w.code === code);
-const run = (alignmentText, treeText = TREE6, extra = {}) => diagnose({ alignmentText, treeText, ...extra });
+// Since the JavaScript TN93 was deleted, every upload that can go tree-free needs the compiled
+// engine handed in — and `diagnose` is run on uploads before anyone knows whether theirs has a
+// usable tree, so it takes one every time. These unit cases assert codes, severities, counts and
+// notices, never a distance, so the default is the labelled test double; the two bundled examples
+// whose numbers ARE distances say so at their own call sites.
+const run = (alignmentText, treeText = TREE6, extra = {}) =>
+	diagnose({ alignmentText, treeText, tn93Options: stubTn93Options(), ...extra });
 
 function checkShape(r) {
 	expect(typeof r.ok).toBe('boolean');
@@ -288,14 +298,29 @@ describe('length, frame and stops', () => {
 	});
 
 	it('UNKNOWN_CODON_FRACTION is also computed when the model-level load fails', () => {
-		// No tree -> tree-free TN93 (D22), and eight codons of which three are NNN/gaps saturate the
-		// formula, so the load raises exactly where the reference does and the count falls back to
-		// the light path.
-		const r = run(fasta({ ...SEQS, alpha: 'NNNNNN---AAAGAATTTTGGCATCGA'.slice(0, 24) }), null);
+		// No tree -> tree-free TN93 (D22), and this alignment has a pair with too little usable
+		// overlap to score. WHO RAISES CHANGED ON 2026-09-13: it used to be the library's own port
+		// (ZeroDivisionError / math.log's ValueError, replicated from the tn93 package), and it is now
+		// whatever the injected engine does with such a pair — the Python package raises, the compiled
+		// binary omits the row. The REFUSAL is still the library's, and this is what pins it: diagnose
+		// catches the engine's throw, turns it into TN93_SATURATED_PAIRS, and still reports the codon
+		// counts from the light path.
+		const raising = {
+			pairwiseDistances: () => {
+				throw new Error('tn93: ZeroDivisionError: division by zero (the pair has no overlapping non-gap position)');
+			}
+		};
+		const r = run(fasta({ ...SEQS, alpha: 'NNNNNN---AAAGAATTTTGGCATCGA'.slice(0, 24) }), null, { tn93Options: raising });
 		expect(find(r, 'TREE_FREE_TN93').data.reason).toBe('no_tree');
 		expect(find(r, 'TN93_SATURATED_PAIRS')).toMatchObject({ severity: 'refuse', data: { pairs: null } });
 		expect(find(r, 'TN93_SATURATED_PAIRS').data.error).toMatch(/ZeroDivisionError|expected a positive input/);
 		expect(find(r, 'UNKNOWN_CODON_FRACTION').data).toMatchObject({ unknownCodons: 3, totalCodons: 48 });
+	});
+
+	it('a MISSING engine is a wiring bug and keeps raising, never a saturation refusal', () => {
+		// The trap the catch above could become: telling a reader their alignment is too divergent to
+		// measure when in fact nothing measured it.
+		expect(() => diagnose({ alignmentText: fasta(LONG_SEQS), treeText: null })).toThrow(Tn93EngineRequiredError);
 	});
 });
 
@@ -535,7 +560,16 @@ describe('bundled examples', () => {
 	});
 
 	it('camelid: no branch lengths, so tree-free TN93, which is deep enough to warn', () => {
-		const r = diagnose({ alignmentText: readExample('camelid.fasta'), treeText: readExample('camelid.nwk') });
+		// medianPatristic below IS a distance, so this case replays the PYTHON reference's own camelid
+		// matrix (fixtures/dataset/tn93_distance_matrix.json) as the engine's answer rather than a
+		// double: the depth summary, the DEEP_LARGE_TREE threshold and the saturation count are then
+		// still checked against the reference's numbers, as they were before the port was deleted.
+		const fx = readFixture('dataset/tn93_distance_matrix.json').find((c) => c.name === 'example_camelid.fasta');
+		const r = diagnose({
+			alignmentText: readExample('camelid.fasta'),
+			treeText: readExample('camelid.nwk'),
+			tn93Options: { pairwiseDistances: fixtureSquareEngine(fx.inputs.taxa, fx.outputs.dist_matrix) }
+		});
 		checkShape(r);
 		expect(r.ok).toBe(true);
 		expect(codes(r)).toEqual(['NON_ACGT_FRACTION', 'TREE_FREE_TN93', 'DEEP_LARGE_TREE', 'COST_ESTIMATE']);
@@ -556,12 +590,30 @@ describe('bundled examples', () => {
 	});
 
 	it('HIV1_RT: no branch lengths in the bundled tree, one duplicate, 30% unknown codons', () => {
-		const r = diagnose({ alignmentText: readExample('HIV1_RT.fasta'), treeText: readExample('HIV1_RT.nwk') });
+		// Every assertion here except medianPatristic is distance-independent, so a double will do —
+		// and it has to, because the Python fixture for this alignment records two rows of its 476 x
+		// 476 matrix, not the interior (fixtures/dataset/tn93_distance_matrix.json, the `_reduced`
+		// case). The depth number it used to pin, 0.046269, came from the deleted port computing that
+		// interior. camelid above carries that evidence now, against the reference's own full matrix.
+		const r = diagnose({ alignmentText: readExample('HIV1_RT.fasta'), treeText: readExample('HIV1_RT.nwk'), tn93Options: stubTn93Options() });
 		checkShape(r);
 		expect(r.ok).toBe(true);
-		expect(codes(r)).toEqual(['NON_ACGT_FRACTION', 'UNKNOWN_CODON_FRACTION', 'DUPLICATE_SEQUENCES', 'TREE_FREE_TN93', 'SHALLOW_TREE', 'COST_ESTIMATE']);
+		// SHALLOW_TREE used to sit between TREE_FREE_TN93 and COST_ESTIMATE here: it fires below a
+		// median depth of 0.05 and the reference's matrix measured 0.046269, a hair under. That
+		// verdict is a distance, so it moved out of this repository with the port and is not asserted
+		// from a double. Everything else is parsing, matching and counting, and is unchanged.
+		expect(codes(r).filter((x) => x !== 'SHALLOW_TREE' && x !== 'DEEP_LARGE_TREE')).toEqual([
+			'NON_ACGT_FRACTION',
+			'UNKNOWN_CODON_FRACTION',
+			'DUPLICATE_SEQUENCES',
+			'TREE_FREE_TN93',
+			'COST_ESTIMATE'
+		]);
 		expect(find(r, 'TREE_FREE_TN93').data.reason).toBe('no_branch_lengths');
-		expect(r.summary.medianPatristic).toBeCloseTo(0.046269, 5);
+		// The DEPTH is still summarised from whatever matrix the engine returned (see above for why
+		// the value is no longer the reference's 0.046269).
+		expect(r.summary.medianPatristic).toBeGreaterThan(0);
+		expect(Number.isFinite(r.summary.medianPatristic)).toBe(true);
 		expect(find(r, 'DUPLICATE_SEQUENCES').data.collapsed).toBe(1);
 		expect(r.summary).toMatchObject({ taxaInAlignment: 476, uniqueHaplotypes: 475, taxaUsed: 475, codons: 335 });
 		expect(find(r, 'COST_ESTIMATE').data.work).toBe(335 * 475 * 475);

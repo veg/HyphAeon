@@ -1028,7 +1028,13 @@ function fixed4(v) {
  * @param {string[]} datedTaxa the dated taxa, in alignment order, root already removed (2497)
  * @param {Map<string, number>|Record<string, number>} dates
  * @param {{rootTaxon?: string|null, decayGamma?: number|null, decayHalfLife?: number|null,
- *   matchMode?: string, maxAmbigFraction?: number, ignoreGaps?: boolean, threshold?: number}} [options]
+ *   threshold?: number, pairwiseDistances?: Function}} [options]
+ *   THE WHOLE BAG IS FORWARDED to `tn93CrossDistanceMatrix` (and, on case 3's large-cohort branch,
+ *   to `tn93DistanceMatrix`), so `pairwiseDistances` — the compiled veg/tn93 engine — is MANDATORY:
+ *   every one of the four cases below computes distances, and the library has no TN93 of its own.
+ *   Case 3 can reach EITHER matrix shape depending on `datedTaxa.length > 2500 || earliest.length
+ *   <= 10`, and the two call the hook with different argument counts, so an engine wired for one
+ *   shape alone will fail on the other half of that condition: pass one that answers both.
  * @returns {{divergences: Float64Array, root_description: string, taxa: string[], case: number,
  *   root_taxa: string[]|null, gamma: number|null, root_sequence: string|null}}
  */

@@ -25,8 +25,10 @@
  * `numeric/index.js`. Each module's header names its own line range. `hyphaeon/phenotype.py` splits
  * the same way (PLAN.md §5.1): `permulations.js` (the Brownian-motion null, lines 275-346) and
  * `phenotype.js` (trait vector and the association driver, the rest). `preprocess/tn93.js` mirrors the
- * `use_tn93` distance path of dataset.py (493-571) plus the tn93 package's distance, which the
- * reference imports rather than writes; it is a leaf that assemble.js consumes (D22).
+ * `use_tn93` distance path of dataset.py (493-571) — the sentinel, the float32 rounding and the
+ * imputation that WRAP a distance. It no longer computes one: the port of the tn93 package was
+ * deleted, and both matrix functions require an injected `pairwiseDistances` from veg/tn93's
+ * compiled build. It is a leaf that assemble.js consumes (D22).
  *
  * ORDER IS DEPENDENCY ORDER, leaves first. There are no name collisions across the modules:
  * ES module linking treats two `export *` lines that export the SAME binding under one name as one
@@ -52,7 +54,7 @@ export * from './preprocess/tokenizer.js'; // CODON_LIST, GENETIC_CODE, AA_MAP, 
 export * from './preprocess/variability.js'; // isAaInvariable, invariableMask, isSiteVariable, siteVariability
 export * from './preprocess/tree.js'; // NewickError, parseNewickTrees, readNewick, extractTree, matchTaxa, treeTaxa, branch-length predicates
 export * from './preprocess/consensus.js'; // dating.py:225-310: consensusSequence, timeDecayConsensusSequence (the tree-free root anchors; a leaf)
-export * from './preprocess/tn93.js'; // dataset.py:715-821 + :824-928 (tn93CrossDistanceMatrix) + the tn93 1.2.2 package: tn93Distance, tn93DistanceMatrix, tn93Counts, tn93SaturatedPairs, TN93_* (D22 tree-free distances; a leaf)
+export * from './preprocess/tn93.js'; // dataset.py:715-821 + :824-928: tn93DistanceMatrix, tn93CrossDistanceMatrix, tn93SaturatedPairs, TN93_*, Tn93EngineRequiredError (D22 tree-free distances; a leaf). The WRAPPING only — the distances come from the caller's compiled veg/tn93 engine, and there is no JavaScript TN93 in this package
 // One level up.
 export * from './preprocess/patristic.js'; // rootDistances, patristicRow, patristicMatrix, computeFastDistMatrix, rescaleDistances
 export * from './preprocess/downsample.js'; // pruneIdenticalSequences, downsampleTaxaFaithPd, stridePreselect

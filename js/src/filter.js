@@ -446,7 +446,16 @@ export function fastaText(entries) {
  * @param {{alphaSite?: number, minK?: number, maxSpan?: number, pLocalThresh?: number,
  *   minOci?: number, minRunLength?: number, maxSpecies?: number|null, pruneDuplicates?: boolean,
  *   batchSize?: number, cliVariant?: boolean,
+ *   tn93Options?: {threshold?: number, pairwiseDistances?: Function},
  *   onProgress?: (p: {phase: string, done: number, total: number}) => void}} [options]
+ *   `tn93Options` is forwarded verbatim to BOTH `loadAlignmentAndTree` calls below — the baseline
+ *   load and the cleaned re-load. It carries the compiled TN93 engine, and it is mandatory whenever
+ *   the input can take the tree-free path (no tree, a topology-only tree, or `treeText` of
+ *   'tn93'/'none'/'skip'): the library computes no distances itself and the load throws
+ *   `Tn93EngineRequiredError` without it. Before this parameter existed a tree-free alignment could
+ *   reach the report's FILTER section and fail there while every other section had run, because the
+ *   application had an engine and no way to hand it over (hyphaeon-app runtime/src/tn93-wasm.js
+ *   flagged exactly this).
  * @returns {Promise<FilterResult>}
  */
 export async function runAlignmentFilter(input, predict, options = {}) {
@@ -461,6 +470,7 @@ export async function runAlignmentFilter(input, predict, options = {}) {
 		pruneDuplicates = true,
 		batchSize = 64,
 		cliVariant = false,
+		tn93Options = {},
 		onProgress
 	} = options;
 	const t0 = Date.now();
@@ -469,7 +479,7 @@ export async function runAlignmentFilter(input, predict, options = {}) {
 
 	// 1-2. Alignment, raw sequences, baseline LRTs.
 	const loaded =
-		input.loaded ?? loadAlignmentAndTree(alignmentText, treeText, { maxSpecies, pruneDuplicates });
+		input.loaded ?? loadAlignmentAndTree(alignmentText, treeText, { maxSpecies, pruneDuplicates, tn93Options });
 	const rawSeqs = parseAlignmentSequences(alignmentText);
 	const { taxa, L } = loaded;
 	const N = taxa.length;
@@ -605,7 +615,7 @@ export async function runAlignmentFilter(input, predict, options = {}) {
 		// filter.py:297 falls back to the alignment (its embedded tree); cli.py:195 passes args.tree
 		// as is, so a null tree raises in the loader — the cmd_meme crash, reproduced.
 		const effectiveTree = cliVariant ? treeText : (treeText ?? alignmentText);
-		const loadedCl = loadAlignmentAndTree(text, effectiveTree, { maxSpecies, pruneDuplicates });
+		const loadedCl = loadAlignmentAndTree(text, effectiveTree, { maxSpecies, pruneDuplicates, tn93Options });
 		if (loadedCl.L !== L) {
 			throw new Error(`cleaned alignment has ${loadedCl.L} codons, expected ${L}`);
 		}

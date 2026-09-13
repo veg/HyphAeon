@@ -97,7 +97,7 @@ import { pruneIdenticalSequences } from './preprocess/downsample.js';
 import { loadAlignmentAndTree } from './preprocess/assemble.js';
 import { codonToken } from './preprocess/tokenizer.js';
 import { MAX_SPECIES_CAP, CODON_UNKNOWN } from './preprocess/modelContract.js';
-import { TN93_MATCH_MODE, TN93_SATURATION_SENTINEL } from './preprocess/tn93.js';
+import { TN93_MATCH_MODE, TN93_SATURATION_SENTINEL, Tn93EngineRequiredError } from './preprocess/tn93.js';
 
 /** Every code `diagnose` can emit, in the order of PLAN.md §4.3's rows. */
 export const DIAGNOSTIC_CODES = Object.freeze([
@@ -327,14 +327,22 @@ export function medianOffDiagonal(d, n) {
  *   parsed?: import('./preprocess/assemble.js').LoadedAlignment|null,
  *   maxSpecies?: number,
  *   taxaLimit?: number,
- *   useTn93?: boolean
+ *   useTn93?: boolean,
+ *   tn93Options?: {threshold?: number, pairwiseDistances?: Function}
  * }} input `parsed` is an existing `loadAlignmentAndTree` result for the same texts, to avoid
  *   loading twice; when absent the model-level checks load with `maxSpecies` (the cap the model
  *   run will use, default MAX_SPECIES_CAP = 512). `useTn93` forces the tree-free path even when a
  *   usable tree is present, exactly as `loadAlignmentAndTree`'s option does (D22).
+ *
+ *   `tn93Options` is forwarded to that load and carries the compiled TN93 engine
+ *   (`pairwiseDistances`). It is MANDATORY for every upload that can go tree-free, which — since
+ *   this function is what every upload is run through first, before anyone knows whether it has a
+ *   usable tree — means every upload: without it the load throws `Tn93EngineRequiredError` and the
+ *   model-level half of the diagnosis (codons, taxa used, unknown fraction, saturation) cannot be
+ *   produced. Pass `parsed` instead if the caller already loaded with an engine.
  * @returns {Diagnosis}
  */
-export function diagnose({ alignmentText, treeText = null, parsed = null, maxSpecies = MAX_SPECIES_CAP, taxaLimit = DIAGNOSTIC_THRESHOLDS.taxaLimit, useTn93 = false }) {
+export function diagnose({ alignmentText, treeText = null, parsed = null, maxSpecies = MAX_SPECIES_CAP, taxaLimit = DIAGNOSTIC_THRESHOLDS.taxaLimit, useTn93 = false, tn93Options = {} }) {
 	const T = DIAGNOSTIC_THRESHOLDS;
 	/** @type {Diagnostic[]} */
 	const warnings = [];
@@ -651,11 +659,17 @@ export function diagnose({ alignmentText, treeText = null, parsed = null, maxSpe
 	const canLoad = (treeFreeReason !== null || (tree !== null && taxa !== null)) && rawLen >= 3 && nRaw <= taxaLimit;
 	if (loaded === null && canLoad) {
 		try {
-			loaded = loadAlignmentAndTree(text, treeMode === null ? null : String(treeText), { maxSpecies, pruneDuplicates: true, useTn93 });
+			loaded = loadAlignmentAndTree(text, treeMode === null ? null : String(treeText), { maxSpecies, pruneDuplicates: true, useTn93, tn93Options });
 		} catch (e) {
 			// The reference dies here too: `compute_tn93_distance_matrix` lets the tn93 package's
 			// ZeroDivisionError (no overlap) and math-domain ValueError (a saturated pair) propagate
 			// (dataset.py:785-810). Report it instead of throwing; every other path keeps raising.
+			//
+			// EXCEPT a missing engine. Since the JavaScript TN93 was deleted the tree-free load needs
+			// `tn93Options.pairwiseDistances`, and a caller that forgot it is a WIRING BUG: reporting
+			// that as TN93_SATURATED_PAIRS would tell the reader their alignment is too divergent to
+			// measure when in fact nothing measured it. It keeps raising, on every path.
+			if (e instanceof Tn93EngineRequiredError) throw e;
 			if (treeFreeReason === null) throw e;
 			push('TN93_SATURATED_PAIRS', 'refuse', `The TN93 distance matrix could not be computed: ${e instanceof Error ? e.message : String(e)}`, {
 				pairs: null,

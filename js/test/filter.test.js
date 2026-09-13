@@ -34,6 +34,7 @@ import {
 } from '../src/filter.js';
 import { numpyPairwiseSum, numpyMeanFloat32 } from '../src/numeric/reduce.js';
 import { loadAlignmentAndTree } from '../src/preprocess/assemble.js';
+import { stubTn93Options, stubEngine } from './helpers/tn93-engine.js';
 import { parseAlignmentSequences } from '../src/preprocess/parse.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -313,7 +314,10 @@ describe('runAlignmentFilter against the reference with a fake model', () => {
 				// takes the tree-free TN93 path and the filter completes. The divergence is deliberate
 				// and is the only place the JS filter outruns the Python one.
 				expect(o.cmd_meme_error).toMatch(/No tree specified/);
-				const res = await runAlignmentFilter(input, fakePredict, { cliVariant: true });
+				// That tree-free re-load needs an engine since the TN93 port was deleted, and
+				// `tn93Options` is how runAlignmentFilter forwards one to it. The subject here is the
+				// BRANCH, not a distance, so the engine is the labelled test double.
+				const res = await runAlignmentFilter(input, fakePredict, { cliVariant: true, tn93Options: stubTn93Options() });
 				expect(res.cleaned).not.toBeNull();
 				expect(res.cleaned.loaded.notices.treeFree).toEqual({ reason: 'no_tree', taxaOrder: 'alignment' });
 				return;
@@ -368,6 +372,50 @@ describe('runAlignmentFilter against the reference with a fake model', () => {
 		await expect(predictSiteLrts(loaded, () => [1, 2], { siteIndices: [1, 2, 3] })).rejects.toThrow(/returned 2 values/);
 	});
 
+	it('forwards tn93Options to BOTH loads, and refuses a tree-free run without an engine', async () => {
+		// The carried finding of hyphaeon-app PR #13, pinned here. The report's FILTER section was the
+		// one pillar with no way to hand the library an engine: `runAlignmentFilter` loads TWICE (the
+		// baseline at filter.js:482 and the cleaned re-load at :618) and neither took an option. With
+		// the JavaScript TN93 deleted that is no longer a silent second implementation but a throw, so
+		// the parameter has to exist AND reach both call sites.
+		const c = readJson(join(HERE, 'data', 'filter', 'run_alignment_filter_fake_model.json')).find(
+			(x) => x.name === 'planted_artifact_embedded_tree'
+		);
+		const counting = () => {
+			const inner = stubEngine();
+			const seen = { calls: 0 };
+			return { seen, pairwiseDistances: (/** @type {any[]} */ ...args) => (seen.calls++, inner(...args)) };
+		};
+
+		// This alignment carries its own tree, so the BASELINE load takes the patristic path and needs
+		// no engine; only the cleaned re-load goes tree-free (cli.py:195 hands args.tree = null on).
+		const a = counting();
+		const resA = await runAlignmentFilter({ alignmentText: c.inputs.alignment, treeText: c.inputs.tree }, fakePredict, {
+			cliVariant: true,
+			tn93Options: { pairwiseDistances: a.pairwiseDistances }
+		});
+		expect(resA.cleaned).not.toBeNull();
+		expect(resA.raw.loaded.notices.treeFree).toBeNull();
+		expect(resA.cleaned.loaded.notices.treeFree.reason).toBe('no_tree');
+		expect(a.seen.calls, 'the engine reached the cleaned re-load (filter.js:618)').toBe(1);
+
+		// Asking for the tree-free path outright puts BOTH loads on it, which is the shape a report
+		// run on an alignment with no usable tree actually has.
+		const b = counting();
+		const resB = await runAlignmentFilter({ alignmentText: c.inputs.alignment, treeText: 'tn93' }, fakePredict, {
+			cliVariant: true,
+			tn93Options: { pairwiseDistances: b.pairwiseDistances }
+		});
+		expect(resB.cleaned).not.toBeNull();
+		expect(resB.raw.loaded.notices.treeFree.reason).toBe('requested');
+		expect(b.seen.calls, 'the engine reached the baseline load (filter.js:482) as well').toBe(2);
+
+		// Without it, the run stops at the load rather than computing distances itself.
+		await expect(
+			runAlignmentFilter({ alignmentText: c.inputs.alignment, treeText: 'tn93' }, fakePredict, { cliVariant: true })
+		).rejects.toThrow(/pairwiseDistances/);
+	});
+
 	it('runAlignmentFilter with zero patches leaves cleaned null and cleaned_metrics == raw_metrics', async () => {
 		const c = readJson(join(HERE, 'data', 'filter', 'run_alignment_filter_fake_model.json'))[0];
 		const res = await runAlignmentFilter({ alignmentText: c.inputs.alignment, treeText: c.inputs.tree }, (cc, aa, meta) => new Float32Array(meta.batch));
@@ -412,7 +460,11 @@ describe('e2e fixture replay with recorded per-site LRTs', () => {
 		const lrts = meme.sites.map((s) => s.hyphaeon_lrt);
 		const alignmentText = readExample(fx.inputs.alignment);
 		const treeText = readExample(fx.inputs.tree);
-		const res = await runAlignmentFilter({ alignmentText, treeText }, lookupPredict(lrts));
+		// camelid's tree carries no branch lengths, so BOTH loads — baseline and cleaned — take the
+		// tree-free path and both need the engine `tn93Options` forwards. Every assertion below is
+		// distance-independent (artifact detection runs on the recorded LRTs and the sequences), so
+		// the double is honest here; it is not a TN93.
+		const res = await runAlignmentFilter({ alignmentText, treeText }, lookupPredict(lrts), { tn93Options: stubTn93Options() });
 		const want = fx.outputs.result;
 		expect(res.raw.loaded.notices.branchLengthsMissing).toBe(true); // HyPhy ran in the reference
 		expect(res.raw.loaded.invariable.length).toBe(meme.sites.length);

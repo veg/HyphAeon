@@ -2,147 +2,84 @@
  * WHY THIS FILE EXISTS
  *
  * The tree-free distance path (PLAN.md D22): when no usable tree is available, pairwise
- * Tamura-Nei 1993 distances replace the patristic matrix and feed the MDS directly. This file
- * mirrors TWO sources, because the reference does not compute TN93 itself — it shells out:
+ * Tamura-Nei 1993 distances replace the patristic matrix and feed the MDS directly.
  *
- *   A. `hyphaeon/dataset.py:715-821` (`compute_tn93_distance_matrix`) on the reconciled line
- *      (branch reconcile/phase-5a): the matrix assembly, the sentinel and the imputation rule.
- *   B. the `tn93` PyPI package, version 1.2.2, `tn93/tn93.py` (the fallback dataset.py:785-810
- *      imports as `from tn93.tn93 import TN93`): the distance itself.
+ * THIS FILE DOES NOT COMPUTE A TN93 DISTANCE. It never will again. It mirrors the WRAPPING that
+ * `hyphaeon/dataset.py:715-821` (`compute_tn93_distance_matrix`) and `:824-928`
+ * (`compute_tn93_cross_distance_matrix`) put around whatever numbers an engine hands back — the
+ * `-1.0` "not written" prefill, the dead `d < 0 or isnan -> 1.0` guard, the float32 rounding, the
+ * `max(1.0, max_d)` imputation, the zeroed diagonal and the saturation sentinel. The numbers
+ * themselves come from `options.pairwiseDistances`, which is now REQUIRED: without it both matrix
+ * functions throw `Tn93EngineRequiredError`.
  *
- * EVERY dataset.py LINE NUMBER IN THIS FILE IS THE RECONCILED FILE'S. For the record, the same code
- * was at 443-521 / 544-580 when PLAN.md §5.1 was written and at 493-571 (the function) plus 598-636
- * (the `use_tn93` branch of `load_alignment_and_tree`, mirrored in assemble.js) at 61d30e3.
+ * ============================ WHY THE PORT IS GONE (2026-09-13) ============================
  *
- * ============================ WHAT THE REFERENCE ACTUALLY CALLS ============================
+ * Until this change the file also carried a line-by-line port of the `tn93` PyPI package 1.2.2
+ * (`tn93/tn93.py`), the pure-Python fallback `dataset.py:785-810` takes when no `tn93` binary is on
+ * PATH: `encodeSequence`, `canResolve`, `ambigFractionTooHigh`, `tn93Counts`,
+ * `tn93NucleotideFrequency`, `tn93CalculateDistance`, `tn93Distance` and the `TN93_TABLES` they
+ * read. It matched the reference bit for bit on every fixture. It is deleted anyway, by the
+ * repository owner's decision, and the reason is about edge cases rather than speed:
  *
- * dataset.py:738 `tn93_bin = shutil.which("tn93")`. If the COMPILED tn93 binary is on PATH the
- * reference uses it (dataset.py:740-784):
+ *   veg/tn93 is a tool THIS TEAM MAINTAINS. The compiled WebAssembly build the application vendors
+ *   (hyphaeon-app `runtime/vendor/tn93/`, verified by sha256 before it is instantiated) is how that
+ *   repository's fixes reach a run: a bug is fixed upstream, the release is re-vendored, the hash
+ *   changes. A JavaScript port is a SECOND IMPLEMENTATION of the same arithmetic, kept in step by
+ *   hand, and every path still able to reach it is a path where the two can silently disagree the
+ *   day the tool changes — on an ambiguity convention, a gap rule, a saturated pair. Timings are
+ *   not the argument; the compiled engine is the slower of the two on a small matrix and that price
+ *   was accepted. An earlier change that picked between them by matrix size was rejected for
+ *   exactly this reason, and a size-based rule is why the throw below is UNCONDITIONAL: a one-taxon
+ *   matrix refuses as loudly as a thousand-taxon one, so no input size quietly takes a different
+ *   code path.
  *
- *     tn93 -t 1.0 -l 1 -q -o distances.csv subset.fa
+ * BREAKING CHANGE to `@veg/hyphaeon-js`. Eight exports are removed, listed in the release notes of
+ * this change; nothing inside the library called any of them except the two matrix functions here.
  *
- * i.e. threshold 1.0 (pairs at or above 1.0 are NOT WRITTEN), minimum overlap 1 nucleotide, quiet,
- * CSV out (the binary's default format, columns ID1,ID2,Distance) and the binary's DEFAULT ambiguity
- * strategy, `-a resolve`, with `-g 1.0`. The CSV is read with `csv.DictReader`, each row's Distance
- * is `float()`d into both `[i][j]` and `[j][i]`, and any pair the binary omitted (above the
- * threshold, or below the overlap) stays 0.0 and is caught by the imputation below.
+ * WHAT THE ENGINE IS ASKED TO DO, and what the caller must therefore run. dataset.py:738
+ * `tn93_bin = shutil.which("tn93")`; when the compiled binary is on PATH the reference runs
+ * (dataset.py:740-784):
  *
- * Only when the binary is absent (or its run raised) does the Python package run, one pair at a
- * time (dataset.py:785-810):
+ *     tn93 -t <threshold> -l 1 -q -o distances.csv subset.fa
  *
- *     tn = TN93()                                       # verbose=0, ignore_gaps=False,
- *                                                       # max_ambig_fraction=1.0, minimum_overlap=500
- *     counts   = tn.get_counts(seq_i, seq_j, "resolve")
- *     nuc_freq = tn.get_nucleotide_frequency(counts)
- *     d        = tn.calculate_distance(counts, nuc_freq)
- *     if d is None or d == "-" or d < 0 or np.isnan(d): d = 1.0
+ * i.e. the reporting threshold below, minimum overlap 1 nucleotide, quiet, CSV out (columns
+ * ID1,ID2,Distance) and the binary's DEFAULT ambiguity strategy, `-a resolve` with `-g 1.0` —
+ * TN93_MATCH_MODE and TN93_MAX_AMBIG_FRACTION here. Each row's Distance is `float()`d into both
+ * `[i][j]` and `[j][i]`; any pair the binary omitted (above the threshold, or below the overlap)
+ * stays -1.0 and is imputed below. That contract is the caller's to honour: this file only says
+ * what shape it reads the answers in.
  *
- * THE OPTIONS THIS FILE REPRODUCES ARE THE PACKAGE ONES: match mode "resolve", max_ambig_fraction
- * 1.0, ignore_gaps False, and NO minimum-overlap test — the reference calls `get_counts` /
- * `calculate_distance` directly and never goes through `tn93_distance` (tn93.py:152-179), so the
- * package's 500-nucleotide `minimum_overlap` and its `"-"` sentinel are unreachable from here (the
- * `d == "-"` guard at dataset.py:805 is dead code). MEASURED (2026-09-05, tn93 binary v1.0.15 vs
- * tn93 package 1.2.2, both through `compute_tn93_distance_matrix`): the two paths agree EXACTLY —
- * max |Δ| = 0.0 — on examples/bat_oas1.fasta and examples/HIV1_RT.fasta, because the binary writes
- * 6 significant digits (the same rounding the package applies, below) and every pair it drops at
- * the 1.0 threshold is imputed back to exactly the 1.0 the package returns for it. The fixtures are
- * generated with the binary forced off PATH so they are reproducible on any machine.
+ * MEASURED, 2026-09-05, before the port was deleted (tn93 binary v1.0.15 vs tn93 package 1.2.2,
+ * both through `compute_tn93_distance_matrix`): the two paths agree EXACTLY — max |Δ| = 0.0 — on
+ * examples/bat_oas1.fasta and examples/HIV1_RT.fasta, because the binary writes 6 significant
+ * digits (the same rounding the package applies) and every pair it drops at a 1.0 threshold is
+ * imputed back to exactly the 1.0 the package returns for it. MEASURED, 2026-09-07, by the
+ * application (runtime/vendor/tn93/MANIFEST.json): the vendored v1.0.17 WebAssembly build gives
+ * identical rows and values to native tn93 1.0.15 on bat_oas1 (153 pairs), Smc6 (190), camelid
+ * (22,366) and HIV1_RT (113,050). Those two measurements are the parity chain that survives the
+ * deletion, and both of them live outside this repository's JavaScript.
  *
- * ============================ THE DISTANCE (tn93 1.2.2, tn93/tn93.py) ============================
+ * ============================ WHAT THE WRAPPING STILL IS ============================
  *
- * `get_constants` (tn93.py:523-601) — replicated verbatim as MAP_CHARACTER / RESOLUTIONS /
- * RESOLUTION_COUNTS below: 256-entry character map (A C G T = 0..3, U = 4, the ten IUPAC codes
- * 5..15, '?' and everything unmapped = 16, '-' = 17; upper and lower case both), a 18x4 resolution
- * table and a 18-entry 1/|resolutions| weight table (GAP weight 0.0).
+ * PRECISION. An engine's distance is float64 here. The MATRIX is
+ * `np.full((n, n), -1.0, dtype=np.float32)` (dataset.py:732), so each stored value is rounded to
+ * float32 with Math.fround — matching the dtype `compute_mds_coordinates` then squares and
+ * double-centres in float32.
  *
- * `get_counts(seq1, seq2, "resolve")` (tn93.py:291-307):
- *   1. `find_terminal_gaps` (235-243) runs and stores first/last non-gap indices. RESOLVE never
- *      reads them (only GAPMM does, and only when ignore_gaps) — replicated as a no-op, EXCEPT for
- *      the Python bug it carries: on a sequence that is ALL gaps `seq1[self.last_nongap]` in its
- *      verbose branch would IndexError; verbose is 0 here, so it never fires.
- *   2. `ambig_fraction_too_high` (275-286): count positions where `can_resolve(nuc1, nuc2)`
- *      (245-273) and positions where NEITHER character is a gap; if
- *      `total_non_gap * max_ambig_fraction <= ambig_count` the pair is scored by AVERAGE instead of
- *      RESOLVE. With max_ambig_fraction = 1.0 that means "every overlapping position is a resolvable
- *      ambiguity" — including the degenerate `0 <= 0` case, so a pair with NO overlapping non-gap
- *      position also takes the average branch. `can_resolve` is False when either character is a gap
- *      and when both are unambiguous; note U (index 4) counts as "ambiguous" there.
- *   3. `get_counts_resolve` (313-381) or `get_counts_average` (383-431) over
- *      `p in range(min(len(seq1), len(seq2)))` — the LONGER sequence is simply truncated, no padding.
- *      RESOLVE: both plain -> counts[n1][n2] += 1; one gap and one not -> counted (only gap/gap is
- *      skipped, tn93.py:331-332 tests `nuc1 == 17 and nuc2 == 17`) — the gap is then treated as an
- *      ambiguity with resolutionsCount 0.0 and RESOLUTIONS all-zero, so nothing is added and the
- *      position silently contributes nothing; one plain and one ambiguous -> if the ambiguity
- *      CONTAINS the plain base, count it as a MATCH (this is what "resolve to minimise distance"
- *      means), else spread `resolutionsCount` over its resolutions; both ambiguous -> if they share
- *      k >= 1 resolutions, add 1/k to each shared DIAGONAL cell, else spread the product of the two
- *      weights over the k1 x k2 cells.
- *      AVERAGE: identical except that ANY gap (`nuc1 == 17 or nuc2 == 17`, 399) skips the position
- *      and there is no match-first shortcut.
- *
- * `get_nucleotide_frequency(counts)` (tn93.py:227-233): freq[j] += counts[j][k] and freq[k] +=
- * counts[j][k] for every (j, k) — row sums PLUS column sums, so `sum(freq)` is twice the total.
- *
- * `calculate_distance(counts, freq)` (tn93.py:181-225), float64 throughout:
- *     total_non_gap = 2 / sum(freq)                        # ZeroDivisionError when sum is 0
- *     AG = (c[0][2] + c[2][0]) * total_non_gap
- *     CT = (c[1][3] + c[3][1]) * total_non_gap
- *     matching = (c[0][0] + c[1][1] + c[2][2] + c[3][3]) * total_non_gap
- *     tv = 1 - (AG + CT + matching)
- *     if 0 in freq:                                        # some base absent from the pair
- *         AG = 1 - 2 * (AG + CT) - tv;  CT = 1 - 2 * tv
- *         dist = -0.5 ln(AG) - 0.25 ln(CT)   if AG > 0 and CT > 0   else   1.0
- *     else:
- *         nucF = freq / sum(freq);  fR = nucF0 + nucF2;  fY = nucF1 + nucF3
- *         K1 = 2 nucF0 nucF2 / fR;  K2 = 2 nucF1 nucF3 / fY
- *         K3 = 2 (fR fY - nucF0 nucF2 fY / fR - nucF1 nucF3 fR / fY)
- *         AG = 1 - AG/K1 - 0.5 tv/fR;  CT = 1 - CT/K2 - 0.5 tv/fY;  tv = 1 - 0.5 tv/fY/fR
- *         dist = round6(-K1 ln(AG) - K2 ln(CT) - K3 ln(tv))
- *     return round6(dist) if dist > -0.0 else 0.0          # `> -0.0` is `> 0.0`
- *
- * BASE FREQUENCIES ARE PER PAIR, from that pair's own counts — never global, never from the whole
- * alignment. GAPS contribute nothing (weight 0). The `0 in freq` branch is the package's own
- * degenerate fallback and is NOT the TN93 formula; it is where the SATURATION SENTINEL 1.0 comes
- * from. MEASURED over every pair of all five bundled alignments: NO pair reaches it. What the
- * examples do produce is distance 0.0 between distinct sequences (66 pairs in HIV1_RT, 8 in RHO)
- * and between byte-identical ones (1 pair in HIV1_RT, 78 in RHO; `load_alignment_and_tree` prunes
- * those pairs before the matrix is built). Under the imputation rule below all of them stay 0.0.
- *
- * `round6` is `self.round` (tn93.py:309-311):
- * `np.format_float_positional(x, precision=6, unique=False, fractional=False, trim="k")` — SIX
- * SIGNIFICANT digits, then `float()`. Here: `Number(x.toPrecision(6))`. numpy rounds half to even
- * and ECMAScript's toPrecision rounds a tie to the larger magnitude; a tie needs the double's exact
- * decimal expansion to stop at the 7th significant digit, which no distance out of `log` reaches.
- * The rounding is why distances are stable across the C++ binary and the Python package.
- *
- * PRECISION: every count and every distance is float64 (Python floats), so `tn93Distance` is
- * float64 and the fixture class is 1e-9 — MEASURED max |Δ| = 0 against the reference on every
- * fixture case and every matrix entry, because that six-digit rounding removes the last bits where
- * the two languages' `log` could differ. The MATRIX is `np.full((n, n), -1.0, dtype=np.float32)`
- * (dataset.py:732), so each stored value is rounded to float32 with Math.fround — matching the
- * dtype `compute_mds_coordinates` then squares and double-centres in float32.
- *
- * ============================ THE MATRIX (dataset.py:715-821) ============================
- *
+ * THE MATRIX (dataset.py:715-821):
  *   - the matrix starts at -1.0 with a zeroed diagonal: -1.0 marks an entry NOT WRITTEN, which is
  *     outside the range of any distance, so a measured 0.0 is distinguishable from a missing one.
  *   - n <= 1: that matrix is returned as it is, no distances computed (dataset.py:734-735).
  *   - off-diagonal, i < j only, mirrored into [j][i].
- *   - `if d is None or d == "-" or d < 0 or np.isnan(d): d = 1.0` — `calculate_distance` returns
- *     neither None, "-" nor NaN on this path and clamps negatives to 0.0, so this guard is dead;
- *     it is replicated anyway. dataset.py:795-799 additionally wraps the call in
- *     `except (ValueError, OverflowError): d = 1.0` for math-domain errors on very short or
- *     saturated pairs; Math.log returns NaN where CPython raises, so those pairs reach the same
- *     1.0 through the isNaN arm of the same guard.
+ *   - `if d is None or d == "-" or d < 0 or np.isnan(d): d = 1.0` (dataset.py:805) — replicated,
+ *     and no longer dead: an engine may report a negative or a NaN where the Python package raised.
  *   - IMPUTATION (dataset.py:816-821), after every pair is scored:
  *         np.fill_diagonal(dist_mat, 0.0)
  *         missing = (dist_mat < 0.0)
  *         max_d = dist_mat.max() if dist_mat.max() > 0 else 1.0
  *         dist_mat[missing] = max(1.0, max_d)
- *     Only UNWRITTEN entries are imputed, and only the compiled-binary path can leave one (a pair
- *     the binary omitted from its CSV); the package path this library implements writes every pair,
- *     so on it nothing is ever imputed. `max_d` is read ONCE, from the filled matrix — there is no
- *     live re-read any more, because nothing is written before the maximum is taken.
+ *     Only UNWRITTEN entries are imputed — a pair the engine omitted from its CSV. `max_d` is read
+ *     ONCE, from the filled matrix.
  *   - the diagonal is zeroed last (dataset.py:821).
  *
  *   UPSTREAM FIX FOLLOWED, NOT A LOCAL IMPROVEMENT. The rule this replaced could not tell a genuine
@@ -156,80 +93,34 @@
  *   and none of camelid's, bat_oas1's or Smc6's.
  *
  * WHAT IT DELIBERATELY DOES NOT DO:
- *   - The compiled binary. There is no subprocess in the library; `tn93DistanceMatrix` is always the
- *     package path. See the measurement above for why that is the same answer.
- *   - The package's `tn93_distance` wrapper (tn93.py:152-179): its 500-nucleotide minimum-overlap
- *     test, its `"-"` sentinel, its SeqRecord/string duck-typing and its CSV/JSON row formatting are
- *     not on the reference's path. `minimum_overlap` is therefore not an option here.
- *   - The other match modes are implemented (`average` is on the reference's path via
- *     `ambig_fraction_too_high`; `gapmm` and `skip` are two dozen lines and are pinned by fixtures)
- *     but only `resolve` is what `dataset.py` asks for. `gapmm` with `ignoreGaps` uses the terminal
- *     gap indices, which is the only place they are read.
- *   - Neighbour joining. PLAN.md D22's display topology (`nj.js`) is a separate module.
- *   - Reading files, printing, or catching the reference's exceptions (below).
+ *   - Compute a distance. See above. There is no subprocess and no WebAssembly in the library
+ *     either: the engine is the caller's, injected as a plain function.
+ *   - Decide the `*` convention, the match mode or the threshold. Those are the engine's argv and
+ *     the application's per-pillar choice; see the note on `tn93CrossDistanceMatrix`.
+ *   - Neighbour joining. PLAN.md D22's display topology (`nj.js`) is the application's module.
  *
- * PYTHON EXCEPTIONS, REPLICATED AS THROWS (dataset.py does not catch them, so a reference run dies):
- *   - `2 / sum(freq)` with an empty count matrix -> ZeroDivisionError. Happens when the two
- *     sequences share no position where both are non-gap.
- *   - `math.log(x <= 0)` -> ValueError("expected a positive input, got ...") in the `0 not in freq`
- *     branch. Happens when the pair is SATURATED (the corrected proportions go non-positive), e.g.
- *     two sequences that disagree everywhere, or two all-N sequences.
- *   Both throw here with the Python exception name in the message. Callers that need the whole
- *   matrix to survive such a pair must catch (diagnostics.js reports it as TN93_SATURATED_PAIRS).
+ * A PORT GAP THAT IS NOW THE ENGINE'S. The Python package RAISES on two degenerate pairs —
+ * `ZeroDivisionError` when two sequences share no position where both are non-gap, and
+ * `math.log`'s `ValueError` on a saturated pair — and `dataset.py` catches the second in the
+ * rectangular path only (`:903-906`), letting the first kill the run. The deleted port raised in
+ * the same two places, which is what `diagnostics.js` turned into its TN93_SATURATED_PAIRS refusal.
+ * The library can no longer raise either: whether such a pair throws, omits a row, or comes back as
+ * a number is now the engine's behaviour, and what reaches this file is either a value (guarded
+ * below) or a hole (imputed below). The refusal path in `diagnostics.js` still works — it catches
+ * whatever the injected engine throws — but the library no longer guarantees it fires.
  */
 
-/** `map_character`, tn93.py:524-557: 256 entries, default 16 ('?', resolves to any base). */
-const MAP_CHARACTER = (() => {
-	const m = new Uint8Array(256).fill(16);
-	m[45] = 17; // '-' GAP
-	const codes = { A: 0, B: 11, C: 1, D: 12, G: 2, H: 13, K: 9, M: 10, N: 15, R: 5, S: 7, T: 3, U: 4, V: 14, W: 8, Y: 6 };
-	for (const [ch, v] of Object.entries(codes)) {
-		m[ch.charCodeAt(0)] = v;
-		m[ch.toLowerCase().charCodeAt(0)] = v;
-	}
-	return m;
-})();
-
-/** `resolutions`, tn93.py:559-579: which of A, C, G, T each character code stands for. */
-const RESOLUTIONS = Object.freeze([
-	[1, 0, 0, 0], // A
-	[0, 1, 0, 0], // C
-	[0, 0, 1, 0], // G
-	[0, 0, 0, 1], // T
-	[0, 0, 0, 1], // U
-	[1, 0, 1, 0], // R
-	[0, 1, 0, 1], // Y
-	[0, 1, 1, 0], // S
-	[1, 0, 0, 1], // W
-	[0, 0, 1, 1], // K
-	[1, 1, 0, 0], // M
-	[0, 1, 1, 1], // B
-	[1, 0, 1, 1], // D
-	[1, 1, 0, 1], // H
-	[1, 1, 1, 0], // V
-	[1, 1, 1, 1], // N
-	[1, 1, 1, 1], // ?
-	[0, 0, 0, 0] // GAP
-].map((r) => Object.freeze(r)));
-
-/** `resolutionsCount`, tn93.py:581-600: 1 / |resolutions|, and 0.0 for the gap. */
-const RESOLUTION_COUNTS = Object.freeze([
-	1.0, 1.0, 1.0, 1.0, 1.0, 1 / 2, 1 / 2, 1 / 2, 1 / 2, 1 / 2, 1 / 2, 1 / 3, 1 / 3, 1 / 3, 1 / 3, 1 / 4, 1 / 4, 0.0
-]);
-
-/** The tn93 character code of the gap, `map_character[45]` (tn93.py:525). */
-const GAP = 17;
-
-/** The ambiguity strategy `dataset.py:791` asks for. */
+/** The ambiguity strategy `dataset.py:791` asks for, and `-a resolve` on the compiled engine. */
 export const TN93_MATCH_MODE = 'resolve';
 
-/** `TN93(max_ambig_fraction=1.0)`, the constructor default the reference takes (tn93.py:136). */
+/** `TN93(max_ambig_fraction=1.0)`, the constructor default the reference takes (tn93.py:136), and
+ * `-g 1.0` on the compiled engine. */
 export const TN93_MAX_AMBIG_FRACTION = 1.0;
 
 /**
  * The value `calculate_distance` returns for a pair it cannot resolve (tn93.py:205, the `0 in
- * nucleotide_frequency` branch), the value the reference's dead guard substitutes, and the floor
- * `compute_tn93_distance_matrix` imputes an unwritten entry with (dataset.py:819-820,
+ * nucleotide_frequency` branch), the value the reference's `d < 0 or isnan` guard substitutes, and
+ * the floor `compute_tn93_distance_matrix` imputes an unwritten entry with (dataset.py:819-820,
  * `max(1.0, max_d)`). A distance EQUAL to it is a saturation sentinel, not a measurement.
  */
 export const TN93_SATURATION_SENTINEL = 1.0;
@@ -255,397 +146,63 @@ const TN93_MISSING_SENTINEL = -1.0;
 /**
  * dataset.py:719 `threshold: float = 100.0` — the reporting cutoff the reference hands the compiled
  * binary (`-t 100.0`, retried at 1.0 when a stock build refuses it), so that divergent pairs are not
- * omitted from a deep alignment. It reaches an external `pairwiseDistances` engine and nothing else:
- * the package path this library implements computes every pair and has no cutoff. Module-private
- * because it is not a distance and not part of the export contract.
+ * omitted from a deep alignment. It reaches the `pairwiseDistances` engine and nothing else.
+ * Module-private because it is not a distance and not part of the export contract.
  */
 const TN93_REPORTING_THRESHOLD = 100.0;
 
 /**
- * `[self.map_character[ord(c)] for c in seq]`. Python indexes a 256-entry list, so a character
- * above U+00FF raises IndexError there; that is replicated. Encoding each sequence once is the only
- * departure from the reference's per-position `ord()` and changes no value: the inner loops below
- * read the same codes in the same order.
+ * Thrown when a matrix is asked for and no compiled TN93 engine was supplied.
  *
- * @param {string} seq
- * @returns {Uint8Array}
+ * It is a PROGRAMMING error, not an input one: the caller reached a tree-free path without wiring
+ * an engine into it. Callers that translate library throws into reader-facing findings — the
+ * TN93_SATURATED_PAIRS refusal in `diagnostics.js` is the one in this repository — must let this
+ * one through rather than describe it as a property of the data.
  */
-export function encodeSequence(seq) {
-	const out = new Uint8Array(seq.length);
-	for (let i = 0; i < seq.length; i++) {
-		const c = seq.charCodeAt(i);
-		if (c > 255) throw new Error(`tn93: IndexError: list index out of range (map_character[ord('${seq[i]}')] = map_character[${c}])`);
-		out[i] = MAP_CHARACTER[c];
+export class Tn93EngineRequiredError extends Error {
+	/** @param {string} who the function that refused */
+	constructor(who) {
+		super(
+			`${who}: no compiled TN93 engine was supplied. Pass options.pairwiseDistances — a function ` +
+				'returning the RAW pairwise distances from veg/tn93. @veg/hyphaeon-js contains no TN93 ' +
+				'implementation of its own and will not compute distances itself (a second implementation ' +
+				'of the same arithmetic is a second set of edge cases); the sentinel, the float32 rounding ' +
+				"and dataset.py's imputation are all this library does with the numbers."
+		);
+		this.name = 'Tn93EngineRequiredError';
+		/** A stable code for callers that classify errors without string matching. */
+		this.code = 'TN93_ENGINE_REQUIRED';
+		/** The option that was missing. */
+		this.option = 'pairwiseDistances';
+		/** The function that refused. */
+		this.caller = who;
 	}
-	return out;
-}
-
-/** `TN93.round`, tn93.py:309-311: six SIGNIFICANT digits. */
-function round6(x) {
-	return Number(x.toPrecision(6));
-}
-
-/** `math.log`, which raises instead of returning NaN / -inf. */
-function pyLog(x) {
-	if (!(x > 0)) {
-		throw new Error(`tn93: ValueError: expected a positive input, got ${x} (math.log, tn93.py:203/219)`);
-	}
-	return Math.log(x);
-}
-
-/**
- * `TN93.can_resolve(nuc1, nuc2)`, tn93.py:245-273. True when the two character codes can be
- * reconciled: never for a gap, never for two plain bases.
- *
- * @param {number} n1 character code 0..17
- * @param {number} n2 character code 0..17
- * @returns {boolean}
- */
-export function canResolve(n1, n2) {
-	if (n1 < 4 && n2 < 4) return false;
-	if (n1 === GAP || n2 === GAP) return false;
-	if (n1 < 4) {
-		if (RESOLUTIONS[n2][n1]) return true;
-		for (let j = 0; j < 4; j++) if (RESOLUTIONS[n2][j] && RESOLUTIONS[n1][j]) return true;
-	} else if (n2 < 4) {
-		if (RESOLUTIONS[n1][n2]) return true;
-		for (let j = 0; j < 4; j++) if (RESOLUTIONS[n1][j] && RESOLUTIONS[n2][j]) return true;
-	} else {
-		const norm = RESOLUTION_COUNTS[n1] * RESOLUTION_COUNTS[n2];
-		if (norm > 0.0) {
-			for (let j = 0; j < 4; j++) if (RESOLUTIONS[n1][j] && RESOLUTIONS[n2][j]) return true;
-		}
-		for (let j = 0; j < 4; j++) {
-			if (RESOLUTIONS[n1][j]) {
-				for (let k = 0; k < 4; k++) if (RESOLUTIONS[n2][k]) return true;
-			}
-		}
-	}
-	return false;
-}
-
-/**
- * `TN93.ambig_fraction_too_high(seq1, seq2)`, tn93.py:275-286: `total_non_gap * max_ambig_fraction
- * <= ambig_count`, which for the reference's max_ambig_fraction of 1.0 also fires on the degenerate
- * `0 <= 0` (no overlapping non-gap position at all).
- *
- * @param {string} seq1
- * @param {string} seq2
- * @param {number} [maxAmbigFraction]
- * @returns {boolean}
- */
-export function ambigFractionTooHigh(seq1, seq2, maxAmbigFraction = TN93_MAX_AMBIG_FRACTION) {
-	return ambigFractionTooHighEnc(encodeSequence(seq1), encodeSequence(seq2), maxAmbigFraction);
-}
-
-/** `ambig_fraction_too_high` on encoded sequences. */
-function ambigFractionTooHighEnc(e1, e2, maxAmbigFraction) {
-	let ambig = 0;
-	let totalNonGap = 0;
-	const len = Math.min(e1.length, e2.length);
-	for (let i = 0; i < len; i++) {
-		const n1 = e1[i];
-		const n2 = e2[i];
-		if (canResolve(n1, n2)) ambig++;
-		if (n1 !== GAP && n2 !== GAP) totalNonGap++;
-	}
-	return totalNonGap * maxAmbigFraction <= ambig;
-}
-
-/**
- * `find_terminal_gaps`, tn93.py:235-243, on encoded sequences: `re.match(r"-*").end()` is the number
- * of leading gaps and `re.search(r"-*$").start()` the index after the last non-gap; only '-' maps to
- * the GAP code, so the encoded scan sees the same positions.
- */
-function terminalGaps(e1, e2) {
-	const lead = (/** @type {Uint8Array} */ e) => {
-		let i = 0;
-		while (i < e.length && e[i] === GAP) i++;
-		return i;
-	};
-	const trail = (/** @type {Uint8Array} */ e) => {
-		let i = e.length;
-		while (i > 0 && e[i - 1] === GAP) i--;
-		return i;
-	};
-	// Python: first_nongap = max(s1, s2); last_nongap = min(e1, e2) - 1.
-	return { first: Math.max(lead(e1), lead(e2)), last: Math.min(trail(e1), trail(e2)) - 1 };
-}
-
-const zeroCounts = () => [
-	[0, 0, 0, 0],
-	[0, 0, 0, 0],
-	[0, 0, 0, 0],
-	[0, 0, 0, 0]
-];
-
-/** `get_counts_resolve`, tn93.py:313-381. */
-function countsResolve(e1, e2) {
-	const counts = zeroCounts();
-	const len = Math.min(e1.length, e2.length);
-	for (let p = 0; p < len; p++) {
-		const n1 = e1[p];
-		const n2 = e2[p];
-		if (n1 < 4 && n2 < 4) {
-			counts[n1][n2] += 1;
-			continue;
-		}
-		if (n1 === GAP && n2 === GAP) continue;
-		if (n1 < 4) {
-			if (RESOLUTION_COUNTS[n2] > 0) {
-				if (RESOLUTIONS[n2][n1]) {
-					counts[n1][n1] += 1;
-					continue;
-				}
-				for (let j = 0; j < 4; j++) if (RESOLUTIONS[n2][j]) counts[n1][j] += RESOLUTION_COUNTS[n2];
-			}
-		} else if (n2 < 4) {
-			if (RESOLUTION_COUNTS[n1] > 0) {
-				if (RESOLUTIONS[n1][n2]) {
-					counts[n2][n2] += 1;
-					continue;
-				}
-				for (let j = 0; j < 4; j++) if (RESOLUTIONS[n1][j]) counts[j][n2] += RESOLUTION_COUNTS[n1];
-			}
-		} else {
-			const norm = RESOLUTION_COUNTS[n1] * RESOLUTION_COUNTS[n2];
-			if (norm > 0.0) {
-				let matched = 0;
-				const positive = [false, false, false, false];
-				for (let j = 0; j < 4; j++) {
-					if (RESOLUTIONS[n1][j] && RESOLUTIONS[n2][j]) {
-						matched += 1;
-						positive[j] = true;
-					}
-				}
-				if (matched > 0) {
-					const norm2 = 1 / matched;
-					for (let j = 0; j < 4; j++) if (positive[j]) counts[j][j] += norm2;
-					continue;
-				}
-				for (let j = 0; j < 4; j++) {
-					if (RESOLUTIONS[n1][j]) {
-						for (let k = 0; k < 4; k++) if (RESOLUTIONS[n2][k]) counts[j][k] += norm;
-					}
-				}
-			}
-		}
-	}
-	return counts;
-}
-
-/** `get_counts_average`, tn93.py:383-431. */
-function countsAverage(e1, e2) {
-	const counts = zeroCounts();
-	const len = Math.min(e1.length, e2.length);
-	for (let p = 0; p < len; p++) {
-		const n1 = e1[p];
-		const n2 = e2[p];
-		if (n1 < 4 && n2 < 4) {
-			counts[n1][n2] += 1;
-			continue;
-		}
-		if (n1 === GAP || n2 === GAP) continue;
-		if (n1 < 4) {
-			if (RESOLUTION_COUNTS[n2] > 0) {
-				for (let j = 0; j < 4; j++) if (RESOLUTIONS[n2][j]) counts[n1][j] += RESOLUTION_COUNTS[n2];
-			}
-		} else if (n2 < 4) {
-			if (RESOLUTION_COUNTS[n1] > 0) {
-				for (let j = 0; j < 4; j++) if (RESOLUTIONS[n1][j]) counts[j][n2] += RESOLUTION_COUNTS[n1];
-			}
-		} else {
-			const norm = RESOLUTION_COUNTS[n1] * RESOLUTION_COUNTS[n2];
-			if (norm > 0.0) {
-				for (let j = 0; j < 4; j++) {
-					if (RESOLUTIONS[n1][j]) {
-						for (let k = 0; k < 4; k++) if (RESOLUTIONS[n2][k]) counts[j][k] += norm;
-					}
-				}
-			}
-		}
-	}
-	return counts;
-}
-
-/** `get_counts_gapmm`, tn93.py:433-490: a gap facing a base is treated as an N (code 15). */
-function countsGapmm(e1, e2, ignoreGaps) {
-	const counts = zeroCounts();
-	const len = Math.min(e1.length, e2.length);
-	const { first, last } = terminalGaps(e1, e2);
-	const start = ignoreGaps ? first : 0;
-	const end = ignoreGaps ? last : len;
-	for (let p = start; p < end; p++) {
-		let n1 = e1[p];
-		let n2 = e2[p];
-		if (n1 < 4 && n2 < 4) {
-			counts[n1][n2] += 1;
-			continue;
-		}
-		if (n1 === GAP || n2 === GAP) {
-			if (n1 === GAP && n2 === GAP) continue;
-			if (n1 === GAP) n1 = 15;
-			else n2 = 15;
-		}
-		if (n1 < 4) {
-			if (RESOLUTION_COUNTS[n2] > 0) {
-				for (let j = 0; j < 4; j++) if (RESOLUTIONS[n2][j]) counts[n1][j] += RESOLUTION_COUNTS[n2];
-			}
-		} else if (n2 < 4) {
-			if (RESOLUTION_COUNTS[n1] > 0) {
-				for (let j = 0; j < 4; j++) if (RESOLUTIONS[n1][j]) counts[j][n2] += RESOLUTION_COUNTS[n1];
-			}
-		} else {
-			const norm = RESOLUTION_COUNTS[n1] * RESOLUTION_COUNTS[n2];
-			if (norm > 0.0) {
-				for (let j = 0; j < 4; j++) {
-					if (RESOLUTIONS[n1][j]) {
-						for (let k = 0; k < 4; k++) if (RESOLUTIONS[n2][k]) counts[j][k] += norm;
-					}
-				}
-			}
-		}
-	}
-	return counts;
-}
-
-/** `get_counts_skip`, tn93.py:492-518: only positions where both characters are plain bases. */
-function countsSkip(e1, e2) {
-	const counts = zeroCounts();
-	const len = Math.min(e1.length, e2.length);
-	for (let p = 0; p < len; p++) {
-		const n1 = e1[p];
-		const n2 = e2[p];
-		if (n1 < 4 && n2 < 4) counts[n1][n2] += 1;
-	}
-	return counts;
-}
-
-/**
- * `TN93.get_counts(seq1, seq2, match_mode)`, tn93.py:291-307: the 4x4 pairwise count matrix
- * [A, C, G, T] x [A, C, G, T], float64. `resolve` falls back to `average` when
- * `ambig_fraction_too_high` (see the header).
- *
- * @param {string} seq1
- * @param {string} seq2
- * @param {string} [matchMode] 'resolve' | 'average' | 'gapmm' | 'skip' (case-insensitive)
- * @param {{maxAmbigFraction?: number, ignoreGaps?: boolean}} [options]
- * @returns {number[][]} 4 x 4
- */
-export function tn93Counts(seq1, seq2, matchMode = TN93_MATCH_MODE, options = {}) {
-	return tn93CountsEnc(encodeSequence(seq1), encodeSequence(seq2), matchMode, options);
-}
-
-/** `get_counts` on already-encoded sequences (what `tn93DistanceMatrix` reuses across pairs). */
-function tn93CountsEnc(e1, e2, matchMode, options) {
-	const { maxAmbigFraction = TN93_MAX_AMBIG_FRACTION, ignoreGaps = false } = options;
-	const mode = String(matchMode).toUpperCase();
-	if (mode === 'RESOLVE') {
-		return ambigFractionTooHighEnc(e1, e2, maxAmbigFraction) ? countsAverage(e1, e2) : countsResolve(e1, e2);
-	}
-	if (mode === 'AVERAGE') return countsAverage(e1, e2);
-	if (mode === 'GAPMM') return countsGapmm(e1, e2, ignoreGaps);
-	if (mode === 'SKIP') return countsSkip(e1, e2);
-	// tn93.py:304-306 logs and calls sys.exit(1).
-	throw new Error(`tn93: Match mode ${matchMode} is not recognized`);
-}
-
-/**
- * `TN93.get_nucleotide_frequency(pairwise_counts)`, tn93.py:227-233: row sums PLUS column sums, so
- * the total is counted twice.
- *
- * @param {number[][]} counts 4 x 4
- * @returns {number[]} 4 entries
- */
-export function tn93NucleotideFrequency(counts) {
-	const freq = [0, 0, 0, 0];
-	for (let j = 0; j < 4; j++) {
-		for (let k = 0; k < 4; k++) {
-			freq[j] += counts[j][k];
-			freq[k] += counts[j][k];
-		}
-	}
-	return freq;
-}
-
-/**
- * `TN93.calculate_distance(pairwise_counts, nucleotide_frequency)`, tn93.py:181-225, float64.
- * Throws where Python raises (see the header): ZeroDivisionError on an empty count matrix,
- * ValueError from `math.log` on a saturated pair.
- *
- * @param {number[][]} counts 4 x 4
- * @param {number[]} freq 4 entries
- * @returns {number}
- */
-export function tn93CalculateDistance(counts, freq) {
-	let dist = 0;
-	const freqSum = freq[0] + freq[1] + freq[2] + freq[3];
-	if (freqSum === 0) {
-		throw new Error('tn93: ZeroDivisionError: division by zero (tn93.py:190, the pair has no overlapping non-gap position)');
-	}
-	const totalNonGap = 2 / freqSum;
-	let AG = (counts[0][2] + counts[2][0]) * totalNonGap;
-	let CT = (counts[1][3] + counts[3][1]) * totalNonGap;
-	const matching = (counts[0][0] + counts[1][1] + counts[2][2] + counts[3][3]) * totalNonGap;
-	let tv = 1 - (AG + CT + matching);
-
-	if (freq[0] === 0 || freq[1] === 0 || freq[2] === 0 || freq[3] === 0) {
-		// `if 0 in nucleotide_frequency` (tn93.py:199-205): not the TN93 formula, a fallback.
-		AG = 1 - 2 * (AG + CT) - tv;
-		CT = 1 - 2 * tv;
-		dist = AG > 0 && CT > 0 ? -0.5 * pyLog(AG) - 0.25 * pyLog(CT) : TN93_SATURATION_SENTINEL;
-	} else {
-		const auxd = 1 / freqSum;
-		const nucF = [freq[0] * auxd, freq[1] * auxd, freq[2] * auxd, freq[3] * auxd];
-		const fR = nucF[0] + nucF[2];
-		const fY = nucF[1] + nucF[3];
-		const K1 = (2 * nucF[0] * nucF[2]) / fR;
-		const K2 = (2 * nucF[1] * nucF[3]) / fY;
-		const K3 = 2 * (fR * fY - (nucF[0] * nucF[2] * fY) / fR - (nucF[1] * nucF[3] * fR) / fY);
-		AG = 1 - AG / K1 - (0.5 * tv) / fR;
-		CT = 1 - CT / K2 - (0.5 * tv) / fY;
-		tv = 1 - 0.5 * tv / fY / fR;
-		dist = round6(-K1 * pyLog(AG) - K2 * pyLog(CT) - K3 * pyLog(tv));
-	}
-	// tn93.py:225 `return self.round(dist) if dist > -0.0 else 0.0`.
-	return dist > -0.0 ? round6(dist) : 0.0;
-}
-
-/**
- * One pairwise TN93 distance, float64, exactly as `dataset.py:791-800` composes the package:
- * `get_counts` -> `get_nucleotide_frequency` -> `calculate_distance`. The package's
- * `tn93_distance` wrapper (with its minimum-overlap test) is deliberately not used.
- *
- * @param {string} seqA aligned nucleotide string
- * @param {string} seqB aligned nucleotide string
- * @param {{matchMode?: string, maxAmbigFraction?: number, ignoreGaps?: boolean}} [options]
- * @returns {number}
- */
-export function tn93Distance(seqA, seqB, options = {}) {
-	return tn93DistanceEnc(encodeSequence(seqA), encodeSequence(seqB), options);
-}
-
-/** `tn93Distance` on encoded sequences. */
-function tn93DistanceEnc(e1, e2, options) {
-	const counts = tn93CountsEnc(e1, e2, options.matchMode ?? TN93_MATCH_MODE, options);
-	return tn93CalculateDistance(counts, tn93NucleotideFrequency(counts));
 }
 
 /**
  * `compute_tn93_distance_matrix(seq_dict, taxa)`, dataset.py:715-821: the float32 [n, n] matrix,
- * row-major, with the reference's dead guard, imputation rule and zeroed diagonal.
+ * row-major, with the reference's guard, imputation rule and zeroed diagonal, around an engine's
+ * raw numbers.
  *
  * @param {Map<string, string>|Record<string, string>} sequences taxon -> aligned sequence
  * @param {string[]} taxa the rows/columns, in order
- * @param {{matchMode?: string, maxAmbigFraction?: number, ignoreGaps?: boolean, threshold?: number,
- *   pairwiseDistances?: (seqs: string[], taxa: string[], threshold: number) => ArrayLike<number>}} [options]
- *   `pairwiseDistances` replaces the per-pair computation with an external engine's raw numbers,
- *   read at [i * n + j]; the rounding, the sentinel and dataset.py's imputation still happen here.
- *   `threshold` is dataset.py:719's reporting cutoff, handed to that engine because only it has a
- *   cutoff; the package path this library implements computes every pair and ignores it.
+ * @param {{threshold?: number,
+ *   pairwiseDistances: (seqs: string[], taxa: string[], threshold: number) => ArrayLike<number>}} options
+ *   `pairwiseDistances` is REQUIRED and supplies the RAW pairwise distances, read at [i * n + j];
+ *   the rounding, the sentinel and dataset.py's imputation happen here. `null` or `undefined` for a
+ *   pair means "not written", exactly as a pair the binary omitted from its CSV leaves dataset.py's
+ *   matrix at -1.0, and is imputed below; it is NOT the package's saturation answer, and at
+ *   threshold 100.0 the two are different numbers. `threshold` is dataset.py:719's reporting cutoff,
+ *   handed to the engine because only the engine has a cutoff.
  * @returns {Float32Array} length taxa.length ** 2
+ * @throws {Tn93EngineRequiredError} when `pairwiseDistances` is absent
  */
-export function tn93DistanceMatrix(sequences, taxa, options = {}) {
+export function tn93DistanceMatrix(sequences, taxa, options = /** @type {any} */ ({})) {
+	// UNCONDITIONAL, and before the n <= 1 shortcut on purpose: a caller with no engine is broken at
+	// every size, and a rule that let small inputs through would be the size-based selector this
+	// library is not allowed to have.
+	if (typeof options.pairwiseDistances !== 'function') throw new Tn93EngineRequiredError('tn93DistanceMatrix');
+
 	const get = sequences instanceof Map ? (/** @type {string} */ t) => sequences.get(t) : (/** @type {string} */ t) => sequences[t];
 	const n = taxa.length;
 	const dist = new Float32Array(n * n);
@@ -661,35 +218,19 @@ export function tn93DistanceMatrix(sequences, taxa, options = {}) {
 		if (typeof s !== 'string') throw new Error(`tn93DistanceMatrix: no sequence for taxon '${t}'`);
 		return s;
 	});
-	// An external provider (the compiled tn93 through WebAssembly, dataset.py:740-784's branch when
-	// the binary is on PATH) may supply the RAW pairwise distances; everything downstream of them —
-	// the dead guard, float32 rounding, the sentinel and dataset.py's imputation — stays here, so
-	// the two engines can differ only in the numbers they compute, never in what is done with them.
-	// The callback takes the sequences in `taxa` order and returns an n*n array-like read at
-	// [i * n + j]; `null` or `undefined` for a pair means "not written", exactly as a pair the binary
-	// omitted from its CSV leaves dataset.py's matrix at -1.0, and is imputed below. It is NOT the
-	// package's saturation answer, and at threshold 100.0 the two are different numbers.
-	const provider =
-		typeof options.pairwiseDistances === 'function'
-			? options.pairwiseDistances(seqs, taxa, options.threshold ?? TN93_REPORTING_THRESHOLD)
-			: null;
-	const encoded = provider ? null : seqs.map(encodeSequence);
+	// The engine (the compiled tn93 through WebAssembly, dataset.py:740-784's branch when the binary
+	// is on PATH) supplies the RAW pairwise distances; everything downstream of them stays here, so
+	// two engines can differ only in the numbers they compute, never in what is done with them.
+	const provider = options.pairwiseDistances(seqs, taxa, options.threshold ?? TN93_REPORTING_THRESHOLD);
 
 	let maxD = 0;
 	for (let i = 0; i < n; i++) {
 		for (let j = i + 1; j < n; j++) {
-			let d = provider ? provider[i * n + j] : tn93DistanceEnc(encoded[i], encoded[j], options);
+			let d = provider[i * n + j];
 			if (d === null || d === undefined) continue; // never written; left at the sentinel
-			// dataset.py:805 `if d is None or d == "-" or d < 0 or np.isnan(d): d = 1.0` (dead on the
-			// package path), and dataset.py:795-799's `except (ValueError, OverflowError): d = 1.0`,
-			// which the isNaN arm covers because Math.log returns NaN where CPython raises.
-			//
-			// NOT CAUGHT HERE, deliberately, and the SIBLING `tn93CrossDistanceMatrix` DOES catch it:
-			// this function's throw is a pinned contract (diagnostics.js turns it into the
-			// TN93_SATURATED_PAIRS refusal a reader is shown, test/diagnostics.test.js:290-299), so
-			// completing dataset.py:795-799's `except (ValueError, OverflowError): d = 1.0` here would
-			// silently turn a refusal into a distance of 1.0 for the selection pillar. Recorded as a
-			// port gap rather than changed under a pillar that did not ask for it.
+			// dataset.py:805 `if d is None or d == "-" or d < 0 or np.isnan(d): d = 1.0`, and
+			// dataset.py:795-799's `except (ValueError, OverflowError): d = 1.0`. An engine that reports
+			// a degenerate pair as a negative or a NaN lands here rather than raising.
 			if (d < 0 || Number.isNaN(d)) d = TN93_SATURATION_SENTINEL;
 			const f = Math.fround(d);
 			dist[i * n + j] = f;
@@ -728,26 +269,29 @@ export function tn93DistanceMatrix(sequences, taxa, options = {}) {
  *
  * THE `*` QUESTION IS THE CALLER'S, AND IT IS NOT COSMETIC. dataset.py rewrites `*` to `-` only in
  * the branch that writes FASTA for the compiled `tn93` binary (dataset.py:840, 844); the Python
- * package branch this file mirrors passes `*` through, where the package's character map sends it
- * to the catch-all unknown. The two engines therefore disagree on any alignment containing `*`.
- * MEASURED on examples/korber_env_gp160.fasta (2389 asterisks across 18 of 143 sequences): with
- * `*` rewritten to `-` before this call, all 142 root divergences reproduce the reference's
- * compiled-binary run EXACTLY (max |Δ| = 0.0); without it, 18 of them differ and `Z59ZR.ZHU` moves
- * from 0.06076440 to 0.11056680. The library mirrors both branches faithfully and rewrites nothing;
- * the application decides, per pillar, which convention its reference-of-record used, and records
- * the choice in the run's provenance.
+ * package branch passes `*` through, where the package's character map sends it to the catch-all
+ * unknown. The two engines therefore disagree on any alignment containing `*`. MEASURED on
+ * examples/korber_env_gp160.fasta (2389 asterisks across 18 of 143 sequences): with `*` rewritten to
+ * `-` before this call, all 142 root divergences reproduce the reference's compiled-binary run
+ * EXACTLY (max |Δ| = 0.0); without it, 18 of them differ and `Z59ZR.ZHU` moves from 0.06076440 to
+ * 0.11056680. The library rewrites nothing; the application decides, per pillar, which convention
+ * its reference-of-record used, and records the choice in the run's provenance.
  *
  * @param {Map<string, string>|Record<string, string>} sequences taxon -> aligned sequence
  * @param {string[]} taxaAll the rows, in order
  * @param {string[]} taxaLandmarks the columns, in order
- * @param {{matchMode?: string, maxAmbigFraction?: number, ignoreGaps?: boolean, threshold?: number,
- *   pairwiseDistances?: (allSeqs: string[], landmarkSeqs: string[], taxaAll: string[], taxaLandmarks: string[], threshold: number) => ArrayLike<number>}} [options]
- *   `pairwiseDistances` replaces the per-pair computation with an external engine's raw numbers,
- *   read at [i * m + j]; `null`/`undefined` for a pair means "not written" and is imputed below,
- *   exactly as a pair the binary omitted from its CSV leaves dataset.py's matrix at -1.0.
+ * @param {{threshold?: number,
+ *   pairwiseDistances: (allSeqs: string[], landmarkSeqs: string[], taxaAll: string[], taxaLandmarks: string[], threshold: number) => ArrayLike<number>}} options
+ *   `pairwiseDistances` is REQUIRED and supplies the RAW distances, read at [i * m + j];
+ *   `null`/`undefined` for a pair means "not written" and is imputed below, exactly as a pair the
+ *   binary omitted from its CSV leaves dataset.py's matrix at -1.0.
  * @returns {Float32Array} length taxaAll.length * taxaLandmarks.length, row-major
+ * @throws {Tn93EngineRequiredError} when `pairwiseDistances` is absent
  */
-export function tn93CrossDistanceMatrix(sequences, taxaAll, taxaLandmarks, options = {}) {
+export function tn93CrossDistanceMatrix(sequences, taxaAll, taxaLandmarks, options = /** @type {any} */ ({})) {
+	// Unconditional, and before the empty-axis shortcut, for the reason given on the square sibling.
+	if (typeof options.pairwiseDistances !== 'function') throw new Tn93EngineRequiredError('tn93CrossDistanceMatrix');
+
 	const get = sequences instanceof Map ? (/** @type {string} */ t) => sequences.get(t) : (/** @type {string} */ t) => sequences[t];
 	const n = taxaAll.length;
 	const m = taxaLandmarks.length;
@@ -764,12 +308,7 @@ export function tn93CrossDistanceMatrix(sequences, taxaAll, taxaLandmarks, optio
 	};
 	const allSeqs = taxaAll.map(read);
 	const lmSeqs = taxaLandmarks.map(read);
-	const provider =
-		typeof options.pairwiseDistances === 'function'
-			? options.pairwiseDistances(allSeqs, lmSeqs, taxaAll, taxaLandmarks, options.threshold ?? TN93_REPORTING_THRESHOLD)
-			: null;
-	const encAll = provider ? null : allSeqs.map(encodeSequence);
-	const encLm = provider ? null : lmSeqs.map(encodeSequence);
+	const provider = options.pairwiseDistances(allSeqs, lmSeqs, taxaAll, taxaLandmarks, options.threshold ?? TN93_REPORTING_THRESHOLD);
 
 	// dataset.py:893-914, landmark-major: `for j, lm: for i, t:`.
 	for (let j = 0; j < m; j++) {
@@ -778,24 +317,10 @@ export function tn93CrossDistanceMatrix(sequences, taxaAll, taxaLandmarks, optio
 				dist[i * m + j] = 0.0;
 				continue;
 			}
-			let d;
-			if (provider) d = provider[i * m + j];
-			else {
-				// dataset.py:903-906's `except (ValueError, OverflowError): d = 1.0`. The tn93
-				// package RAISES on a saturated pair (math.log of a non-positive corrected
-				// proportion) rather than returning a sentinel, and `pyLog` above mirrors that.
-				// NOTE the asymmetry with the square sibling above, which does NOT catch: that one's
-				// throw is a pinned contract (diagnostics.js renders it as the TN93_SATURATED_PAIRS
-				// refusal), while this one is new and mirrors its reference branch as written.
-				// A `ZeroDivisionError` — a pair with NO overlapping non-gap position — is uncaught
-				// upstream too and still kills the run, here as there.
-				try {
-					d = tn93DistanceEnc(encAll[i], encLm[j], options);
-				} catch {
-					d = TN93_SATURATION_SENTINEL;
-				}
-			}
+			let d = provider[i * m + j];
 			if (d === null || d === undefined) continue; // never written; left at the sentinel
+			// dataset.py:903-906's `except (ValueError, OverflowError): d = 1.0` covered a raising
+			// engine; an engine that returns a negative or a NaN for the same pair lands here.
 			if (d < 0 || Number.isNaN(d)) d = TN93_SATURATION_SENTINEL;
 			dist[i * m + j] = Math.fround(d);
 		}
@@ -822,16 +347,14 @@ export function tn93CrossDistanceMatrix(sequences, taxaAll, taxaLandmarks, optio
 
 /**
  * How many unordered pairs sit exactly at the saturation sentinel (PLAN.md D22's report line, and
- * diagnostics.js's TN93_SATURATED_PAIRS). Equality is exact: such a pair was never measured — it
- * comes from `calculate_distance`'s `0 in nucleotide_frequency` fallback or from the reference's
- * `d < 0 or isnan` guard. A pair whose TN93 distance exceeds 1.0 by measurement is not counted.
+ * diagnostics.js's TN93_SATURATED_PAIRS). Equality is exact: such a pair was not measured — it comes
+ * from the engine's own saturation answer or from the `d < 0 or isnan` guard above.
  *
  * CAVEAT since the reference moved to the -1.0 missing sentinel: an entry that was never written is
  * imputed to `max(1.0, max_d)`, which equals this sentinel only while nothing in the matrix exceeds
- * 1.0. On the package path this library implements no entry is ever unwritten, so the count is exact
- * there; a caller supplying `pairwiseDistances` from an engine with a reporting cutoff — and the
- * reference's cutoff is now 100.0, so measured distances above 1.0 are reported rather than dropped
- * — can have imputed entries this does not count. Pass an explicit `sentinel` in that case.
+ * 1.0. An engine with a reporting cutoff — and the reference's cutoff is now 100.0, so measured
+ * distances above 1.0 are reported rather than dropped — can leave imputed entries this does not
+ * distinguish from saturated ones. Pass an explicit `sentinel` in that case.
  *
  * @param {ArrayLike<number>} dist row-major n x n
  * @param {number} n
@@ -843,11 +366,3 @@ export function tn93SaturatedPairs(dist, n, sentinel = TN93_SATURATION_SENTINEL)
 	for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) if (dist[i * n + j] === sentinel) count++;
 	return count;
 }
-
-/** The raw tables, exported so the fixtures can pin them (tn93.py:523-601). */
-export const TN93_TABLES = Object.freeze({
-	mapCharacter: MAP_CHARACTER,
-	resolutions: RESOLUTIONS,
-	resolutionCounts: RESOLUTION_COUNTS,
-	gap: GAP
-});

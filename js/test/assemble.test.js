@@ -17,6 +17,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { loadAlignmentAndTree, siteBatch, siteBatches, batchSizeFor } from '../src/preprocess/assemble.js';
+import { stubTn93Options } from './helpers/tn93-engine.js';
 import { computeMdsCoordinates } from '../src/preprocess/mds.js';
 import { validateInputBundle } from '../src/preprocess/modelContract.js';
 
@@ -90,7 +91,10 @@ describe('loadAlignmentAndTree', () => {
 	it('takes the tree-free TN93 path on request, in ALIGNMENT order (D22)', () => {
 		// 9 nucleotides saturate TN93, so the tree-free cases use a longer alignment; the full
 		// tree-free assembly and its fixture replay are in tn93.test.js.
-		for (const r of [loadAlignmentAndTree(LONG_FASTA, 'tn93'), loadAlignmentAndTree(LONG_FASTA, LONG_TREE, { useTn93: true })]) {
+		// The subject is the BRANCH and the taxon order, not the distances; the engine is a test
+		// double (test/helpers/tn93-engine.js) and `d[1] > 0` only asks that its answer arrived.
+		const tn93Options = stubTn93Options();
+		for (const r of [loadAlignmentAndTree(LONG_FASTA, 'tn93', { tn93Options }), loadAlignmentAndTree(LONG_FASTA, LONG_TREE, { useTn93: true, tn93Options })]) {
 			expect(r.taxa).toEqual(['alpha', 'beta', 'gamma', 'delta']);
 			expect(r.notices.treeFree).toEqual({ reason: 'requested', taxaOrder: 'alignment' });
 			expect(r.notices.matchTier).toBeNull();
@@ -100,7 +104,7 @@ describe('loadAlignmentAndTree', () => {
 	});
 
 	it('goes tree-free for a tree without branch lengths instead of the "HyPhy not found" branch (D22)', () => {
-		const r = loadAlignmentAndTree(LONG_FASTA, '((gamma,delta),(beta,alpha));');
+		const r = loadAlignmentAndTree(LONG_FASTA, '((gamma,delta),(beta,alpha));', { tn93Options: stubTn93Options() });
 		expect(r.notices.branchLengthsMissing).toBe(true);
 		expect(r.notices.treeFree).toEqual({ reason: 'no_branch_lengths', taxaOrder: 'alignment' });
 		// The topology is still returned for display, with its branch lengths untouched (null).

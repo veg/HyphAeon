@@ -71,6 +71,25 @@ import {
 	timeDecayConsensusSequence,
 	tn93CrossDistanceMatrix
 } from '../src/index.js';
+import { fixtureCrossEngine } from './helpers/tn93-engine.js';
+
+/**
+ * Since the JavaScript TN93 was deleted (src/preprocess/tn93.js, 2026-09-13) every dating call that
+ * needs a distance needs the compiled engine handed in. These two build one out of the PYTHON
+ * REFERENCE'S OWN numbers, so the pillar is still replayed against Python end to end: only the
+ * arithmetic that produced the distances has moved out of this repository.
+ *
+ * `columnEngine` answers the ONE-LANDMARK rectangular call every case but the cohort one makes, and
+ * checks the shape while it is at it — a landmark count of 1 and a row count matching the fixture's
+ * divergence vector is itself part of what `compute_tree_free_divergences` promises.
+ */
+const columnEngine = (column) => (/** @type {any[]} */ ...args) => {
+	const [, , taxaAll, taxaLandmarks] = args;
+	expect(args.length, 'the rectangular hook takes five arguments').toBe(5);
+	expect(taxaLandmarks.length, 'one landmark: the root anchor').toBe(1);
+	expect(taxaAll.length, 'one row per returned taxon').toBe(column.length);
+	return Float64Array.from(column);
+};
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FIXTURES = join(HERE, '..', '..', 'fixtures');
@@ -225,7 +244,12 @@ describe('compute_tn93_cross_distance_matrix (dataset.py:824-928)', () => {
 		it(`${c.name}: the N x M float32 matrix, exactly`, () => {
 			expect(c.tolerance).toBe('exact');
 			const [n, m] = c.outputs.shape;
-			const got = tn93CrossDistanceMatrix(c.inputs.seq_dict, c.inputs.taxa_all, c.inputs.taxa_landmarks);
+			// Python's matrix goes in as the engine's raw answer; the landmark self-zeros, the float32
+			// rounding, the `d < 0 or isnan` guard and the max(1.0, max_d) imputation on top of it are
+			// the library's and are what this still checks, entry by entry.
+			const got = tn93CrossDistanceMatrix(c.inputs.seq_dict, c.inputs.taxa_all, c.inputs.taxa_landmarks, {
+				pairwiseDistances: fixtureCrossEngine(c.inputs.taxa_all, c.inputs.taxa_landmarks, c.outputs.matrix.map((row) => row.map(decode)))
+			});
 			expect(got.length).toBe(n * m);
 			for (let i = 0; i < n; i++) {
 				for (let j = 0; j < m; j++) {
@@ -237,6 +261,28 @@ describe('compute_tn93_cross_distance_matrix (dataset.py:824-928)', () => {
 });
 
 describe('compute_tree_free_divergences (dating.py:624-698)', () => {
+	/**
+	 * The cohort case is the one that asks for TWO landmarks, so its divergences are column MEANS and
+	 * the fixture's vector cannot be read back as a column. These are the raw pairwise distances the
+	 * reference itself produces for its four dated taxa, generated on 2026-09-13 with the tn93 1.2.2
+	 * package exactly as dataset.py:791-800 composes it — `tn = TN93(); c = tn.get_counts(a, b,
+	 * 'resolve'); tn.calculate_distance(c, tn.get_nucleotide_frequency(c))` — which is the same call
+	 * chain scripts/gen_fixtures.py uses for fixtures/dataset/tn93_distance.json. The cohort is
+	 * {early, twin} (both dated 2000 within the 1e-4 window), and the means over those two columns
+	 * are the fixture's divergences [0, 0.0891461, 0.192527, 0] exactly.
+	 */
+	const COHORT_TAXA = ['early', 'mid', 'late', 'twin'];
+	const COHORT_RAW = [
+		[0.0, 0.0891461, 0.192527, 0.0],
+		[0.0891461, 0.0, 0.0891461, 0.0891461],
+		[0.192527, 0.0891461, 0.0, 0.192527],
+		[0.0, 0.0891461, 0.192527, 0.0]
+	];
+	const engineFor = (c) =>
+		c.name === '002_case3_earliest_cohort'
+			? fixtureCrossEngine(COHORT_TAXA, COHORT_TAXA, COHORT_RAW)
+			: columnEngine(c.outputs.divergences.map(decode));
+
 	for (const c of load('compute_tree_free_divergences')) {
 		it(`${c.name}: ${c.outputs.root_description}`, () => {
 			expect(c.tolerance).toBe('exact');
@@ -244,7 +290,8 @@ describe('compute_tree_free_divergences (dating.py:624-698)', () => {
 			const got = computeTreeFreeDivergences(seqs, c.inputs.dated_taxa, decodeDates(c.inputs.dates_map), {
 				rootTaxon: c.inputs.root_taxon,
 				decayGamma: c.inputs.decay_gamma,
-				decayHalfLife: c.inputs.decay_half_life
+				decayHalfLife: c.inputs.decay_half_life,
+				pairwiseDistances: engineFor(c)
 			});
 			expect(got.root_description).toBe(c.outputs.root_description);
 			expect(got.divergences.length).toBe(c.outputs.divergences.length);
@@ -447,12 +494,22 @@ function alignmentFor(fasta) {
 	return out;
 }
 
-/** dating.py:2481-2497, 2687-2709, 2714, 2841, 2999-3062, with every library call in between. */
-function runDatingChain(fasta, rootTaxon) {
+/**
+ * dating.py:2481-2497, 2687-2709, 2714, 2841, 2999-3062, with every library call in between.
+ *
+ * `divergences` is the reference's own `taxa_summary[].root_divergence` column, handed in as the
+ * compiled engine's answer since the JavaScript TN93 was deleted. The chain is a ONE-LANDMARK
+ * rectangular call (the root anchor), so that column IS the matrix: feeding it back reproduces the
+ * whole acceptance run — the divergences, the OLS block, the spline, the per-taxon rows and the
+ * ensemble — against Python exactly as before, with only the distance arithmetic gone from this
+ * repository. `columnEngine` checks the shape it is asked for, so a chain that stopped making a
+ * one-landmark call would fail here rather than pass on a reshaped answer.
+ */
+function runDatingChain(fasta, rootTaxon, divergences) {
 	const { cleaned } = alignmentFor(fasta);
 	const dates = new Map([...cleaned.keys()].map((t) => [t, parseHeaderTimestamp(t, { archival1959: true })]));
 	const dated = [...cleaned.keys()].filter((t) => !Number.isNaN(dates.get(t)) && t !== rootTaxon);
-	const tf = computeTreeFreeDivergences(cleaned, dated, dates, { rootTaxon });
+	const tf = computeTreeFreeDivergences(cleaned, dated, dates, { rootTaxon, pairwiseDistances: columnEngine(divergences) });
 	const times = Float64Array.from(dated, (t) => dates.get(t));
 
 	// The coverage holdout, dating.py:2698-2709: upper-case ACGT only, a hard 0.50 cut, and only
@@ -518,7 +575,7 @@ describe('the acceptance run: `hyphaeon dating -a <fa> --root-taxon CONSENSUS --
 		const fasta = c.outputs.result.alignment;
 		it(`${fasta} reproduces the reference's published record`, () => {
 			const ref = c.outputs.result;
-			const got = runDatingChain(fasta, 'CONSENSUS');
+			const got = runDatingChain(fasta, 'CONSENSUS', ref.taxa_summary.map((r) => r.root_divergence));
 
 			// -- ingestion -------------------------------------------------------------------
 			expect(got.tf.root_description).toBe(ref.root_description);
@@ -625,7 +682,7 @@ describe('the acceptance run: `hyphaeon dating -a <fa> --root-taxon CONSENSUS --
 
 	it('korber: the flagship facts a reader acts on', () => {
 		const ref = load('run_mrca_dating').find((c) => c.name === 'korber_env_gp160').outputs.result;
-		const got = runDatingChain('korber_env_gp160.fasta', 'CONSENSUS');
+		const got = runDatingChain('korber_env_gp160.fasta', 'CONSENSUS', ref.taxa_summary.map((r) => r.root_divergence));
 		// 143 sequences, 142 dated (CONSENSUS is the miss), 141 in the fit: the one reserved row is
 		// the 1959 Léopoldville isolate, at 17.6 % ACGT coverage.
 		expect(alignmentFor('korber_env_gp160.fasta').cleaned.size).toBe(143);
@@ -650,7 +707,8 @@ describe('the acceptance run: `hyphaeon dating -a <fa> --root-taxon CONSENSUS --
 	});
 
 	it('H1N1: the other branch of every rule korber exercises', () => {
-		const got = runDatingChain('H1N1_2009_pandemic.fasta', 'CONSENSUS');
+		const h1n1 = load('run_mrca_dating').find((c) => c.name === 'H1N1_2009_pandemic').outputs.result;
+		const got = runDatingChain('H1N1_2009_pandemic.fasta', 'CONSENSUS', h1n1.taxa_summary.map((r) => r.root_divergence));
 		// No root sequence in the file, so --root-taxon CONSENSUS falls through to case 4.
 		expect(got.tf.root_description).toBe('time_decay_consensus_root (γ=3.0030)');
 		expect(got.tf.case).toBe(4);
@@ -678,14 +736,20 @@ describe('the acceptance run: `hyphaeon dating -a <fa> --root-taxon CONSENSUS --
 		expect(Math.abs(withGap.ols.t_mrca - asIs.ols.t_mrca)).toBeGreaterThan(0.09);
 		expect(Math.abs(withGap.ols.ci_fieller[0] - asIs.ols.ci_fieller[0])).toBeGreaterThan(0.28);
 
-		// And the port reproduces the OTHER convention too, when handed the other sequences.
-		const { trimmed } = alignmentFor('korber_env_gp160.fasta');
-		const dates = new Map([...trimmed.keys()].map((t) => [t, parseHeaderTimestamp(t, { archival1959: true })]));
-		const dated = [...trimmed.keys()].filter((t) => !Number.isNaN(dates.get(t)) && t !== 'CONSENSUS');
-		const tf = computeTreeFreeDivergences(trimmed, dated, dates, { rootTaxon: 'CONSENSUS' });
-		asIs.taxa_summary.forEach((r, i) => expect(tf.divergences[i], `${r.taxon} unmodified`).toBe(r.root_divergence));
+		// WHICH CONVENTION AN ENGINE IMPLEMENTS IS NO LONGER THIS LIBRARY'S PROPERTY. Until
+		// 2026-09-13 this block re-derived the unmodified convention's divergences from the port and
+		// compared them element by element with the reference; the port is gone, and the `*` question
+		// now belongs to whatever compiled engine the application wires in (tn93.js's header records
+		// the measurement and says so). What the fixtures still pin, and what the library is still
+		// answerable for, is that the two conventions are two different distance columns and that the
+		// pillar carries each of them to its own published answer.
 		const differing = asIs.taxa_summary.filter((r, i) => r.root_divergence !== withGap.taxa_summary[i].root_divergence);
 		expect(differing.length, 'sequences carrying at least one asterisk').toBe(18);
+		const gotAsIs = runDatingChain('korber_env_gp160.fasta', 'CONSENSUS', asIs.taxa_summary.map((r) => r.root_divergence));
+		const gotWithGap = runDatingChain('korber_env_gp160.fasta', 'CONSENSUS', withGap.taxa_summary.map((r) => r.root_divergence));
+		expect(near(gotAsIs.ols.t_mrca, asIs.ols.t_mrca, 1e-9, 'asIs.t_mrca')).toBeNull();
+		expect(near(gotWithGap.ols.t_mrca, withGap.ols.t_mrca, 1e-9, 'withGap.t_mrca')).toBeNull();
+		expect(Math.abs(gotWithGap.ols.t_mrca - gotAsIs.ols.t_mrca)).toBeGreaterThan(0.09);
 	});
 });
 

@@ -117,22 +117,19 @@ const PUBLIC_SURFACE = [
 	'readNewick',
 	'stripQuotes',
 	'treeTaxa',
-	// preprocess/tn93.js
+	// preprocess/tn93.js. The WRAPPING only: the JavaScript TN93 port was deleted on 2026-09-13 and
+	// took eight exports with it (encodeSequence, canResolve, ambigFractionTooHigh, tn93Counts,
+	// tn93NucleotideFrequency, tn93CalculateDistance, tn93Distance, TN93_TABLES) — a breaking change
+	// to @veg/hyphaeon-js. The compiled veg/tn93 engine is the only implementation now, injected as
+	// `pairwiseDistances`, and Tn93EngineRequiredError is what a caller without one gets.
 	'tn93CrossDistanceMatrix',
 	'TN93_FALLBACK_MAX',
 	'TN93_MATCH_MODE',
 	'TN93_MAX_AMBIG_FRACTION',
 	'TN93_MIN_POSITIVE_DISTANCE',
 	'TN93_SATURATION_SENTINEL',
-	'TN93_TABLES',
-	'ambigFractionTooHigh',
-	'canResolve',
-	'encodeSequence',
-	'tn93CalculateDistance',
-	'tn93Counts',
-	'tn93Distance',
+	'Tn93EngineRequiredError',
 	'tn93DistanceMatrix',
-	'tn93NucleotideFrequency',
 	'tn93SaturatedPairs',
 	// preprocess/consensus.js
 	'CONSENSUS_EMPTY_CHAR',
@@ -520,14 +517,22 @@ describe('the package entry point', () => {
 		expect(Array.from(lib.pvalsFromLrtMeme(new Float32Array(3)))).toEqual([2 / 3, 2 / 3, 2 / 3]);
 		// D22: the same alignment with NO tree goes tree-free through the barrel — TN93 distances,
 		// alignment order, the tree slot null — rather than throwing as it did before Phase 3a.
+		// (the engine is the caller's since the port was deleted, so the barrel has to carry the
+		// option through too; the double is not a TN93 and this block asserts nothing about its
+		// numbers beyond the wrapping placing them where the model reads them).
 		const treeFree = lib.loadAlignmentAndTree('>alpha\nATGTTATCA\n>beta\nATGCTATCA\n>gamma\nATGTTAAGC\n', null, {
-			maxSpecies: 8
+			maxSpecies: 8,
+			tn93Options: { pairwiseDistances: () => Float64Array.from([0, 0.25, 0.5, 0.25, 0, 0.75, 0.5, 0.75, 0]) }
 		});
 		expect(treeFree.tree).toBeNull();
 		expect(treeFree.notices.treeFree).toEqual({ reason: 'no_tree', taxaOrder: 'alignment' });
 		expect(treeFree.taxa).toEqual(['alpha', 'beta', 'gamma']);
-		expect(treeFree.d[1]).toBe(Math.fround(lib.tn93Distance('ATGTTATCA', 'ATGCTATCA')));
+		expect(treeFree.d[1]).toBe(Math.fround(0.25));
 		expect(treeFree.d[1]).toBeGreaterThan(0);
+		// And without one the barrel refuses, naming the option rather than failing as a TypeError.
+		expect(() => lib.loadAlignmentAndTree('>alpha\nATGTTATCA\n>beta\nATGCTATCA\n>gamma\nATGTTAAGC\n', null)).toThrow(
+			lib.Tn93EngineRequiredError
+		);
 	});
 });
 
