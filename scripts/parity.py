@@ -46,6 +46,22 @@ The constants below are cited there; the non-obvious decisions:
     budgets, 1e-5 * (max(1, |baseline|) + max(1, |mutant|)); a delta of 0.03 between two LRTs of
     5 is otherwise held to 1e-5 while its inputs may each move 5e-5 (measured up to 4.1x the
     single-value bound on RHO before this rule).
+  - the ORDER of a list the reference sorts on one float field (`edges` and the phenotype
+    `coselection_pairs`, both `sort(key=cesi, reverse=True)`; stable on both sides, and both
+    surfaces insert in the same triangle order, so the order is a pure function of `cesi`) is
+    asserted at THAT FIELD'S class, not below it: the key set is exact, each list must be sorted
+    by its own key, and rank i must carry the same key value on both sides to within
+    1e-5 * max(1, |ref|). An exact order check is an assertion about `cesi` at zero tolerance,
+    which contradicts the graph class this script already grants that field. Measured on
+    korber_env_gp160 (1,007 edges): reference and node `cesi` disagree by a median 9.5e-07, up to
+    7.9e-06, while 17 of the 1,006 adjacent pairs are closer together than the field's own
+    8.1e-05 tolerance and the closest two are 2.4e-07 = one float32 ulp apart. Which way such a
+    pair lands is the machine's BLAS, not the analysis; a surface that really mis-ranks an edge
+    puts a different key value at that rank and still fails. Where the key is EXACTLY tied across
+    a run of ranks on both sides, with the same members, the order there is fixed by the stable
+    sort and the insertion order rather than by the key, and is still asserted exactly: that is
+    the one case rank-by-rank value equality cannot see, and it is where an unstable sort or a
+    changed enumeration order in a port would hide.
   - p_value / q_value (meme) are checked at 1e-9 "given equal LRT": the reference p-value function
     is evaluated on the SURFACE's own LRT, and the surface's q against `benjamini_hochberg` of the
     SURFACE's own p, both rounded to float32 because the reference CLI writes them as float32
@@ -116,8 +132,52 @@ TOL_SPECIAL = 1e-9        # chi2 / BH on identical inputs (p, q given the surfac
 TOL_DERIVED = 1e-6        # float32 cosine networks and everything downstream of them; p-values
                           # downstream of graph-class inputs (ACAT, Simes, DMS p, phenotype site p)
 STAT_SIGMAS = 3.0         # statistical class: |dp| <= 3 * sqrt(p(1-p) (1/B_ref + 1/B_got))
-STAT_NULL_REL = 0.02      # statistical class: null moments within 2% relative ...
-STAT_NULL_MIN_B = 10000   # ... only when both sides ran at least this many permutations
+STAT_NULL_MIN_B = 10000   # null moments are enforced only when both sides ran at least this many
+
+# NULL MOMENTS: 3 sigma of the estimator's OWN sampling distribution, not a flat relative number.
+#
+# `compute_sector_permutation_test` (epistasis.py:224-307) draws B iid K-site subsets and reports
+# three DIFFERENT statistics of the same sample: the mean, the population standard deviation and
+# the 95th percentile of the null coherence. They are three estimators with three different
+# sampling variances, so one flat relative bound cannot size all three. Measured at B = 10,000
+# over 200-400 seeds on every (example, K) the suite compares -- 23 independent nulls across all 8
+# alignments, K = 2..12, candidate pools 86..793 -- the estimators' own relative standard errors
+# are mean 0.13-0.23%, std 0.47-0.99%, p95 0.18-0.53%. PLAN.md 5.4's flat "null moments within 2%"
+# is therefore roughly a 10 sigma bound on the mean, a 4-6 sigma bound on p95, and only a 1.5-2.9
+# sigma bound on the std: the per-test excursion rate on the std alone is 0.3-14% and the expected
+# number of excursions in one clean parity run is 1.19, i.e. a run with no defect in it fails this
+# check 71% of the time (measured empirically over all ordered seed pairs). Run 34730693101's one
+# violation -- node-tn93 korber_env_gp160 sector 1, 2.22% relative -- is that expectation arriving.
+# It is not a divergence: on identical attributions, over 300 seeds each, the port and the
+# reference agree on the POPULATION value of all three moments to within 0.05% relative (|z| <= 2.4).
+#
+# So each moment gets the p_perm bound's own construction: 3 sigma of the difference of two
+# independent estimates, each at its own B. For B iid draws with SD sigma and kurtosis kappa,
+#     se(mean) = sigma / sqrt(B)                          -> c = 1              (CLT, exact)
+#     se(std)  = sigma * sqrt((kappa - 1) / (4B))         -> c = sqrt((kappa-1)/4)
+#     se(p95)  = sigma * sqrt(q(1-q)) / (phi(z_q) sqrt(B)) -> c = 2.11 if normal
+# and, taking sigma from the reference's own `null_coherence_std`,
+#     |delta| <= STAT_SIGMAS * c * null_coherence_std_ref * sqrt(1/B_ref + 1/B_surface)
+#
+# Cross-checked independently, by measuring se(.) DIRECTLY over 300 seeds at B = 10,000 and
+# dividing by sigma/sqrt(B), on korber (K = 2, 3, 7; pool 793), camelid (K = 2, 4, 7; pool 86) and
+# Smc6 (K = 2, 4; pool 97): c_mean 0.98-1.10, c_std 0.64-0.88, c_p95 0.11-3.53, against
+# sqrt((kappa-1)/4) = 0.66-0.84 from the kurtosis of the same nulls measured on 200,000 draws
+# (kappa 2.76-3.85). The formula for c_std holds to within 0.06 everywhere it was checked, and
+# kappa* = 5.0 is above every measured kurtosis, so c_std = 1.0 is the conservative end of it.
+# c_mean = 1.0 is exact and measured 0.91-1.13 over the 23 nulls (the spread is the 200-seed error
+# of the measurement itself, +/-5%). c_std uses kappa* = 5.0: the kurtosis of these nulls, measured
+# on 100,000-draw samples, runs 1.97-4.30 (they are right-skewed, skew 0.55-0.70), so kappa* = 5
+# covers the suite with headroom and makes c_std exactly 1. c_p95 = 3.6 is measured, not derived:
+# the density at the 95th percentile has no closed form here and c_p95 runs 1.4-3.5, above the
+# normal's 2.11 because of that skew. At B = 10,000 on both sides the three bounds come out at
+# 4.24% of sigma, i.e. (worst case over the suite) 0.84% relative on the mean, 4.24% on the std and
+# 2.21% on p95 -- TIGHTER than the old flat 2% on two of the three fields. Every comparison in run
+# 34730693101 passes, the worst at 0.61 of its bound (node Smc6 null_coherence_mean).
+STAT_NULL_SIGMA_C = {"null_coherence_mean": 1.0, "null_coherence_std": 1.0, "null_coherence_95": 3.6}
+STAT_NULL_KURTOSIS = 5.0  # kappa* behind c_std = sqrt((kappa*-1)/4) = 1.0; measured max 4.30
+STAT_NULL_FLOOR = TOL_EIGEN  # sigma == 0 is the degenerate branch (pool < K): mean and p95 are then
+                             # the observed coherence itself, an eigenvalue ratio, so compare at its class
 DEFAULT_B = 10000         # permutations per side for the statistical class
 DEFAULT_SEED = 42         # D17: xoshiro256** on the JS side, default seed 42; --seed here
 
@@ -389,6 +449,17 @@ def stat_tol(p_ref: float, b_ref: int, b_got: int) -> float:
     return STAT_SIGMAS * math.sqrt(p * (1.0 - p) * (1.0 / b_ref + 1.0 / b_got))
 
 
+def null_moment_tol(field: str, sigma_ref: float, b_ref: int, b_got: int) -> float:
+    """3 sigma of the difference of two independent estimates of one null moment (STAT_NULL_SIGMA_C).
+
+    `sigma_ref` is the reference's own `null_coherence_std`, the scale every one of the three
+    estimators' standard errors is a multiple of.
+    """
+    c = STAT_NULL_SIGMA_C[field]
+    tol = STAT_SIGMAS * c * abs(float(sigma_ref)) * math.sqrt(1.0 / b_ref + 1.0 / b_got)
+    return max(tol, STAT_NULL_FLOOR)
+
+
 def _get(d: dict, dotted: str):
     cur = d
     for part in dotted.split("."):
@@ -564,10 +635,113 @@ def delta_tol(baseline: float, *mutants: float) -> float:
     return TOL_GRAPH_REL * (max(1.0, abs(float(baseline))) + worst)
 
 
+EDGE_RANK_KEY = "cesi"
+
+
+def _ranked_list_checks(label: str, key_fields: tuple[str, ...], r_items: list, g_items: list,
+                        rank_key: str) -> list[Check]:
+    """Membership exactly; ORDER at the sort key's own class.
+
+    The reference produces this list by sorting it on one float field and nothing else
+    (`sig_pairs.sort(key=lambda x: x["cesi"], reverse=True)`, epistasis.py:221; the same line in
+    phenotype.py:636 for `coselection_pairs`). Python's sort and JavaScript's are both stable, and
+    both surfaces insert in the same upper-triangle order, so the ORDER OF THIS LIST IS A PURE
+    FUNCTION OF THE KEY: nothing else can move an element.
+
+    That makes an exact order check an assertion about `cesi` at ZERO tolerance -- the sign of the
+    difference between two neighbours, down to the last bit -- while this script holds `cesi`
+    itself only to the graph class (header: "The class is applied to ... `cesi` (a function of the
+    LRTs)"), because it is a float32 reduction over an [L, N] attribution matrix whose accumulation
+    order no two implementations reproduce. Two neighbours whose keys differ by less than that
+    class are not ordered by the analysis; they are ordered by the noise, and which way they land
+    is a property of the BLAS on the machine.
+
+    Measured on korber_env_gp160 (1,007 edges, the first example large enough to exercise this):
+    the reference's `cesi` disagrees with the node surface's by a median of 9.5e-07 and up to
+    7.9e-06, and 17 of the 1,006 adjacent pairs are separated by LESS than the graph tolerance
+    that field carries (8.1e-05 at cesi 2.18), the closest by 2.4e-07 -- one float32 ulp, a
+    quarter of the median disagreement. CI run 34730693101 transposed exactly that pair.
+
+    So: the key sets must match exactly (a missing, extra or duplicated edge is still a violation),
+    each list must be sorted by its own key, and rank i of one list must carry the same key value
+    as rank i of the other to within the key's own class. A surface that really mis-ranked an edge
+    moves a key value to a rank that holds a different one, which this catches; a transposition
+    the key cannot resolve is reported in the note and is not a violation. If either side omits
+    the key the check falls back to exact order, so it can never weaken silently.
+
+    ONE THING THE VALUE CHECK ALONE WOULD GIVE AWAY, and the reason for the tie block below.
+    Where the key is EXACTLY equal across a run of ranks, the order inside that run is fixed by
+    the stable sort and the insertion order, not by the key -- so rank-by-rank value equality
+    cannot see a transposition inside it, and an unstable sort or a changed enumeration order in
+    a port would pass. That is not hypothetical: the node surface's korber file ties
+    (189, 795) and (189, 846) at cesi = 2.1278607845306396 exactly, where the reference has them
+    one ulp apart. So the order inside a run of ties is asserted exactly -- but only where BOTH
+    sides tie the same ranks and hold the same members, which is the only case in which the two
+    orders are both determined by the sort discipline rather than by float noise. (The korber run
+    above is exactly the case this must NOT fire on: one side ties, the other does not.)
+    """
+    names = ", ".join(key_fields)
+    r_keys = [tuple(it.get(k) for k in key_fields) for it in r_items]
+    g_keys = [tuple(it.get(k) for k in key_fields) for it in g_items]
+
+    membership = Check(f"{label} ({names}) set", "exact")
+    membership.n = max(len(r_keys), len(g_keys))
+    if sorted(r_keys, key=str) != sorted(g_keys, key=str):
+        first = next((i for i, (a, b) in enumerate(zip(r_keys, g_keys)) if a != b),
+                     min(len(r_keys), len(g_keys)))
+        membership.violations.append({"key": f"index {first}",
+                                      "ref": r_keys[first] if first < len(r_keys) else None,
+                                      "got": g_keys[first] if first < len(g_keys) else None,
+                                      "ref_len": len(r_keys), "got_len": len(g_keys),
+                                      "missing_in_surface": sorted(set(r_keys) - set(g_keys), key=str)[:10],
+                                      "extra_in_surface": sorted(set(g_keys) - set(r_keys), key=str)[:10]})
+        return [membership]
+
+    if not all(rank_key in it for it in r_items) or not all(rank_key in it for it in g_items):
+        order = _order_check(f"{label} ({names}) order", r_keys, g_keys)
+        order.note = (f"exact order: '{rank_key}' is absent on one side, so the rank key cannot be "
+                      f"checked at its own class")
+        return [membership, order]
+
+    rank = Check(f"{label} order: {rank_key} at each rank", "graph")
+    rank.note = (f"the list is sorted on '{rank_key}' alone (epistasis.py:221 for edges, "
+                 f"phenotype.py:636 for coselection_pairs; a stable sort on both sides), so its "
+                 f"order is asserted at that field's own class, not below it")
+    for i, (r, g) in enumerate(zip(r_items, g_items)):
+        rank.add(f"rank {i}", r[rank_key], g[rank_key])
+    for side, items in (("reference", r_items), ("surface", g_items)):
+        bad = next((i for i in range(len(items) - 1)
+                    if float(items[i][rank_key]) < float(items[i + 1][rank_key])), None)
+        if bad is not None:
+            rank.violations.append({"key": f"rank {bad}", "ref": items[bad][rank_key],
+                                    "got": items[bad + 1][rank_key],
+                                    "reason": f"the {side} list is not sorted by {rank_key} (descending)"})
+    i = 0
+    while i < len(r_items) - 1:
+        j = i
+        while (j + 1 < len(r_items)
+               and float(r_items[j + 1][rank_key]) == float(r_items[i][rank_key])
+               and float(g_items[j + 1][rank_key]) == float(g_items[i][rank_key])):
+            j += 1
+        r_run, g_run = r_keys[i:j + 1], g_keys[i:j + 1]
+        if j > i and sorted(r_run, key=str) == sorted(g_run, key=str) and r_run != g_run:
+            rank.violations.append({"key": f"ranks {i}..{j}", "ref": r_run, "got": g_run,
+                                    "reason": f"'{rank_key}' is exactly tied across these ranks on BOTH sides and "
+                                              "they hold the same members, so the order is fixed by the stable "
+                                              "sort and the insertion order, not by the key"})
+        i = j + 1
+    if r_keys != g_keys:
+        moved = [i for i, (a, b) in enumerate(zip(r_keys, g_keys)) if a != b]
+        gaps = [abs(float(r_items[i][rank_key]) - float(g_items[i][rank_key])) for i in moved]
+        rank.note += (f"; {len(moved)} rank(s) transposed vs the reference at {names} "
+                      f"{moved[:10]}, worst |d{rank_key}| there {max(gaps):.3e}")
+    return [membership, rank]
+
+
 def compare_edges(ref_edges: list, got_edges: list, label: str, abs_fields=EDGE_ABS, exact=EDGE_EXACT) -> list[Check]:
     r_keys, r_map = _keyed_collection(ref_edges or [], ("site_u", "site_v"))
     g_keys, g_map = _keyed_collection(got_edges or [], ("site_u", "site_v"))
-    checks = [_order_check(f"{label} (site_u, site_v) set and order", r_keys, g_keys)]
+    checks = _ranked_list_checks(label, ("site_u", "site_v"), ref_edges or [], got_edges or [], EDGE_RANK_KEY)
     checks += _keyed_checks(r_keys, r_map, g_map, exact=exact, graph=EDGE_GRAPH, abs_tol=abs_fields)
     return checks
 
@@ -605,18 +779,21 @@ def compare_sectors(ref_sectors: list, got_sectors: list, label: str, b_ref: int
     moments_enforced = min(b_ref, b_got) >= STAT_NULL_MIN_B
     for name in SECTOR_MOMENTS:
         mc = Check(name, "statistical" if moments_enforced else "informational")
-        mc.note = (f"relative difference <= {STAT_NULL_REL:g}" if moments_enforced else
-                   f"relative difference vs {STAT_NULL_REL:g}, informational: min(B_ref, B_surface)={min(b_ref, b_got)} "
-                   f"< {STAT_NULL_MIN_B} (PHASE2A.md: the std estimate's own SE is ~2.2% at B=1000)")
+        mc.note = (f"|d| <= {STAT_SIGMAS:g}*{STAT_NULL_SIGMA_C[name]:g}*null_coherence_std_ref*"
+                   f"sqrt(1/B_ref + 1/B_surface), B_ref={b_ref}, B_surface={b_got}"
+                   + ("" if moments_enforced else
+                      f" -- informational: min(B_ref, B_surface)={min(b_ref, b_got)} < {STAT_NULL_MIN_B}"))
         for k in r_keys:
             r, g = r_map[k], g_map.get(k)
             if g is None or name not in r or name not in g:
                 continue
-            mc.add(k[0], r[name], g[name], tol=STAT_NULL_REL * max(abs(float(r[name])), 1e-12))
+            mc.add(k[0], r[name], g[name],
+                   tol=null_moment_tol(name, r.get("null_coherence_std", 0.0), b_ref, b_got))
         checks.append(mc)
     if not moments_enforced:
         notes.append(f"{label}: null_coherence moments informational (B_surface={b_got}, B_ref={b_ref}; "
-                     f"the 2% class needs both >= {STAT_NULL_MIN_B})")
+                     f"the class needs both >= {STAT_NULL_MIN_B}). The bound itself is B-aware, so this "
+                     "carve-out is now conservative rather than necessary")
     return checks
 
 
@@ -946,7 +1123,10 @@ def main(argv=None) -> int:
             "special": f"{TOL_SPECIAL:g} given the surface's own LRT, after float32 rounding: meme p_value, q_value",
             "derived": f"{TOL_DERIVED:g} absolute: float32 cosine networks and p-values downstream of graph-class inputs",
             "statistical": {"sigmas": STAT_SIGMAS, "bound": "3*sqrt(p(1-p)(1/B_ref + 1/B_surface)), p floored at 1/min(B)",
-                            "null_moment_rel": STAT_NULL_REL, "null_moments_enforced_from_B": STAT_NULL_MIN_B},
+                            "null_moment_bound": "3*c*null_coherence_std_ref*sqrt(1/B_ref + 1/B_surface)",
+                            "null_moment_c": dict(STAT_NULL_SIGMA_C),
+                            "null_moment_kurtosis": STAT_NULL_KURTOSIS,
+                            "null_moments_enforced_from_B": STAT_NULL_MIN_B},
             "skipped": list(BUSTED_NEURAL),
         },
         "runs": [],

@@ -72,15 +72,16 @@ From `PLAN.md` 5.4 (app repository) as refined by the phase documents. Constants
 
 | Class | Test | Applies to |
 |---|---|---|
-| **exact** | equality after canonicalisation | site order; `is_invariable`; every count (`taxa_count`, `codon_count`, `evaluated_taxa`, `*_count`, busted `taxa`, `sites`, `sig_sites_p05/p10`); busted `omega_1`, `omega_2` (constants); edge set and order `(site_u, site_v)`, `ref_u/v`, `shared_taxa`, `shared_branches`; sector ids and order, `sites`, `size`, `shared_*`, `pars_signature`, `consensus_signature`; plasticity `wt_aa` and mutant set; phenotype `phenotype_meta`, `compact_pars_signature`, `permulations_count`, site `ref_aa`/`derived_aa`, site order (score-descending) |
+| **exact** | equality after canonicalisation | site order; `is_invariable`; every count (`taxa_count`, `codon_count`, `evaluated_taxa`, `*_count`, busted `taxa`, `sites`, `sig_sites_p05/p10`); busted `omega_1`, `omega_2` (constants); the edge **set** `(site_u, site_v)` (order: see the row below), `ref_u/v`, `shared_taxa`, `shared_branches`; sector ids and order, `sites`, `size`, `shared_*`, `pars_signature`, `consensus_signature`; plasticity `wt_aa` and mutant set; phenotype `phenotype_meta`, `compact_pars_signature`, `permulations_count`, site `ref_aa`/`derived_aa`, site order (score-descending) |
 | **graph** | `|Δ|` ≤ 1e-5 · max(1, \|ref\|) | `hyphaeon_lrt`; edge `lrt_u/v`, `cesi`; sector `mean_lrt`; plasticity `baseline_lrt`; phenotype `score_track_a`, `dual_track_composite`. PLAN 5.4's measured class: fp32 torch paths themselves differ by 6.7e-6, so the first harness's 1e-6 absolute was unreachable and Phases 1–3 re-evaluated every comparison by hand |
+| **graph, rank key** | the list's key set is exact, each side is sorted by its own key, and rank *i* carries the same key value on both sides to within 1e-5 · max(1, \|ref\|) | the ORDER of `edges` and phenotype `coselection_pairs` — lists the reference produces by `sort(key=cesi, reverse=True)` alone (`epistasis.py:221`, `phenotype.py:636`; stable on both sides, same insertion order), so their order is a pure function of `cesi` and cannot be held tighter than `cesi` itself. Measured on korber_env_gp160 (1,007 edges): `cesi` disagrees between reference and node by a median 9.5e-07 and up to 7.9e-06, while 17 adjacent pairs are closer than that field's own 8.1e-05 tolerance and the closest two are one float32 ulp (2.4e-07) apart — CI run 34730693101 transposed exactly that pair. A surface that really mis-ranks an edge puts a different key value at that rank and still fails. Where the key is **exactly** tied across a run of ranks *on both sides and with the same members*, the order inside that run is fixed by the stable sort and the insertion order rather than by the key, and is asserted **exactly** — an unstable sort or a changed enumeration order in a port is caught there (the node korber file ties `(189, 795)` and `(189, 846)` at `cesi` = 2.1278607845306396 where the reference has them one ulp apart; that is float noise, not a tie, and does not trigger it) |
 | **graph, delta** | `|Δ|` ≤ 1e-5 · (max(1, \|baseline\|) + max(1, \|mutant\|)) | DMS `mutant_deltas[aa]` (`mutant_lrt − baseline_lrt`, `epistasis.py:560`), `mean/max/min_delta_lrt`, `intrinsic_plasticity` (mean \|delta\|) — a difference of two graph-class values carries both operands' budgets; measured up to 4.1x the single-value bound on RHO before this rule |
 | **graph, sum** | `|Δ|` ≤ L · 1e-5 | busted `omnibus_lrt`, `total_selection_energy` — sums over L per-site values |
 | **eigen** (1e-5) | `|Δ|` ≤ 1e-5 | sector `spectral_coherence` (an eigenvalue ratio; the MDS class) |
 | **special** (1e-9) | `|Δ|` ≤ 1e-9 *given equal input*, after float32 rounding | meme `p_value`, `q_value` (below) |
 | **derived** (1e-6 absolute) | `|Δ|` ≤ 1e-6 | edge `similarity`, `p_val`, `hyper_p`, `fdr_q`; phenotype pair `similarity`, `p_value`, `q_value`; busted `p_value_acat`, `p_value_simes`; plasticity `p_value`; phenotype gene `spectral_energy`, `norm_spectral_ratio`, `max_assoc`, `p_evd_length_adjusted`, `score_track_b` and every site column but the LRT (`p_lrt`, `attribution_norm`, `fg/bg_mean_attn`, `association_rho`, `p_value`, `p_assoc*`, `score`, `q_value`, `*_freq_pct`). The cosine network is float32 arithmetic on float32 attributions whose BLAS accumulation order nobody reproduces (PHASE2A.md gap 4); everything downstream inherits that |
 | **statistical** | `|Δp|` ≤ 3·√(p(1−p)·(1/B_ref + 1/B_surface)), p floored at 1/min(B) | sector `p_perm` (epistasis and trait sectors), `gene_p_value_perm`, `p_assoc_perm` (B = `permulations_count` for the last two); each side with its own seed and its **own B** (below) |
-| **statistical, null moments** | relative difference ≤ 2 %, **enforced only when both B ≥ 10,000** | `null_coherence_mean`, `null_coherence_std`, `null_coherence_95`; below that they are *informational* (below) |
+| **statistical, null moments** | `\|Δ\|` ≤ 3·c·`null_coherence_std`(ref)·√(1/B_ref + 1/B_surface), c = 1 (mean), 1 (std), 3.6 (p95), **enforced only when both B ≥ 10,000** | `null_coherence_mean`, `null_coherence_std`, `null_coherence_95`; below that they are *informational* (below) |
 | **skipped** | not compared; note in the report | the BUSTED neural head (below) |
 
 **`p_value` and `q_value` "given equal LRT".** A surface's LRT may differ from the reference within
@@ -109,13 +110,38 @@ Carlo estimates, so each side contributes its own variance: with both at B = 10,
 3·√(2p(1−p)/10,000), PLAN 5.4's bound with the second estimate accounted for. B_surface is read
 from the file (`provenance.options.permutations`), else from the runner's `summary.json` in the
 same directory (`n_permutations`), else assumed equal to `--n-permutations` and noted. The browser
-runs its default B = 1,000 against the reference's 10,000. The null moments are a different matter:
-PHASE2A.md measured the standard error of the null std estimate at B = 1,000 as about 2.2 %
-relative (a 3–5 % excursion at that B is the estimator, not a defect; at B = 100,000 the two nulls
-agree to well inside 1 %). So the 2 % class is enforced only when both sides ran B ≥ 10,000; below
-that the moments are reported as **informational** — their differences appear in `report.json`
-(`excursions`) and in the run's `informational excursions` count, and never as violations. A
-surface that wants the moments enforced runs at B = 10,000 (`parity-node.mjs --permutations`).
+runs its default B = 1,000 against the reference's 10,000.
+
+**The null moments get the same construction, per moment.** They used to share one flat 2 %
+relative bound (PLAN §5.4's wording), and that is wrong in both directions, because the three are
+three *different* estimators of the same B draws. Measured at B = 10,000 over 200–400 seeds on
+every (example, K) the suite compares — 23 independent nulls across all eight alignments, K = 2…12,
+candidate pools 86…793 — the estimators' own relative standard errors are **mean 0.13–0.23 %, std
+0.47–0.99 %, p95 0.18–0.53 %**. A flat 2 % is therefore about 10 σ on the mean, 4–6 σ on p95 and
+only 1.5–2.9 σ on the std; the per-test excursion rate on the std alone is 0.3–14 %, so a run with
+no defect in it fails on that one field **71 % of the time** (expected excursions 1.19 per run,
+measured over all ordered seed pairs). Run 34730693101's single violation — `node-tn93
+korber_env_gp160` sector 1, 2.22 % relative — was that expectation arriving, not a divergence: on
+identical attributions, over 300 seeds each, the port and the reference agree on the population
+value of all three moments to within 0.05 % relative.
+
+So each moment takes 3 σ of *its own* sampling distribution. For B iid draws with SD σ and
+kurtosis κ, `se(mean) = σ/√B` (CLT, exact), `se(std) = σ·√((κ−1)/4B)`, `se(p95) =
+σ·√(q(1−q))/(φ(z_q)·√B)`; with σ read from the reference's own `null_coherence_std`, the bound is
+`|Δ| ≤ 3·c·null_coherence_std_ref·√(1/B_ref + 1/B_surface)`. `c_mean = 1` is exact (measured
+0.91–1.13 over the 23 nulls, the spread being the 200-seed error of the measurement). `c_std = 1`
+is `√((κ*−1)/4)` at κ* = 5.0; the kurtosis of these nulls, measured on 100,000-draw samples, runs
+1.97–4.30 (right-skewed, skew 0.55–0.70). `c_p95 = 3.6` is measured, not derived — the density at
+the 95th percentile has no closed form here and c_p95 runs 1.4–3.5, above the normal's 2.11 because
+of that skew. At B = 10,000 on both sides the three come out at 4.24 % of σ: worst case over the
+suite, **0.84 % relative on the mean, 4.24 % on the std, 2.21 % on p95** — tighter than the old flat
+2 % on two of the three fields.
+
+The bound is B-aware, so `STAT_NULL_MIN_B` is now conservative rather than necessary: below
+B = 10,000 on either side the moments are still reported as **informational** — their differences
+appear in `report.json` (`excursions`) and in the run's `informational excursions` count, and never
+as violations. A surface that wants them enforced runs at B = 10,000 (`parity-node.mjs
+--permutations`).
 
 **Incomparable files.** When a surface file's taxon count differs from the reference's, the surface
 analysed a different taxon set (the browser's default cap is 256 taxa; the reference and the runner
@@ -221,8 +247,9 @@ Options: `--analyses`, `--dms-examples` (default `Smc6`), `--phenotype-examples`
 `report.json` → `comparisons[]` → the entry with `status: fail` → `checks[]` with
 `violations > 0`. `first_violations` lists up to twenty `{key, ref, got, abs_diff, tol}`; `key`
 is the site number, the `(site_u, site_v)` pair, the sector id, `(site, amino acid)` for a mutant
-delta, or the field path. A failure in `site order` or an edge/sector order check suppresses the
-per-item checks under it, since the items cannot be aligned. A `hyphaeon_lrt` failure with clean
+delta, or the field path. A failure in `site order` suppresses the per-item checks under it, since the
+items cannot be aligned; an edge or sector SET failure does the same for the ranking, but the
+per-item edge fields are keyed on `(site_u, site_v)`, so they are still compared. A `hyphaeon_lrt` failure with clean
 `p_value`/`q_value` means the graph (or the tensors fed to it) differs and the statistics do not;
 the reverse means the special functions or BH differ; both failing usually means the LRT. A
 `redirected` or `incomparable` entry is not a failure: it says which run to look at instead, or
