@@ -171,15 +171,48 @@ def discover_examples() -> dict[str, dict]:
     branch lengths, so under D22 every runtime surface runs them tree-free; the reference's
     tree-based run is still made (it is what the CLI does with `-t`), but the pair the surfaces
     are compared against is the `--use-tn93` run.
+
+    A missing .nwk is NOT always 'extract it', though, and assuming so cost a CI run: the dated
+    examples added for the temporal work, H5N1_HA_geo and korber_env_gp160, have neither a sidecar
+    nor an embedded tree, and the CLI exits 1 rather than guessing. For those the only reference
+    that exists is the --use-tn93 one, which is also the only run the app's surfaces make.
     """
     out = {}
     for fasta in sorted(EXAMPLES_DIR.glob("*.fasta")):
         name = fasta.stem
         nwk = EXAMPLES_DIR / f"{name}.nwk"
         tree = nwk if nwk.exists() else None
+        embedded = tree is None and alignment_has_embedded_tree(fasta)
         out[name] = {"alignment": fasta, "tree": tree,
-                     "tree_free": tree is not None and not tree_has_branch_lengths(tree)}
+                     "embedded_tree": embedded,
+                     # No sidecar and nothing embedded: the CLI refuses without --use-tn93, so
+                     # there is no tree-based reference run to make for this example at all.
+                     "no_tree": tree is None and not embedded,
+                     "tree_free": (tree is None and not embedded)
+                                  or (tree is not None and not tree_has_branch_lengths(tree))}
     return out
+
+
+def alignment_has_embedded_tree(fasta: Path) -> bool:
+    """True if the FASTA carries a tree the CLI can extract (cli.py:93).
+
+    RHO has no .nwk and needs none: its file ends in a NEXUS trees block. H5N1_HA_geo and
+    korber_env_gp160 have neither, and asking the reference for a tree-based run on them is not a
+    parity failure, it is a command that cannot be formed — the CLI exits 1 with "No tree specified
+    (--tree), and no embedded phylogenetic tree found". Detected the way the CLI detects it:
+    a NEXUS trees block, or a bare Newick string on its own line outside the sequence records.
+    """
+    try:
+        text = fasta.read_text(errors="replace")
+    except OSError:
+        return False
+    if re.search(r"(?im)^\s*begin\s+trees\s*;", text):
+        return True
+    for line in text.splitlines():
+        line = line.strip()
+        if line.startswith("(") and line.endswith(";"):
+            return True
+    return False
 
 
 def path_without_tn93_binary() -> str:
@@ -938,6 +971,11 @@ def main(argv=None) -> int:
     for tn93, pairs in ((False, tree_pairs), (True, tn93_pairs)):
         ref_dir = out_dir / (REFERENCE + (TN93 if tn93 else ""))
         for ex, an in pairs:
+            # An example with no sidecar tree and nothing embedded has no tree-based reference run:
+            # the CLI refuses to form the command. Its only reference is the --use-tn93 one, which
+            # is also the only run the app's own surfaces make for it (D22).
+            if not tn93 and examples[ex]["no_tree"]:
+                continue
             rec = run_reference(ex, examples[ex], an, ref_dir, args, tn93)
             report["runs"].append(rec)
             print(f"[parity] {rec['surface']:12s} {ex:10s} {an:9s} {rec['status']}"
