@@ -920,6 +920,18 @@ def compute_tree_free_divergences(
         divergences = cross_mat[:, 0].astype(np.float64)
         return divergences, "unweighted_modal_consensus_root"
 
+    # Case 2b: User requested time-decay weighted modal consensus sequence
+    if root_taxon and root_taxon.lower() in ['time_decay_consensus', 'weighted_consensus', 'consensus']:
+        decay_seq, eff_gamma = generate_time_decay_consensus_sequence(
+            seq_dict, dates_map, dated_taxa, gamma=decay_gamma, half_life=decay_half_life
+        )
+        aug_dict = dict(seq_dict)
+        aug_dict['__TIME_DECAY_ROOT__'] = decay_seq
+        cross_mat = compute_tn93_cross_distance_matrix(aug_dict, dated_taxa, ['__TIME_DECAY_ROOT__'])
+        divergences = cross_mat[:, 0].astype(np.float64)
+        root_desc = f"time_decay_consensus_root (γ={eff_gamma:.4f})"
+        return divergences, root_desc
+
     # Case 3: Anchor on earliest sampled cohort
     if root_taxon and root_taxon.lower() in ['earliest', 'earliest_taxon', 'earliest_cohort']:
         valid_dates = [(t, dates_map[t]) for t in dated_taxa if t in dates_map and not np.isnan(dates_map[t])]
