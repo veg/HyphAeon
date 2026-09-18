@@ -290,7 +290,7 @@ def evaluate_dudas_clock_models(
 
 
 def print_dudas_models_table(dudas_res: Dict[str, Any]) -> None:
-    """Prints a clean CLI summary table for Dudas/Suchard extended clock models."""
+    """Prints a clean CLI summary table for non-linear and time-varying extended clock models."""
     sample_model = next((m for m in dudas_res.values() if isinstance(m, dict) and 'delta_aic' in m), None)
     has_neff = sample_model is not None and sample_model.get('delta_aic_eff') is not None
     n_eff_val = sample_model.get('n_eff') if has_neff else None
@@ -298,11 +298,11 @@ def print_dudas_models_table(dudas_res: Dict[str, Any]) -> None:
     if has_neff and n_eff_val is not None:
         col_neff_header = f"ΔAIC (N_eff={int(round(n_eff_val))})"
         print("\n" + "=" * 115)
-        print(f"{'Suchard / Dudas Extended Model':<32} {'t_MRCA':<8} {'Rate Dynamic':<22} {'Raw AIC':<11} {'ΔAIC vs OLS':<13} {col_neff_header:<18} {'R^2':<6}")
+        print(f"{'Non-Linear / Time-Varying Model':<32} {'t_MRCA':<8} {'Rate Dynamic':<22} {'Raw AIC':<11} {'ΔAIC vs OLS':<13} {col_neff_header:<18} {'R^2':<6}")
         print("-" * 115)
     else:
         print("\n" + "=" * 110)
-        print(f"{'Suchard / Dudas Extended Model':<32} {'t_MRCA':<8} {'Rate Dynamic':<22} {'Raw AIC':<11} {'ΔAIC vs OLS':<13} {'AIC Drop':<10} {'R^2':<6}")
+        print(f"{'Non-Linear / Time-Varying Model':<32} {'t_MRCA':<8} {'Rate Dynamic':<22} {'Raw AIC':<11} {'ΔAIC vs OLS':<13} {'AIC Drop':<10} {'R^2':<6}")
         print("-" * 110)
 
     for key in ['quadratic', 'exponential', 'bilinear_crash', 'polyepoch']:
@@ -339,3 +339,8 @@ def print_dudas_models_table(dudas_res: Dict[str, Any]) -> None:
         print("=" * 110)
         print("  Note: Formal ΔAIC = AIC_model - AIC_OLS (negative values indicate lower / superior information criteria).")
         print("        AIC Drop = points dropped below linear baseline (positive values indicate improvement).")
+
+
+# Modern aliases
+evaluate_nonlinear_clock_models = evaluate_dudas_clock_models
+print_nonlinear_models_table = print_dudas_models_table

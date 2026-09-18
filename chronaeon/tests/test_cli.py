@@ -46,6 +46,33 @@ class TestDateCLI:
         assert result.returncode == 0, f"CLI failed:\n{result.stderr}"
         assert os.path.exists(out_json)
 
+    def test_date_nonlinear_clocks(self, tmp_path):
+        """Test the date subcommand with --nonlinear-clocks."""
+        import json
+        aln = EXAMPLES_DIR / "H1N1_2009_pandemic.fasta"
+        if not aln.exists():
+            pytest.skip("H1N1 example not found")
+
+        out_json = str(tmp_path / "dating_nl.json")
+        result = _run_cli([
+            "date",
+            "-a", str(aln),
+            "--clock-model", "linear",
+            "--method", "ols",
+            "--nonlinear-clocks",
+            "-o", out_json,
+        ])
+        assert result.returncode == 0, f"CLI failed:\n{result.stderr}"
+        assert os.path.exists(out_json)
+        with open(out_json) as f:
+            data = json.load(f)
+        assert "nonlinear_clocks" in data
+        assert "dudas_models" in data
+        assert "quadratic" in data["nonlinear_clocks"]
+        assert "exponential" in data["nonlinear_clocks"]
+        assert "bilinear_crash" in data["nonlinear_clocks"]
+        assert "polyepoch" in data["nonlinear_clocks"]
+
 
 class TestTriageCLI:
     def test_triage_runs(self, tmp_path):
