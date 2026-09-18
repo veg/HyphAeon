@@ -64,7 +64,8 @@ class TestClockDatingModels:
         res = run_restricted_spline_clock_dating(times, dists, n_boot=50)
         assert res['is_nonlinear_preferred']
         assert res['p_f_test'] < 0.01
-        assert res['delta_aic'] > 2.0
+        assert res['delta_aic'] < -2.0
+        assert res['aic_reduction'] > 2.0
         assert res['rate_recent'] < res['rate_ancestral']
         # Ancestral extrapolation is linear and stable
         assert 1970.0 < res['t_mrca'] < 1982.0

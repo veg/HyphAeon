@@ -135,11 +135,51 @@ def cmd_dating(args):
         sp = res['spline']
         p_str = f"p={sp['p_f_test']:.4f}" if sp['p_f_test'] >= 0.0001 else "p<0.0001"
         ratio_sym = "acceleration" if sp['rate_ratio'] > 1.0 else "deceleration"
-        print(f"    Restricted Spline (2 DF): μ_anc = {sp['rate_ancestral']:.6f}, μ_rec = {sp['rate_recent']:.6f} ({ratio_sym} {sp['rate_ratio']:.2f}x) | F = {sp['f_stat']:.3f} ({p_str}) | ΔAIC = {sp['delta_aic']:+.2f}")
+        sp_drop = sp.get('aic_reduction', -sp['delta_aic'])
+        print(f"    Restricted Spline (2 DF): μ_anc = {sp['rate_ancestral']:.6f}, μ_rec = {sp['rate_recent']:.6f} ({ratio_sym} {sp['rate_ratio']:.2f}x) | F = {sp['f_stat']:.3f} ({p_str}) | ΔAIC = {sp['delta_aic']:+.2f} (AIC drop: {sp_drop:.2f})")
     if res.get('power'):
         pwr = res['power']
         p_str = f"p={pwr['p_f_test']:.4f}" if pwr['p_f_test'] >= 0.0001 else "p<0.0001"
-        print(f"    Power-Law Curvature: θ = {pwr['theta']:.3f} [{pwr['ci_theta'][0]:.3f}, {pwr['ci_theta'][1]:.3f}] | F = {pwr['f_stat']:.3f} ({p_str}) | ΔAIC = {pwr['delta_aic']:+.2f}")
+        pwr_drop = pwr.get('aic_reduction', -pwr['delta_aic'])
+        print(f"    Power-Law Curvature: θ = {pwr['theta']:.3f} [{pwr['ci_theta'][0]:.3f}, {pwr['ci_theta'][1]:.3f}] | F = {pwr['f_stat']:.3f} ({p_str}) | ΔAIC = {pwr['delta_aic']:+.2f} (AIC drop: {pwr_drop:.2f})")
+
+    if getattr(args, "dudas_models", False):
+        from .dudas import evaluate_dudas_clock_models, print_dudas_models_table
+        d_times = res.get('times')
+        d_dists = res.get('dists')
+        if d_times is not None and d_dists is not None:
+            rss_o = res.get('ols', {}).get('rss') if isinstance(res.get('ols'), dict) else None
+            aic_o = res.get('ols', {}).get('aic') if isinstance(res.get('ols'), dict) else None
+            n_eff_cand = None
+            if res.get('pgls') and 'n_eff' in res['pgls']:
+                n_eff_cand = res['pgls']['n_eff']
+            elif 'n_eff' in res:
+                n_eff_cand = res['n_eff']
+
+            dudas_res = evaluate_dudas_clock_models(
+                times=d_times,
+                dists=d_dists,
+                rss_ols=rss_o,
+                aic_ols=aic_o,
+                n_eff=n_eff_cand
+            )
+            res['dudas_models'] = dudas_res
+            print_dudas_models_table(dudas_res)
+
+            output_prefix = getattr(args, "output", None)
+            if output_prefix:
+                out_p = Path(output_prefix)
+                json_file = out_p.with_suffix('.json') if not str(out_p).endswith('.json') else out_p
+                if json_file.exists():
+                    try:
+                        import json
+                        with open(json_file, 'r') as jf:
+                            jdata = json.load(jf)
+                        jdata['dudas_models'] = dudas_res
+                        with open(json_file, 'w') as jf:
+                            json.dump(jdata, jf, indent=2)
+                    except Exception:
+                        pass
 
     if res.get('loocv'):
         lv = res['loocv']
@@ -713,6 +753,7 @@ def main():
     date_parser.add_argument("--no-optimize-root", action="store_true", help="Disable heuristic root search when a tree is provided")
     date_parser.add_argument("--method", choices=["all", "ols", "pgls"], default="all", help="Dating estimator(s) to run: 'all', 'pgls', or 'ols' (default: all)")
     date_parser.add_argument("--clock-model", choices=["auto", "linear", "spline", "power"], default="auto", help="Clock curvature model: 'auto' (F-test/AIC adjudication against restricted spline), 'linear', 'spline' (2-DF restricted natural cubic spline), or 'power' (power-law)")
+    date_parser.add_argument("--dudas-models", "--dudas", action="store_true", help="Fit and report the Suchard/Dudas suite of time-varying clock models (quadratic, exponential, bilinear crash, polyepoch; date mode only, non-default)")
     date_parser.add_argument("--ridge", default="auto", help="Regularization parameter for PGLS neural covariance: 'auto' (exact REML profile likelihood estimation of Pagel's lambda) or float (default: auto)")
     date_parser.add_argument("--tune-ridge", action="store_true", help="(Compatibility flag) Automated REML regularization is active by default")
     date_parser.add_argument("--bootstrap", type=int, default=1000, help="Number of bootstrap resamples for empirical confidence intervals (default: 1000)")

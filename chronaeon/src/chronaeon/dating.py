@@ -1723,8 +1723,11 @@ def run_pgls_dating(
     ss_res = float(np.sum((res_proj ** 2) * inv_w))
 
     # Effective sample size and residual degrees of freedom under phylogenetic covariance
+    # Bartlett / Kish effective sample size: n^2 / (1^T C 1) where 1^T C 1 = sum(v_one^2 * w_c)
+    sum_C = float(np.sum((v_one ** 2) * w_c))
+    n_eff_bartlett = float((n ** 2) / max(1.0, sum_C))
     one_Cinv_one = float(np.sum((v_one ** 2) * inv_w))
-    n_eff = float(min(float(n), max(2.0, one_Cinv_one)))
+    n_eff = float(min(float(n), max(2.0, n_eff_bartlett)))
     df_eff = max(1, int(np.round(n_eff - 2.0)))
 
     sigma2_gls = float(ss_res / max(1.0, float(df_eff)))
@@ -1847,6 +1850,11 @@ def estimate_reml_pagel_lambda(
     independent tip variance. Computed in O(N) using spectral projection.
     """
     n = len(times)
+    if n < 3:
+        return {
+            'best_lambda': 0.95,
+            'status': 'INSUFFICIENT_DATA'
+        }
     if n > 2000:
         # Stratified subsampling across temporal range to estimate scalar phylogenetic signal without OOM
         sub_idx = np.linspace(0, n - 1, 1500, dtype=int)
@@ -2038,12 +2046,13 @@ def run_powerlaw_clock_dating(
     p_f_test = float(stats.f.sf(f_stat, 1, max(1, df_nl)))
 
     aic_nl = float(n * np.log(max(1e-12, rss_nl / n)) + 2 * 3)
-    delta_aic = float(aic_lin - aic_nl)
+    delta_aic = float(aic_nl - aic_lin)  # Formal definition: negative indicates superior fit
+    aic_reduction = float(aic_lin - aic_nl)
 
     # Automatic selection decision:
-    # Requires p < 0.05, delta_AIC >= 2.0, and meaningful curvature deviation (|theta - 1.0| >= 0.03)
+    # Requires p < 0.05, aic_reduction >= 2.0 (delta_AIC <= -2.0), and meaningful curvature deviation (|theta - 1.0| >= 0.03)
     is_nonlinear_preferred = bool(
-        (p_f_test < 0.05) and (delta_aic >= 2.0) and (abs(th_nl - 1.0) >= 0.03)
+        (p_f_test < 0.05) and (aic_reduction >= 2.0 or delta_aic <= -2.0) and (abs(th_nl - 1.0) >= 0.03)
     )
 
     # Instantaneous Rates
@@ -2118,6 +2127,7 @@ def run_powerlaw_clock_dating(
         'rss_linear': rss_lin,
         'aic_linear': aic_lin,
         'delta_aic': delta_aic,
+        'aic_reduction': aic_reduction,
         'f_stat': f_stat,
         'p_f_test': p_f_test,
         'is_nonlinear_preferred': is_nonlinear_preferred,
@@ -2228,7 +2238,8 @@ def run_restricted_spline_clock_dating(
     res_sp = dists - pred_sp
     rss_sp = float(res_sp.T @ C_inv @ res_sp)
     aic_sp = float(n * np.log(max(1e-12, rss_sp / n)) + 2 * 3)
-    delta_aic = float(aic_lin - aic_sp)
+    delta_aic = float(aic_sp - aic_lin)  # Formal definition: negative indicates superior fit
+    aic_reduction = float(aic_lin - aic_sp)
 
     # 3. Model Comparison Metrics (Nested F-test & AIC)
     df_sp = n - 3
@@ -2250,10 +2261,10 @@ def run_restricted_spline_clock_dating(
     rate_ratio = float(mu_recent / mu_ancestral) if mu_ancestral > 1e-9 else 1.0
 
     # Automatic selection rule:
-    # Requires statistical significance (p < 0.05), positive model evidence (delta_AIC >= 2.0),
+    # Requires statistical significance (p < 0.05), positive model evidence (aic_reduction >= 2.0 / delta_AIC <= -2.0),
     # positive ancestral rate, and biologically meaningful rate variation (|rate_ratio - 1.0| >= 0.15).
     is_nonlinear_preferred = bool(
-        p_f_test < 0.05 and delta_aic >= 2.0 and mu_ancestral > 0 and abs(rate_ratio - 1.0) >= 0.15
+        p_f_test < 0.05 and (aic_reduction >= 2.0 or delta_aic <= -2.0) and mu_ancestral > 0 and abs(rate_ratio - 1.0) >= 0.15
     )
 
     # Bootstrap 95% Confidence Intervals (Wild Rademacher Residual Bootstrap)
@@ -2326,6 +2337,7 @@ def run_restricted_spline_clock_dating(
         'rss_linear': rss_lin,
         'aic_linear': aic_lin,
         'delta_aic': delta_aic,
+        'aic_reduction': aic_reduction,
         'f_stat': f_stat,
         'p_f_test': p_f_test,
         'is_nonlinear_preferred': is_nonlinear_preferred,
@@ -3079,6 +3091,7 @@ def run_mrca_dating(
         print(f"[*] Clock Calibration Discipline: Reserved {n_holdouts} partial/holdout sequence(s) (<50% coverage) as out-of-sample test taxa: {holdout_names}")
         train_idx = np.where(is_train)[0]
     else:
+        is_train = np.ones(len(taxa), dtype=bool)
         train_idx = np.arange(len(taxa))
 
     eff_seq_len = seq_len if seq_len is not None else (n_codons * 3 if 'n_codons' in locals() else 1000)
@@ -3183,6 +3196,8 @@ def run_mrca_dating(
             sub_indices = list(range(len(taxa)))
 
         train_sub = [i for i in range(len(sub_taxa)) if is_train[i]]
+        if len(train_sub) < 3:
+            train_sub = list(range(len(sub_taxa)))
         cov_train = cov_matrix[train_sub, :][:, train_sub]
         train_times = sub_times[train_sub]
         train_dists = sub_dists[train_sub]
@@ -3265,7 +3280,7 @@ def run_mrca_dating(
                 t0_str = "n/a (ancestral rate <= 0)"
             else:
                 t0_str = f"{spline_res['t_mrca']:.2f} [{spline_res['ci_mrca'][0]:.1f}, {spline_res['ci_mrca'][1]:.1f}]"
-            print(f"[✓] Restricted Spline Clock: t_MRCA = {t0_str}, μ_anc = {spline_res['rate_ancestral']:.6f}, μ_rec = {spline_res['rate_recent']:.6f} ({ratio_sym} {spline_res['rate_ratio']:.2f}x) (R^2 = {spline_res['r2']:.3f}, ΔAIC = {spline_res['delta_aic']:+.2f}, p = {spline_res['p_f_test']:.4f})")
+            print(f"[✓] Restricted Spline Clock: t_MRCA = {t0_str}, μ_anc = {spline_res['rate_ancestral']:.6f}, μ_rec = {spline_res['rate_recent']:.6f} ({ratio_sym} {spline_res['rate_ratio']:.2f}x) (R^2 = {spline_res['r2']:.3f}, ΔAIC = {spline_res['delta_aic']:+.2f}, AIC drop = {spline_res.get('aic_reduction', -spline_res['delta_aic']):.2f}, p = {spline_res['p_f_test']:.4f})")
         except Exception as e:
             print(f"[!] Notice: Restricted spline fitting fell back to linear ({e})")
 
@@ -3278,7 +3293,7 @@ def run_mrca_dating(
                 fit_times, fit_dists, cov_matrix=power_cov, ridge=0.01, n_boot=min(500, n_bootstrap)
             )
             ci_th_str = f"[{power_res['ci_theta'][0]:.3f}, {power_res['ci_theta'][1]:.3f}]" if (power_res['ci_theta'] and not np.isnan(power_res['ci_theta'][0])) else "[n/a]"
-            print(f"[✓] Power-Law Clock: t_MRCA = {power_res['t_mrca']:.2f} [{power_res['ci_mrca'][0]:.1f}, {power_res['ci_mrca'][1]:.1f}], θ = {power_res['theta']:.3f} {ci_th_str}, mean rate = {power_res['rate_mean']:.6f} subs/site/yr (R^2 = {power_res['r2']:.3f}, ΔAIC = {power_res['delta_aic']:+.2f}, p = {power_res['p_f_test']:.4f})")
+            print(f"[✓] Power-Law Clock: t_MRCA = {power_res['t_mrca']:.2f} [{power_res['ci_mrca'][0]:.1f}, {power_res['ci_mrca'][1]:.1f}], θ = {power_res['theta']:.3f} {ci_th_str}, mean rate = {power_res['rate_mean']:.6f} subs/site/yr (R^2 = {power_res['r2']:.3f}, ΔAIC = {power_res['delta_aic']:+.2f}, AIC drop = {power_res.get('aic_reduction', -power_res['delta_aic']):.2f}, p = {power_res['p_f_test']:.4f})")
         except Exception as e:
             print(f"[!] Notice: Power-law clock fitting fell back to linear ({e})")
 
