@@ -58,6 +58,25 @@ class TestComputeFastDistMatrix:
         mat = compute_fast_dist_matrix(simple_tree, ["A", "B", "C"])
         assert mat.dtype == np.float32
 
+    def test_missing_taxon_warns(self, simple_tree):
+        # A taxon absent from the tree must not be silently zeroed (issue #9).
+        with pytest.warns(UserWarning, match="absent from the tree"):
+            mat = compute_fast_dist_matrix(simple_tree, ["A", "B", "Z"])
+        # Behavior is preserved (zero row/col for the missing taxon) but now warned.
+        assert mat.shape == (3, 3)
+        assert np.allclose(mat[2, :], 0.0)
+
+    def test_missing_taxon_strict_raises(self, simple_tree):
+        with pytest.raises(ValueError, match="absent from the tree"):
+            compute_fast_dist_matrix(simple_tree, ["A", "B", "Z"], strict=True)
+
+    def test_all_present_no_warning(self, simple_tree):
+        import warnings as _w
+        with _w.catch_warnings():
+            _w.simplefilter("error")  # any UserWarning would fail the test
+            mat = compute_fast_dist_matrix(simple_tree, ["A", "B", "C"])
+        assert mat.shape == (3, 3)
+
 
 class TestComputeMdsCoordinates:
     def test_shape(self, simple_tree):

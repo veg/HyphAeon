@@ -9,6 +9,7 @@ branch length validation, and HyPhy branch length estimation.
 import os
 import sys
 import gzip
+import warnings
 import shutil
 import tempfile
 import subprocess
@@ -522,15 +523,32 @@ def enforce_nonzero_branch_lengths(tree_obj: Phylo.BaseTree.Tree, min_len: float
             clade.branch_length = min_len
     return tree_obj
 
-def compute_fast_dist_matrix(tree: Phylo.BaseTree.Tree, taxa: List[str]) -> np.ndarray:
+def compute_fast_dist_matrix(tree: Phylo.BaseTree.Tree, taxa: List[str], strict: bool = False) -> np.ndarray:
     """
     Computes all-pairs patristic distance matrix across taxa from phylogenetic tree.
+
+    Any taxon requested in ``taxa`` but absent from ``tree`` cannot be assigned a
+    patristic distance and would otherwise be left as an all-zero row/column,
+    silently telling the model it sits at distance 0 from every other taxon. To
+    avoid that silent corruption, missing taxa are reported: a ``UserWarning`` is
+    emitted by default, or a ``ValueError`` is raised when ``strict=True``.
     """
     n = len(taxa)
     dist_mat = np.zeros((n, n), dtype=np.float32)
     taxa_set = set(taxa)
     terminals = {t.name.strip("'\""): t for t in tree.get_terminals() if t.name and t.name.strip("'\"") in taxa_set}
-    
+
+    missing = [t for t in taxa if t not in terminals]
+    if missing:
+        preview = ", ".join(missing[:10]) + ("..." if len(missing) > 10 else "")
+        msg = (
+            f"{len(missing)} of {n} requested taxa are absent from the tree and will be "
+            f"left at distance 0 from all others (silent corruption): {preview}"
+        )
+        if strict:
+            raise ValueError(msg)
+        warnings.warn(msg, UserWarning, stacklevel=2)
+
     root = tree.root
     depths = {}
     def calc_depths(node, current_depth=0.0):
@@ -1047,8 +1065,17 @@ def load_alignment_and_tree(
         dist_mat = compute_fast_dist_matrix(tree_obj, taxa)
 
         # If tree branch lengths are raw mutation counts (> 10.0) rather than substitutions per site,
-        # normalize by alignment codon length L to bring distances into standard evolutionary scale
+        # normalize by alignment codon length L to bring distances into standard evolutionary scale.
+        # This heuristic also rescales a legitimately long-branch tree (max patristic distance > 10
+        # subs/site), so warn rather than rescaling silently.
         if dist_mat.max() > 10.0:
+            warnings.warn(
+                f"Max patristic distance {dist_mat.max():.3g} exceeds 10.0; assuming branch lengths "
+                f"are raw mutation counts and rescaling by alignment length L={L}. If this tree is "
+                f"genuinely long-branch (distances already in subs/site), this rescaling is incorrect.",
+                UserWarning,
+                stacklevel=2,
+            )
             dist_mat = dist_mat / L
 
         if max_species is not None and len(taxa) > max_species:
