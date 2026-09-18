@@ -596,6 +596,11 @@ def compute_mds_coordinates(dist_matrix: np.ndarray, n_components: int = 4) -> n
             eigvecs = eigvecs[:, idx]
             pos_eigvals = np.maximum(eigvals[:n_components], 0)
             coords = eigvecs[:, :n_components] * np.sqrt(pos_eigvals)
+            # Deterministic sign canonicalization: ensure max-magnitude component is positive
+            for j in range(coords.shape[1]):
+                max_idx = np.argmax(np.abs(coords[:, j]))
+                if coords[max_idx, j] < 0:
+                    coords[:, j] *= -1.0
             if coords.shape[1] < n_components:
                 pad = np.zeros((n, n_components - coords.shape[1]))
                 coords = np.hstack([coords, pad])
@@ -611,6 +616,11 @@ def compute_mds_coordinates(dist_matrix: np.ndarray, n_components: int = 4) -> n
     eigvecs = eigvecs[:, idx]
     pos_eigvals = np.maximum(eigvals[:n_components], 0)
     coords = eigvecs[:, :n_components] * np.sqrt(pos_eigvals)
+    # Deterministic sign canonicalization: ensure max-magnitude component is positive
+    for j in range(coords.shape[1]):
+        max_idx = np.argmax(np.abs(coords[:, j]))
+        if coords[max_idx, j] < 0:
+            coords[:, j] *= -1.0
     if coords.shape[1] < n_components:
         pad = np.zeros((n, n_components - coords.shape[1]))
         coords = np.hstack([coords, pad])

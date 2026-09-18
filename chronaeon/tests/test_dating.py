@@ -487,3 +487,54 @@ class TestTransformerMetricityDiagnostics:
 
         diag = compute_transformer_metricity_diagnostics(D, coverage=cov)
         assert diag["recommended_regime"] == "tn93"
+
+    def test_fieller_four_cases(self):
+        """Verify all 4 mathematical regimes of Fieller's ratio inversion."""
+        from chronaeon.dating import compute_fieller_mrca_interval
+
+        # Case 1: Bounded (g < 1, disc >= 0)
+        cov1 = np.array([[1e-8, 0.0], [0.0, 1e-6]])
+        ci1, info1 = compute_fieller_mrca_interval(
+            mu=0.002, d0=0.04, cov_beta=cov1, t_ref=2020.0, df=50, min_time=2000.0
+        )
+        assert info1['status'] == 'BOUNDED'
+        assert info1['g'] < 1.0
+        assert ci1[0] < ci1[1] <= 2000.0
+
+        # Case 2: Complement Set (g > 1, disc > 0)
+        # Distance offset is well-measured (C > 0), but slope has large variance (A < 0)
+        cov2 = np.array([[1e-4, 0.0], [0.0, 1e-6]])
+        ci2, info2 = compute_fieller_mrca_interval(
+            mu=0.0005, d0=0.2, cov_beta=cov2, t_ref=2000.0, df=30, min_time=1950.0
+        )
+        assert info2['status'] == 'COMPLEMENT'
+        assert info2['g'] > 1.0
+        assert 'complement_set' in info2
+        assert 'excluded_window' in info2
+        assert ci2[0] == float('-inf')
+        assert ci2[1] <= 1950.0
+
+        # Case 3: All Reals (g > 1, disc <= 0)
+        cov3 = np.array([[1.0, 0.0], [0.0, 1.0]])
+        ci3, info3 = compute_fieller_mrca_interval(
+            mu=0.0001, d0=0.0001, cov_beta=cov3, t_ref=2000.0, df=10
+        )
+        assert info3['status'] == 'ALL_REALS'
+        assert info3['g'] > 1.0
+        assert ci3[0] == float('-inf')
+
+    def test_spline_wild_residual_bootstrap_non_degenerate(self):
+        """Verify Wild Rademacher residual bootstrap generates non-degenerate CIs without [t0, t0] collapse."""
+        from chronaeon.dating import run_restricted_spline_clock_dating
+        np.random.seed(42)
+        n = 50
+        times = np.linspace(1985, 2005, n)
+        # Synthetic non-linear decelerating clock
+        dists = 0.05 + 0.002 * (times - 1985) - 0.0008 * np.maximum(0.0, times - 1995)
+        dists += np.random.normal(0, 0.001, size=n)
+        cov = np.eye(n) * 0.001
+
+        res = run_restricted_spline_clock_dating(times, dists, cov_matrix=cov, n_boot=100, seed=42)
+        assert res['ci_mrca'][0] < res['ci_mrca'][1], "Spline CI should not collapse to zero-width!"
+        width = res['ci_mrca'][1] - res['ci_mrca'][0]
+        assert width > 1.0, f"Expected realistic CI width > 1.0 yr, got {width}"

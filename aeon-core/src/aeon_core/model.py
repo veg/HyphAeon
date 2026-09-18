@@ -429,15 +429,18 @@ class PhyloAxialTransformer(nn.Module):
                 k = torch.cat([k1 * cos - k2 * sin, k1 * sin + k2 * cos], dim=-1)
 
                 scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(layer.head_dim)
-                scores = scores + static_biases[i]
+                del q, k
+                scores.add_(static_biases[i])
 
                 if padding_mask_dup is not None:
                     mask = padding_mask_dup.unsqueeze(1).unsqueeze(2)
-                    scores = scores.masked_fill(mask, -1e4)
+                    scores.masked_fill_(mask, -1e4)
                     attn_weights = torch.softmax(scores, dim=-1)
                     attn_weights = torch.where(mask, torch.zeros_like(attn_weights), attn_weights)
+                    del mask
                 else:
                     attn_weights = torch.softmax(scores, dim=-1)
+                del scores
 
                 layer_attns.append(attn_weights[:, :, 0, 1:].detach())
 
