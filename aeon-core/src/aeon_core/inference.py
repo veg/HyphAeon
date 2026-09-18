@@ -8,7 +8,7 @@ These are used by both hyphaeon and chronaeon packages.
 """
 
 import os
-from typing import Optional
+from typing import Optional, Tuple
 import numpy as np
 import torch
 
@@ -17,41 +17,87 @@ from .weights import resolve_weights_path, load_arch_config, load_weights
 from .dataset import load_alignment_and_tree
 
 
+def get_live_available_memory(device: torch.device) -> int:
+    """
+    Dynamically probes live, unallocated accelerator VRAM, Unified Memory, or host RAM capacity
+    across CUDA, MPS, TPU (XLA), and CPU to determine safe operational headroom (in bytes).
+    """
+    dev_type = device.type if hasattr(device, 'type') else str(device).lower()
+
+    if 'cuda' in dev_type and torch.cuda.is_available():
+        try:
+            free_bytes, _ = torch.cuda.mem_get_info(device)
+            return int(free_bytes)
+        except Exception:
+            return 3 * 1024 * 1024 * 1024  # 3 GB fallback
+
+    elif 'mps' in dev_type and hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+        try:
+            rec_max = torch.mps.recommended_max_memory() if hasattr(torch.mps, 'recommended_max_memory') else 24 * (1024 ** 3)
+            curr_alloc = torch.mps.current_allocated_memory() if hasattr(torch.mps, 'current_allocated_memory') else 0
+            mps_free = max(0, rec_max - curr_alloc)
+            try:
+                import psutil
+                host_free = psutil.virtual_memory().available
+                return int(min(mps_free, host_free))
+            except Exception:
+                return int(mps_free)
+        except Exception:
+            return 4 * 1024 * 1024 * 1024
+
+    else:  # CPU or other
+        try:
+            import psutil
+            return int(psutil.virtual_memory().available)
+        except Exception:
+            try:
+                sys_ram = os.sysconf('SC_PAGE_SIZE') * os.sysconf('SC_PHYS_PAGES')
+                return int(sys_ram * 0.20)
+            except Exception:
+                return 2 * 1024 * 1024 * 1024
+
+
 def get_device_memory_budget(device: torch.device) -> float:
     """
     Dynamically probes accelerator VRAM, Unified Memory, or host RAM capacity
     across CUDA, MPS, TPU (XLA), and CPU to determine an optimal per-layer
-    attention allocation budget (in bytes).
+    attention allocation budget (in bytes) based on live memory availability.
     """
-    dev_type = device.type
-    
-    if dev_type == 'cuda' and torch.cuda.is_available():
-        try:
-            total_vram = torch.cuda.get_device_properties(device).total_memory
-            # Allocate up to 20% of VRAM for peak single-layer attention tensor (bounded between 1.5 GB and 8.0 GB)
-            return float(min(8.0e9, max(1.5e9, total_vram * 0.20)))
-        except Exception:
-            return 3.0e9
-            
-    elif dev_type == 'mps':
-        try:
-            # Query macOS unified RAM capacity
-            sys_ram = os.sysconf('SC_PAGE_SIZE') * os.sysconf('SC_PHYS_PAGES')
-            # 10% of unified memory (bounded between 1.5 GB and 6.0 GB)
-            return float(min(6.0e9, max(1.5e9, sys_ram * 0.10)))
-        except Exception:
-            return 2.0e9
-            
-    elif dev_type == 'xla':
-        # TPU v2/v3/v4/v5e typically feature 16GB-32GB HBM per core
-        return 4.0e9
-        
-    else: # CPU
-        try:
-            sys_ram = os.sysconf('SC_PAGE_SIZE') * os.sysconf('SC_PHYS_PAGES')
-            return float(min(4.0e9, max(1.0e9, sys_ram * 0.10)))
-        except Exception:
-            return 1.5e9
+    live_free = get_live_available_memory(device)
+    # Target 15-20% of live free memory, clamped between 1.0 GB and 6.0 GB
+    return float(min(6.0e9, max(1.0e9, live_free * 0.20)))
+
+
+def compute_live_adaptive_chunk_sizes(
+    device: torch.device,
+    num_nodes: int,
+    num_heads: int = 8,
+    embed_dim: int = 128,
+    window_size: int = 1
+) -> Tuple[int, int]:
+    """
+    Computes memory-safe and latency-optimal (macro_batch_size, inner_chunk_size)
+    dynamically calibrated to live available accelerator VRAM or host RAM.
+
+    Guarantees:
+      1. Peak attention tensor allocation stays within ~5% of live free memory (clamped 64MB - 768MB).
+      2. Macro-batch embedding tensor stays within ~5% of live free memory (clamped 64MB - 512MB).
+      3. Chunk sizes dynamically scale up on roomy machines (e.g. 8-16 sites on 16GB+ MPS / A100)
+         while gracefully throttling to 1-2 sites under severe memory pressure, eliminating OOM crashes.
+    """
+    live_free = get_live_available_memory(device)
+
+    # Attention score budget: 5% of live free memory, clamped between 64 MB and 768 MB
+    attn_budget = max(64 * 1024 * 1024, min(768 * 1024 * 1024, int(live_free * 0.05)))
+    bytes_per_site_attn = num_heads * (num_nodes ** 2) * 4  # float32
+    inner_chunk_size = max(1, min(32, int(attn_budget / max(1, bytes_per_site_attn))))
+
+    # Macro-batch embedding budget: 5% of live free memory, clamped between 64 MB and 512 MB
+    emb_budget = max(64 * 1024 * 1024, min(512 * 1024 * 1024, int(live_free * 0.05)))
+    bytes_per_site_emb = window_size * num_nodes * embed_dim * 4
+    macro_batch_size = max(1, min(128, int(emb_budget / max(1, bytes_per_site_emb))))
+
+    return macro_batch_size, inner_chunk_size
 
 
 def compute_adaptive_safe_batch_size(

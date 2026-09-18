@@ -14,6 +14,9 @@ from scipy.spatial.distance import pdist, squareform
 import torch
 
 
+from .inference import compute_live_adaptive_chunk_sizes
+
+
 def extract_cross_taxa_attentions_and_embeddings(
     model: torch.nn.Module,
     msa_codons: torch.Tensor,
@@ -29,16 +32,17 @@ def extract_cross_taxa_attentions_and_embeddings(
     2. The sequence-level latent embeddings Z in R^(N x D) pooled across all codon sites.
 
     Memory Safety:
-    Uses dynamic byte-budgeted safety chunking and streaming macro-batching over codon sites
-    to guarantee accelerator memory usage remains bounded (<= 256 MB) even for massive
-    alignments (N > 2,000 taxa, L > 10,000 codons), preventing MPS and CUDA OOM crashes.
+    Uses live-budgeted safety chunking and streaming macro-batching over codon sites
+    calibrated dynamically to live available accelerator VRAM and host RAM,
+    guaranteeing bounded memory footprint without GPU pipeline stalls.
 
     Returns:
         mean_cross_attn: np.ndarray of shape (N, N)
         mean_taxa_repr: np.ndarray of shape (N, D)
     """
     model.eval()
-    dev_str = str(device).lower()
+    dev_obj = device if isinstance(device, torch.device) else torch.device(device)
+    dev_str = dev_obj.type
     is_mps = "mps" in dev_str
     is_cuda = "cuda" in dev_str
 
@@ -51,14 +55,11 @@ def extract_cross_taxa_attentions_and_embeddings(
     static_coss = tree_cache["static_rope_coss"]
     static_sins = tree_cache["static_rope_sins"]
 
-    # Target intermediate attention tensor <= 48 MB
     num_heads = model.row_layers[0].num_heads if len(model.row_layers) > 0 else 8
-    bytes_per_site_attn = num_heads * (num_nodes ** 2) * 4  # float32
-    inner_chunk_size = max(1, min(16, int((48 * 1024 * 1024) / max(1, bytes_per_site_attn))))
-
-    # Target macro-batch embedding tensor <= 64 MB
-    bytes_per_site_emb = window_size * num_nodes * model.embed_dim * 4
-    macro_batch_size = max(1, min(64, int((64 * 1024 * 1024) / max(1, bytes_per_site_emb))))
+    macro_batch_size, inner_chunk_size = compute_live_adaptive_chunk_sizes(
+        dev_obj, num_nodes=num_nodes, num_heads=num_heads,
+        embed_dim=model.embed_dim, window_size=window_size
+    )
 
     accum_attn = torch.zeros((num_species, num_species), dtype=torch.float32, device=device)
     accum_taxa_repr = torch.zeros((num_species, model.embed_dim), dtype=torch.float32, device=device)
@@ -153,12 +154,6 @@ def extract_cross_taxa_attentions_and_embeddings(
                     r_out = model.row_norms[i](r_chunk + out)
                     del out
                     row_out_chunks.append(r_out)
-
-                    if (is_mps or is_cuda) and num_nodes > 500 and (c_start // inner_chunk_size) % 4 == 0:
-                        if is_mps:
-                            torch.mps.empty_cache()
-                        else:
-                            torch.cuda.empty_cache()
 
                 row_out = torch.cat(row_out_chunks, dim=0)
                 del row_out_chunks

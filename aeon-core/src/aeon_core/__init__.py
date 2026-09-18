@@ -10,6 +10,7 @@ from .weights import (
 )
 from .inference import (
     get_device, get_device_memory_budget,
+    get_live_available_memory, compute_live_adaptive_chunk_sizes,
     compute_adaptive_safe_batch_size,
     load_model, prepare_alignment,
 )
