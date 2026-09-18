@@ -35,7 +35,10 @@ class TestBustedMultiTaskHead:
     def test_forward_output_ranges(self):
         head = BustedMultiTaskHead(embed_dim=8)
         x = torch.randn(1, 50, 8)
-        out = head(x)
+        # no_grad so the range checks below don't call float() on grad-carrying
+        # tensors (which emits a UserWarning); this test only inspects values.
+        with torch.no_grad():
+            out = head(x)
         assert 0.0 <= float(out["cls_prob"]) <= 1.0
         assert float(out["pred_lrt"]) >= 0.0
         assert float(out["pred_logp"]) >= 0.0
