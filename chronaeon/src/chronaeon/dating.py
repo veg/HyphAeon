@@ -1166,6 +1166,64 @@ def optimize_latent_convex_hull_root(
 # 4. Dating Estimators: OLS, Attention PGLS, Latent Manifold Collapse
 # =========================================================================
 
+def _spectral_eigh(
+    cov_matrix: np.ndarray,
+    n_max: int = 2500
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Eigendecomposition of covariance matrix with large-N fallback to eigsh.
+
+    Returns (w_pos, v) where w_pos are clamped to non-negative eigenvalues.
+    For N > n_max, uses scipy.sparse.linalg.eigsh (top k_eig eigenvalues only).
+    """
+    n = cov_matrix.shape[0]
+    if n > n_max:
+        from scipy.sparse.linalg import eigsh
+        k_eig = min(n - 2, 250)
+        w_raw, v = eigsh(cov_matrix.astype(np.float32), k=k_eig, which='LM', tol=1e-4)
+        idx = np.argsort(w_raw)
+        w_pos = np.maximum(w_raw[idx], 0.0)
+        v = v[:, idx]
+    else:
+        w_raw, v = la.eigh(cov_matrix)
+        w_pos = np.maximum(w_raw, 0.0)
+    return w_pos, v
+
+
+def _gls_fit(
+    X: np.ndarray,
+    dists: np.ndarray,
+    C_inv: np.ndarray
+) -> np.ndarray:
+    """Solve generalized least squares: beta = (X'C^{-1}X)^{-1} X'C^{-1}d.
+
+    Falls back to pseudoinverse if the normal equations are singular.
+    """
+    Xt_Cinv = X.T @ C_inv
+    Xt_Cinv_X = Xt_Cinv @ X
+    Xt_Cinv_d = Xt_Cinv @ dists
+    try:
+        return la.solve(Xt_Cinv_X, Xt_Cinv_d)
+    except la.LinAlgError:
+        return la.pinv(Xt_Cinv_X) @ Xt_Cinv_d
+
+
+def _generalized_r2(
+    rss: float,
+    dists: np.ndarray,
+    C_inv: np.ndarray
+) -> float:
+    """Generalized R² (Buse 1973) for GLS-weighted residuals.
+
+    r2 = 1 - RSS / TSS, where TSS uses the GLS-weighted total sum of squares.
+    """
+    n = len(dists)
+    ones = np.ones(n)
+    one_Cinv_one = float(ones.T @ C_inv @ ones)
+    weighted_mean = float(ones.T @ C_inv @ dists) / max(1e-12, one_Cinv_one)
+    tot_residuals = dists - weighted_mean
+    ss_tot = float(tot_residuals.T @ C_inv @ tot_residuals)
+    return float(max(0.0, 1.0 - (rss / max(1e-12, ss_tot))))
+
 def compute_fieller_mrca_interval(
     mu: float,
     d0: float,
@@ -1708,16 +1766,7 @@ def run_pgls_dating(
             v = reml_res['V']
 
     if v is None:
-        if n > 2500:
-            from scipy.sparse.linalg import eigsh
-            k_eig = min(n - 2, 250)
-            w_raw, v = eigsh(cov_matrix.astype(np.float32), k=k_eig, which='LM', tol=1e-4)
-            idx = np.argsort(w_raw)
-            w_pos = np.maximum(w_raw[idx], 0.0)
-            v = v[:, idx]
-        else:
-            w_raw, v = la.eigh(cov_matrix)
-            w_pos = np.maximum(w_raw, 0.0)
+        w_pos, v = _spectral_eigh(cov_matrix)
 
     # Either Pagel's lambda covariance: C = lambda * K + (1 - lambda) * I
     # or additive ridge covariance: C = K + ridge * I
@@ -1903,8 +1952,7 @@ def estimate_reml_pagel_lambda(
     x = times - t_ref
     X = np.column_stack([x, np.ones(n)])
 
-    w_K, V = la.eigh(cov_matrix)
-    w_K = np.maximum(w_K, 0.0)
+    w_K, V = _spectral_eigh(cov_matrix)
 
     # Pre-project design matrix and responses onto eigenvectors
     Z = V.T @ X      # (N, 2)
@@ -1987,8 +2035,8 @@ def run_powerlaw_clock_dating(
 
     # Covariance weighting with single-call spectral projection & inversion:
     if cov_matrix is not None:
-        w_raw, v = la.eigh(cov_matrix)
-        w_c = np.maximum(w_raw, 0.0) + ridge
+        w_pos, v = _spectral_eigh(cov_matrix)
+        w_c = w_pos + ridge
         C_inv = v @ np.diag(1.0 / w_c) @ v.T
     else:
         C_inv = np.eye(n)
@@ -1997,8 +2045,7 @@ def run_powerlaw_clock_dating(
     x_mean = float(np.mean(times))
     d_mean = float(np.mean(dists))
     X_lin = np.column_stack([times - x_mean, np.ones(n)])
-    Xt_Cinv = X_lin.T @ C_inv
-    beta_lin = la.solve(Xt_Cinv @ X_lin, Xt_Cinv @ dists)
+    beta_lin = _gls_fit(X_lin, dists, C_inv)
     mu_lin = float(beta_lin[0])
     d0_lin = float(beta_lin[1])
     fitted_lin = X_lin @ beta_lin
@@ -2137,11 +2184,7 @@ def run_powerlaw_clock_dating(
         ci_k = [k_nl, k_nl]
 
     # Generalized R^2
-    one_Cinv_one = float(np.ones(n).T @ C_inv @ np.ones(n))
-    weighted_mean = float(np.ones(n).T @ C_inv @ dists) / max(1e-12, one_Cinv_one)
-    tot_residuals = dists - weighted_mean
-    ss_tot = float(tot_residuals.T @ C_inv @ tot_residuals)
-    r2_nl = float(max(0.0, 1.0 - (rss_nl / max(1e-12, ss_tot))))
+    r2_nl = _generalized_r2(rss_nl, dists, C_inv)
 
     return {
         'method': 'POWER_LAW',
@@ -2243,8 +2286,8 @@ def run_restricted_spline_clock_dating(
 
     # Covariance weighting with single-call spectral projection & inversion:
     if cov_matrix is not None:
-        w_raw, v = la.eigh(cov_matrix)
-        w_c = np.maximum(w_raw, 0.0) + ridge
+        w_pos, v = _spectral_eigh(cov_matrix)
+        w_c = w_pos + ridge
         C_inv = v @ np.diag(1.0 / w_c) @ v.T
         C_half = v @ np.diag(np.sqrt(w_c)) @ v.T
         C_inv_half = v @ np.diag(1.0 / np.sqrt(w_c)) @ v.T
@@ -2255,8 +2298,7 @@ def run_restricted_spline_clock_dating(
 
     # 1. Fit Linear Null Model: d(t) = beta_0 + beta_1 * t
     X_lin = np.column_stack([np.ones(n), times])
-    Xt_Cinv_lin = X_lin.T @ C_inv
-    beta_lin = la.solve(Xt_Cinv_lin @ X_lin, Xt_Cinv_lin @ dists)
+    beta_lin = _gls_fit(X_lin, dists, C_inv)
     pred_lin = X_lin @ beta_lin
     res_lin = dists - pred_lin
     rss_lin = float(res_lin.T @ C_inv @ res_lin)
@@ -2264,8 +2306,7 @@ def run_restricted_spline_clock_dating(
 
     # 2. Fit Restricted Spline Model: d(t) = beta_0 + beta_1 * t + beta_2 * X_2(t)
     X_sp = np.column_stack([np.ones(n), times, B])
-    Xt_Cinv_sp = X_sp.T @ C_inv
-    beta_sp = la.solve(Xt_Cinv_sp @ X_sp, Xt_Cinv_sp @ dists)
+    beta_sp = _gls_fit(X_sp, dists, C_inv)
     pred_sp = X_sp @ beta_sp
     res_sp = dists - pred_sp
     rss_sp = float(res_sp.T @ C_inv @ res_sp)
@@ -2310,6 +2351,7 @@ def run_restricted_spline_clock_dating(
         rng = np.random.default_rng(seed)
         raw_res = dists - pred_sp
         decorr_res = C_inv_half @ raw_res
+        Xt_Cinv_sp = X_sp.T @ C_inv
         Xt_Cinv_X_sp = Xt_Cinv_sp @ X_sp
         dB_end = dB_max
 
@@ -2345,11 +2387,7 @@ def run_restricted_spline_clock_dating(
         ci_beta2 = [float(beta_sp[2]), float(beta_sp[2])]
 
     # Generalized R^2
-    one_Cinv_one = float(np.ones(n).T @ C_inv @ np.ones(n))
-    weighted_mean = float(np.ones(n).T @ C_inv @ dists) / max(1e-12, one_Cinv_one)
-    tot_residuals = dists - weighted_mean
-    ss_tot = float(tot_residuals.T @ C_inv @ tot_residuals)
-    r2_sp = float(max(0.0, 1.0 - (rss_sp / max(1e-12, ss_tot))))
+    r2_sp = _generalized_r2(rss_sp, dists, C_inv)
 
     return {
         'method': 'RESTRICTED_SPLINE',
