@@ -2858,6 +2858,319 @@ def plot_alluvial_phylogeny(
     return str(out_p)
 
 
+def _compute_precision_weighted_ensemble(
+    ols_res: Optional[Dict[str, Any]],
+    pgls_res: Optional[Dict[str, Any]],
+    spline_res: Optional[Dict[str, Any]],
+    times: np.ndarray
+) -> Dict[str, Any]:
+    """Precision-weighted multi-model ensembling (Hartung-Knapp / Burnham & Anderson).
+
+    Computes precision weights from CI widths, ensembles t_MRCA estimates,
+    and returns ensemble results with between-model variance.
+    """
+    ols_valid = ols_res is not None and not np.isnan(ols_res.get('t_mrca', np.nan)) and ols_res.get('mu', 0) > 0
+    pgls_valid = pgls_res is not None and not np.isnan(pgls_res.get('t_mrca', np.nan)) and pgls_res.get('mu', 0) > 0
+    spline_valid = spline_res is not None and not np.isnan(spline_res.get('t_mrca', np.nan)) and spline_res.get('rate_ancestral', 0) > 0
+
+    ols_g = float(ols_res.get('fieller_g', np.nan)) if (ols_res and ols_res.get('fieller_g') is not None) else np.nan
+    pgls_g = float(pgls_res.get('fieller_g', np.nan)) if (pgls_res and pgls_res.get('fieller_g') is not None) else np.nan
+
+    ols_bounded = (not np.isnan(ols_g)) and (ols_g < 1.0)
+    pgls_bounded = (not np.isnan(pgls_g)) and (pgls_g < 1.0)
+
+    mu_ols = float(ols_res.get('mu', 1e-12)) if ols_res else 1e-12
+    mu_pgls = float(pgls_res.get('mu', 1e-12)) if pgls_res else 1e-12
+    attr = float(mu_pgls / max(1e-12, mu_ols)) if (ols_valid and pgls_valid) else 1.0
+
+    r2_ols = float(ols_res.get('r2', 0.0)) if ols_res else 0.0
+    r2_pgls = float(pgls_res.get('r2', 0.0)) if pgls_res else 0.0
+    is_clade_attenuated = ols_bounded and (attr < 0.50) and (r2_pgls < 0.65 * r2_ols)
+
+    precisions = {}
+    candidate_models = {}
+    if ols_valid and ols_bounded:
+        ci_w = ols_res['ci_mrca'][1] - ols_res['ci_mrca'][0] if ols_res.get('ci_mrca') and not np.isneginf(ols_res['ci_mrca'][0]) and not np.isinf(ols_res['ci_mrca'][1]) else np.nan
+        if not np.isnan(ci_w) and ci_w > 0:
+            precisions['ols'] = 1.0 / (ci_w ** 2)
+            candidate_models['ols'] = ols_res
+
+    if pgls_valid and pgls_bounded and not is_clade_attenuated:
+        ci_w = pgls_res['ci_mrca'][1] - pgls_res['ci_mrca'][0] if pgls_res.get('ci_mrca') and not np.isneginf(pgls_res['ci_mrca'][0]) and not np.isinf(pgls_res['ci_mrca'][1]) else np.nan
+        if not np.isnan(ci_w) and ci_w > 0:
+            precisions['pgls'] = 1.0 / (ci_w ** 2)
+            candidate_models['pgls'] = pgls_res
+
+    if spline_valid and spline_res.get('is_nonlinear_preferred'):
+        ci_w = spline_res['ci_mrca'][1] - spline_res['ci_mrca'][0] if spline_res.get('ci_mrca') and not np.isneginf(spline_res['ci_mrca'][0]) and not np.isinf(spline_res['ci_mrca'][1]) else np.nan
+        if not np.isnan(ci_w) and ci_w > 0:
+            precisions['spline'] = 1.0 / (ci_w ** 2)
+            candidate_models['spline'] = spline_res
+
+    ensemble_t_mrca = None
+    ensemble_ci = None
+    model_weights = {}
+    if precisions:
+        tot_prec = sum(precisions.values())
+        model_weights = {m: float(precisions[m] / max(1e-12, tot_prec)) for m in precisions}
+        ensemble_t_mrca = float(sum(model_weights[m] * candidate_models[m]['t_mrca'] for m in model_weights))
+
+        t_crit = float(stats.t.ppf(0.975, df=max(1, len(times) - 2)))
+        tot_var = 0.0
+        for m, w_m in model_weights.items():
+            ci_m = candidate_models[m]['ci_mrca']
+            se_m = (ci_m[1] - ci_m[0]) / (2.0 * t_crit)
+            tot_var += w_m * (se_m ** 2 + (candidate_models[m]['t_mrca'] - ensemble_t_mrca) ** 2)
+        se_ens = float(np.sqrt(max(1e-12, tot_var)))
+        min_sample_time = float(np.min(times))
+        ensemble_ci = [float(ensemble_t_mrca - t_crit * se_ens), min(min_sample_time, float(ensemble_t_mrca + t_crit * se_ens))]
+    elif ols_valid:
+        model_weights = {'ols': 1.0}
+        ensemble_t_mrca = float(ols_res['t_mrca'])
+        ensemble_ci = ols_res.get('ci_mrca')
+
+    return {
+        't_mrca': ensemble_t_mrca,
+        'ci_mrca': ensemble_ci,
+        'weights': model_weights,
+        'is_clade_attenuated': is_clade_attenuated,
+        'ols_valid': ols_valid,
+        'pgls_valid': pgls_valid,
+        'spline_valid': spline_valid,
+        'ols_bounded': ols_bounded,
+        'pgls_bounded': pgls_bounded,
+        'ols_g': ols_g,
+        'pgls_g': pgls_g,
+        'attr': attr,
+        'mu_ols': mu_ols,
+        'mu_pgls': mu_pgls,
+    }
+
+
+def _select_clock_model(
+    clock_model: str,
+    ols_res: Optional[Dict[str, Any]],
+    pgls_res: Optional[Dict[str, Any]],
+    spline_res: Optional[Dict[str, Any]],
+    power_res: Optional[Dict[str, Any]],
+    ensemble_info: Dict[str, Any]
+) -> Tuple[Optional[Dict[str, Any]], str]:
+    """Select the best clock model based on fit quality and diagnostic flags.
+
+    Returns (active_model, selected_clock_description).
+    """
+    ols_valid = ensemble_info['ols_valid']
+    pgls_valid = ensemble_info['pgls_valid']
+    spline_valid = ensemble_info['spline_valid']
+    ols_bounded = ensemble_info['ols_bounded']
+    pgls_bounded = ensemble_info['pgls_bounded']
+    is_clade_attenuated = ensemble_info['is_clade_attenuated']
+    ols_g = ensemble_info['ols_g']
+    pgls_g = ensemble_info['pgls_g']
+    attr = ensemble_info['attr']
+    mu_ols = ensemble_info['mu_ols']
+    mu_pgls = ensemble_info['mu_pgls']
+
+    selected_clock = "Linear"
+    if clock_model == "spline" and spline_res is not None:
+        active_model = spline_res
+        selected_clock = "Restricted Spline (forced)"
+    elif clock_model == "power" and power_res is not None:
+        active_model = power_res
+        selected_clock = "Power-Law (forced)"
+    elif clock_model == "linear":
+        if pgls_valid and not is_clade_attenuated and (pgls_bounded or not ols_bounded):
+            active_model = pgls_res
+            selected_clock = "Linear (HyphAeon PGLS)"
+        elif ols_valid:
+            active_model = ols_res
+            selected_clock = "Linear (Standard OLS)"
+        else:
+            active_model = pgls_res if pgls_res is not None else ols_res
+            selected_clock = "Linear (forced)"
+    else:  # auto
+        if spline_valid and spline_res.get('is_nonlinear_preferred'):
+            active_model = spline_res
+            ratio_str = f"acceleration ({spline_res['rate_ratio']:.2f}x)" if spline_res['rate_ratio'] > 1.0 else f"deceleration ({spline_res['rate_ratio']:.2f}x)"
+            selected_clock = f"Restricted Spline (rate {ratio_str} detected: F={spline_res['f_stat']:.2f}, p={spline_res['p_f_test']:.4f}, ΔAIC={spline_res['delta_aic']:+.1f})"
+        elif pgls_valid and not pgls_bounded and ols_bounded:
+            active_model = ols_res
+            selected_clock = f"Linear (OLS preferred: PGLS temporal slope non-significant, g={pgls_g:.2f} vs OLS g={ols_g:.3f})"
+        elif pgls_valid and is_clade_attenuated:
+            active_model = ols_res
+            selected_clock = f"Linear (OLS preferred: PGLS clade attenuation detected, rate deflated {1/attr:.1f}x from OLS {mu_ols:.2e} to {mu_pgls:.2e})"
+        elif pgls_valid and pgls_bounded:
+            active_model = pgls_res
+            sp_p = f"p={spline_res['p_f_test']:.4f}" if spline_res else "p=n/a"
+            lam_val = pgls_res.get('pagel_lambda')
+            lam_str = f", λ*={lam_val:.4f}" if isinstance(lam_val, (float, int)) else ""
+            selected_clock = f"Linear PGLS (parsimonious linear clock preferred{lam_str}; {sp_p})"
+        elif ols_valid and ols_bounded:
+            active_model = ols_res
+            selected_clock = "Linear (Standard OLS)"
+        elif pgls_valid:
+            active_model = pgls_res
+            g_p_str = f"{pgls_g:.2f}" if not np.isnan(pgls_g) else "inf"
+            g_o_str = f"{ols_g:.2f}" if not np.isnan(ols_g) else "inf"
+            selected_clock = f"Linear PGLS (unbounded temporal signal: PGLS g={g_p_str}, OLS g={g_o_str}; slope p >= 0.05)"
+        elif ols_valid:
+            active_model = ols_res
+            selected_clock = "Linear (OLS fallback: PGLS non-positive rate)"
+        else:
+            active_model = pgls_res if pgls_res is not None else ols_res
+            selected_clock = "Linear (parsimonious linear clock; non-positive rate)"
+
+    return active_model, selected_clock
+
+
+def _compute_taxon_predictions(
+    active_model: Dict[str, Any],
+    times: np.ndarray,
+    dists: np.ndarray,
+    taxa: List[str],
+    is_train: np.ndarray,
+    train_idx: np.ndarray
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, List[Dict[str, Any]]]:
+    """Compute per-taxon fitted values, predicted dates, residuals, and taxon records.
+
+    Returns (fitted_all, pred_dates, residuals, taxon_records).
+    """
+    if active_model.get('method') == 'RESTRICTED_SPLINE':
+        b0 = float(active_model.get('beta_0', active_model.get('beta', [0, 0, 0])[0]))
+        b1 = float(active_model.get('beta_1', active_model.get('beta', [0, 0, 0])[1]))
+        b2 = float(active_model.get('beta_2', active_model.get('beta', [0, 0, 0])[2]))
+        knots_arr = np.array(active_model['knots'])
+        B_all, _ = compute_rcs_basis(times, knots_arr)
+        fitted_all = b0 + b1 * times + b2 * B_all[:, 0]
+
+        t_kn0 = knots_arr[0]
+        B_kn0, _ = compute_rcs_basis(np.array([t_kn0]), knots_arr)
+        d_kn0 = float(b0 + b1 * t_kn0 + b2 * B_kn0[0, 0])
+
+        pred_dates = np.zeros(len(dists))
+        for idx_d, d_val in enumerate(dists):
+            if b1 <= 1e-6:
+                pred_dates[idx_d] = np.nan
+            elif d_val <= d_kn0 or abs(b2) < 1e-12:
+                pred_dates[idx_d] = (d_val - b0) / b1
+            else:
+                def f_diff(t_cand):
+                    B_c, _ = compute_rcs_basis(np.array([t_cand]), knots_arr)
+                    return float(b0 + b1 * t_cand + b2 * B_c[0, 0] - d_val)
+                try:
+                    t_root_sol = optimize.brentq(f_diff, t_kn0, max(times) + 100.0)
+                    pred_dates[idx_d] = t_root_sol
+                except Exception:
+                    pred_dates[idx_d] = (d_val - b0) / b1
+    elif active_model.get('method') == 'POWER_LAW':
+        k_val = max(1e-12, active_model['k'])
+        th_val = max(1e-4, active_model['theta'])
+        t0_val = active_model['t_mrca']
+        fitted_all = k_val * (np.maximum(1e-6, times - t0_val) ** th_val)
+        pred_dates = t0_val + (np.maximum(0.0, dists) / k_val) ** (1.0 / th_val)
+    else:
+        fitted_all = active_model['d0'] + active_model['mu'] * (times - active_model['t_ref'])
+        if active_model['mu'] > 1e-6:
+            pred_dates = active_model['t_ref'] + (dists - active_model['d0']) / active_model['mu']
+        else:
+            pred_dates = np.full(len(dists), np.nan)
+
+    residuals = dists - fitted_all
+    train_resids = residuals[train_idx]
+    std_res = np.std(train_resids) if (len(train_resids) >= 3 and np.std(train_resids) > 1e-12) else (np.std(residuals) if np.std(residuals) > 1e-12 else 1.0)
+
+    taxon_records = []
+    for i, t in enumerate(taxa):
+        is_holdout = bool(not is_train[i])
+        z_score = float(residuals[i] / std_res)
+        is_outlier = bool(abs(z_score) >= 2.5) if not is_holdout else False
+        temporal_res = float(pred_dates[i] - times[i]) if not np.isnan(pred_dates[i]) else np.nan
+        taxon_records.append({
+            'taxon': t,
+            'sampling_date': float(times[i]),
+            'root_divergence': float(dists[i]),
+            'fitted_divergence': float(fitted_all[i]),
+            'predicted_date': float(pred_dates[i]),
+            'divergence_residual': float(residuals[i]),
+            'temporal_residual': temporal_res,
+            'z_score': z_score,
+            'is_outlier': is_outlier,
+            'is_holdout': is_holdout
+        })
+
+    return fitted_all, pred_dates, residuals, taxon_records
+
+
+def _export_dating_results(
+    results: Dict[str, Any],
+    output_prefix: Optional[str],
+    taxon_records: List[Dict[str, Any]],
+    ols_res: Optional[Dict[str, Any]],
+    pgls_res: Optional[Dict[str, Any]],
+    spline_res: Optional[Dict[str, Any]],
+    power_res: Optional[Dict[str, Any]],
+    loocv_res: Optional[Dict[str, Any]],
+    latent_root_res: Optional[Dict[str, Any]],
+    metricity_diag: Optional[Dict[str, Any]],
+    effective_dist_mode: str,
+    active_model_name: str,
+    active_tmrca_val: Optional[float],
+    active_ci_val: Optional[List[float]],
+    active_mu_val: Optional[float],
+    clock_model: str,
+    ci_method: str,
+    selected_clock: str,
+    ensemble_res: Dict[str, Any],
+    plot: bool
+) -> None:
+    """Export dating results to JSON, CSV, and optional diagnostic plot."""
+    if output_prefix:
+        out_p = Path(output_prefix)
+        ensure_parent_directory(out_p)
+
+        json_data = {
+            'alignment': results['alignment'],
+            'tree': results['tree'],
+            'root_description': results['root_description'],
+            'distance_mode': effective_dist_mode,
+            'metricity_diagnostics': metricity_diag,
+            'latent_root': {
+                'alpha': float(latent_root_res['alpha']),
+                'temporal_r': float(latent_root_res['temporal_r']),
+                'temporal_r2': float(latent_root_res['temporal_r2']),
+                'anchor_taxa': latent_root_res['anchor_taxa']
+            } if latent_root_res else None,
+            'taxa_count': results['taxa_count'],
+            'timespan': results['timespan'],
+            'elapsed_seconds': results['elapsed_seconds'],
+            'active_model': active_model_name,
+            't_mrca': active_tmrca_val,
+            'ci_mrca': active_ci_val,
+            'mu': active_mu_val,
+            'ols': {k: v for k, v in ols_res.items() if k not in ['residuals', 'fitted', 'times']},
+            'pgls': {k: v for k, v in pgls_res.items() if k not in ['residuals', 'fitted', 'times']} if pgls_res else None,
+            'spline': {k: v for k, v in spline_res.items() if k not in ['residuals', 'fitted']} if spline_res else None,
+            'power': {k: v for k, v in power_res.items() if k not in ['residuals', 'fitted']} if power_res else None,
+            'clock_model': clock_model,
+            'ci_method': ci_method,
+            'selected_clock': selected_clock,
+            'ensemble': ensemble_res,
+            'loocv': {k: v for k, v in loocv_res.items() if k != 'records'} if loocv_res else None,
+            'taxa_summary': taxon_records
+        }
+        json_file = out_p.with_suffix('.json') if not str(out_p).endswith('.json') else out_p
+        write_json(json_file, json_data)
+        print(f"[✓] Saved JSON summary: {json_file}")
+
+        csv_file = out_p.with_suffix('.csv') if not str(out_p).endswith('.csv') else out_p
+        pd.DataFrame(taxon_records).to_csv(csv_file, index=False)
+        print(f"[✓] Saved per-taxon CSV: {csv_file}")
+
+    if plot:
+        fig_path = f"{output_prefix}_diagnostic.pdf" if output_prefix else "mrca_dating_diagnostic.pdf"
+        plot_mrca_dating(results, fig_path)
+
+
 # =========================================================================
 # 6. Master MRCA Dating Pipeline
 # =========================================================================
@@ -3372,195 +3685,22 @@ def run_mrca_dating(
     # -------------------------------------------------------------
     # Principled Automated Model Selection & Ensembling Framework
     # -------------------------------------------------------------
-    ols_valid = ols_res is not None and not np.isnan(ols_res.get('t_mrca', np.nan)) and ols_res.get('mu', 0) > 0
-    pgls_valid = pgls_res is not None and not np.isnan(pgls_res.get('t_mrca', np.nan)) and pgls_res.get('mu', 0) > 0
-    spline_valid = spline_res is not None and not np.isnan(spline_res.get('t_mrca', np.nan)) and spline_res.get('rate_ancestral', 0) > 0
-
-    ols_g = float(ols_res.get('fieller_g', np.nan)) if (ols_res and ols_res.get('fieller_g') is not None) else np.nan
-    pgls_g = float(pgls_res.get('fieller_g', np.nan)) if (pgls_res and pgls_res.get('fieller_g') is not None) else np.nan
-
-    ols_bounded = (not np.isnan(ols_g)) and (ols_g < 1.0)
-    pgls_bounded = (not np.isnan(pgls_g)) and (pgls_g < 1.0)
-
-    mu_ols = float(ols_res.get('mu', 1e-12)) if ols_res else 1e-12
-    mu_pgls = float(pgls_res.get('mu', 1e-12)) if pgls_res else 1e-12
-    attr = float(mu_pgls / max(1e-12, mu_ols)) if (ols_valid and pgls_valid) else 1.0
-
-    # Clade-confounded attenuation indicator:
-    # Rate deflated by > 2x (attr < 0.50) AND PGLS variance explained degraded relative to OLS
-    r2_ols = float(ols_res.get('r2', 0.0)) if ols_res else 0.0
-    r2_pgls = float(pgls_res.get('r2', 0.0)) if pgls_res else 0.0
-    is_clade_attenuated = ols_bounded and (attr < 0.50) and (r2_pgls < 0.65 * r2_ols)
-
-    # Precision-Weighted Multi-Model Ensembling (Hartung-Knapp / Burnham & Anderson meta-averaging)
-    precisions = {}
-    candidate_models = {}
-    if ols_valid and ols_bounded:
-        ci_w = ols_res['ci_mrca'][1] - ols_res['ci_mrca'][0] if ols_res.get('ci_mrca') and not np.isneginf(ols_res['ci_mrca'][0]) and not np.isinf(ols_res['ci_mrca'][1]) else np.nan
-        if not np.isnan(ci_w) and ci_w > 0:
-            precisions['ols'] = 1.0 / (ci_w ** 2)
-            candidate_models['ols'] = ols_res
-
-    if pgls_valid and pgls_bounded and not is_clade_attenuated:
-        ci_w = pgls_res['ci_mrca'][1] - pgls_res['ci_mrca'][0] if pgls_res.get('ci_mrca') and not np.isneginf(pgls_res['ci_mrca'][0]) and not np.isinf(pgls_res['ci_mrca'][1]) else np.nan
-        if not np.isnan(ci_w) and ci_w > 0:
-            precisions['pgls'] = 1.0 / (ci_w ** 2)
-            candidate_models['pgls'] = pgls_res
-
-    if spline_valid and spline_res.get('is_nonlinear_preferred'):
-        ci_w = spline_res['ci_mrca'][1] - spline_res['ci_mrca'][0] if spline_res.get('ci_mrca') and not np.isneginf(spline_res['ci_mrca'][0]) and not np.isinf(spline_res['ci_mrca'][1]) else np.nan
-        if not np.isnan(ci_w) and ci_w > 0:
-            precisions['spline'] = 1.0 / (ci_w ** 2)
-            candidate_models['spline'] = spline_res
-
-    ensemble_t_mrca = None
-    ensemble_ci = None
-    model_weights = {}
-    if precisions:
-        tot_prec = sum(precisions.values())
-        model_weights = {m: float(precisions[m] / max(1e-12, tot_prec)) for m in precisions}
-        ensemble_t_mrca = float(sum(model_weights[m] * candidate_models[m]['t_mrca'] for m in model_weights))
-
-        # Total variance: within-model variance + between-model variance (Burnham & Anderson eq. 4.9)
-        t_crit = float(stats.t.ppf(0.975, df=max(1, len(times) - 2)))
-        tot_var = 0.0
-        for m, w_m in model_weights.items():
-            ci_m = candidate_models[m]['ci_mrca']
-            se_m = (ci_m[1] - ci_m[0]) / (2.0 * t_crit)
-            tot_var += w_m * (se_m ** 2 + (candidate_models[m]['t_mrca'] - ensemble_t_mrca) ** 2)
-        se_ens = float(np.sqrt(max(1e-12, tot_var)))
-        min_sample_time = float(np.min(times))
-        ensemble_ci = [float(ensemble_t_mrca - t_crit * se_ens), min(min_sample_time, float(ensemble_t_mrca + t_crit * se_ens))]
-    elif ols_valid:
-        model_weights = {'ols': 1.0}
-        ensemble_t_mrca = float(ols_res['t_mrca'])
-        ensemble_ci = ols_res.get('ci_mrca')
-
+    ensemble_info = _compute_precision_weighted_ensemble(ols_res, pgls_res, spline_res, times)
     ensemble_res = {
-        't_mrca': ensemble_t_mrca,
-        'ci_mrca': ensemble_ci,
-        'weights': model_weights
+        't_mrca': ensemble_info['t_mrca'],
+        'ci_mrca': ensemble_info['ci_mrca'],
+        'weights': ensemble_info['weights']
     }
 
-    # Model Selection Decision
-    selected_clock = "Linear"
-    if clock_model == "spline" and spline_res is not None:
-        active_model = spline_res
-        selected_clock = "Restricted Spline (forced)"
-    elif clock_model == "power" and power_res is not None:
-        active_model = power_res
-        selected_clock = "Power-Law (forced)"
-    elif clock_model == "linear":
-        if pgls_valid and not is_clade_attenuated and (pgls_bounded or not ols_bounded):
-            active_model = pgls_res
-            selected_clock = "Linear (HyphAeon PGLS)"
-        elif ols_valid:
-            active_model = ols_res
-            selected_clock = "Linear (Standard OLS)"
-        else:
-            active_model = pgls_res if pgls_res is not None else ols_res
-            selected_clock = "Linear (forced)"
-    else:  # auto
-        # 1. Non-linear Spline test
-        if spline_valid and spline_res.get('is_nonlinear_preferred'):
-            active_model = spline_res
-            ratio_str = f"acceleration ({spline_res['rate_ratio']:.2f}x)" if spline_res['rate_ratio'] > 1.0 else f"deceleration ({spline_res['rate_ratio']:.2f}x)"
-            selected_clock = f"Restricted Spline (rate {ratio_str} detected: F={spline_res['f_stat']:.2f}, p={spline_res['p_f_test']:.4f}, ΔAIC={spline_res['delta_aic']:+.1f})"
-        # 2. Linear arbitration: check Fieller identifiability
-        elif pgls_valid and not pgls_bounded and ols_bounded:
-            active_model = ols_res
-            selected_clock = f"Linear (OLS preferred: PGLS temporal slope non-significant, g={pgls_g:.2f} vs OLS g={ols_g:.3f})"
-        # 3. Linear arbitration: check clade-confounded attenuation
-        elif pgls_valid and is_clade_attenuated:
-            active_model = ols_res
-            selected_clock = f"Linear (OLS preferred: PGLS clade attenuation detected, rate deflated {1/attr:.1f}x from OLS {mu_ols:.2e} to {mu_pgls:.2e})"
-        # 4. Standard PGLS preference when calibrated and bounded
-        elif pgls_valid and pgls_bounded:
-            active_model = pgls_res
-            sp_p = f"p={spline_res['p_f_test']:.4f}" if spline_res else "p=n/a"
-            lam_val = pgls_res.get('pagel_lambda')
-            lam_str = f", λ*={lam_val:.4f}" if isinstance(lam_val, (float, int)) else ""
-            selected_clock = f"Linear PGLS (parsimonious linear clock preferred{lam_str}; {sp_p})"
-        elif ols_valid and ols_bounded:
-            active_model = ols_res
-            selected_clock = "Linear (Standard OLS)"
-        elif pgls_valid:
-            active_model = pgls_res
-            g_p_str = f"{pgls_g:.2f}" if not np.isnan(pgls_g) else "inf"
-            g_o_str = f"{ols_g:.2f}" if not np.isnan(ols_g) else "inf"
-            selected_clock = f"Linear PGLS (unbounded temporal signal: PGLS g={g_p_str}, OLS g={g_o_str}; slope p >= 0.05)"
-        elif ols_valid:
-            active_model = ols_res
-            selected_clock = "Linear (OLS fallback: PGLS non-positive rate)"
-        else:
-            active_model = pgls_res if pgls_res is not None else ols_res
-            selected_clock = "Linear (parsimonious linear clock; non-positive rate)"
-
+    active_model, selected_clock = _select_clock_model(
+        clock_model, ols_res, pgls_res, spline_res, power_res, ensemble_info
+    )
     print(f"[✓] Clock Model Selection: {selected_clock}")
 
     # 6. Per-Taxon Residuals and Predictions
-    if active_model.get('method') == 'RESTRICTED_SPLINE':
-        b0 = float(active_model.get('beta_0', active_model.get('beta', [0, 0, 0])[0]))
-        b1 = float(active_model.get('beta_1', active_model.get('beta', [0, 0, 0])[1]))
-        b2 = float(active_model.get('beta_2', active_model.get('beta', [0, 0, 0])[2]))
-        knots_arr = np.array(active_model['knots'])
-        B_all, _ = compute_rcs_basis(times, knots_arr)
-        fitted_all = b0 + b1 * times + b2 * B_all[:, 0]
-
-        t_kn0 = knots_arr[0]
-        B_kn0, _ = compute_rcs_basis(np.array([t_kn0]), knots_arr)
-        d_kn0 = float(b0 + b1 * t_kn0 + b2 * B_kn0[0, 0])
-
-        pred_dates = np.zeros(len(dists))
-        for idx_d, d_val in enumerate(dists):
-            if b1 <= 1e-6:
-                pred_dates[idx_d] = np.nan
-            elif d_val <= d_kn0 or abs(b2) < 1e-12:
-                pred_dates[idx_d] = (d_val - b0) / b1
-            else:
-                def f_diff(t_cand):
-                    B_c, _ = compute_rcs_basis(np.array([t_cand]), knots_arr)
-                    return float(b0 + b1 * t_cand + b2 * B_c[0, 0] - d_val)
-                try:
-                    t_root_sol = optimize.brentq(f_diff, t_kn0, max(times) + 100.0)
-                    pred_dates[idx_d] = t_root_sol
-                except Exception:
-                    pred_dates[idx_d] = (d_val - b0) / b1
-    elif active_model.get('method') == 'POWER_LAW':
-        k_val = max(1e-12, active_model['k'])
-        th_val = max(1e-4, active_model['theta'])
-        t0_val = active_model['t_mrca']
-        fitted_all = k_val * (np.maximum(1e-6, times - t0_val) ** th_val)
-        pred_dates = t0_val + (np.maximum(0.0, dists) / k_val) ** (1.0 / th_val)
-    else:
-        fitted_all = active_model['d0'] + active_model['mu'] * (times - active_model['t_ref'])
-        if active_model['mu'] > 1e-6:
-            pred_dates = active_model['t_ref'] + (dists - active_model['d0']) / active_model['mu']
-        else:
-            pred_dates = np.full(len(dists), np.nan)
-
-    residuals = dists - fitted_all
-    train_resids = residuals[train_idx]
-    std_res = np.std(train_resids) if (len(train_resids) >= 3 and np.std(train_resids) > 1e-12) else (np.std(residuals) if np.std(residuals) > 1e-12 else 1.0)
-
-    taxon_records = []
-    for i, t in enumerate(taxa):
-        is_holdout = bool(not is_train[i])
-        z_score = float(residuals[i] / std_res)
-        is_outlier = bool(abs(z_score) >= 2.5) if not is_holdout else False
-        temporal_res = float(pred_dates[i] - times[i]) if not np.isnan(pred_dates[i]) else np.nan
-        taxon_records.append({
-            'taxon': t,
-            'sampling_date': float(times[i]),
-            'root_divergence': float(dists[i]),
-            'fitted_divergence': float(fitted_all[i]),
-            'predicted_date': float(pred_dates[i]),
-            'divergence_residual': float(residuals[i]),
-            'temporal_residual': temporal_res,
-            'z_score': z_score,
-            'is_outlier': is_outlier,
-            'is_holdout': is_holdout
-        })
+    fitted_all, pred_dates, residuals, taxon_records = _compute_taxon_predictions(
+        active_model, times, dists, taxa, is_train, train_idx
+    )
 
     elapsed_time = time.time() - t0
 
@@ -3648,51 +3788,12 @@ def run_mrca_dating(
     }
 
     # 7. Export Results
-    if output_prefix:
-        out_p = Path(output_prefix)
-        ensure_parent_directory(out_p)
-
-        json_data = {
-            'alignment': results['alignment'],
-            'tree': results['tree'],
-            'root_description': results['root_description'],
-            'distance_mode': effective_dist_mode,
-            'metricity_diagnostics': metricity_diag,
-            'latent_root': {
-                'alpha': float(latent_root_res['alpha']),
-                'temporal_r': float(latent_root_res['temporal_r']),
-                'temporal_r2': float(latent_root_res['temporal_r2']),
-                'anchor_taxa': latent_root_res['anchor_taxa']
-            } if latent_root_res else None,
-            'taxa_count': results['taxa_count'],
-            'timespan': results['timespan'],
-            'elapsed_seconds': results['elapsed_seconds'],
-            'active_model': active_model_name,
-            't_mrca': active_tmrca_val,
-            'ci_mrca': active_ci_val,
-            'mu': active_mu_val,
-            'ols': {k: v for k, v in ols_res.items() if k not in ['residuals', 'fitted', 'times']},
-            'pgls': {k: v for k, v in pgls_res.items() if k not in ['residuals', 'fitted', 'times']} if pgls_res else None,
-            'spline': {k: v for k, v in spline_res.items() if k not in ['residuals', 'fitted']} if spline_res else None,
-            'power': {k: v for k, v in power_res.items() if k not in ['residuals', 'fitted']} if power_res else None,
-            'clock_model': clock_model,
-            'ci_method': ci_method,
-            'selected_clock': selected_clock,
-            'ensemble': ensemble_res,
-            'loocv': {k: v for k, v in loocv_res.items() if k != 'records'} if loocv_res else None,
-            'taxa_summary': taxon_records
-        }
-        json_file = out_p.with_suffix('.json') if not str(out_p).endswith('.json') else out_p
-        write_json(json_file, json_data)
-        print(f"[✓] Saved JSON summary: {json_file}")
-
-        csv_file = out_p.with_suffix('.csv') if not str(out_p).endswith('.csv') else out_p
-        pd.DataFrame(taxon_records).to_csv(csv_file, index=False)
-        print(f"[✓] Saved per-taxon CSV: {csv_file}")
-
-    # 8. Diagnostic Plotting
-    if plot:
-        fig_path = f"{output_prefix}_diagnostic.pdf" if output_prefix else "mrca_dating_diagnostic.pdf"
-        plot_mrca_dating(results, fig_path)
+    _export_dating_results(
+        results, output_prefix, taxon_records,
+        ols_res, pgls_res, spline_res, power_res, loocv_res,
+        latent_root_res, metricity_diag, effective_dist_mode,
+        active_model_name, active_tmrca_val, active_ci_val, active_mu_val,
+        clock_model, ci_method, selected_clock, ensemble_res, plot
+    )
 
     return results
