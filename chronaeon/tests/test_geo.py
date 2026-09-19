@@ -114,12 +114,14 @@ class TestChronAeonGeo:
         
         out_json = tmp_path / "example_res.json"
         out_geojson = tmp_path / "example_res.geojson"
-        
+        out_plot = tmp_path / "example_plot.png"
+
         test_args = [
             "chronaeon", "geo", "--example", "--no-neural",
             "--n-perms", "100",
             "-o", str(out_json),
             "--geojson", str(out_geojson),
+            "--plot-path", str(out_plot),
         ]
         
         orig_argv = sys.argv
