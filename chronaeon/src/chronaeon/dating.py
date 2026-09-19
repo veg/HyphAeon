@@ -858,10 +858,14 @@ def extract_tree_root_to_tip(
             med_d = float(np.median(d_vals))
 
             # Guard against extreme outlier / bimodal outgroup artifacts (e.g. artificial tip re-rooting)
-            if span > 1e-6 and (max_adjacent_gap / span > 0.45):
-                continue
-            if med_d > 1e-6 and (sorted_d[0] < 0.10 * med_d) and (sorted_d[0] < 0.05 * sorted_d[-1]):
-                continue
+            # Restrict outgroup rejection guards to deep alignments with span >= 0.01 substitutions per site.
+            # In low-divergence outbreak regimes (span < 0.01), genuine root nodes frequently have the earliest tip
+            # sampled at distance 0, and a single mutation step naturally constitutes >45% of total tree span.
+            if span >= 0.01:
+                if span > 1e-6 and (max_adjacent_gap / span > 0.45):
+                    continue
+                if med_d > 1e-6 and (sorted_d[0] < 0.10 * med_d) and (sorted_d[0] < 0.05 * sorted_d[-1]):
+                    continue
 
             xs, ys = [], []
             for name, d in dists.items():
@@ -1078,6 +1082,13 @@ def optimize_latent_convex_hull_root(
     t_centered = t_el - torch.mean(t_el)
     std_t = torch.std(t_el) + 1e-8
 
+    converged = False
+    final_grad_norm = 0.0
+    tol = 1e-5
+    patience = 15
+    no_improve = 0
+    best_loss = 1e9
+
     for step in range(max_iter):
         optimizer.zero_grad()
         # Softmax over all taxa (ineligible have massive negative logit, so weight ~ 0)
@@ -1090,6 +1101,21 @@ def optimize_latent_convex_hull_root(
         corr = cov / (std_t * torch.std(d_el) + 1e-8)
         loss = -corr
         loss.backward()
+
+        if v_param.grad is not None:
+            final_grad_norm = float(torch.norm(v_param.grad).item())
+
+        loss_val = float(loss.item())
+        if best_loss - loss_val > tol:
+            best_loss = loss_val
+            no_improve = 0
+        else:
+            no_improve += 1
+            if no_improve >= patience:
+                converged = True
+                optimizer.step()
+                break
+
         optimizer.step()
 
     w_opt = torch.softmax(v_param, dim=0).detach().cpu().numpy()
@@ -1129,7 +1155,10 @@ def optimize_latent_convex_hull_root(
         "temporal_r": r_val,
         "temporal_r2": float(r_val ** 2),
         "mu_ols": slope_ols,
-        "t_mrca_ols": t_mrca_ols
+        "t_mrca_ols": t_mrca_ols,
+        "converged": bool(converged or (step == max_iter - 1)),
+        "final_grad_norm": float(final_grad_norm),
+        "steps_taken": int(step + 1)
     }
 
 
@@ -1856,8 +1885,11 @@ def estimate_reml_pagel_lambda(
             'status': 'INSUFFICIENT_DATA'
         }
     if n > 2000:
-        # Stratified subsampling across temporal range to estimate scalar phylogenetic signal without OOM
-        sub_idx = np.linspace(0, n - 1, 1500, dtype=int)
+        # Stratified random subsampling across temporal distribution to estimate scalar lambda without aliasing
+        sort_order = np.argsort(times)
+        strata = np.array_split(sort_order, 1500)
+        rng = np.random.default_rng(42)
+        sub_idx = np.sort([s[rng.integers(0, len(s))] for s in strata if len(s) > 0])
         times_sub = times[sub_idx]
         dists_sub = dists[sub_idx]
         cov_sub = cov_matrix[sub_idx, :][:, sub_idx]
@@ -2256,7 +2288,9 @@ def run_restricted_spline_clock_dating(
         t0_sp = float(-beta_lin[0] / max(1e-12, beta_lin[1])) if beta_lin[1] > 1e-9 else float('nan')
 
     # Instantaneous Rates
-    dB_max = float(dB[-1, 0]) if len(dB) > 0 else 0.0
+    # Compute basis derivative explicitly at t_max to ensure recent rate evaluation regardless of input order
+    _, dB_tmax = compute_rcs_basis(np.array([t_max]), knots)
+    dB_max = float(dB_tmax[0, 0]) if (dB_tmax is not None and dB_tmax.shape[1] > 0) else 0.0
     mu_recent = float(beta_sp[1] + beta_sp[2] * dB_max)
     rate_ratio = float(mu_recent / mu_ancestral) if mu_ancestral > 1e-9 else 1.0
 
@@ -2277,7 +2311,7 @@ def run_restricted_spline_clock_dating(
         raw_res = dists - pred_sp
         decorr_res = C_inv_half @ raw_res
         Xt_Cinv_X_sp = Xt_Cinv_sp @ X_sp
-        dB_end = float(dB[-1, 0]) if len(dB) > 0 else 0.0
+        dB_end = dB_max
 
         for _ in range(n_boot):
             signs = rng.choice([-1.0, 1.0], size=n)
@@ -3350,14 +3384,15 @@ def run_mrca_dating(
         ensemble_t_mrca = float(sum(model_weights[m] * candidate_models[m]['t_mrca'] for m in model_weights))
 
         # Total variance: within-model variance + between-model variance (Burnham & Anderson eq. 4.9)
+        t_crit = float(stats.t.ppf(0.975, df=max(1, len(times) - 2)))
         tot_var = 0.0
         for m, w_m in model_weights.items():
             ci_m = candidate_models[m]['ci_mrca']
-            se_m = (ci_m[1] - ci_m[0]) / (2.0 * 1.96)
+            se_m = (ci_m[1] - ci_m[0]) / (2.0 * t_crit)
             tot_var += w_m * (se_m ** 2 + (candidate_models[m]['t_mrca'] - ensemble_t_mrca) ** 2)
         se_ens = float(np.sqrt(max(1e-12, tot_var)))
         min_sample_time = float(np.min(times))
-        ensemble_ci = [float(ensemble_t_mrca - 1.96 * se_ens), min(min_sample_time, float(ensemble_t_mrca + 1.96 * se_ens))]
+        ensemble_ci = [float(ensemble_t_mrca - t_crit * se_ens), min(min_sample_time, float(ensemble_t_mrca + t_crit * se_ens))]
     elif ols_valid:
         model_weights = {'ols': 1.0}
         ensemble_t_mrca = float(ols_res['t_mrca'])

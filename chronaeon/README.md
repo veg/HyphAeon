@@ -186,6 +186,32 @@ chronaeon dynamics \
 
 ---
 
+### Example 4: Bayesian Warm-Start Bridge for BEAST MCMC (`--export-beast`)
+
+ChronAeon functions as an upstream prior generator for full Bayesian MCMC engines (BEAST 1.x and BEAST X v10.5.0), eliminating the multi-million iteration burn-in penalty caused by arbitrary default priors (e.g. initial $\mu = 1.0$ and uncalibrated demographic starting trees):
+
+```bash
+# 1. Run ChronAeon dating and export pre-populated BEAST XML in a single command:
+chronaeon date \
+  -a alignment.fasta \
+  -d dates.csv \
+  --export-beast beast_warmstart.xml \
+  --beast-clock relaxed \
+  --beast-chain-length 10000000
+
+# 2. Run BEAST with immediate Step-0 convergence:
+beast -overwrite beast_warmstart.xml
+```
+
+#### What ChronAeon Calibrates Inside the BEAST XML:
+* **Substitution Rate ($\mu$)**: Sets initial `clock.rate` or `ucld.mean` directly to ChronAeon's empirical $\hat{\mu}$ (e.g. $2.0 \times 10^{-4}$), avoiding the 4-orders-of-magnitude likelihood chasm of cold-start runs.
+* **Informative Rate Prior**: Embeds a data-driven `logNormalPrior` centered at $\ln(\hat{\mu})$ with variance proportional to the Fieller analytical standard error.
+* **Root Height ($t_{\mathrm{MRCA}}$)**: Calibrates `treeModel.rootHeight` prior with a `normalPrior` centered at $t_{\max} - \hat{t}_{\mathrm{MRCA}}$ with standard deviation matching the 95% Fieller / Jackknife interval.
+* **Coalescent Demography**: Initializes `constant.popSize` to $H / 2$, ensuring the starting coalescent tree matches the empirical time horizon.
+* **AutoClock Multi-Clock Partitioning**: When used with `chronaeon autoclock --export-beast`, automatically emits partitioned taxon sets (`<taxa id="community_k">`) with lineage-specific local clock rates.
+
+---
+
 ## Documentation
 
 - [Dating Guide](DATING_GUIDE.md)

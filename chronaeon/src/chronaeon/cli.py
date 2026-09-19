@@ -293,6 +293,27 @@ def cmd_dating(args):
             color_by=getattr(args, "color_by", None),
         )
 
+    export_beast_path = getattr(args, "export_beast", None)
+    if export_beast_path and alignment:
+        from .beast_export import export_beast_xml
+        out_xml = export_beast_xml(
+            output_xml_path=export_beast_path,
+            alignment_path=alignment,
+            dating_results=res,
+            dates_source=getattr(args, "dates", None),
+            date_col=getattr(args, "date_col", None),
+            strain_col=getattr(args, "strain_col", None),
+            clock_type=getattr(args, "beast_clock", "relaxed"),
+            chain_length=getattr(args, "beast_chain_length", 10000000),
+            log_every=getattr(args, "beast_log_every", 1000),
+        )
+        print(f"\n[✓] BEAST warm-start configuration exported to: {out_xml}")
+        print(f"    • Rate prior initialized to: mu = {res.get('mu', 0):.6e} subs/site/yr")
+        timespan = res.get('timespan')
+        if timespan and len(timespan) == 2 and res.get('t_mrca') and not np.isnan(res['t_mrca']):
+            root_h = timespan[1] - res['t_mrca']
+            print(f"    • Root height prior initialized to: {root_h:.2f} yr")
+
 
 def cmd_phylogeo(args):
     """Executes Fast Discrete Phylogeography & Spatial Transmission Network Inference."""
@@ -638,6 +659,24 @@ def cmd_autoclock(args):
         shutil.copyfile(results["classified_metadata_path"], args.csv)
         print(f"[✓] AutoClock classified metadata copied to: {args.csv}")
 
+    export_beast_path = getattr(args, "export_beast", None)
+    if export_beast_path and getattr(args, "alignment", None):
+        from .beast_export import export_beast_xml
+        dating_for_export = results.get("dating_results") or results.get("unpartitioned_clock") or results
+        out_xml = export_beast_xml(
+            output_xml_path=export_beast_path,
+            alignment_path=args.alignment,
+            dating_results=dating_for_export,
+            dates_source=getattr(args, "dates", None),
+            date_col=getattr(args, "date_col", None),
+            strain_col=getattr(args, "strain_col", None),
+            clock_type=getattr(args, "beast_clock", "relaxed"),
+            chain_length=getattr(args, "beast_chain_length", 10000000),
+            log_every=getattr(args, "beast_log_every", 1000),
+            autoclock_results=results,
+        )
+        print(f"\n[✓] AutoClock community-partitioned BEAST XML exported to: {out_xml}")
+
     print("\n[✓] ChronAeon AutoClock execution completed successfully.")
 
 
@@ -781,6 +820,10 @@ def main():
     date_parser.add_argument("--cpu", action="store_true", help="Force CPU execution")
     date_parser.add_argument("-o", "--output", help="Optional path to output JSON results")
     date_parser.add_argument("-c", "--csv", help="Optional path to output per-taxon CSV results")
+    date_parser.add_argument("--export-beast", default=None, metavar="XML", help="Export pre-populated BEAST 1.x / BEAST X XML configuration file with ChronAeon data-calibrated rate and root height priors")
+    date_parser.add_argument("--beast-clock", choices=["relaxed", "strict"], default="relaxed", help="Molecular clock model for exported BEAST XML ('relaxed' or 'strict', default: relaxed)")
+    date_parser.add_argument("--beast-chain-length", type=int, default=10000000, help="MCMC chain length for exported BEAST XML (default: 10,000,000)")
+    date_parser.add_argument("--beast-log-every", type=int, default=1000, help="Sampling log frequency for exported BEAST XML (default: 1000)")
 
     # 2. Phylogeography Subcommand
     geo_parser = subparsers.add_parser("phylogeo", aliases=["geo", "phylogeography", "spatial", "migration", "dispersal"], help="Run discrete phylogeography & spatial transmission network inference")
@@ -886,6 +929,10 @@ def main():
     autoclock_parser.add_argument("--plot", action="store_true", help="Generate publication diagnostic figures (.png and .pdf)")
     autoclock_parser.add_argument("--plot-path", default=None, help="Custom output path for diagnostic plot")
     autoclock_parser.add_argument("--quiet", action="store_true", help="Suppress verbose logging")
+    autoclock_parser.add_argument("--export-beast", default=None, metavar="XML", help="Export pre-populated BEAST 1.x / BEAST X XML configuration file with AutoClock community-partitioned local clocks and calibrated priors")
+    autoclock_parser.add_argument("--beast-clock", choices=["relaxed", "strict"], default="relaxed", help="Molecular clock model for exported BEAST XML ('relaxed' or 'strict', default: relaxed)")
+    autoclock_parser.add_argument("--beast-chain-length", type=int, default=10000000, help="MCMC chain length for exported BEAST XML (default: 10,000,000)")
+    autoclock_parser.add_argument("--beast-log-every", type=int, default=1000, help="Sampling log frequency for exported BEAST XML (default: 1000)")
 
     # 6. Alignment-Free MinHash Sketching & Binning
     sketch_parser = subparsers.add_parser(

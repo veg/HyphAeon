@@ -120,8 +120,8 @@ def test_clock_all_identical_dists():
     res = fit_fast_ols_clock(dates, dists)
     _assert_finite_result(res)
     assert res["mu"] == pytest.approx(0.0, abs=1e-12)
-    assert res["r2"] == pytest.approx(1.0, abs=1e-9)  # current (surprising) behavior
-    assert res["p_val"] == 0.0
+    assert res["r2"] == pytest.approx(0.0, abs=1e-9)
+    assert res["p_val"] == 1.0
     # mu <= 1e-12 -> t_mrca falls back to dates.min()
     assert res["t_mrca"] == pytest.approx(2000.0)
 

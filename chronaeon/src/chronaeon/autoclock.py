@@ -1220,35 +1220,45 @@ class AutoClockDeconvolution:
         comm_dir = self.output_dir / "clock_communities"
         all_triage_rows = []
 
+        # Preload community data frames and fit global baseline as fallback for singleton / small micro-communities
+        comm_dfs = []
         for c_id in range(self.optimal_k):
             csv_path = comm_dir / f"chronaeon_community_{c_id}.csv"
-            if not csv_path.exists():
-                continue
-            df = pd.read_csv(csv_path, dtype={"taxon": str})
+            if csv_path.exists():
+                comm_dfs.append((c_id, pd.read_csv(csv_path, dtype={"taxon": str})))
+
+        global_slope, global_intercept, global_s = 0.0, 0.0, 1e-5
+        if comm_dfs:
+            all_df = pd.concat([df for _, df in comm_dfs], ignore_index=True)
+            if len(all_df) >= 3 and np.ptp(all_df["sampling_date"].values) > 1e-6:
+                global_slope, global_intercept, _, _, _ = stats.linregress(
+                    all_df["sampling_date"].values, all_df["root_divergence"].values
+                )
+                g_res = all_df["root_divergence"].values - (global_intercept + global_slope * all_df["sampling_date"].values)
+                global_s = float(np.sqrt(np.sum(g_res ** 2) / max(len(all_df) - 2, 1)))
+
+        for c_id, df in comm_dfs:
             d = df["root_divergence"].values
             t = df["sampling_date"].values
             n_c = len(d)
 
-            if np.ptp(t) > 1e-6:
+            if n_c >= 3 and np.ptp(t) > 1e-6:
                 slope, intercept, r_val, p_val, std_err = stats.linregress(t, d)
                 d_pred = intercept + slope * t
+                raw_res = d - d_pred
+                t_mean = np.mean(t)
+                ss_t = np.sum((t - t_mean) ** 2)
+                h = (1.0 / n_c) + ((t - t_mean) ** 2) / ss_t if ss_t > 0 else np.full(n_c, 1.0 / n_c)
+                h = np.clip(h, 0.0, 0.99)
+                s2 = np.sum(raw_res ** 2) / max(n_c - 2, 1)
+                s = np.sqrt(max(s2, 1e-10))
+                studentized = raw_res / (s * np.sqrt(1.0 - h))
             else:
-                slope, intercept, r_val, p_val, std_err = 0.0, float(np.mean(d)), 0.0, 1.0, 0.0
-                d_pred = np.full_like(d, np.mean(d))
-            raw_res = d - d_pred
+                # Fallback to global regression baseline for singleton or sub-size communities
+                d_pred = global_intercept + global_slope * t
+                raw_res = d - d_pred
+                studentized = raw_res / max(global_s, 1e-10)
 
-            t_mean = np.mean(t)
-            ss_t = np.sum((t - t_mean) ** 2)
-            if ss_t > 0:
-                h = (1.0 / n_c) + ((t - t_mean) ** 2) / ss_t
-            else:
-                h = np.full(n_c, 1.0 / n_c)
-
-            h = np.clip(h, 0.0, 0.99)
-            s2 = np.sum(raw_res ** 2) / max(n_c - 2, 1)
-            s = np.sqrt(max(s2, 1e-10))
-
-            studentized = raw_res / (s * np.sqrt(1.0 - h))
             is_sus = np.abs(studentized) > 3.0
 
             for i in range(n_c):
@@ -1631,7 +1641,7 @@ def fit_fast_ols_clock(dates: np.ndarray, dists: np.ndarray) -> Dict[str, Any]:
     y = dists - float(np.mean(dists))
     tot_var = float(np.sum(y ** 2))
 
-    if var_x < 1e-12:
+    if var_x < 1e-12 or tot_var < 1e-12:
         t_val = float(dates.min())
         return {
             "mu": 0.0, "t_mrca": t_val, "r2": 0.0, "rss": tot_var, "p_val": 1.0,
@@ -2320,18 +2330,45 @@ class HierarchicalAutoClock:
             "leaf_communities": [
                 {
                     "node_id": l["node_id"],
+                    "community_id": l["node_id"],
                     "path": l["path"],
                     "depth": l["depth"],
                     "n_taxa": l["n_taxa"],
                     "rate": l["rate"],
+                    "mu": l["rate"],
                     "rate_ci": l["rate_ci"],
                     "tmrca": l["tmrca"],
+                    "t_mrca": l["tmrca"],
                     "ci_mrca": l["ci_mrca"],
                     "r2": l["r2"],
                     "classification": l.get("classification", self.classify_leaf(l)),
                     "mean_dist": l.get("mean_dist", 0.0),
                     "max_dist": l.get("max_dist", 0.0),
                     "stopping_reason": l["stopping_reason"],
+                    "stop_reason": l["stopping_reason"],
+                    "timespan": l["timespan"],
+                }
+                for l in self.leaves
+            ],
+            "leaves": [
+                {
+                    "node_id": l["node_id"],
+                    "community_id": l["node_id"],
+                    "path": l["path"],
+                    "depth": l["depth"],
+                    "n_taxa": l["n_taxa"],
+                    "rate": l["rate"],
+                    "mu": l["rate"],
+                    "rate_ci": l["rate_ci"],
+                    "tmrca": l["tmrca"],
+                    "t_mrca": l["tmrca"],
+                    "ci_mrca": l["ci_mrca"],
+                    "r2": l["r2"],
+                    "classification": l.get("classification", self.classify_leaf(l)),
+                    "mean_dist": l.get("mean_dist", 0.0),
+                    "max_dist": l.get("max_dist", 0.0),
+                    "stopping_reason": l["stopping_reason"],
+                    "stop_reason": l["stopping_reason"],
                     "timespan": l["timespan"],
                 }
                 for l in self.leaves
