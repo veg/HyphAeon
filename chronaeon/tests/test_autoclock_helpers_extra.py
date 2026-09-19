@@ -109,19 +109,17 @@ def test_clock_zero_date_variance():
 
 
 def test_clock_all_identical_dists():
-    # Distances constant -> slope 0. Documents CURRENT behavior:
-    # tot_var == 0 and rss == 0, so r2 = max(0, 1 - 0/max(1e-12,0)) = 1.0.
-    # NOTE: quirk (issue #56) -- with zero distance variance the clock reports a
-    # PERFECT fit (r2 == 1.0) and therefore p_val == 0.0, even though there is
-    # no molecular-clock signal at all. A degenerate flat clock arguably should
-    # yield r2 == 0.0 / p_val == 1.0 like the zero-date-variance branch does.
+    # Distances constant -> slope 0, zero distance variance -> no clock signal.
+    # Fixed (issue #56): a degenerate flat clock now reports r2 == 0.0 / p_val == 1.0,
+    # consistent with the zero-date-variance branch, instead of the old degenerate
+    # 1 - rss/eps -> 1.0 that falsely claimed a perfect fit.
     dates = np.array([2000.0, 2001.0, 2002.0, 2003.0])
     dists = np.array([0.05, 0.05, 0.05, 0.05])
     res = fit_fast_ols_clock(dates, dists)
     _assert_finite_result(res)
     assert res["mu"] == pytest.approx(0.0, abs=1e-12)
-    assert res["r2"] == pytest.approx(1.0, abs=1e-9)  # current (surprising) behavior
-    assert res["p_val"] == 0.0
+    assert res["r2"] == pytest.approx(0.0, abs=1e-9)   # no signal in a flat clock
+    assert res["p_val"] == 1.0
     # mu <= 1e-12 -> t_mrca falls back to dates.min()
     assert res["t_mrca"] == pytest.approx(2000.0)
 

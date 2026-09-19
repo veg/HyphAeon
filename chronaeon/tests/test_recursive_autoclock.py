@@ -262,5 +262,54 @@ class TestCommunityClassification:
         assert category == "Micro-Chain / Pair"
 
 
+def _write_single_clock_fasta(tmp_path, n=40, seq_len=600, seed=3):
+    """Write a tiny single-clock FASTA + dates CSV and return (fa, csv) paths."""
+    rng = np.random.default_rng(seed)
+    bases = np.array(list("ACGT"))
+    ancestor = rng.choice(bases, size=seq_len)
+    fa = tmp_path / "aln.fasta"
+    csv = tmp_path / "dates.csv"
+    with open(fa, "w") as fh, open(csv, "w") as ch:
+        ch.write("id,date\n")
+        for i in range(n):
+            date = 2000.0 + (i % 20)
+            n_mut = max(0, int(3.0 * (date - 2000.0)) + int(rng.integers(-1, 2)))
+            seq = ancestor.copy()
+            if n_mut:
+                sites = rng.choice(seq_len, size=min(n_mut, seq_len), replace=False)
+                for s in sites:
+                    seq[s] = rng.choice([b for b in "ACGT" if b != seq[s]])
+            tid = f"t{i:03d}"
+            fh.write(f">{tid}\n{''.join(seq)}\n")
+            ch.write(f"{tid},{date}\n")
+    return str(fa), str(csv)
+
+
+def test_hierarchical_summary_carries_flat_engine_alias_keys(tmp_path):
+    """Issue #57: the hierarchical run() summary's leaf_communities entries must expose the
+    same key names as the flat AutoClockDeconvolution community schema / AUTOCLOCK_GUIDE
+    (community_id / calibrated_rate / calibrated_tmrca), in addition to the legacy
+    node_id / rate / tmrca keys, so both engines' summaries are consumable uniformly."""
+    from chronaeon.autoclock import run_hierarchical_autoclock
+
+    fa, csv = _write_single_clock_fasta(tmp_path)
+    summary = run_hierarchical_autoclock(
+        alignment_path=fa, dates_source=csv, date_col="date", strain_col="id",
+        manifold="distance", min_leaf_size=5, max_depth=2,
+        output_dir=str(tmp_path / "out"), quiet=True,
+    )
+    assert "leaf_communities" in summary
+    leaves = summary["leaf_communities"]
+    assert isinstance(leaves, list) and len(leaves) >= 1
+    for lc in leaves:
+        # new flat-aligned aliases (the #57 fix)
+        for k in ("community_id", "calibrated_rate", "calibrated_tmrca"):
+            assert k in lc, f"leaf_communities entry missing alias key {k} (#57)"
+        # legacy keys retained (backward compat) and aliases mirror them
+        assert lc["community_id"] == lc["node_id"]
+        assert lc["calibrated_rate"] == lc["rate"]
+        assert lc["calibrated_tmrca"] == lc["tmrca"]
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

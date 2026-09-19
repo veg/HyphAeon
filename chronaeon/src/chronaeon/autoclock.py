@@ -166,7 +166,9 @@ def fit_clock(
     d0 = float(np.mean(dists))
     fitted = d0 + mu * x
     rss = float(np.sum((dists - fitted)**2))
-    r2 = float(max(0.0, 1.0 - rss / max(1e-12, tot_var)))
+    # Zero distance variance = flat, signal-free clock -> r2=0.0 (see fit_fast_ols_clock),
+    # not the degenerate 1 - rss/eps -> 1.0 that would claim a perfect fit.
+    r2 = 0.0 if tot_var < 1e-12 else float(max(0.0, 1.0 - rss / tot_var))
     df = n - 2
     s2 = max(rss / max(df, 1), 1e-12)
     se_mu = float(np.sqrt(s2 / var_x))
@@ -1000,7 +1002,9 @@ class AutoClockDeconvolution:
                     fitted = d0_c + mu_c * x
                     rss_c = float(np.sum((d_c - fitted) ** 2))
 
-                r2_c = float(max(0.0, 1.0 - (rss_c / max(1e-12, tot_var))))
+                # Zero distance variance = flat, signal-free clock -> r2=0.0, not the
+                # degenerate 1 - rss/eps -> 1.0 (see fit_fast_ols_clock).
+                r2_c = 0.0 if tot_var < 1e-12 else float(max(0.0, 1.0 - (rss_c / tot_var)))
                 s2_c = max(rss_c / max(n_c - 2, 1), 1e-8)
                 log_lik_c = -0.5 * n_c * (np.log(2.0 * np.pi * s2_c) + 1.0)
 
@@ -1216,9 +1220,38 @@ class AutoClockDeconvolution:
                 self._log(f"    PGLS Rate: {pgls.get('mu', 0):.6e} subs/site/yr | t_MRCA: {pgls.get('t_mrca', 0):.1f} {pgls.get('ci_mrca')} | R^2: {pgls.get('r2', 0):.3f} | lambda*: {pgls.get('pagel_lambda', 0):.4f}")
 
     def triage_anomalies(self) -> None:
-        """Conduct studentized residual outlier screening across all deconvolved communities."""
+        """Conduct studentized residual outlier screening across all deconvolved communities.
+
+        Screening is primarily per-community, but within-community residuals collapse toward
+        zero for singleton / very small communities — so an outlier that clustering isolates
+        into its own micro-community can never exceed the |z| > 3 threshold against itself
+        (issue #58). To close that gap, a GLOBAL clock is also fit across all taxa and each
+        taxon additionally screened against it; a taxon is SUS if flagged by EITHER test.
+        """
         comm_dir = self.output_dir / "clock_communities"
         all_triage_rows = []
+
+        # ---- Global safety-net clock (catches outliers isolated into tiny communities) ----
+        # Fit one clock over every taxon so a member of a singleton community is still
+        # compared against the population, not only against itself.
+        g_taxa = list(self.taxa)
+        g_dates = np.array([self.dates_map[tx] for tx in g_taxa], dtype=float)
+        # Root divergence per taxon from the global earliest-sample anchor.
+        g_root_idx = int(np.argmin(g_dates))
+        g_div = self._get_distances_from_local_root(g_root_idx, np.arange(len(g_taxa)))
+        g_div = np.asarray(g_div, dtype=float)
+        global_z = {}
+        if len(g_taxa) >= 3 and np.ptp(g_dates) > 1e-6:
+            g_slope, g_int, _, _, _ = stats.linregress(g_dates, g_div)
+            g_pred = g_int + g_slope * g_dates
+            g_res = g_div - g_pred
+            g_mean_t = np.mean(g_dates)
+            g_ss_t = np.sum((g_dates - g_mean_t) ** 2)
+            g_h = (1.0 / len(g_taxa)) + ((g_dates - g_mean_t) ** 2) / g_ss_t if g_ss_t > 0 else np.full(len(g_taxa), 1.0 / len(g_taxa))
+            g_h = np.clip(g_h, 0.0, 0.99)
+            g_s = np.sqrt(max(np.sum(g_res ** 2) / max(len(g_taxa) - 2, 1), 1e-10))
+            g_stud = g_res / (g_s * np.sqrt(1.0 - g_h))
+            global_z = {str(tx): float(z) for tx, z in zip(g_taxa, g_stud)}
 
         for c_id in range(self.optimal_k):
             csv_path = comm_dir / f"chronaeon_community_{c_id}.csv"
@@ -1249,23 +1282,38 @@ class AutoClockDeconvolution:
             s = np.sqrt(max(s2, 1e-10))
 
             studentized = raw_res / (s * np.sqrt(1.0 - h))
-            is_sus = np.abs(studentized) > 3.0
+            # Within-community residuals are unreliable for tiny communities (n_c < 4 leaves
+            # <2 residual DoF); treat the per-community test as informative only when there is
+            # enough support, and always back it with the global test.
+            community_reliable = n_c >= 4
+            is_sus_local = (np.abs(studentized) > 3.0) & community_reliable
 
             for i in range(n_c):
+                strain = str(df["taxon"].iloc[i])
+                g_z = global_z.get(strain, 0.0)
+                is_sus_global = abs(g_z) > 3.0
                 all_triage_rows.append({
-                    "strain": str(df["taxon"].iloc[i]),
+                    "strain": strain,
                     "date": float(t[i]),
                     "clock_community": int(c_id),
+                    "community_size": int(n_c),
                     "divergence": float(d[i]),
                     "residual": float(raw_res[i]),
                     "studentized_residual": float(studentized[i]),
-                    "is_sus": bool(is_sus[i])
+                    "global_studentized_residual": float(g_z),
+                    "is_sus": bool(is_sus_local[i] or is_sus_global),
+                    "sus_reason": (
+                        "community+global" if (is_sus_local[i] and is_sus_global)
+                        else "community" if is_sus_local[i]
+                        else "global" if is_sus_global
+                        else ""
+                    ),
                 })
 
         self.triage_df = pd.DataFrame(all_triage_rows)
         self.triage_df.to_csv(self.output_dir / "autoclock_sequence_triage.csv", index=False)
         sus_count = int(self.triage_df["is_sus"].sum()) if not self.triage_df.empty else 0
-        self._log(f"\n[✓] Sequence Triage Complete: Screened {len(self.taxa)} sequences, flagged {sus_count} anomalous (SUS) records (|z| > 3.0).")
+        self._log(f"\n[✓] Sequence Triage Complete: Screened {len(self.taxa)} sequences, flagged {sus_count} anomalous (SUS) records (|z| > 3.0, per-community + global safety net).")
 
     def save_summary(self) -> None:
         """Write structured autoclock_summary.json."""
@@ -1642,7 +1690,10 @@ def fit_fast_ols_clock(dates: np.ndarray, dists: np.ndarray) -> Dict[str, Any]:
     d0 = float(np.mean(dists))
     fitted = d0 + mu * x
     rss = float(np.sum((dists - fitted) ** 2))
-    r2 = float(max(0.0, 1.0 - (rss / max(1e-12, tot_var))))
+    # Zero distance variance = a flat, signal-free clock. Report r2=0.0 (no fit),
+    # matching the zero-date-variance branch above, instead of the degenerate
+    # 1 - rss/eps -> 1.0 that would claim a *perfect* clock for a constant signal.
+    r2 = 0.0 if tot_var < 1e-12 else float(max(0.0, 1.0 - (rss / tot_var)))
 
     t_mrca = float(t_ref - (d0 / mu)) if mu > 1e-12 else float(dates.min())
 
@@ -1655,6 +1706,12 @@ def fit_fast_ols_clock(dates: np.ndarray, dists: np.ndarray) -> Dict[str, Any]:
     delta_tmrca = 1.96 * se_mu * abs(d0) / max(mu ** 2, 1e-8)
     ci_mrca = [float(t_mrca - delta_tmrca), float(t_mrca + delta_tmrca)]
 
+    # p_val: a degenerate flat clock (no distance variance) has no signal -> 1.0,
+    # matching the zero-date-variance / n<3 early returns (issue #56).
+    if tot_var < 1e-12:
+        p_val = 1.0
+    else:
+        p_val = 0.0 if r2 > 0.3 else 0.05
     return {
         "mu": mu,
         "t_mrca": t_mrca,
@@ -1663,7 +1720,7 @@ def fit_fast_ols_clock(dates: np.ndarray, dists: np.ndarray) -> Dict[str, Any]:
         "se_mu": se_mu,
         "r2": r2,
         "rss": rss,
-        "p_val": 0.0 if r2 > 0.3 else 0.05,
+        "p_val": p_val,
     }
 
 
@@ -2320,12 +2377,19 @@ class HierarchicalAutoClock:
             "leaf_communities": [
                 {
                     "node_id": l["node_id"],
+                    # community_id / calibrated_rate / calibrated_tmrca are aliases matching the
+                    # flat AutoClockDeconvolution community schema and AUTOCLOCK_GUIDE, so both
+                    # engines' summaries can be consumed with the same keys (issue #57). The
+                    # node_id / rate / tmrca keys are retained for backward compatibility.
+                    "community_id": l["node_id"],
                     "path": l["path"],
                     "depth": l["depth"],
                     "n_taxa": l["n_taxa"],
                     "rate": l["rate"],
+                    "calibrated_rate": l["rate"],
                     "rate_ci": l["rate_ci"],
                     "tmrca": l["tmrca"],
+                    "calibrated_tmrca": l["tmrca"],
                     "ci_mrca": l["ci_mrca"],
                     "r2": l["r2"],
                     "classification": l.get("classification", self.classify_leaf(l)),

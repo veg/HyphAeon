@@ -235,3 +235,33 @@ def test_triage_df_attribute_matches_csv(tmp_path):
     with open(summary_path) as f:
         summary = json.load(f)
     assert int(summary["sus_count"]) == res["sus_count"]
+
+
+def test_global_safety_net_columns_present(tmp_path):
+    """Issue #58 fix: triage now also fits a GLOBAL clock so an outlier isolated into a
+    tiny community can't escape via a collapsed within-community residual. The CSV must
+    carry the global residual + reason columns, and community_size."""
+    records, dates_map, out_id = build_single_clock_with_outlier()
+    engine = _make_engine(records, dates_map, tmp_path / "gsn")
+    res = engine.run(plot=False)
+    tdf = pd.read_csv(res["triage_path"])
+    for col in ("community_size", "global_studentized_residual", "sus_reason"):
+        assert col in tdf.columns, f"triage CSV missing #58 column {col}"
+    # Any SUS row must attribute a reason; global-only flags are now possible.
+    flagged = tdf[tdf["is_sus"].astype(bool)]
+    assert (flagged["sus_reason"].astype(str).str.len() > 0).all()
+
+
+def test_outlier_flagged_even_when_isolated(tmp_path):
+    """Issue #58: an outlier that clustering splits into a singleton/tiny community used to
+    escape triage (its within-community residual collapses to ~0). The global safety net
+    should still flag it. We assert the strong outlier is caught regardless of how it clusters."""
+    records, dates_map, out_id = build_single_clock_with_outlier(seed=7, n=24)
+    engine = _make_engine(records, dates_map, tmp_path / "iso")
+    res = engine.run(plot=False)
+    tdf = pd.read_csv(res["triage_path"])
+    row = tdf[tdf["strain"] == out_id]
+    assert len(row) == 1, f"{out_id} missing from triage table"
+    # It is flagged, and — because its community may be tiny — via the global test at least.
+    assert bool(row["is_sus"].iloc[0]), "isolated temporal outlier escaped triage (issue #58)"
+    assert abs(float(row["global_studentized_residual"].iloc[0])) > 3.0
