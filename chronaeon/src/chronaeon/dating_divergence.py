@@ -1,41 +1,26 @@
 """
-chronaeon/dating.py
--------------------
-Heterochronous Molecular Clock Calibration and Ancestor Dating (t_MRCA)
-for Pathogen Genomics.
+chronaeon/dating_divergence.py
+------------------------------
+Root-to-tip divergence computation for molecular clock dating.
 
-Methods:
-1. Strict in-frame coding alignment validation (L_nt % 3 == 0, triplet-gap check, stop codon audit).
-2. Flexible timestamp ingestion (FASTA headers, CSV/TSV metadata, Nextstrain Auspice JSON v2).
-3. Root-to-tip divergence computation:
-   - Tree-based: Patristic distance traversal with heuristic root search (TempEst R^2 maximization).
-   - Tree-free: Direct pairwise distance estimation (TN93) and ancestral consensus anchoring.
-4. Estimators:
-   - Centered Root-to-Tip Ordinary Least Squares (OLS / TempEst emulation with delta-method & bootstrap CIs).
-   - HyphAeon Attention-Derived Phylogenetic Generalized Least Squares (PGLS) via A_fused covariance.
-   - Non-Linear Restricted Cubic Spline Clock (2 DF) and Power-Law Clock with hypothesis testing.
-5. Historical outlier scoring & blind tip dating (e.g. dating the 1959 ZR59 archival isolate).
-6. Publication-grade diagnostic visualization (PDF and PNG).
+Supports three divergence modes:
+- Tree-based: patristic distance traversal with heuristic root search
+  (TempEst R^2 maximization).
+- Tree-free: direct pairwise distance estimation (TN93) and ancestral
+  consensus anchoring.
+- Latent: convex-hull root optimization in neural embedding space
+  (requires torch; imported lazily).
 """
 
+from __future__ import annotations
+
 import os
-import sys
-import json
-import time
-import math
-import re
-import datetime
 import copy
 from io import StringIO
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union, Any
 
 import numpy as np
-import pandas as pd
-import scipy.linalg as la
-import scipy.stats as stats
-import scipy.optimize as optimize
-import torch
 
 try:
     from Bio import Phylo
@@ -43,36 +28,11 @@ try:
 except ImportError:
     HAS_BIOPHYLO = False
 
-try:
-    import matplotlib
-    matplotlib.use('Agg')
-    import matplotlib.pyplot as plt
-    import matplotlib.gridspec as gridspec
-    HAS_MATPLOTLIB = True
-except ImportError:
-    HAS_MATPLOTLIB = False
-
 from aeon_core.dataset import (
-    parse_alignment_sequences,
     compute_tn93_distance_matrix,
     compute_tn93_cross_distance_matrix,
-    load_alignment_and_tree,
-    parse_beast_xml,
-    GENETIC_CODE,
-    CODON_TO_AA,
 )
-from aeon_core.inference import (
-    load_model,
-    get_device,
-    prepare_alignment,
-)
-from scipy.spatial.distance import pdist, squareform
-from aeon_core.splits import (
-    extract_cross_taxa_attentions_and_embeddings,
-    compute_fused_affinity_matrix,
-)
-from aeon_core.temporal import parse_date_to_decimal, parse_dates_from_auspice_json, extract_date_from_string
-from aeon_core.io import ensure_parent_directory, write_json, write_csv
+from scipy.spatial.distance import pdist
 
 
 
@@ -378,6 +338,7 @@ def optimize_latent_convex_hull_root(
             alpha = 0.05 / max(1e-6, mean_lat)
 
     # 2. Continuous convex hull optimization
+    import torch  # lazy: only needed for latent-space optimization
     dev = device if device is not None else ("cuda" if torch.cuda.is_available() else ("mps" if hasattr(torch.backends, "mps") and torch.backends.mps.is_available() else "cpu"))
     Z_t = torch.tensor(taxon_repr, dtype=torch.float32, device=dev)
     times_t = torch.tensor(times, dtype=torch.float32, device=dev)

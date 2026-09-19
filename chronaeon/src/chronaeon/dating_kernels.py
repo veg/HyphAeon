@@ -1,78 +1,19 @@
 """
-chronaeon/dating.py
--------------------
-Heterochronous Molecular Clock Calibration and Ancestor Dating (t_MRCA)
-for Pathogen Genomics.
+chronaeon/dating_kernels.py
+---------------------------
+Neural covariance kernels and transformer metricity diagnostics.
 
-Methods:
-1. Strict in-frame coding alignment validation (L_nt % 3 == 0, triplet-gap check, stop codon audit).
-2. Flexible timestamp ingestion (FASTA headers, CSV/TSV metadata, Nextstrain Auspice JSON v2).
-3. Root-to-tip divergence computation:
-   - Tree-based: Patristic distance traversal with heuristic root search (TempEst R^2 maximization).
-   - Tree-free: Direct pairwise distance estimation (TN93) and ancestral consensus anchoring.
-4. Estimators:
-   - Centered Root-to-Tip Ordinary Least Squares (OLS / TempEst emulation with delta-method & bootstrap CIs).
-   - HyphAeon Attention-Derived Phylogenetic Generalized Least Squares (PGLS) via A_fused covariance.
-   - Non-Linear Restricted Cubic Spline Clock (2 DF) and Power-Law Clock with hypothesis testing.
-5. Historical outlier scoring & blind tip dating (e.g. dating the 1959 ZR59 archival isolate).
-6. Publication-grade diagnostic visualization (PDF and PNG).
+Computes strictly positive semi-definite phylogenetic correlation matrices
+by fusing transformer cross-taxa attention profiles with continuous sequence
+representations, and diagnoses whether neural distances preserve metric
+structure relative to TN93 substitution distances.
 """
 
-import os
-import sys
-import json
-import time
-import math
-import re
-import datetime
-import copy
-from io import StringIO
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union, Any
+from typing import Dict, Optional, Any
 
 import numpy as np
-import pandas as pd
-import scipy.linalg as la
 import scipy.stats as stats
-import scipy.optimize as optimize
-import torch
-
-try:
-    from Bio import Phylo
-    HAS_BIOPHYLO = True
-except ImportError:
-    HAS_BIOPHYLO = False
-
-try:
-    import matplotlib
-    matplotlib.use('Agg')
-    import matplotlib.pyplot as plt
-    import matplotlib.gridspec as gridspec
-    HAS_MATPLOTLIB = True
-except ImportError:
-    HAS_MATPLOTLIB = False
-
-from aeon_core.dataset import (
-    parse_alignment_sequences,
-    compute_tn93_distance_matrix,
-    compute_tn93_cross_distance_matrix,
-    load_alignment_and_tree,
-    parse_beast_xml,
-    GENETIC_CODE,
-    CODON_TO_AA,
-)
-from aeon_core.inference import (
-    load_model,
-    get_device,
-    prepare_alignment,
-)
-from scipy.spatial.distance import pdist, squareform
-from aeon_core.splits import (
-    extract_cross_taxa_attentions_and_embeddings,
-    compute_fused_affinity_matrix,
-)
-from aeon_core.temporal import parse_date_to_decimal, parse_dates_from_auspice_json, extract_date_from_string
-from aeon_core.io import ensure_parent_directory, write_json, write_csv
+from scipy.spatial.distance import pdist
 
 
 
