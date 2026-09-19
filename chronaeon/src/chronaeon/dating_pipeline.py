@@ -956,7 +956,7 @@ def run_mrca_dating(
 
     elapsed_time = time.time() - t0
 
-    active_model_name = 'spline' if (spline_res is not None and active_model == spline_res) else ('pgls' if (pgls_res is not None and active_model == pgls_res) else 'ols')
+    active_model_name = 'spline' if (spline_res is not None and active_model == spline_res) else ('pgls' if (pgls_res is not None and active_model == pgls_res) else ('power' if (power_res is not None and active_model == power_res) else 'ols'))
     active_tmrca_val = float(active_model['t_mrca']) if (active_model and not np.isnan(active_model.get('t_mrca', np.nan))) else None
     active_ci_val = active_model.get('ci_mrca') if active_model else None
     active_mu_val = float(active_model.get('mu', active_model.get('rate_ancestral', 0.0))) if active_model else None

@@ -1262,3 +1262,372 @@ class TestVerifyCodingAlignment:
         seq_dict = {"seq1": "ATGTAAGCCATG", "seq2": "ATGTAAGCCATG"}
         with pytest.raises(ValueError, match="[Ss]top"):
             verify_coding_alignment(seq_dict, allow_stop_codons=False)
+
+
+class TestSpectralEigh:
+    """Tests for the _spectral_eigh helper (dense and sparse paths)."""
+
+    def test_dense_path_matches_eigh(self):
+        from chronaeon.dating import _spectral_eigh
+        np.random.seed(42)
+        n = 20
+        A = np.random.randn(n, n)
+        cov = A @ A.T + np.eye(n)
+        w, v = _spectral_eigh(cov, n_max=2500)
+        assert w.shape == (n,)
+        assert v.shape == (n, n)
+        assert np.all(w >= 0.0)
+        # Reconstruct: V diag(w) V^T ≈ cov
+        recon = v @ np.diag(w) @ v.T
+        assert np.allclose(recon, cov, atol=1e-8)
+
+    def test_sparse_path_clamps_negative_eigenvalues(self):
+        from chronaeon.dating import _spectral_eigh
+        np.random.seed(42)
+        n = 50
+        A = np.random.randn(n, n)
+        cov = A @ A.T + np.eye(n)
+        # Force the sparse path with n_max < n
+        w, v = _spectral_eigh(cov.astype(np.float32), n_max=30)
+        assert np.all(w >= 0.0)
+        assert v.shape[0] == n
+        # k_eig should be <= n-2
+        assert w.shape[0] <= n - 2
+
+
+class TestGLSFit:
+    """Tests for the _gls_fit helper."""
+
+    def test_recovers_known_coefficients(self):
+        from chronaeon.dating import _gls_fit
+        np.random.seed(42)
+        n = 50
+        true_beta = np.array([0.002, -3.9])
+        X = np.column_stack([np.linspace(1970, 2020, n), np.ones(n)])
+        noise = np.random.normal(0, 0.001, size=n)
+        dists = X @ true_beta + noise
+        C_inv = np.eye(n)
+        beta_hat = _gls_fit(X, dists, C_inv)
+        assert np.allclose(beta_hat, true_beta, atol=0.05)
+
+    def test_pseudoinverse_fallback_on_singular_matrix(self):
+        from chronaeon.dating import _gls_fit
+        n = 5
+        X = np.ones((n, 2))  # Rank-deficient: both columns identical
+        dists = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
+        C_inv = np.eye(n)
+        # Should not raise; should fall back to pinv
+        beta_hat = _gls_fit(X, dists, C_inv)
+        assert beta_hat.shape == (2,)
+        assert np.all(np.isfinite(beta_hat))
+
+
+class TestGeneralizedR2:
+    """Tests for the _generalized_r2 helper."""
+
+    def test_perfect_fit_returns_high_r2(self):
+        from chronaeon.dating import _generalized_r2
+        np.random.seed(42)
+        n = 50
+        X = np.column_stack([np.linspace(1970, 2020, n), np.ones(n)])
+        true_beta = np.array([0.002, -3.9])
+        dists = X @ true_beta  # No noise
+        C_inv = np.eye(n)
+        fitted = X @ true_beta
+        rss = float(np.sum((dists - fitted) ** 2))
+        r2 = _generalized_r2(rss, dists, C_inv)
+        assert r2 > 0.99
+
+    def test_no_fit_returns_low_r2(self):
+        from chronaeon.dating import _generalized_r2
+        np.random.seed(42)
+        n = 50
+        dists = np.random.uniform(0.01, 0.05, size=n)
+        C_inv = np.eye(n)
+        # RSS ≈ TSS (no signal)
+        mean_d = np.mean(dists)
+        rss = float(np.sum((dists - mean_d) ** 2))
+        r2 = _generalized_r2(rss, dists, C_inv)
+        assert r2 < 0.1
+
+
+class TestPipelineHelpers:
+    """Direct unit tests for the extracted pipeline helper functions."""
+
+    def _make_ols_result(self, t_mrca=1950.0, mu=0.002, ci_width=20.0, g=0.5, r2=0.95):
+        return {
+            't_mrca': t_mrca,
+            'mu': mu,
+            'ci_mrca': [t_mrca - ci_width / 2, t_mrca + ci_width / 2],
+            'fieller_g': g,
+            'r2': r2,
+            'method': 'OLS',
+            'd0': 0.04,
+            't_ref': 2000.0,
+        }
+
+    def _make_pgls_result(self, t_mrca=1955.0, mu=0.0018, ci_width=25.0, g=0.6, r2=0.90, lam=0.8):
+        return {
+            't_mrca': t_mrca,
+            'mu': mu,
+            'ci_mrca': [t_mrca - ci_width / 2, t_mrca + ci_width / 2],
+            'fieller_g': g,
+            'r2': r2,
+            'method': 'PGLS',
+            'd0': 0.04,
+            't_ref': 2000.0,
+            'pagel_lambda': lam,
+        }
+
+    def _make_spline_result(self, t_mrca=1960.0, rate_ancestral=0.002, ci_width=30.0,
+                            is_nonlinear=True, rate_ratio=1.5, f_stat=10.0,
+                            p_f_test=0.002, delta_aic=-5.0):
+        return {
+            't_mrca': t_mrca,
+            'rate_ancestral': rate_ancestral,
+            'ci_mrca': [t_mrca - ci_width / 2, t_mrca + ci_width / 2],
+            'is_nonlinear_preferred': is_nonlinear,
+            'rate_ratio': rate_ratio,
+            'f_stat': f_stat,
+            'p_f_test': p_f_test,
+            'delta_aic': delta_aic,
+            'method': 'RESTRICTED_SPLINE',
+            'beta_0': -3.9,
+            'beta_1': 0.002,
+            'beta_2': -0.0005,
+            'knots': np.array([1980.0, 2000.0, 2020.0]),
+        }
+
+    def _make_power_result(self, t_mrca=1958.0, k=0.001, theta=0.9):
+        return {
+            't_mrca': t_mrca,
+            'k': k,
+            'theta': theta,
+            'method': 'POWER_LAW',
+        }
+
+    def test_ensemble_weights_sum_to_one(self):
+        from chronaeon.dating import _compute_precision_weighted_ensemble
+        times = np.linspace(1970, 2020, 50)
+        ols = self._make_ols_result()
+        pgls = self._make_pgls_result()
+        spline = self._make_spline_result()
+        info = _compute_precision_weighted_ensemble(ols, pgls, spline, times)
+        if info['weights']:
+            assert abs(sum(info['weights'].values()) - 1.0) < 1e-6
+
+    def test_ensemble_no_valid_models(self):
+        from chronaeon.dating import _compute_precision_weighted_ensemble
+        times = np.linspace(1970, 2020, 10)
+        info = _compute_precision_weighted_ensemble(None, None, None, times)
+        assert info['t_mrca'] is None
+        assert info['ci_mrca'] is None
+        assert info['weights'] == {}
+
+    def test_ensemble_ols_only_fallback(self):
+        from chronaeon.dating import _compute_precision_weighted_ensemble
+        times = np.linspace(1970, 2020, 50)
+        ols = self._make_ols_result()
+        info = _compute_precision_weighted_ensemble(ols, None, None, times)
+        assert info['t_mrca'] == 1950.0
+        assert info['weights'] == {'ols': 1.0}
+
+    def test_select_clock_forced_spline(self):
+        from chronaeon.dating import _select_clock_model, _compute_precision_weighted_ensemble
+        times = np.linspace(1970, 2020, 50)
+        ols = self._make_ols_result()
+        spline = self._make_spline_result()
+        info = _compute_precision_weighted_ensemble(ols, None, spline, times)
+        model, label = _select_clock_model("spline", ols, None, spline, None, info)
+        assert model == spline
+        assert "Spline" in label
+
+    def test_select_clock_forced_power(self):
+        from chronaeon.dating import _select_clock_model, _compute_precision_weighted_ensemble
+        times = np.linspace(1970, 2020, 50)
+        ols = self._make_ols_result()
+        power = self._make_power_result()
+        info = _compute_precision_weighted_ensemble(ols, None, None, times)
+        model, label = _select_clock_model("power", ols, None, None, power, info)
+        assert model == power
+        assert "Power-Law" in label
+
+    def test_select_clock_linear_prefers_pgls(self):
+        from chronaeon.dating import _select_clock_model, _compute_precision_weighted_ensemble
+        times = np.linspace(1970, 2020, 50)
+        ols = self._make_ols_result()
+        pgls = self._make_pgls_result()
+        info = _compute_precision_weighted_ensemble(ols, pgls, None, times)
+        model, label = _select_clock_model("linear", ols, pgls, None, None, info)
+        assert model == pgls
+        assert "PGLS" in label
+
+    def test_select_clock_auto_prefers_spline_when_nonlinear(self):
+        from chronaeon.dating import _select_clock_model, _compute_precision_weighted_ensemble
+        times = np.linspace(1970, 2020, 50)
+        ols = self._make_ols_result()
+        pgls = self._make_pgls_result()
+        spline = self._make_spline_result(is_nonlinear=True)
+        info = _compute_precision_weighted_ensemble(ols, pgls, spline, times)
+        model, label = _select_clock_model("auto", ols, pgls, spline, None, info)
+        assert model == spline
+        assert "Spline" in label
+
+    def test_select_clock_auto_prefers_ols_when_clade_attenuated(self):
+        from chronaeon.dating import _select_clock_model, _compute_precision_weighted_ensemble
+        times = np.linspace(1970, 2020, 50)
+        # PGLS rate much lower than OLS -> clade attenuation
+        ols = self._make_ols_result(mu=0.002, r2=0.95, g=0.5)
+        pgls = self._make_pgls_result(mu=0.0005, r2=0.30, g=0.5, lam=0.5)
+        info = _compute_precision_weighted_ensemble(ols, pgls, None, times)
+        assert info['is_clade_attenuated']
+        model, label = _select_clock_model("auto", ols, pgls, None, None, info)
+        assert model == ols
+        assert "OLS" in label
+
+    def test_compute_taxon_predictions_linear(self):
+        from chronaeon.dating import _compute_taxon_predictions
+        n = 10
+        times = np.linspace(1980, 2020, n)
+        dists = 0.002 * (times - 1950)
+        taxa = [f"seq_{i}" for i in range(n)]
+        is_train = np.ones(n, dtype=bool)
+        train_idx = np.arange(n)
+        model = {'method': 'OLS', 'd0': 0.04, 'mu': 0.002, 't_ref': 2000.0, 't_mrca': 1950.0}
+        fitted, pred, resids, records = _compute_taxon_predictions(
+            model, times, dists, taxa, is_train, train_idx
+        )
+        assert len(fitted) == n
+        assert len(pred) == n
+        assert len(records) == n
+        assert records[0]['taxon'] == 'seq_0'
+        assert 'z_score' in records[0]
+        assert 'is_outlier' in records[0]
+
+    def test_compute_taxon_predictions_power_law(self):
+        from chronaeon.dating import _compute_taxon_predictions
+        n = 10
+        times = np.linspace(1980, 2020, n)
+        k, theta, t0 = 0.001, 0.9, 1955.0
+        dists = k * (times - t0) ** theta
+        taxa = [f"seq_{i}" for i in range(n)]
+        is_train = np.ones(n, dtype=bool)
+        train_idx = np.arange(n)
+        model = {'method': 'POWER_LAW', 'k': k, 'theta': theta, 't_mrca': t0}
+        fitted, pred, resids, records = _compute_taxon_predictions(
+            model, times, dists, taxa, is_train, train_idx
+        )
+        assert np.allclose(fitted, dists, rtol=0.01)
+
+    def test_compute_taxon_predictions_spline(self):
+        from chronaeon.dating import _compute_taxon_predictions
+        n = 20
+        times = np.linspace(1980, 2020, n)
+        knots = np.array([1980.0, 2000.0, 2020.0])
+        from chronaeon.dating import compute_rcs_basis
+        B, _ = compute_rcs_basis(times, knots)
+        b0, b1, b2 = -3.9, 0.002, -0.0005
+        dists = b0 + b1 * times + b2 * B[:, 0]
+        taxa = [f"seq_{i}" for i in range(n)]
+        is_train = np.ones(n, dtype=bool)
+        train_idx = np.arange(n)
+        model = {
+            'method': 'RESTRICTED_SPLINE',
+            'beta_0': b0, 'beta_1': b1, 'beta_2': b2,
+            'knots': knots, 't_mrca': 1975.0,
+        }
+        fitted, pred, resids, records = _compute_taxon_predictions(
+            model, times, dists, taxa, is_train, train_idx
+        )
+        assert np.allclose(fitted, dists, atol=1e-8)
+
+
+class TestRunMrcaDatingPipelinePaths:
+    """Integration tests for run_mrca_dating covering previously untested paths."""
+
+    def _make_fasta(self, tmp_path, n=10, start_year=1980, end_year=2020):
+        fasta_path = tmp_path / 'test_dating.fasta'
+        lines = []
+        for i in range(n):
+            year = start_year + (end_year - start_year) * i // (n - 1)
+            # Vary sequences to create distance gradient
+            seq = 'ATGGCC' + 'ATG' * (n - i - 1) + 'GTA' * i
+            lines.append(f">seq_{i}_{year}\n{seq}")
+        fasta_path.write_text('\n'.join(lines) + '\n')
+        return fasta_path
+
+    def test_forced_spline_clock(self, tmp_path):
+        """run_mrca_dating with clock_model='spline' should force spline selection."""
+        fasta_path = self._make_fasta(tmp_path)
+        res = run_mrca_dating(
+            alignment_path=str(fasta_path),
+            use_tn93=True,
+            clock_model='spline',
+            method='ols',
+            n_bootstrap=50,
+        )
+        assert 'spline' in res
+        assert 'Spline' in res['selected_clock']
+        assert res['active_model'] == 'spline'
+
+    def test_forced_power_clock(self, tmp_path):
+        """run_mrca_dating with clock_model='power' should force power-law selection."""
+        fasta_path = self._make_fasta(tmp_path)
+        res = run_mrca_dating(
+            alignment_path=str(fasta_path),
+            use_tn93=True,
+            clock_model='power',
+            method='ols',
+            n_bootstrap=50,
+        )
+        assert 'power' in res
+        assert 'Power' in res['selected_clock']
+        assert res['active_model'] == 'power'
+
+    def test_output_prefix_writes_json_and_csv(self, tmp_path):
+        """run_mrca_dating with output_prefix should write JSON and CSV files."""
+        fasta_path = self._make_fasta(tmp_path)
+        out_prefix = str(tmp_path / 'dating_output')
+        res = run_mrca_dating(
+            alignment_path=str(fasta_path),
+            use_tn93=True,
+            clock_model='auto',
+            method='ols',
+            n_bootstrap=50,
+            output_prefix=out_prefix,
+        )
+        json_file = tmp_path / 'dating_output.json'
+        csv_file = tmp_path / 'dating_output.csv'
+        assert json_file.exists(), f"JSON file not written: {json_file}"
+        assert csv_file.exists(), f"CSV file not written: {csv_file}"
+
+        import json
+        with open(json_file) as f:
+            jdata = json.load(f)
+        assert 't_mrca' in jdata
+        assert 'taxa_summary' in jdata
+        assert jdata['taxa_count'] == 10
+
+        import pandas as pd
+        df = pd.read_csv(csv_file)
+        assert len(df) == 10
+        assert 'taxon' in df.columns
+        assert 'z_score' in df.columns
+
+    def test_loocv_integration(self, tmp_path):
+        """run_mrca_dating with loocv=True should produce LOOCV results."""
+        fasta_path = self._make_fasta(tmp_path, n=15)
+        res = run_mrca_dating(
+            alignment_path=str(fasta_path),
+            use_tn93=True,
+            clock_model='auto',
+            method='ols',
+            n_bootstrap=50,
+            loocv=True,
+        )
+        assert res['loocv'] is not None
+        assert 'tip_mae_days' in res['loocv']
+        assert 'jackknife_ci' in res['loocv']
+        # LOOCV records should be merged into taxa_records
+        has_loocv = any('loocv_predicted_date' in r for r in res['taxa_records'])
+        assert has_loocv
