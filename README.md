@@ -23,7 +23,7 @@ This repository is organized as a monorepo with three installable packages:
 
 | Package | Description | Install |
 | :--- | :--- | :--- |
-| **`aeon-core`** | Shared model, dataset, inference, weights, stats, and IO infrastructure | `pip install aeon-core` |
+| **`aeon-core`** | Shared model, dataset, inference, weights, stats, and IO infrastructure | `pip install hyphaeon-core` |
 | **`hyphaeon`** | Site-level selection inference, epistasis, phenotype association, disease prediction | `pip install hyphaeon` |
 | **`chronaeon`** | Molecular clock dating, phylodynamics, phylogeography, genomic surveillance | `pip install chronaeon` |
 

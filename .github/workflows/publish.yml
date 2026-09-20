@@ -3,7 +3,7 @@ name: publish
 on:
   push:
     tags:
-      - "aeon-core-v*"
+      - "hyphaeon-core-v*"
       - "hyphaeon-v*"
       - "chronaeon-v*"
 
@@ -19,7 +19,7 @@ jobs:
         id: pkg
         run: |
           TAG=${GITHUB_REF#refs/tags/}
-          if [[ "$TAG" == aeon-core-v* ]]; then
+          if [[ "$TAG" == hyphaeon-core-v* ]]; then
             echo "dir=aeon-core" >> $GITHUB_OUTPUT
           elif [[ "$TAG" == hyphaeon-v* ]]; then
             echo "dir=hyphaeon" >> $GITHUB_OUTPUT
