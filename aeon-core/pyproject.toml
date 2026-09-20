@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "aeon-core"
+name = "hyphaeon-core"
 version = "0.1.0"
 authors = [
   { name="Sergei L. Kosakovsky Pond", email="spond@temple.edu" },

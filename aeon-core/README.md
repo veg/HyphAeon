@@ -7,7 +7,7 @@ Contains the `PhyloAxialTransformer` foundation model, pretrained weight resolut
 ## Installation
 
 ```bash
-pip install aeon-core
+pip install hyphaeon-core
 ```
 
 ## Components
