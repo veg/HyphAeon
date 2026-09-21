@@ -10,7 +10,7 @@ from chronaeon.alignment import ReferenceCodonAligner
 
 
 def test_version():
-    assert chronaeon.__version__ == "0.1.0"
+    assert chronaeon.__version__ == "0.1.1"
 
 
 def test_all_imports():

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "chronaeon"
-version = "0.1.0"
+version = "0.1.1"
 authors = [
   { name="Sergei L. Kosakovsky Pond", email="spond@temple.edu" },
 ]
@@ -25,6 +25,7 @@ dependencies = [
     "scipy>=1.9.0",
     "pandas>=1.5.0",
     "scikit-learn>=1.0",
+    "networkx>=3.0",
     "matplotlib>=3.5",
     "tn93>=1.2.0",
 ]
