@@ -1281,6 +1281,14 @@ def main():
     splits_parser.add_argument("-c", "--csv", help="Optional path to output split clade membership table (.csv)")
 
 
+    # 12. Reticulate Evolution & Recombination Detection (RhizAeon Delegation)
+    recomb_parser = subparsers.add_parser(
+        "recombine",
+        aliases=["rhizaeon", "recombination", "breakpoints"],
+        help="Run tree-free reticulate evolution & recombination detection (RhizAeon)",
+    )
+    recomb_parser.add_argument("args", nargs=argparse.REMAINDER, help="Arguments forwarded to rhizaeon CLI")
+
     args = parser.parse_args()
     if args.command in ["meme", "predict", "site-selection"]:
         cmd_meme(args)
@@ -1300,6 +1308,16 @@ def main():
         cmd_temporal(args)
     elif args.command in ["splits", "split", "clades", "bisection"]:
         cmd_splits(args)
+    elif args.command in ["recombine", "rhizaeon", "recombination", "breakpoints"]:
+        import shutil
+        import subprocess
+        bin_path = shutil.which("rhizaeon")
+        if not bin_path:
+            cmd = [sys.executable, "-m", "rhizaeon.cli"] + (args.args if args.args else ["--help"])
+        else:
+            cmd = [bin_path] + (args.args if args.args else ["--help"])
+        res = subprocess.run(cmd)
+        sys.exit(res.returncode)
     elif args.command == "list-models":
         list_models()
     elif args.command == "evaluate":

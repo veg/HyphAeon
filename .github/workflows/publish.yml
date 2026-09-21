@@ -6,6 +6,7 @@ on:
       - "aeon-core-v*"
       - "hyphaeon-v*"
       - "chronaeon-v*"
+      - "rhizaeon-v*"
 
 jobs:
   publish:
@@ -25,6 +26,8 @@ jobs:
             echo "dir=hyphaeon" >> $GITHUB_OUTPUT
           elif [[ "$TAG" == chronaeon-v* ]]; then
             echo "dir=chronaeon" >> $GITHUB_OUTPUT
+          elif [[ "$TAG" == rhizaeon-v* ]]; then
+            echo "dir=rhizaeon" >> $GITHUB_OUTPUT
           fi
       - name: Build and publish
         run: |

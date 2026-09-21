@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rhizaeon"
+version = "0.1.0"
+authors = [
+  { name="Sergei L. Kosakovsky Pond", email="spond@temple.edu" },
+  { name="Darren P. Martin", email="darrenpatrickmartin@gmail.com" },
+]
+description = "RhizAeon: Tree-Free Reticulate Evolution, Continuous Sequence Manifolds, and Recombination Detection"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+dependencies = [
+    "aeon-core>=0.1.0",
+    "biopython>=1.80",
+    "numpy>=1.22.0",
+    "scipy>=1.9.0",
+    "pandas>=1.4.0",
+    "matplotlib>=3.5",
+    "torch>=2.0.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+rhizaeon = "rhizaeon.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[project.urls]
+"Homepage" = "https://github.com/veg/HyphAeon"
+"Bug Tracker" = "https://github.com/veg/HyphAeon/issues"

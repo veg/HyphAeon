@@ -78,3 +78,28 @@ jobs:
 
       - name: Run chronaeon tests
         run: python -m pytest chronaeon/tests/ -v
+
+  test-rhizaeon:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install CPU torch
+        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install aeon-core, rhizaeon and dev dependencies
+        run: pip install -e aeon-core/ -e rhizaeon/[dev]
+
+      - name: Run rhizaeon tests
+        run: python -m pytest rhizaeon/tests/ -v
+

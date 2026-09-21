@@ -19,28 +19,33 @@
 
 ## 📦 Monorepo Structure
 
-This repository is organized as a monorepo with three installable packages:
+This repository is organized as a monorepo with four installable packages:
 
 | Package | Description | Install |
 | :--- | :--- | :--- |
 | **`aeon-core`** | Shared model, dataset, inference, weights, stats, and IO infrastructure | `pip install aeon-core` |
 | **`hyphaeon`** | Site-level selection inference, epistasis, phenotype association, disease prediction | `pip install hyphaeon` |
 | **`chronaeon`** | Molecular clock dating, phylodynamics, phylogeography, genomic surveillance | `pip install chronaeon` |
+| **`rhizaeon`** | Tree-free reticulate evolution, continuous sequence manifolds, recombination detection | `pip install rhizaeon` |
 
-`aeon-core` is the shared foundation. Both `hyphaeon` and `chronaeon` depend on it
+`aeon-core` is the shared foundation. `hyphaeon`, `chronaeon`, and `rhizaeon` depend on it
 and pull it in automatically when installed. Example datasets are shared from the
-root `examples/` directory; chronaeon-specific examples live in `chronaeon/examples/`.
+root `examples/` directory; package-specific examples live in `hyphaeon/`, `chronaeon/examples/`, and `rhizaeon/examples/`.
 
 ---
 
-## 🔭 The Radar & Microscope Flywheel
+## 🔭 The Radar, Microscope & Loom Triad
 
-**ChronAeon** is the **Radar**: rapidly screens genomes, detects emerging clades, and infers origin dates. **HyphAeon** is the **Microscope**: dissects *why* flagged clades emerged — identifying positive selection bursts and epistatic rewiring. Together they form a collaborative flywheel for genomic surveillance and deep evolutionary analysis.
+- **ChronAeon** is the **Radar**: rapidly screens genomes, detects emerging clades, and infers origin dates.
+- **HyphAeon** is the **Microscope**: dissects *why* flagged clades emerged — identifying positive selection bursts and epistatic rewiring.
+- **RhizAeon** is the **Loom**: untangles reticulate evolutionary flow — detecting recombination breakpoints, mosaic transitions, and non-tree manifolds.
+
+Together they form a unified foundation ecosystem for planetary genomic surveillance and deep evolutionary genomics.
 
 ---
 
 > [!TIP]
-> **Migrating from HyPhy?** See our comprehensive [**HyPhy to HyphAeon Migration Guide**](hyphaeon/MIGRATION_GUIDE.md) for direct method-by-method translations (`hyphy meme` → `hyphaeon meme`, `contrast-fel` → `hyphaeon phenotype`, `prime` → `hyphaeon dms`) and biological recipes categorized by empirical data regime.
+> **Migrating from HyPhy?** See our comprehensive [**HyPhy to HyphAeon Migration Guide**](hyphaeon/MIGRATION_GUIDE.md) for direct method-by-method translations (`hyphy meme` → `hyphaeon meme`, `contrast-fel` → `hyphaeon phenotype`, `prime` → `hyphaeon dms`, `gard` → `rhizaeon rp-fda`) and biological recipes categorized by empirical data regime.
 
 ## 🚀 Capabilities at a Glance
 
@@ -73,23 +78,35 @@ Molecular clock dating, phylodynamics, phylogeography, streaming genomic triage,
 | `chronaeon sketch` | Alignment-free MinHash sketching & binning |
 | `chronaeon align` | Reference-guided codon-aware alignment |
 
+### RhizAeon — The Reticulation Engine
+
+Tree-free recombination breakpoint detection, continuous sequence manifolds, recursive partitioning FDA (RP-FDA), maximum-likelihood breakpoint polishing, and alluvial genome river visualization. See [`rhizaeon/README.md`](rhizaeon/README.md) for detailed examples, CLI subcommands, and mathematical formulation.
+
+| Command | Description |
+| :--- | :--- |
+| `rhizaeon scan` | Sliding-window sequence manifold scan with Two-Tier prefix distance engines |
+| `rhizaeon rp-fda` | Recursive Partitioning FDA (RP-FDA) with TV-1D $L_1$ trend filtering & ML polisher |
+| `rhizaeon alluvial` | Render Alluvial Genome River plot visualizing mosaic phylogenetic flow |
+
 ---
 
 ## 📦 Installation
 
-Both packages require Python ≥ 3.8 and PyTorch ≥ 2.0. At runtime they auto-select
+Packages require Python ≥ 3.8 and PyTorch ≥ 2.0. At runtime they auto-select
 the best available device (CUDA → Apple MPS → CPU), so no manual configuration
 is needed regardless of which install path you choose.
 
 ```bash
 pip install hyphaeon    # The Microscope — selection, epistasis, DMS, phenotype
 pip install chronaeon   # The Radar — dating, phylodynamics, phylogeography, triage
+pip install rhizaeon    # The Loom — recombination, sequence manifolds, alluvials
 ```
 
 For detailed install options (CPU-only wheels, Bioconda, NVIDIA Jetson, model
 weights, specific CUDA builds), see the respective package READMEs:
 - [`hyphaeon/README.md`](hyphaeon/README.md#installation)
 - [`chronaeon/README.md`](chronaeon/README.md#installation)
+- [`rhizaeon/README.md`](rhizaeon/README.md#installation)
 
 ### Local Development
 
@@ -97,7 +114,7 @@ This is a monorepo with no root-level installable package. To set up a
 development environment from a fresh clone:
 
 ```bash
-pip install -e aeon-core -e hyphaeon -e chronaeon
+pip install -e aeon-core -e hyphaeon -e chronaeon -e rhizaeon
 ```
 
 Run the test suite per-subpackage (each has its own `conftest.py` and `pyproject.toml`):
@@ -105,6 +122,7 @@ Run the test suite per-subpackage (each has its own `conftest.py` and `pyproject
 ```bash
 pytest chronaeon/tests/    # ChronAeon tests
 pytest hyphaeon/tests/     # HyphAeon tests
+pytest rhizaeon/tests/     # RhizAeon tests
 ```
 
 > [!NOTE]
