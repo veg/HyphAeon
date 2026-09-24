@@ -1,0 +1,78 @@
+{
+  "study_id": "11_operational_boundaries_and_frame_collapse",
+  "title": "Operational Boundaries and Frame Collapse Simulation Benchmark for RhizAeon",
+  "citation": "Kosakovsky Pond, S. L., et al. (2026). Clean Breaks: Tree-Free Discovery of Mosaic Genomes on Continuous Sequence Manifolds. In preparation.",
+  "challenge_addressed": "Darren P. Martin's Challenge: 'how it works in practice when shit starts getting really complex and there is no longer a meaningfully/accurately fixable frame of reference.'",
+  "total_alignments": 1050,
+  "sequence_length_nt": 3000,
+  "substitution_model": {
+    "family": "HKY85 continuous-time Markov substitutions",
+    "kappa": 2.5,
+    "stationary_frequencies": [0.30, 0.20, 0.20, 0.30],
+    "rate_variation": "Continuous site-to-site Gamma distributed rate heterogeneity",
+    "alpha_recombinant": 0.5,
+    "alpha_clonal_control": 0.25
+  },
+  "experiments": {
+    "experiment_A": {
+      "name": "Mutational Information Floor (I_mut = L_tract * Delta_d)",
+      "tract_lengths_bp": [50, 100, 250, 500, 1000],
+      "divergence_levels": [0.002, 0.005, 0.01, 0.03, 0.10, 0.25],
+      "replicates_per_cell": 15,
+      "cells": 30,
+      "total_alignments": 450,
+      "n_taxa": 20,
+      "empirical_threshold": "I_mut* ~ 3.8 SNPs"
+    },
+    "experiment_B": {
+      "name": "Panmictic Frame Collapse (rho / theta)",
+      "rho_over_theta_levels": [0.0, 0.05, 0.2, 0.5, 1.0, 2.5, 5.0, 10.0],
+      "taxa_cohorts_N": [20, 50],
+      "replicates_per_cell": 15,
+      "cells": 16,
+      "total_alignments": 240,
+      "observable_collapse": "F_frame decays from 0.952 (clonal) to 0.696 (panmictic patchwork)"
+    },
+    "experiment_C": {
+      "name": "Distant Parents & Mutational Saturation",
+      "divergence_Delta_d": [0.05, 0.15, 0.30, 0.45, 0.60],
+      "tract_lengths_bp": [250, 1000],
+      "replicates_per_cell": 15,
+      "cells": 10,
+      "total_alignments": 150,
+      "n_taxa": 20,
+      "saturation_robustness": "Power = 100.0% up to Delta_d = 0.60 for L = 1000 nt"
+    },
+    "experiment_D": {
+      "name": "Clade Torque & Negative Clonal Controls",
+      "mosaic_fractions_f_rec": [0.05, 0.10, 0.25, 0.50],
+      "divergence_levels": [0.02, 0.05, 0.15],
+      "torque_replicates_per_cell": 15,
+      "torque_cells": 12,
+      "torque_alignments": 180,
+      "clonal_controls_replicates": 30,
+      "total_alignments": 210,
+      "torque_phenomenon": "Procrustes Z drops 15.5 -> 3.1 under rotational torque; Laplacian Fiedler phase shift remains d_Fiedler = 1.0 - 1.9"
+    }
+  },
+  "workflow": {
+    "prefix_engine": "PrefixDistanceEngine(mat, codon_aligned=False, compute_transitions=True)",
+    "screen": "run_recursive_partition_fda_screen",
+    "min_z": 1.8,
+    "min_pir": 0.06,
+    "crossover_validation": true,
+    "crossover_p_threshold": 0.005,
+    "min_informative_sites": 3,
+    "polish_ml": true,
+    "spectral_bipartition": "Normalized Graph Laplacian L_sym Fiedler eigenvector v_2(s)",
+    "conformal_calibration": "Split conformal prediction with 30 negative clonal controls (alpha=0.25) at coverage 1 - alpha = 0.95"
+  },
+  "artifacts": {
+    "raw_results_csv": "simulations/11_operational_boundaries_and_frame_collapse/envelope_raw_results.csv",
+    "summary_csv": "simulations/11_operational_boundaries_and_frame_collapse/envelope_summary.csv",
+    "figure_pdf": "simulations/11_operational_boundaries_and_frame_collapse/fig_operational_boundaries_phase_diagram.pdf",
+    "figure_png": "simulations/11_operational_boundaries_and_frame_collapse/fig_operational_boundaries_phase_diagram.png",
+    "provenance_md": "simulations/11_operational_boundaries_and_frame_collapse/DATASET_PROVENANCE.md",
+    "technical_report_md": "simulations/11_operational_boundaries_and_frame_collapse/OPERATIONAL_ENVELOPE_REPORT.md"
+  }
+}

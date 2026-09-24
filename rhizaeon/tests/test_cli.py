@@ -20,6 +20,7 @@ def test_cli_help(capsys):
     assert "scan" in captured.out
     assert "rp-fda" in captured.out
     assert "alluvial" in captured.out
+    assert "visualize" in captured.out
 
 
 def test_cli_scan_toy():
@@ -72,3 +73,26 @@ def test_cli_rpfda_toy():
             data = json.load(f)
         assert data["num_taxa"] == 4
         assert data["length"] == 120
+
+
+def test_cli_visualize():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        fasta_path = os.path.join(tmpdir, "toy.fasta")
+        html_path = os.path.join(tmpdir, "dashboard.html")
+        with open(fasta_path, "w") as f:
+            f.write(">Taxon_Rec\n" + ("A" * 60 + "G" * 60) + "\n")
+            f.write(">Taxon_P1\n" + ("A" * 120) + "\n")
+            f.write(">Taxon_P2\n" + ("G" * 120) + "\n")
+            f.write(">Taxon_Out\n" + ("C" * 120) + "\n")
+
+        with patch.object(sys, "argv", [
+            "rhizaeon", "visualize", fasta_path,
+            "--output", html_path
+        ]):
+            main()
+
+        assert os.path.exists(html_path)
+        with open(html_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        assert "<!DOCTYPE html>" in content
+        assert "RhizAeon" in content

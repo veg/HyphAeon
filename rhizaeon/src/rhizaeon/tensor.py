@@ -231,23 +231,37 @@ class SNPCompressedPrefixEngine(PrefixDistanceEngine):
         compute_transitions: bool = False
     ):
         N, L = seq_matrix.shape
-        # Identify polymorphic non-gap sites
-        seg_mask = np.zeros(L, dtype=bool)
-        for col in range(L):
-            chars = set(seq_matrix[:, col]) - {4}
-            if len(chars) > 1:
-                seg_mask[col] = True
+        # Fast vectorized segregating site identification
+        valid_mask = (seq_matrix < 4)
+        clean_mat = np.where(valid_mask, seq_matrix, -1)
+        max_val = np.max(clean_mat, axis=0)
+        min_mat = np.where(valid_mask, seq_matrix, 99)
+        min_val = np.min(min_mat, axis=0)
+        seg_mask = (max_val > min_val) & (min_val >= 0) & (max_val <= 3)
 
         self.seg_indices = np.where(seg_mask)[0]
         self.full_L = L
         self.full_seq_matrix = seq_matrix
 
         compressed_mat = seq_matrix[:, self.seg_indices] if len(self.seg_indices) > 0 else seq_matrix
-        super().__init__(
-            compressed_mat,
-            codon_aligned=codon_aligned,
-            compute_transitions=compute_transitions
-        )
+        S = compressed_mat.shape[1]
+        # Use on-demand BLAS if prefix tensor would exceed 50 MB
+        self.use_blas = (N > 150) or (N * N * (S + 1) * 2 > 50 * 1024 * 1024)
+
+        if not self.use_blas:
+            super().__init__(
+                compressed_mat,
+                codon_aligned=codon_aligned,
+                compute_transitions=compute_transitions
+            )
+        else:
+            self.seq_matrix = compressed_mat
+            self.N = N
+            self.L = S
+            self.codon_aligned = False
+            self.compute_transitions = False
+            self.prefix_valid = None
+            self.prefix_diff = None
         self.num_units = L
 
     def query_distance_matrix(
@@ -270,11 +284,23 @@ class SNPCompressedPrefixEngine(PrefixDistanceEngine):
         if s_start >= s_end:
             return np.zeros((self.N, self.N), dtype=np.float64)
 
-        valid = self.prefix_valid[:, :, s_end].astype(np.int32) - self.prefix_valid[:, :, s_start].astype(np.int32)
-        diffs = self.prefix_diff[:, :, s_end].astype(np.int32) - self.prefix_diff[:, :, s_start].astype(np.int32)
-
-        safe_valid = np.maximum(valid, 1)
-        p = diffs.astype(np.float64) / safe_valid
+        if not self.use_blas:
+            valid = self.prefix_valid[:, :, s_end].astype(np.int32) - self.prefix_valid[:, :, s_start].astype(np.int32)
+            diffs = self.prefix_diff[:, :, s_end].astype(np.int32) - self.prefix_diff[:, :, s_start].astype(np.int32)
+            safe_valid = np.maximum(valid, 1)
+            p = diffs.astype(np.float64) / safe_valid
+        else:
+            sub = self.seq_matrix[:, s_start:s_end]
+            W = s_end - s_start
+            eye = np.eye(4, dtype=np.float32)
+            val = (sub < 4).astype(np.float32)
+            valid = val @ val.T
+            sub_clean = np.where(sub < 4, sub, 0)
+            H = eye[sub_clean].reshape(self.N, W * 4) * np.repeat(val, 4, axis=1)
+            matches = H @ H.T
+            diffs = valid - matches
+            safe_valid = np.maximum(valid, 1.0)
+            p = diffs / safe_valid
 
         if model == "raw":
             dist = p

@@ -97,6 +97,15 @@ def load_embedding_matrices(weights_path: Optional[str] = None) -> Tuple[np.ndar
         from safetensors.torch import load_file
         sd = load_file(str(path), device="cpu")
     else:
+        # NumPy 1.x / 2.x unpickling compatibility bridge
+        if "numpy._core" not in sys.modules:
+            try:
+                import numpy.core
+                sys.modules["numpy._core"] = numpy.core
+                if hasattr(numpy.core, "multiarray"):
+                    sys.modules["numpy._core.multiarray"] = numpy.core.multiarray
+            except ImportError:
+                pass
         ckpt = torch.load(path, map_location="cpu", weights_only=False)
         sd = ckpt.get("state_dict", ckpt.get("model_state_dict", ckpt))
 

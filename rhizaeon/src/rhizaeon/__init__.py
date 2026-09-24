@@ -62,6 +62,11 @@ from rhizaeon.embed import (
     build_prefix_engine,
     load_embedding_matrices
 )
+from rhizaeon.visualizer import (
+    generate_interactive_html,
+    compute_alignment_signals,
+    compute_classical_mds_subspaces
+)
 
 __all__ = [
     "PrefixDistanceEngine",
@@ -104,6 +109,9 @@ __all__ = [
     "EmbeddingPrefixDistanceEngine",
     "ContextualPrefixDistanceEngine",
     "build_prefix_engine",
-    "load_embedding_matrices"
+    "load_embedding_matrices",
+    "generate_interactive_html",
+    "compute_alignment_signals",
+    "compute_classical_mds_subspaces"
 ]
 

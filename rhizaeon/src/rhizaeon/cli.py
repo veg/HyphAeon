@@ -20,6 +20,7 @@ from rhizaeon.export import (
     export_nexus_partitions,
     export_hyphy_batchfile
 )
+from rhizaeon.visualizer import generate_interactive_html
 
 
 def main():
@@ -77,6 +78,8 @@ def main():
         choices=["auto", "cpu", "cuda", "mps"],
         help="Hardware accelerator for embed-contextual / two-tier-contextual"
     )
+    scan_p.add_argument("--html", type=str, nargs="?", const="AUTO", default="AUTO", help="Generate standard self-contained interactive HTML dashboard (default: <alignment>_rhizaeon.html)")
+    scan_p.add_argument("--no-html", action="store_true", default=False, help="Disable generating interactive HTML dashboard")
     scan_p.add_argument("--export-nexus", type=str, default=None, help="Export multi-partition NEXUS alignment")
     scan_p.add_argument("--export-hyphy-json", type=str, default=None, help="Export HyPhy partition JSON")
     scan_p.add_argument("--export-hyphy-bf", type=str, default=None, help="Export HyPhy batch script (.bf)")
@@ -92,6 +95,8 @@ def main():
     rpfda_p.add_argument("--no-polish", action="store_false", dest="polish_ml", default=True, help="Disable ML breakpoint polisher")
     rpfda_p.add_argument("--compress-snps", action="store_true", default=False, help="Use SNP-compressed prefix engine (220x RAM reduction)")
     rpfda_p.add_argument("--json", type=str, default=None, help="Save detection results to JSON")
+    rpfda_p.add_argument("--html", type=str, nargs="?", const="AUTO", default="AUTO", help="Generate standard self-contained interactive HTML dashboard (default: <alignment>_rhizaeon.html)")
+    rpfda_p.add_argument("--no-html", action="store_true", default=False, help="Disable generating interactive HTML dashboard")
     rpfda_p.add_argument("--export-nexus", type=str, default=None, help="Export multi-partition NEXUS alignment")
     rpfda_p.add_argument("--export-hyphy-bf", type=str, default=None, help="Export HyPhy batch script (.bf)")
 
@@ -101,6 +106,12 @@ def main():
     alluvial_p.add_argument("--output", "-o", type=str, default="genome_river.png", help="Output image file")
     alluvial_p.add_argument("--codon", action="store_true", default=True, help="Treat alignment as in-frame codons")
     alluvial_p.add_argument("--highlight", nargs="+", default=None, help="Taxa headers to highlight")
+
+    # Subcommand: visualize
+    viz_p = subparsers.add_parser("visualize", help="Generate standard self-contained interactive HTML dashboard")
+    viz_p.add_argument("alignment", type=str, help="Path to input nucleotide FASTA alignment")
+    viz_p.add_argument("--output", "-o", type=str, default="AUTO", help="Output HTML path (default: <alignment>_rhizaeon.html)")
+    viz_p.add_argument("--title", type=str, default=None, help="Dashboard title")
 
     args = parser.parse_args()
 
@@ -211,6 +222,17 @@ def main():
             export_hyphy_batchfile(args.alignment, bps, args.export_hyphy_bf, is_codon=args.codon)
             print(f"[✓] HyPhy batch script saved to: {args.export_hyphy_bf}")
 
+        if args.html and not args.no_html:
+            html_out = f"{Path(args.alignment).stem}_rhizaeon.html" if args.html == "AUTO" else args.html
+            print(f"[*] Generating standard interactive HTML dashboard to: {html_out}")
+            generate_interactive_html(
+                alignment_path=args.alignment,
+                detection_results=events,
+                output_html_path=html_out,
+                title=f"RhizAeon Scan Analysis: {Path(args.alignment).stem}"
+            )
+            print(f"[✓] Dashboard saved to: {html_out}")
+
     elif args.command == "alluvial":
         seq_mat, taxa, L = encode_alignment_matrix(args.alignment)
         engine = PrefixDistanceEngine(seq_mat, codon_aligned=args.codon)
@@ -314,6 +336,29 @@ def main():
             print(f"[*] Exporting HyPhy batch script (.bf) to: {args.export_hyphy_bf}")
             export_hyphy_batchfile(args.alignment, bp_coords, args.export_hyphy_bf, is_codon=False)
             print(f"[✓] HyPhy batch script saved to: {args.export_hyphy_bf}")
+
+        if args.html and not args.no_html:
+            html_out = f"{Path(args.alignment).stem}_rhizaeon.html" if args.html == "AUTO" else args.html
+            print(f"[*] Generating standard interactive HTML dashboard to: {html_out}")
+            generate_interactive_html(
+                alignment_path=args.alignment,
+                detection_results=bps,
+                output_html_path=html_out,
+                title=f"RhizAeon RP-FDA Analysis: {Path(args.alignment).stem}"
+            )
+            print(f"[✓] Dashboard saved to: {html_out}")
+
+    elif args.command == "visualize":
+        t0 = time.time()
+        print(f"[*] Building standard interactive dashboard for: {args.alignment}")
+        html_out = f"{Path(args.alignment).stem}_rhizaeon.html" if args.output == "AUTO" else args.output
+        out_path = generate_interactive_html(
+            alignment_path=args.alignment,
+            detection_results=None,
+            output_html_path=html_out,
+            title=args.title
+        )
+        print(f"[✓] Generated interactive dashboard in {time.time()-t0:.2f}s: {out_path}")
 
 
 if __name__ == "__main__":

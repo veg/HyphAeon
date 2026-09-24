@@ -23,24 +23,30 @@ def compute_classical_mds(D: np.ndarray, k: int = 4) -> np.ndarray:
     if N <= k:
         k = max(1, N - 1)
 
-    # Centering matrix H
-    H = np.eye(N, dtype=np.float64) - (1.0 / N) * np.ones((N, N), dtype=np.float64)
+    # Efficient double-centering: H @ D_sq @ H = D_sq - mean_row - mean_col + mean_all
     D_sq = D.astype(np.float64) ** 2
-    B = -0.5 * (H @ D_sq @ H)
+    B = -0.5 * (D_sq - D_sq.mean(axis=1, keepdims=True) - D_sq.mean(axis=0, keepdims=True) + D_sq.mean())
 
-    # Symmetric eigendecomposition
-    w, v = la.eigh(B)
+    if N <= 200:
+        w, v = np.linalg.eigh(B)
+        idx = np.argsort(-w)[:k]
+        w_top = np.maximum(0.0, w[idx])
+        v_top = v[:, idx]
+    else:
+        # Fast randomized subspace iteration (Halko et al. 2011) for O(k N^2) scaling on grand cohorts
+        p = min(k + 4, N)
+        np.random.seed(42)
+        Omega = np.random.randn(N, p)
+        Q, _ = np.linalg.qr(B @ Omega)
+        for _ in range(3):
+            Q, _ = np.linalg.qr(B @ Q)
+        B_small = Q.T @ (B @ Q)
+        w_small, v_small = np.linalg.eigh(B_small)
+        idx = np.argsort(-w_small)[:k]
+        w_top = np.maximum(0.0, w_small[idx])
+        v_top = Q @ v_small[:, idx]
 
-    # Sort descending
-    idx = np.argsort(-w)
-    w = w[idx]
-    v = v[:, idx]
-
-    coords = []
-    for j in range(k):
-        val = max(0.0, float(w[j]))
-        coords.append(v[:, j] * np.sqrt(val))
-
+    coords = [v_top[:, j] * np.sqrt(float(w_top[j])) for j in range(k)]
     return np.column_stack(coords)
 
 
