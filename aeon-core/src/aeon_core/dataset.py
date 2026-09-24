@@ -826,7 +826,6 @@ def compute_tn93_cross_distance_matrix(
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_all = os.path.join(tmpdir, "all.fa")
             tmp_lm = os.path.join(tmpdir, "landmarks.fa")
-            out_csv = os.path.join(tmpdir, "cross_distances.csv")
 
             with open(tmp_all, "w") as f:
                 for t in taxa_all:
@@ -837,35 +836,44 @@ def compute_tn93_cross_distance_matrix(
                     s_clean = seq_dict[t].replace('*', '-')
                     f.write(f">{t}\n{s_clean}\n")
 
-            cmd = [tn93_bin, "-s", tmp_lm, "-t", f"{threshold:.1f}", "-l", "1", "-q", "-o", out_csv, tmp_all]
-            binary_success = False
+            # Streaming pipe via numeric indices (-f csvn -n) to eliminate multi-gigabyte disk writes
+            cmd_pipe = [tn93_bin, "-f", "csvn", "-n", "-s", tmp_lm, "-t", f"{threshold:.1f}", "-l", "1", "-q", tmp_all]
             try:
-                subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                binary_success = True
-            except subprocess.CalledProcessError:
-                if threshold > 1.0:
-                    cmd_fallback = [tn93_bin, "-s", tmp_lm, "-t", "1.0", "-l", "1", "-q", "-o", out_csv, tmp_all]
-                    try:
-                        subprocess.run(cmd_fallback, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                        binary_success = True
-                    except Exception:
-                        pass
+                proc = subprocess.Popen(cmd_pipe, stdout=subprocess.PIPE, text=True, bufsize=10*1024*1024)
+                reader = csv.reader(proc.stdout)
+                for row in reader:
+                    if len(row) == 3:
+                        try:
+                            i1 = int(row[0])
+                            i2 = int(row[1]) - n
+                            if 0 <= i1 < n and 0 <= i2 < m:
+                                dist_mat[i1, i2] = float(row[2])
+                        except (ValueError, IndexError):
+                            pass
+                proc.wait()
+                if proc.returncode == 0:
+                    used_binary = True
             except Exception:
-                pass
+                used_binary = False
 
-            if binary_success and os.path.exists(out_csv) and os.path.getsize(out_csv) > 0:
-                import pandas as pd
-                chunksize = 2_000_000
-                for chunk in pd.read_csv(out_csv, usecols=["ID1", "ID2", "Distance"], dtype={"ID1": str, "ID2": str}, chunksize=chunksize):
-                    ii = chunk["ID1"].map(taxa_idx).to_numpy(dtype="float64")
-                    jj = chunk["ID2"].map(lm_idx).to_numpy(dtype="float64")
-                    dd = pd.to_numeric(chunk["Distance"], errors="coerce").to_numpy()
-                    valid = ~(np.isnan(ii) | np.isnan(jj) | np.isnan(dd))
-                    ii = ii[valid].astype(np.intp)
-                    jj = jj[valid].astype(np.intp)
-                    dd = dd[valid].astype(np.float32)
-                    dist_mat[ii, jj] = dd
-                used_binary = True
+            # Fallback to standard output file if streaming pipe fails
+            if not used_binary:
+                out_csv = os.path.join(tmpdir, "cross_distances.csv")
+                cmd = [tn93_bin, "-s", tmp_lm, "-t", f"{threshold:.1f}", "-l", "1", "-q", "-o", out_csv, tmp_all]
+                try:
+                    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    if os.path.exists(out_csv) and os.path.getsize(out_csv) > 0:
+                        import pandas as pd
+                        chunksize = 2_000_000
+                        for chunk in pd.read_csv(out_csv, usecols=["ID1", "ID2", "Distance"], dtype={"ID1": str, "ID2": str}, chunksize=chunksize):
+                            ii = chunk["ID1"].map(taxa_idx).to_numpy(dtype="float64")
+                            jj = chunk["ID2"].map(lm_idx).to_numpy(dtype="float64")
+                            dd = pd.to_numeric(chunk["Distance"], errors="coerce").to_numpy()
+                            valid = ~(np.isnan(ii) | np.isnan(jj) | np.isnan(dd))
+                            dist_mat[ii[valid].astype(np.intp), jj[valid].astype(np.intp)] = dd[valid].astype(np.float32)
+                        used_binary = True
+                except Exception:
+                    pass
 
     if not used_binary:
         try:

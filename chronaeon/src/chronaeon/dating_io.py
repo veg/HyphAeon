@@ -232,21 +232,9 @@ def compute_time_decay_profile_divergences(
     t_min, t_max = float(np.min(times)), float(np.max(times))
     delta_t = t_max - t_min
 
-    char_map = {'A': 0, 'a': 0, 'C': 1, 'c': 1, 'G': 2, 'g': 2, 'T': 3, 't': 3}
     N = len(valid_taxa)
     L = len(seq_dict[valid_taxa[0]])
-    M = np.full((N, L), -1, dtype=np.int8)
-    for i, t in enumerate(valid_taxa):
-        seq = seq_dict[t]
-        for k in range(min(L, len(seq))):
-            M[i, k] = char_map.get(seq[k], -1)
-
-    is_A = (M == 0)
-    is_C = (M == 1)
-    is_G = (M == 2)
-    is_T = (M == 3)
-    valid_mask = (M >= 0)
-    L_valid = np.maximum(np.sum(valid_mask, axis=1), 1)
+    chunk_size = 50000
 
     def _eval_gamma(g: float) -> Tuple[np.ndarray, float]:
         w = np.exp(-g * (times - t_min))
@@ -254,46 +242,86 @@ def compute_time_decay_profile_divergences(
         w = w / w_sum if w_sum > 0 else np.ones(N) / N
 
         Q = np.zeros((L, 4), dtype=np.float64)
-        for b in range(4):
-            Q[:, b] = np.sum((M == b) * w[:, None], axis=0)
+        for start in range(0, N, chunk_size):
+            end = min(N, start + chunk_size)
+            chunk_taxa = valid_taxa[start:end]
+            M_c = np.full((len(chunk_taxa), L), -1, dtype=np.int8)
+            for i_local, t in enumerate(chunk_taxa):
+                s_bytes = seq_dict[t].encode('ascii', errors='ignore')[:L]
+                arr = np.frombuffer(s_bytes, dtype=np.uint8)
+                m_row = np.full(len(arr), -1, dtype=np.int8)
+                m_row[(arr == 65) | (arr == 97)] = 0
+                m_row[(arr == 67) | (arr == 99)] = 1
+                m_row[(arr == 71) | (arr == 103)] = 2
+                m_row[(arr == 84) | (arr == 116)] = 3
+                M_c[i_local, :len(arr)] = m_row
+
+            w_c = w[start:end, None]
+            for b in range(4):
+                Q[:, b] += np.sum((M_c == b) * w_c, axis=0)
 
         q_sum = np.sum(Q, axis=1, keepdims=True)
         zero_pos = (q_sum.squeeze() <= 0)
         Q[~zero_pos, :] /= q_sum[~zero_pos]
         Q[zero_pos, :] = 0.25
 
-        P1 = np.sum(is_A * Q[None, :, 2] + is_G * Q[None, :, 0], axis=1) / L_valid
-        P2 = np.sum(is_C * Q[None, :, 3] + is_T * Q[None, :, 1], axis=1) / L_valid
-        Q_tv = np.sum((is_A | is_G) * (Q[None, :, 1] + Q[None, :, 3]) + (is_C | is_T) * (Q[None, :, 0] + Q[None, :, 2]), axis=1) / L_valid
-
         mean_Q = np.mean(Q, axis=0)
-        f_A = np.maximum(0.5 * (mean_Q[0] + np.sum(is_A, axis=1) / L_valid), 1e-4)
-        f_C = np.maximum(0.5 * (mean_Q[1] + np.sum(is_C, axis=1) / L_valid), 1e-4)
-        f_G = np.maximum(0.5 * (mean_Q[2] + np.sum(is_G, axis=1) / L_valid), 1e-4)
-        f_T = np.maximum(0.5 * (mean_Q[3] + np.sum(is_T, axis=1) / L_valid), 1e-4)
-        f_R = f_A + f_G
-        f_Y = f_C + f_T
+        d_out = np.zeros(N, dtype=np.float64)
 
-        arg1 = 1.0 - (f_R / (2.0 * f_A * f_G)) * P1 - (Q_tv / (2.0 * f_R))
-        arg2 = 1.0 - (f_Y / (2.0 * f_C * f_T)) * P2 - (Q_tv / (2.0 * f_Y))
-        arg3 = 1.0 - (Q_tv / (2.0 * f_R * f_Y))
+        for start in range(0, N, chunk_size):
+            end = min(N, start + chunk_size)
+            chunk_taxa = valid_taxa[start:end]
+            M_c = np.full((len(chunk_taxa), L), -1, dtype=np.int8)
+            for i_local, t in enumerate(chunk_taxa):
+                s_bytes = seq_dict[t].encode('ascii', errors='ignore')[:L]
+                arr = np.frombuffer(s_bytes, dtype=np.uint8)
+                m_row = np.full(len(arr), -1, dtype=np.int8)
+                m_row[(arr == 65) | (arr == 97)] = 0
+                m_row[(arr == 67) | (arr == 99)] = 1
+                m_row[(arr == 71) | (arr == 103)] = 2
+                m_row[(arr == 84) | (arr == 116)] = 3
+                M_c[i_local, :len(arr)] = m_row
 
-        k1 = 2.0 * f_A * f_G / f_R
-        k2 = 2.0 * f_C * f_T / f_Y
-        k3 = 2.0 * (f_R * f_Y - (f_A * f_G * f_Y / f_R) - (f_C * f_T * f_R / f_Y))
+            is_A = (M_c == 0)
+            is_C = (M_c == 1)
+            is_G = (M_c == 2)
+            is_T = (M_c == 3)
+            valid_mask = (M_c >= 0)
+            L_valid = np.maximum(np.sum(valid_mask, axis=1), 1)
 
-        p_ham = P1 + P2 + Q_tv
-        valid_log = (arg1 > 0) & (arg2 > 0) & (arg3 > 0)
-        d = np.zeros(N, dtype=np.float64)
-        d[~valid_log] = p_ham[~valid_log]
-        d[valid_log] = (
-            -k1[valid_log] * np.log(arg1[valid_log])
-            - k2[valid_log] * np.log(arg2[valid_log])
-            - k3[valid_log] * np.log(arg3[valid_log])
-        )
-        invalid_d = (~np.isfinite(d)) | (d < 0)
-        d[invalid_d] = p_ham[invalid_d]
-        return d, g
+            P1 = (is_A @ Q[:, 2] + is_G @ Q[:, 0]) / L_valid
+            P2 = (is_C @ Q[:, 3] + is_T @ Q[:, 1]) / L_valid
+            Q_tv = ((is_A | is_G) @ (Q[:, 1] + Q[:, 3]) + (is_C | is_T) @ (Q[:, 0] + Q[:, 2])) / L_valid
+
+            f_A = np.maximum(0.5 * (mean_Q[0] + np.sum(is_A, axis=1) / L_valid), 1e-4)
+            f_C = np.maximum(0.5 * (mean_Q[1] + np.sum(is_C, axis=1) / L_valid), 1e-4)
+            f_G = np.maximum(0.5 * (mean_Q[2] + np.sum(is_G, axis=1) / L_valid), 1e-4)
+            f_T = np.maximum(0.5 * (mean_Q[3] + np.sum(is_T, axis=1) / L_valid), 1e-4)
+            f_R = f_A + f_G
+            f_Y = f_C + f_T
+
+            arg1 = 1.0 - (f_R / (2.0 * f_A * f_G)) * P1 - (Q_tv / (2.0 * f_R))
+            arg2 = 1.0 - (f_Y / (2.0 * f_C * f_T)) * P2 - (Q_tv / (2.0 * f_Y))
+            arg3 = 1.0 - (Q_tv / (2.0 * f_R * f_Y))
+
+            k1 = 2.0 * f_A * f_G / f_R
+            k2 = 2.0 * f_C * f_T / f_Y
+            k3 = 2.0 * (f_R * f_Y - (f_A * f_G * f_Y / f_R) - (f_C * f_T * f_R / f_Y))
+
+            p_ham = P1 + P2 + Q_tv
+            valid_log = (arg1 > 0) & (arg2 > 0) & (arg3 > 0)
+            d_c = np.zeros(end - start, dtype=np.float64)
+            d_c[~valid_log] = p_ham[~valid_log]
+            d_c[valid_log] = (
+                -k1[valid_log] * np.log(arg1[valid_log])
+                - k2[valid_log] * np.log(arg2[valid_log])
+                - k3[valid_log] * np.log(arg3[valid_log])
+            )
+            invalid_d = (~np.isfinite(d_c)) | (d_c < 0)
+            d_c[invalid_d] = p_ham[invalid_d]
+            d_out[start:end] = d_c
+
+        return d_out, g
 
     if half_life is not None and half_life > 0:
         eff_gamma = float(np.log(2.0) / half_life)
