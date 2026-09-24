@@ -27,7 +27,8 @@ from rhizaeon.export import (
     build_partition_intervals,
     export_hyphy_partition_json,
     export_nexus_partitions,
-    export_hyphy_batchfile
+    export_hyphy_batchfile,
+    export_split_fastas
 )
 from rhizaeon.wavelet import (
     ScalogramResult,
@@ -87,6 +88,7 @@ __all__ = [
     "export_hyphy_partition_json",
     "export_nexus_partitions",
     "export_hyphy_batchfile",
+    "export_split_fastas",
     "ScalogramResult",
     "WaveletRidge",
     "compute_haar_scalogram",

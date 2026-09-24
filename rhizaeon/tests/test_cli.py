@@ -96,3 +96,38 @@ def test_cli_visualize():
             content = f.read()
         assert "<!DOCTYPE html>" in content
         assert "RhizAeon" in content
+
+
+def test_cli_scan_and_rpfda_exports():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        fasta_path = os.path.join(tmpdir, "toy.fasta")
+        with open(fasta_path, "w") as f:
+            f.write(">Taxon_Rec\n" + ("A" * 60 + "G" * 60) + "\n")
+            f.write(">Taxon_P1\n" + ("A" * 120) + "\n")
+            f.write(">Taxon_P2\n" + ("G" * 120) + "\n")
+            f.write(">Taxon_Out\n" + ("C" * 120) + "\n")
+
+        nex_path = os.path.join(tmpdir, "part.nex")
+        hyphy_json = os.path.join(tmpdir, "part.json")
+        hyphy_bf = os.path.join(tmpdir, "part.bf")
+        part_dir = os.path.join(tmpdir, "parts")
+
+        with patch.object(sys, "argv", [
+            "rhizaeon", "rp-fda", fasta_path,
+            "--min-len", "20",
+            "--min-z", "1.0",
+            "--no-html",
+            "--export-nexus", nex_path,
+            "--export-hyphy-json", hyphy_json,
+            "--export-hyphy-bf", hyphy_bf,
+            "--export-partitions", part_dir
+        ]):
+            main()
+
+        assert os.path.exists(nex_path)
+        assert os.path.exists(hyphy_json)
+        assert os.path.exists(hyphy_bf)
+        assert os.path.isdir(part_dir)
+        part_files = os.listdir(part_dir)
+        assert len(part_files) >= 1
+

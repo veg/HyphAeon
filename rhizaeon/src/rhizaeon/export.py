@@ -124,7 +124,7 @@ def export_nexus_partitions(
         lines.append(f"    CHARSET {c_name} = {p['start_1based']}-{p['end_1based']};")
 
     part_spec = ", ".join(f"{name}:{name}" for name in charset_names)
-    lines.append(f"    CHARPARTITION Brekpoints = {part_spec};")
+    lines.append(f"    CHARPARTITION Breakpoints = {part_spec};")
     lines.append("END;")
 
     content = "\n".join(lines) + "\n"
@@ -135,6 +135,45 @@ def export_nexus_partitions(
         f.write(content)
 
     return content
+
+
+def export_split_fastas(
+    fasta_path: str,
+    breakpoints: List[int],
+    output_dir: str,
+    is_codon: bool = False
+) -> List[str]:
+    """
+    Slices the alignment into disjoint non-recombinant FASTA files,
+    one for each partition: partition_1.fasta, partition_2.fasta, ...
+    
+    This disassembles the dataset into non-recombinant components for
+    independent downstream phylogenetic tree estimation (IQ-TREE, RAxML, FastTree).
+    """
+    from rhizaeon.tensor import parse_fasta
+
+    taxa, seqs = parse_fasta(fasta_path)
+    num_nt = len(seqs[0])
+    num_units = num_nt // 3 if is_codon else num_nt
+
+    partitions = build_partition_intervals(num_units, breakpoints, is_codon=is_codon)
+    out_dir = Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    created_paths = []
+    for p in partitions:
+        part_name = p["name"]
+        start_0 = p["start_1based"] - 1
+        end_0 = p["end_1based"]
+        
+        file_path = out_dir / f"{part_name}.fasta"
+        with open(file_path, "w", encoding="utf-8") as f:
+            for t, s in zip(taxa, seqs):
+                sub_seq = s[start_0:end_0]
+                f.write(f">{t}\n{sub_seq}\n")
+        created_paths.append(str(file_path))
+
+    return created_paths
 
 
 def export_hyphy_batchfile(

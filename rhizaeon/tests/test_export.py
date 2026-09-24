@@ -17,7 +17,8 @@ from rhizaeon.export import (
     build_partition_intervals,
     export_hyphy_partition_json,
     export_nexus_partitions,
-    export_hyphy_batchfile
+    export_hyphy_batchfile,
+    export_split_fastas
 )
 
 
@@ -87,11 +88,31 @@ class TestPartitionExport(unittest.TestCase):
         self.assertIn("BEGIN ASSUMPTIONS;", content)
         self.assertIn("CHARSET partition_1 = 1-120;", content)
         self.assertIn("CHARSET partition_2 = 121-300;", content)
-        self.assertIn("CHARPARTITION Brekpoints = partition_1:partition_1, partition_2:partition_2;", content)
+        self.assertIn("CHARPARTITION Breakpoints = partition_1:partition_1, partition_2:partition_2;", content)
 
         # File exists and matches
         with open(nex_out, "r") as f:
             self.assertEqual(f.read(), content)
+
+    def test_export_split_fastas(self):
+        split_dir = os.path.join(self.temp_dir.name, "split_fastas")
+        created = export_split_fastas(self.fasta_path, [40], split_dir, is_codon=True)
+
+        self.assertEqual(len(created), 2)
+        part1 = os.path.join(split_dir, "partition_1.fasta")
+        part2 = os.path.join(split_dir, "partition_2.fasta")
+        self.assertTrue(os.path.exists(part1))
+        self.assertTrue(os.path.exists(part2))
+
+        with open(part1) as f:
+            lines1 = [line.strip() for line in f if line.strip()]
+        self.assertEqual(lines1[0], ">Taxon_A")
+        self.assertEqual(len(lines1[1]), 120)
+
+        with open(part2) as f:
+            lines2 = [line.strip() for line in f if line.strip()]
+        self.assertEqual(lines2[0], ">Taxon_A")
+        self.assertEqual(len(lines2[1]), 180)
 
     def test_export_hyphy_batchfile(self):
         bf_out = os.path.join(self.temp_dir.name, "screen.bf")

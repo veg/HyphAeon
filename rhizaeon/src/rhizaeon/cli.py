@@ -18,7 +18,8 @@ from rhizaeon.alluvial import render_alluvial_genome_river
 from rhizaeon.export import (
     export_hyphy_partition_json,
     export_nexus_partitions,
-    export_hyphy_batchfile
+    export_hyphy_batchfile,
+    export_split_fastas
 )
 from rhizaeon.visualizer import generate_interactive_html
 
@@ -83,6 +84,7 @@ def main():
     scan_p.add_argument("--export-nexus", type=str, default=None, help="Export multi-partition NEXUS alignment")
     scan_p.add_argument("--export-hyphy-json", type=str, default=None, help="Export HyPhy partition JSON")
     scan_p.add_argument("--export-hyphy-bf", type=str, default=None, help="Export HyPhy batch script (.bf)")
+    scan_p.add_argument("--export-partitions", type=str, default=None, help="Directory to export sliced non-recombinant FASTA files")
 
     # Subcommand: rp-fda
     rpfda_p = subparsers.add_parser("rp-fda", help="Run Recursive Partitioning FDA (RP-FDA) with ML Breakpoint Polisher")
@@ -98,7 +100,9 @@ def main():
     rpfda_p.add_argument("--html", type=str, nargs="?", const="AUTO", default="AUTO", help="Generate standard self-contained interactive HTML dashboard (default: <alignment>_rhizaeon.html)")
     rpfda_p.add_argument("--no-html", action="store_true", default=False, help="Disable generating interactive HTML dashboard")
     rpfda_p.add_argument("--export-nexus", type=str, default=None, help="Export multi-partition NEXUS alignment")
+    rpfda_p.add_argument("--export-hyphy-json", type=str, default=None, help="Export HyPhy partition JSON")
     rpfda_p.add_argument("--export-hyphy-bf", type=str, default=None, help="Export HyPhy batch script (.bf)")
+    rpfda_p.add_argument("--export-partitions", type=str, default=None, help="Directory to export sliced non-recombinant FASTA files")
 
     # Subcommand: alluvial
     alluvial_p = subparsers.add_parser("alluvial", help="Render Alluvial Genome River plot")
@@ -222,6 +226,11 @@ def main():
             export_hyphy_batchfile(args.alignment, bps, args.export_hyphy_bf, is_codon=args.codon)
             print(f"[✓] HyPhy batch script saved to: {args.export_hyphy_bf}")
 
+        if args.export_partitions:
+            print(f"[*] Exporting non-recombinant FASTA partitions to: {args.export_partitions}")
+            created = export_split_fastas(args.alignment, bps, args.export_partitions, is_codon=args.codon)
+            print(f"[✓] Exported {len(created)} partition FASTA files.")
+
         if args.html and not args.no_html:
             html_out = f"{Path(args.alignment).stem}_rhizaeon.html" if args.html == "AUTO" else args.html
             print(f"[*] Generating standard interactive HTML dashboard to: {html_out}")
@@ -332,10 +341,20 @@ def main():
             export_nexus_partitions(args.alignment, bp_coords, args.export_nexus, is_codon=False)
             print(f"[✓] NEXUS file saved to: {args.export_nexus}")
 
+        if args.export_hyphy_json:
+            print(f"[*] Exporting HyPhy partition JSON to: {args.export_hyphy_json}")
+            export_hyphy_partition_json(len(engine.seq_matrix[0]), bp_coords, args.export_hyphy_json, is_codon=False)
+            print(f"[✓] HyPhy partition JSON saved to: {args.export_hyphy_json}")
+
         if args.export_hyphy_bf:
             print(f"[*] Exporting HyPhy batch script (.bf) to: {args.export_hyphy_bf}")
             export_hyphy_batchfile(args.alignment, bp_coords, args.export_hyphy_bf, is_codon=False)
             print(f"[✓] HyPhy batch script saved to: {args.export_hyphy_bf}")
+
+        if args.export_partitions:
+            print(f"[*] Exporting non-recombinant FASTA partitions to: {args.export_partitions}")
+            created = export_split_fastas(args.alignment, bp_coords, args.export_partitions, is_codon=False)
+            print(f"[✓] Exported {len(created)} partition FASTA files.")
 
         if args.html and not args.no_html:
             html_out = f"{Path(args.alignment).stem}_rhizaeon.html" if args.html == "AUTO" else args.html
