@@ -502,7 +502,7 @@ def format_humanized_report(
     Renders the InferenceReport into a visually rich, human-readable terminal report.
     """
     lines = []
-    width = 96
+    width = 116
     u_str = report.unit_type
 
     # ─────────────────────────────────────────────────────────────────────────────
@@ -510,12 +510,22 @@ def format_humanized_report(
     # ─────────────────────────────────────────────────────────────────────────────
     lines.append("┌" + "─" * (width - 2) + "┐")
     title_str = f"RHIZAEON INFERENCE REPORT ({report.elapsed_sec:.3f} seconds)"
-    lines.append(f"│ {title_str:<{width - 4}} │")
+    lines.append(f"│ {title_str[:width - 4]:<{width - 4}} │")
     lines.append("├" + "─" * (width - 2) + "┤")
-    align_info = f"Alignment: {report.alignment_path} ({report.total_taxa} taxa, {report.alignment_len:,} {u_str}s)"
-    lines.append(f"│  • {align_info:<{width - 7}}│")
+    
+    max_info_w = width - 7
+    suffix = f" ({report.total_taxa} taxa, {report.alignment_len:,} {u_str}s)"
+    align_info = f"Alignment: {report.alignment_path}{suffix}"
+    if len(align_info) > max_info_w:
+        avail = max_info_w - len("Alignment: ") - len(suffix)
+        if avail > 10:
+            align_info = f"Alignment: ...{str(report.alignment_path)[-(avail - 3):]}{suffix}"
+        else:
+            align_info = align_info[:max_info_w - 3] + "..."
+    lines.append(f"│  • {align_info:<{max_info_w}}│")
+
     cal_info = f"Calibration: {report.calibration.capitalize()} (Z ≥ {report.z_threshold:.2f}, PIR ≥ {report.pir_threshold:.2f}, Min Tract: {report.min_tract} {u_str}s)"
-    lines.append(f"│  • {cal_info:<{width - 7}}│")
+    lines.append(f"│  • {cal_info[:max_info_w]:<{max_info_w}}│")
 
     num_rec = len(report.primary_recombinants) + len(report.isolated_displacements)
     pct_rec = (num_rec / report.total_taxa * 100.0) if report.total_taxa > 0 else 0.0
@@ -524,23 +534,27 @@ def format_humanized_report(
         f"Cohort Structure: {num_rec}/{report.total_taxa} Recombinant ({pct_rec:.1f}%) | "
         f"{len(report.clonal_taxa)}/{report.total_taxa} Clonal Pure ({pct_clonal:.1f}%)"
     )
-    lines.append(f"│  • {cohort_str:<{width - 7}}│")
+    lines.append(f"│  • {cohort_str[:max_info_w]:<{max_info_w}}│")
 
     if report.total_breakpoints == 0:
-        lines.append(f"│  • Outcome: CLONAL ALIGNMENT — Zero recombination breakpoints detected.{' ' * (width - 77)}│")
+        msg = "Outcome: CLONAL ALIGNMENT — Zero recombination breakpoints detected."
+        lines.append(f"│  • {msg:<{max_info_w}}│")
         lines.append("└" + "─" * (width - 2) + "┘")
         return "\n".join(lines)
 
     t2_tag = " [Two-Tier Verified]" if report.type_counts["T2-Attn"] > 0 else ""
     bp_word = "Breakpoint" if report.total_breakpoints == 1 else "Breakpoints"
     bp_cnt_str = f"Detected {report.total_breakpoints} Recombination {bp_word}{t2_tag}"
+    c_high = report.confidence_counts['HIGH']
+    c_mod = report.confidence_counts['MOD']
+    c_low = report.confidence_counts['LOW']
     conf_str = (
         f"{bp_cnt_str} | "
-        f"Confidence: {report.confidence_counts['HIGH']} High (★★★), "
-        f"{report.confidence_counts['MOD']} Mod (★★☆), "
-        f"{report.confidence_counts['LOW']} Low (★☆☆)"
+        f"Confidence: {c_high} High (★★★), "
+        f"{c_mod} Mod (★★☆), "
+        f"{c_low} Low (★☆☆)"
     )
-    lines.append(f"│  • {conf_str:<{width - 7}}│")
+    lines.append(f"│  • {conf_str[:max_info_w]:<{max_info_w}}│")
 
     type_str = (
         f"Mechanisms:  {report.type_counts['T1-Cross']} T1-Cross, "
@@ -548,7 +562,7 @@ def format_humanized_report(
         f"{report.type_counts['Micro']} Micro, "
         f"{report.type_counts['Ghost']} Ghost"
     )
-    lines.append(f"│  • {type_str:<{width - 7}}│")
+    lines.append(f"│  • {type_str[:max_info_w]:<{max_info_w}}│")
     lines.append("└" + "─" * (width - 2) + "┘")
     lines.append("")
 
@@ -588,7 +602,7 @@ def format_humanized_report(
 
     if report.clonal_taxa:
         lines.append(f"[✓] Clonal Reference Lineages ({len(report.clonal_taxa)} pure lineages, 0 breakpoints):")
-        clonal_shorts = [shorten_taxon_name(t, max_len=14) for t in report.clonal_taxa]
+        clonal_shorts = [shorten_taxon_name(t, max_len=16) for t in report.clonal_taxa]
         # Chunk into lines of ~6 taxa
         chunk_size = 6
         for c_idx in range(0, len(clonal_shorts), chunk_size):
@@ -606,20 +620,23 @@ def format_humanized_report(
     lines.append("BREAKPOINT CATALOG (Sorted by Genomic Coordinate from 5' to 3')")
     lines.append("━" * width)
 
-    # Table Header
-    header = (
-        f"{'#':<3} "
-        f"{'Position':<11} "
-        f"{'Plateau (Δ)':<17} "
-        f"{'Recombinant':<19} "
-        f"{'Transition':<15} "
-        f"{'Z-Score':<8} "
-        f"{'L-PIR':<6} "
-        f"{'Type':<8} "
-        f"{'Support':<8}"
-    )
+    # Column specifications: (Column Name, Max Field Width, Formatter Lambda)
+    cols = [
+        ("#", 3, lambda r: str(r.idx)),
+        ("Position", 10, lambda r: f"{r.coord:,} {r.unit_type}"),
+        ("Plateau (Δ)", 19, lambda r: f"[{r.ci_left}, {r.ci_right}] (Δ={r.plateau_width})" if r.ci_left is not None and r.ci_right is not None else "-"),
+        ("Recombinant", 20, lambda r: ("● " if r.is_primary_mosaic else "○ ") + r.recombinant_short),
+        ("Transition", 15, lambda r: f"{r.parent_left_short} ➔ {r.parent_right_short}"),
+        ("Z-Score", 7, lambda r: f"Z={r.z_score:.2f}"),
+        ("L-PIR", 6, lambda r: f"{r.pir:.3f}"),
+        ("Type", 8, lambda r: r.bp_type),
+        ("Support", 8, lambda r: f"{r.support} {r.stars}"),
+    ]
+    gutter = "  "
+
     lines.append("┌" + "─" * (width - 2) + "┐")
-    lines.append("│ " + f"{header:<{width - 4}}" + " │")
+    header_line = gutter.join(f"{name:<{w}}" for name, w, _ in cols)
+    lines.append("│ " + f"{header_line:<{width - 4}}" + " │")
     lines.append("├" + "─" * (width - 2) + "┤")
 
     display_catalog = report.catalog
@@ -629,34 +646,12 @@ def format_humanized_report(
         is_truncated = True
 
     for r in display_catalog:
-        pos_str = f"{r.coord:,} {u_str}"
-        if r.ci_left is not None and r.ci_right is not None:
-            plat_str = f"[{r.ci_left}, {r.ci_right}] (Δ={r.plateau_width})"
-        else:
-            plat_str = "-"
-
-        rec_str = r.recombinant_short
-        if r.is_primary_mosaic:
-            rec_str = "● " + rec_str[:16]
-        else:
-            rec_str = "○ " + rec_str[:16]
-
-        trans_str = f"{r.parent_left_short:<4} ➔ {r.parent_right_short:<4}"
-        z_str = f"Z={r.z_score:.2f}"
-        pir_str = f"{r.pir:.3f}"
-        sup_str = f"{r.support} {r.stars}"
-
-        row_str = (
-            f"{r.idx:<3} "
-            f"{pos_str:>10}  "
-            f"{plat_str:<16}  "
-            f"{rec_str:<18} "
-            f"{trans_str:<15} "
-            f"{z_str:<8} "
-            f"{pir_str:<6} "
-            f"{r.bp_type:<8} "
-            f"{sup_str:<8}"
-        )
+        row_cells = []
+        for name, w, fn in cols:
+            val = fn(r)
+            trimmed = val[:w]
+            row_cells.append(f"{trimmed:<{w}}")
+        row_str = gutter.join(row_cells)
         lines.append("│ " + f"{row_str:<{width - 4}}" + " │")
 
         if verbose:
@@ -673,7 +668,7 @@ def format_humanized_report(
 
             if details:
                 detail_str = "   └─ " + " | ".join(details)
-                lines.append("│ " + f"{detail_str:<{width - 4}}" + " │")
+                lines.append("│ " + f"{detail_str[:width - 4]:<{width - 4}}" + " │")
 
     lines.append("└" + "─" * (width - 2) + "┘")
     lines.append("Legend: ● Primary Mosaic  ○ Isolated Displacement | T1-Cross: Tier 1 Crossover, T2-Attn: Tier 2 Attention, Micro: Micro-Tract, Ghost: Unsampled Donor")

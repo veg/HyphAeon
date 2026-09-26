@@ -132,6 +132,78 @@ class TestReporting(unittest.TestCase):
         self.assertIn("RHIZAEON INFERENCE REPORT", summary_str)
         self.assertNotIn("BREAKPOINT CATALOG", summary_str)
 
+    def test_breakpoint_catalog_alignment(self):
+        taxa = ["R_mosaic", "P1_pure", "P2_pure", "Out_pure"]
+        events = [
+            {
+                "breakpoint": 500,
+                "breakpoint_nt": 500,
+                "recombinant": "R_mosaic",
+                "parent_left": "P1_pure",
+                "parent_right": "P2_pure",
+                "ghost_z": 4.2,
+                "refined_pir": 0.45,
+                "ci_left": 495,
+                "ci_right": 505,
+                "plateau_width": 10,
+                "log_likelihood_gain": 25.0,
+                "tier": "tier1"
+            },
+            {
+                "breakpoint": 1500,
+                "breakpoint_nt": 1500,
+                "recombinant": "R_mosaic",
+                "parent_left": "P2_pure",
+                "parent_right": "P1_pure",
+                "ghost_z": 3.1,
+                "refined_pir": 0.35,
+                "ci_left": 1480,
+                "ci_right": 1520,
+                "plateau_width": 40,
+                "log_likelihood_gain": 18.0,
+                "tier": "tier1"
+            }
+        ]
+        rep = synthesize_inference_report(
+            events_or_bps=events,
+            taxa=taxa,
+            alignment_path="sample.fasta",
+            alignment_len=3000,
+            unit_type="nt",
+            elapsed_sec=0.123
+        )
+        out_str = format_humanized_report(rep)
+        lines = out_str.splitlines()
+
+        # Locate Breakpoint Catalog table
+        catalog_idx = None
+        for i, l in enumerate(lines):
+            if "BREAKPOINT CATALOG" in l:
+                catalog_idx = i
+                break
+        self.assertIsNotNone(catalog_idx)
+
+        # Collect table lines starting with │
+        table_lines = [l for l in lines[catalog_idx:] if l.startswith("│")]
+        self.assertGreaterEqual(len(table_lines), 3)  # header + 2 rows
+
+        # Verify all table lines have identical length
+        expected_len = len(table_lines[0])
+        for l in table_lines:
+            self.assertEqual(len(l), expected_len, f"Mismatched line length: {l}")
+
+        # Verify column starts:
+        # Header starts: "#", "Position", "Plateau (Δ)", "Recombinant", "Transition", "Z-Score", "L-PIR", "Type", "Support"
+        header = table_lines[0]
+        col_names = ["#", "Position", "Plateau (Δ)", "Recombinant", "Transition", "Z-Score", "L-PIR", "Type", "Support"]
+        col_indices = [header.index(c) for c in col_names]
+
+        # In every data row, verify non-space characters exist or start at these indices
+        for row in table_lines[1:]:
+            for idx in col_indices:
+                # Character at col_start should not be space if column has content
+                self.assertFalse(row[idx].isspace(), f"Column at index {idx} unexpectedly empty/shifted in row: {row}")
+
 
 if __name__ == "__main__":
     unittest.main()
