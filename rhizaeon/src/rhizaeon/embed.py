@@ -443,6 +443,10 @@ class TwoTierPrefixDistanceEngine:
             return self.tier2.query_distance_matrix(start_unit, end_unit, model=model)
         return self.tier1.query_distance_matrix(start_unit, end_unit, model=model)
 
+    def get_mean_divergence(self) -> float:
+        """Calculates average pairwise divergence across the complete alignment."""
+        return self.tier1.get_mean_divergence()
+
 
 def build_prefix_engine(
     alignment_path: str,

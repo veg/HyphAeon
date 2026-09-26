@@ -51,10 +51,15 @@ class TestSegmentationAndDetector(unittest.TestCase):
     def test_detector_defaults(self):
         det = RhizAeonDetector()
         self.assertEqual(det.window_units, 25)
-        self.assertEqual(det.min_tract_units, 35)
-        self.assertEqual(det.ghost_z_threshold, 3.0)
-        self.assertEqual(det.pir_threshold, 0.25)
+        self.assertEqual(det.min_tract_units, "auto")
+        self.assertEqual(det.calibration, "calibrated")
+        self.assertEqual(det.ghost_z_threshold, 2.75)
+        self.assertEqual(det.pir_threshold, 0.20)
         self.assertEqual(det.concordance_tolerance, 60)
+
+        det_strict = RhizAeonDetector(calibration="strict")
+        self.assertEqual(det_strict.ghost_z_threshold, 3.0)
+        self.assertEqual(det_strict.pir_threshold, 0.25)
 
     def test_find_best_split_in_segment(self):
         det = RhizAeonDetector(min_tract_units=20, ghost_z_threshold=2.5, pir_threshold=0.20, step=5)

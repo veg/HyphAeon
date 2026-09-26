@@ -278,6 +278,17 @@ class PrefixDistanceEngine:
         np.fill_diagonal(dist, 0.0)
         return dist
 
+    def get_mean_divergence(self) -> float:
+        """Calculates average pairwise divergence across the complete alignment."""
+        if not hasattr(self, "_cached_mean_div"):
+            D = self.query_distance_matrix(0, self.num_units)
+            if self.N <= 1:
+                self._cached_mean_div = 0.05
+            else:
+                triu = np.triu_indices(self.N, k=1)
+                self._cached_mean_div = float(np.mean(D[triu])) if len(triu[0]) > 0 else 0.05
+        return self._cached_mean_div
+
 
 class SNPCompressedPrefixEngine(PrefixDistanceEngine):
     """

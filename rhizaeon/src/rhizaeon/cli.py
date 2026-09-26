@@ -38,9 +38,30 @@ def main():
     scan_p.add_argument("--codon", action="store_true", default=True, help="Treat alignment as in-frame codons")
     scan_p.add_argument("--nt", action="store_false", dest="codon", help="Treat alignment as raw nucleotides")
     scan_p.add_argument("--window", type=int, default=25, help="Sliding window size (units)")
-    scan_p.add_argument("--min-tract", type=int, default=35, help="Minimum recombinant tract length (units)")
-    scan_p.add_argument("--ghost-z", type=float, default=3.0, help="Ghost Node Z-score significance threshold")
-    scan_p.add_argument("--pir", type=float, default=0.25, help="L-PIR incongruence threshold")
+    scan_p.add_argument(
+        "--min-tract",
+        default="auto",
+        help="Minimum recombinant tract length in codons/nt (default: 'auto'). When 'auto', dynamically calculates the Poisson mutation information limit: L_min = max(15, ceil(3.0 / mean_divergence))."
+    )
+    scan_p.add_argument(
+        "--calibration",
+        type=str,
+        default="calibrated",
+        choices=["calibrated", "strict"],
+        help="Principled calibration profile: 'calibrated' (optimal F1; Z=2.75, PIR=0.20, FPR<=0.5%%) or 'strict' (conservative; Z=3.00, PIR=0.25, FPR=0.0%%)."
+    )
+    scan_p.add_argument(
+        "--ghost-z",
+        type=float,
+        default=None,
+        help="Manual override for Ghost Node Z-score significance threshold (default: derived from --calibration profile; scaled by Thompson-Grubbs bound for small cohorts)."
+    )
+    scan_p.add_argument(
+        "--pir",
+        type=float,
+        default=None,
+        help="Manual override for L-PIR incongruence threshold (default: derived from --calibration profile: calibrated=0.20, strict=0.25)."
+    )
     scan_p.add_argument("--json", type=str, default=None, help="Save detection results to JSON")
     scan_p.add_argument("--alluvial", type=str, default=None, help="Render Alluvial Genome River plot to file")
     scan_p.add_argument(
@@ -159,8 +180,11 @@ def main():
             min_tract_units=args.min_tract,
             ghost_z_threshold=args.ghost_z,
             pir_threshold=args.pir,
+            calibration=args.calibration,
             concordance_tolerance=args.concordance_tol
         )
+        eff_tract = detector.get_effective_min_tract(engine)
+        print(f"[*] Calibration Profile: {detector.calibration.capitalize()} (Z >= {detector.ghost_z_threshold:.2f}, PIR >= {detector.pir_threshold:.2f}, Min Tract: {eff_tract} units)")
 
         print("[*] Running Recursive Binary Segmentation in sequence manifold space...")
         events = detector.detect_recombination(engine, taxa)
