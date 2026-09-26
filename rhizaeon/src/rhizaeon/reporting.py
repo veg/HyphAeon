@@ -349,8 +349,8 @@ def synthesize_inference_report(
             z_score=z_val,
             pir=pir_val,
             plateau_width=plat_w_nt if plat_w_nt is not None else plat_w,
-            tier=tier_val,
-            has_tier2_result=has_t2,
+            tier="two-tier" if t2_res else "tier1",
+            has_tier2_result=t2_res,
             tier2_resolved=t2_res,
             is_micro=is_micro
         )
@@ -559,7 +559,7 @@ def format_humanized_report(
         lines.append("└" + "─" * (width - 2) + "┘")
         return "\n".join(lines)
 
-    t2_tag = " [Two-Tier Verified]" if report.type_counts["T2-Attn"] > 0 else ""
+    t2_tag = " [Two-Tier Verified]" if (report.type_counts["T2-Attn"] > 0 or any(r.tier in ("two-tier", "tier2") for r in report.catalog)) else ""
     bp_word = "Breakpoint" if report.total_breakpoints == 1 else "Breakpoints"
     bp_cnt_str = f"Detected {report.total_breakpoints} Recombination {bp_word}{t2_tag}"
     c_high = report.confidence_counts['HIGH']
@@ -640,9 +640,9 @@ def format_humanized_report(
     # Column specifications: (Column Name, Max Field Width, Formatter Lambda)
     cols = [
         ("#", 3, lambda r: str(r.idx)),
-        ("Position", 10, lambda r: f"{r.coord:,} {r.unit_type}"),
+        ("Position", 12, lambda r: f"{r.coord:,} {r.unit_type}"),
         ("Plateau (Δ)", 19, lambda r: f"[{r.ci_left}, {r.ci_right}] (Δ={r.plateau_width})" if r.ci_left is not None and r.ci_right is not None else "-"),
-        ("Recombinant", 20, lambda r: ("● " if r.is_primary_mosaic else "○ ") + r.recombinant_short),
+        ("Recombinant", 19, lambda r: ("● " if r.is_primary_mosaic else "○ ") + r.recombinant_short),
         ("Transition", 15, lambda r: f"{r.parent_left_short} ➔ {r.parent_right_short}"),
         ("Z-Score", 7, lambda r: f"Z={r.z_score:.2f}"),
         ("L-PIR", 6, lambda r: f"{r.pir:.3f}"),

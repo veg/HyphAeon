@@ -209,7 +209,7 @@ def main():
             events_or_bps=events,
             taxa=taxa,
             alignment_path=args.alignment,
-            alignment_len=int(L),
+            alignment_len=int(engine.num_units if args.codon else L),
             unit_type="codon" if args.codon else "nt",
             elapsed_sec=elapsed,
             calibration=detector.calibration,

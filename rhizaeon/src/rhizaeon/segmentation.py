@@ -257,6 +257,8 @@ class RhizAeonDetector:
                 return []
 
             # Step 2: Tier 2 Manifold Verification & Handoff
+            from rhizaeon.adaptive import DualArchitectureConfig, evaluate_tier2_trigger
+            cfg = DualArchitectureConfig()
             tier2 = engine.tier2 if is_two_tier else tier2_engine
             U = tier2.num_units
             N = len(taxa)
@@ -268,57 +270,53 @@ class RhizAeonDetector:
                 if target_bp is None or target_bp <= 0 or target_bp >= U:
                     continue
 
-                flank = min(self.window_units, max(20, min(target_bp, U - target_bp)))
+                if float(b.kinetic_z) < eff_z_thresh:
+                    continue
+
+                flank = min(max(self.window_units, 50), max(20, min(target_bp, U - target_bp)))
                 if target_bp - flank < 0 or target_bp + flank > U:
                     flank = min(target_bp, U - target_bp)
                 if flank < 5:
                     continue
 
-                D1 = tier2.query_distance_matrix(target_bp - flank, target_bp)
-                D2 = tier2.query_distance_matrix(target_bp, target_bp + flank)
-
-                Z1 = compute_classical_mds(D1, k=self.k_dims)
-                Z2 = compute_classical_mds(D2, k=self.k_dims)
-                _, res = align_procrustes(Z1, Z2)
-                z_scores = compute_ghost_node_zscores(res)
-
-                t_idx = b.taxon_idx
-                z_val = float(z_scores[t_idx])
-
-                # Independent Tier 2 Ghost Node verification gate:
-                # Must satisfy finite-sample Thompson-Grubbs effective Z threshold on Tier 2 manifold
-                if z_val < eff_z_thresh:
-                    continue
+                D1 = tier1.query_distance_matrix(target_bp - flank, target_bp)
+                D2 = tier1.query_distance_matrix(target_bp, target_bp + flank)
 
                 trip2 = evaluate_triplets_for_taxon(
-                    D1, D2, t_idx,
+                    D1, D2, b.taxon_idx,
                     bound_factor=self.bound_factor,
                     min_parent_dist=self.min_parent_dist
                 )
-                if trip2 is not None:
-                    p1_idx = trip2["parent_left_idx"]
-                    p2_idx = trip2["parent_right_idx"]
-                    p1_name = taxa[p1_idx]
-                    p2_name = taxa[p2_idx]
-                else:
-                    p1_idx = taxa.index(b.parent_1) if b.parent_1 in taxa else 0
-                    p2_idx = taxa.index(b.parent_2) if b.parent_2 in taxa else 1
-                    p1_name = b.parent_1
-                    p2_name = b.parent_2
+                if trip2 is None:
+                    continue
+                if trip2["pir"] < self.pir_threshold:
+                    continue
+
+                p1_idx = trip2["parent_left_idx"]
+                p2_idx = trip2["parent_right_idx"]
+                p1_name = taxa[p1_idx]
+                p2_name = taxa[p2_idx]
 
                 refined_bp, refined_pir = refine_breakpoint_codon(
                     tier2,
                     bp=target_bp,
-                    r_idx=t_idx,
+                    r_idx=b.taxon_idx,
                     p1_idx=p1_idx,
                     p2_idx=p2_idx,
                     flank_len=flank,
                     search_radius=15
                 )
 
-                # Strict PIR gate: must meet pir_threshold
                 if refined_pir < self.pir_threshold:
                     continue
+
+                # Evaluate formal Tier 1 breakdown trigger
+                should_t2, reason = evaluate_tier2_trigger(
+                    plateau_width=b.plateau_width or 0,
+                    num_snps=b.num_informative_sites or 10,
+                    pir_val=refined_pir,
+                    config=cfg
+                )
 
                 if tol is not None and tol > 0:
                     if abs(refined_bp - target_bp) > tol:
@@ -330,7 +328,7 @@ class RhizAeonDetector:
                     "breakpoint": refined_bp,
                     "raw_breakpoint": target_bp,
                     "breakpoint_nt": refined_bp * scale_coord,
-                    "recombinant_idx": t_idx,
+                    "recombinant_idx": b.taxon_idx,
                     "recombinant": b.recombinant_taxon,
                     "parent_left_idx": p1_idx,
                     "parent_left": p1_name,
@@ -338,9 +336,10 @@ class RhizAeonDetector:
                     "parent_right": p2_name,
                     "l_pir": float(b.l_pir),
                     "refined_pir": float(refined_pir),
-                    "ghost_z": float(max(z_val, b.kinetic_z)),
+                    "ghost_z": float(b.kinetic_z),
                     "kinetic_z": float(b.kinetic_z),
                     "tier": "two-tier",
+                    "tier2_resolved": should_t2,
                     "ci_left": b.ci_left,
                     "ci_right": b.ci_right,
                     "ci_left_nt": b.nt_ci_left if b.nt_ci_left is not None else (b.ci_left * scale_coord if b.ci_left is not None else None),
