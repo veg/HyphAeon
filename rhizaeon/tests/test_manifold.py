@@ -17,6 +17,7 @@ from rhizaeon.manifold import (
     compute_laplacian_eigenmaps,
     align_procrustes,
     compute_ghost_node_zscores,
+    compute_grubbs_effective_z,
     trace_continuous_manifold_flow
 )
 from rhizaeon.tensor import PrefixDistanceEngine
@@ -114,6 +115,25 @@ class TestManifoldGeometry(unittest.TestCase):
         self.assertEqual(flow["velocities"].shape, (num_cut - 1, 4))
         # Velocities should be non-negative
         self.assertTrue(np.all(flow["velocities"] >= 0.0))
+
+    def test_compute_grubbs_effective_z(self):
+        # For small N=4, max theoretical bound is (4-1)/sqrt(4) = 1.500
+        z_eff_4 = compute_grubbs_effective_z(4, nominal_z=2.75, alpha=0.005)
+        self.assertLessEqual(z_eff_4, 1.500)
+        self.assertGreater(z_eff_4, 1.400)
+
+        # For N=16, nominal_z=2.75 is below max theoretical bound (3.75) and matches Grubbs critical value
+        z_eff_16 = compute_grubbs_effective_z(16, nominal_z=2.75, alpha=0.005)
+        self.assertAlmostEqual(z_eff_16, 2.75, places=2)
+
+        # For large N=50, nominal_z=2.75 is returned
+        z_eff_50 = compute_grubbs_effective_z(50, nominal_z=2.75, alpha=0.005)
+        self.assertEqual(z_eff_50, 2.75)
+
+        # Monotonically increasing with N
+        zs = [compute_grubbs_effective_z(n, nominal_z=2.75, alpha=0.005) for n in [4, 5, 6, 8, 10, 16]]
+        for i in range(len(zs) - 1):
+            self.assertLessEqual(zs[i], zs[i + 1])
 
 
 if __name__ == "__main__":

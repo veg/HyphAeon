@@ -14,7 +14,8 @@ from rhizaeon.manifold import (
     compute_classical_mds,
     compute_laplacian_eigenmaps,
     align_procrustes,
-    compute_ghost_node_zscores
+    compute_ghost_node_zscores,
+    compute_grubbs_effective_z
 )
 from rhizaeon.pir import evaluate_triplets_for_taxon, refine_breakpoint_codon
 
@@ -73,12 +74,12 @@ class RhizAeonDetector:
 
         cutpoints = list(range(start_u + self.min_tract_units, end_u - self.min_tract_units, step))
 
-        # Finite-sample Thomson-Smirnov bound adjustment for small N
-        eff_z_thresh = min(self.ghost_z_threshold, 0.85 * (N - 1) / np.sqrt(max(N, 2)))
+        # Finite-sample Thompson-Grubbs bound adjustment for small N
+        eff_z_thresh = compute_grubbs_effective_z(N, self.ghost_z_threshold, alpha=0.005)
 
         for bp in cutpoints:
-            flank = min(75, bp - start_u, end_u - bp)
-            if flank < self.min_tract_units:
+            flank = min(max(self.window_units, 75), bp - start_u, end_u - bp)
+            if flank < min(self.min_tract_units, 25):
                 continue
 
             D1 = engine.query_distance_matrix(bp - flank, bp)
@@ -193,49 +194,118 @@ class RhizAeonDetector:
             tier1 = engine.tier1 if is_two_tier else engine
 
             # === Two-Tier Pipeline ===
-            # Step 1: Tier 1 fast screening sieve
-            raw_events_t1 = self.recursive_binary_segmentation(tier1, taxa, 0, tier1.num_units)
-            if len(raw_events_t1) == 0:
+            # Step 1: Tier 1 RP-FDA screening sieve
+            from rhizaeon.fda import run_recursive_partition_fda_screen
+            bps_t1 = run_recursive_partition_fda_screen(
+                engine=tier1,
+                taxa_names=taxa,
+                min_len=max(20, self.min_tract_units),
+                min_z=max(1.5, self.ghost_z_threshold * 0.70),
+                min_pir=max(0.08, self.pir_threshold * 0.70),
+                crossover_validation=True,
+                polish_ml=True
+            )
+            if len(bps_t1) == 0:
                 return []
 
-            t1_breakpoints = [ev["raw_breakpoint"] for ev in raw_events_t1]
-
-            # Step 2: Now that Tier 1 screened positive, instantiate/evaluate Tier 2
+            # Step 2: Tier 2 Manifold Verification & Handoff
             tier2 = engine.tier2 if is_two_tier else tier2_engine
-            raw_events_t2 = self.recursive_binary_segmentation(tier2, taxa, 0, tier2.num_units)
-            if len(raw_events_t2) == 0:
-                return []
-
-            # Step 3: Spatial concordance filtering & single-codon refinement on Tier 2
-            raw_events_t2.sort(key=lambda x: x["raw_breakpoint"])
-            validated = []
             U = tier2.num_units
+            N = len(taxa)
+            eff_z_thresh = compute_grubbs_effective_z(N, self.ghost_z_threshold, alpha=0.005)
+            validated = []
 
-            for ev in raw_events_t2:
-                # Enforce spatial concordance with Tier 1 screening candidates
-                if tol is not None and tol > 0:
-                    if not any(abs(ev["raw_breakpoint"] - bp1) <= tol for bp1 in t1_breakpoints):
-                        continue
+            for b in bps_t1:
+                target_bp = b.breakpoint_nt if b.breakpoint_nt is not None else b.coarse_bp
+                if target_bp is None or target_bp <= 0 or target_bp >= U:
+                    continue
 
-                flank = min(80, max(35, ev["raw_breakpoint"], U - ev["raw_breakpoint"]))
+                flank = min(self.window_units, max(20, min(target_bp, U - target_bp)))
+                if target_bp - flank < 0 or target_bp + flank > U:
+                    flank = min(target_bp, U - target_bp)
+                if flank < 5:
+                    continue
+
+                D1 = tier2.query_distance_matrix(target_bp - flank, target_bp)
+                D2 = tier2.query_distance_matrix(target_bp, target_bp + flank)
+
+                Z1 = compute_classical_mds(D1, k=self.k_dims)
+                Z2 = compute_classical_mds(D2, k=self.k_dims)
+                _, res = align_procrustes(Z1, Z2)
+                z_scores = compute_ghost_node_zscores(res)
+
+                t_idx = b.taxon_idx
+                z_val = float(z_scores[t_idx])
+
+                # Independent Tier 2 Ghost Node verification gate:
+                # Must satisfy finite-sample Thompson-Grubbs effective Z threshold on Tier 2 manifold
+                if z_val < eff_z_thresh:
+                    continue
+
+                trip2 = evaluate_triplets_for_taxon(
+                    D1, D2, t_idx,
+                    bound_factor=self.bound_factor,
+                    min_parent_dist=self.min_parent_dist
+                )
+                if trip2 is not None:
+                    p1_idx = trip2["parent_left_idx"]
+                    p2_idx = trip2["parent_right_idx"]
+                    p1_name = taxa[p1_idx]
+                    p2_name = taxa[p2_idx]
+                else:
+                    p1_idx = taxa.index(b.parent_1) if b.parent_1 in taxa else 0
+                    p2_idx = taxa.index(b.parent_2) if b.parent_2 in taxa else 1
+                    p1_name = b.parent_1
+                    p2_name = b.parent_2
+
                 refined_bp, refined_pir = refine_breakpoint_codon(
                     tier2,
-                    bp=ev["raw_breakpoint"],
-                    r_idx=ev["recombinant_idx"],
-                    p1_idx=ev["parent_left_idx"],
-                    p2_idx=ev["parent_right_idx"],
+                    bp=target_bp,
+                    r_idx=t_idx,
+                    p1_idx=p1_idx,
+                    p2_idx=p2_idx,
                     flank_len=flank,
                     search_radius=15
                 )
 
+                # Strict PIR gate: must meet pir_threshold
                 if refined_pir < self.pir_threshold:
                     continue
 
-                ev["breakpoint"] = refined_bp
-                ev["refined_pir"] = refined_pir
-                ev["tier"] = "two-tier"
+                if tol is not None and tol > 0:
+                    if abs(refined_bp - target_bp) > tol:
+                        continue
 
-                # Deduplication: if another event was found within 20 codons, keep the higher L-PIR
+                is_codon = getattr(tier1, "codon_aligned", getattr(engine, "codon_aligned", False))
+                scale_coord = 3 if is_codon else 1
+                ev = {
+                    "breakpoint": refined_bp,
+                    "raw_breakpoint": target_bp,
+                    "breakpoint_nt": refined_bp * scale_coord,
+                    "recombinant_idx": t_idx,
+                    "recombinant": b.recombinant_taxon,
+                    "parent_left_idx": p1_idx,
+                    "parent_left": p1_name,
+                    "parent_right_idx": p2_idx,
+                    "parent_right": p2_name,
+                    "l_pir": float(b.l_pir),
+                    "refined_pir": float(refined_pir),
+                    "ghost_z": float(max(z_val, b.kinetic_z)),
+                    "kinetic_z": float(b.kinetic_z),
+                    "tier": "two-tier",
+                    "ci_left": b.ci_left,
+                    "ci_right": b.ci_right,
+                    "ci_left_nt": b.nt_ci_left if b.nt_ci_left is not None else (b.ci_left * scale_coord if b.ci_left is not None else None),
+                    "ci_right_nt": b.nt_ci_right if b.nt_ci_right is not None else (b.ci_right * scale_coord if b.ci_right is not None else None),
+                    "plateau_width": b.plateau_width,
+                    "plateau_width_nt": b.nt_plateau_width if b.nt_plateau_width is not None else (b.plateau_width * scale_coord if b.plateau_width is not None else None),
+                    "log_likelihood_gain": b.log_likelihood_gain,
+                    "flanking_p1_site": b.flanking_p1_site,
+                    "flanking_p2_site": b.flanking_p2_site,
+                    "flanking_p1_site_nt": b.nt_flanking_p1 if b.nt_flanking_p1 is not None else (b.flanking_p1_site * scale_coord if b.flanking_p1_site is not None else None),
+                    "flanking_p2_site_nt": b.nt_flanking_p2 if b.nt_flanking_p2 is not None else (b.flanking_p2_site * scale_coord if b.flanking_p2_site is not None else None),
+                }
+
                 duplicate = False
                 for v in validated:
                     if abs(v["breakpoint"] - ev["breakpoint"]) <= 20:
@@ -288,7 +358,6 @@ class RhizAeonDetector:
                     if ev["refined_pir"] > v["refined_pir"]:
                         v.update(ev)
                     break
-
             if not duplicate:
                 validated.append(ev)
 

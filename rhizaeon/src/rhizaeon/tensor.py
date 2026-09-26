@@ -70,10 +70,20 @@ def parse_fasta(fasta_path: str) -> Tuple[List[str], List[str]]:
     return taxa, seqs
 
 
+# 256-element byte lookup table for high-throughput vectorized sequence encoding
+_BYTE_LUT = np.full(256, 4, dtype=np.int8)
+_BYTE_LUT[ord('A')] = 0; _BYTE_LUT[ord('a')] = 0
+_BYTE_LUT[ord('C')] = 1; _BYTE_LUT[ord('c')] = 1
+_BYTE_LUT[ord('G')] = 2; _BYTE_LUT[ord('g')] = 2
+_BYTE_LUT[ord('T')] = 3; _BYTE_LUT[ord('t')] = 3
+_BYTE_LUT[ord('U')] = 3; _BYTE_LUT[ord('u')] = 3
+
+
 def encode_alignment_matrix(fasta_path: str) -> Tuple[np.ndarray, List[str], int]:
     """
     Encodes FASTA alignment into an integer matrix [N, L] where
     0=A, 1=C, 2=G, 3=T/U, 4=Gap/Ambiguity.
+    Optimized with direct 256-byte vector lookups for high-throughput 100k+ cohorts.
     """
     taxa, seqs = parse_fasta(fasta_path)
     N = len(taxa)
@@ -81,10 +91,11 @@ def encode_alignment_matrix(fasta_path: str) -> Tuple[np.ndarray, List[str], int
 
     mat = np.empty((N, L), dtype=np.int8)
     for i, s in enumerate(seqs):
-        for j, c in enumerate(s):
-            mat[i, j] = NT_MAP.get(c, 4)
+        b = np.frombuffer(s.encode('ascii', errors='replace'), dtype=np.uint8)
+        mat[i] = _BYTE_LUT[b]
 
     return mat, taxa, L
+
 
 
 class PrefixDistanceEngine:
@@ -168,11 +179,39 @@ class PrefixDistanceEngine:
                 np.cumsum(tv_i, axis=1, out=self.prefix_tv[i, :, 1:])
 
 
+    def query_coverage(self, start_unit: int, end_unit: int) -> np.ndarray:
+        """
+        Queries per-taxon sequence coverage fraction C_i in [0, 1] over [start_unit, end_unit).
+        Evaluated in O(N) directly from the diagonal of the prefix tensor.
+        """
+        start_unit = max(0, start_unit)
+        end_unit = min(self.num_units, end_unit)
+        if start_unit >= end_unit:
+            return np.zeros(self.N, dtype=np.float64)
+
+        valid_diag = np.diagonal(self.prefix_valid[:, :, end_unit]) - np.diagonal(self.prefix_valid[:, :, start_unit])
+        total_sites = (end_unit - start_unit) * self.unit_size
+        return valid_diag.astype(np.float64) / max(1, total_sites)
+
+    def query_valid_matrix(self, start_unit: int, end_unit: int) -> np.ndarray:
+        """
+        Queries pairwise valid (non-gap/non-ambiguity) comparison counts over [start_unit, end_unit).
+        """
+        start_unit = max(0, start_unit)
+        end_unit = min(self.num_units, end_unit)
+        if start_unit >= end_unit:
+            return np.zeros((self.N, self.N), dtype=np.int32)
+        return (self.prefix_valid[:, :, end_unit] - self.prefix_valid[:, :, start_unit]).astype(np.int32)
+
     def query_distance_matrix(
         self,
         start_unit: int,
         end_unit: int,
-        model: str = "raw"
+        model: str = "raw",
+        min_overlap: int = 1,
+        missing_strategy: str = "raw",
+        shrinkage_kappa: float = 20.0,
+        prior_distance: Optional[np.ndarray] = None
     ) -> np.ndarray:
         """
         Queries pairwise distance matrix over interval [start_unit, end_unit).
@@ -181,6 +220,13 @@ class PrefixDistanceEngine:
           - "raw": p-distance (Hamming proportion of mismatches)
           - "jukes_cantor": JC69 correction d = -0.75 * ln(1 - 4/3 * p)
           - "tn93": Tamura-Nei 93 distance accounting for transitions & transversions
+
+        Missing data / gappy sequence strategies:
+          - "raw": standard p = diffs / max(valid, 1) (default)
+          - "nan": assigns np.nan to pairs with valid < min_overlap
+          - "shrinkage": Empirical Bayes shrinkage toward prior_distance:
+              d_shrunk = (valid / (valid + kappa)) * d + (kappa / (valid + kappa)) * d_prior
+              guaranteeing unsequenced pairs smoothly revert to prior instead of collapsing to 0.0.
         """
         start_unit = max(0, start_unit)
         end_unit = min(self.num_units, end_unit)
@@ -195,7 +241,7 @@ class PrefixDistanceEngine:
         p = diffs.astype(np.float64) / safe_valid
 
         if model == "raw":
-            dist = p
+            dist = p.copy()
         elif model == "jukes_cantor":
             p_clamped = np.minimum(p, 0.74)
             dist = -0.75 * np.log(1.0 - (4.0 / 3.0) * p_clamped)
@@ -209,7 +255,25 @@ class PrefixDistanceEngine:
             term2 = np.maximum(1e-6, 1.0 - 2.0 * tv)
             dist = -0.5 * np.log(term1) - 0.25 * np.log(term2)
         else:
-            dist = p
+            dist = p.copy()
+
+        if missing_strategy == "nan":
+            invalid_mask = valid < min_overlap
+            dist[invalid_mask] = np.nan
+        elif missing_strategy == "shrinkage":
+            if prior_distance is None:
+                diag_mask = ~np.eye(self.N, dtype=bool)
+                valid_pairs = (valid >= min_overlap) & diag_mask
+                if np.any(valid_pairs):
+                    prior_val = float(np.median(dist[valid_pairs]))
+                else:
+                    prior_val = 0.10
+                prior_matrix = np.full((self.N, self.N), prior_val, dtype=np.float64)
+            else:
+                prior_matrix = prior_distance
+
+            weight = valid.astype(np.float64) / (valid.astype(np.float64) + shrinkage_kappa)
+            dist = weight * dist + (1.0 - weight) * prior_matrix
 
         np.fill_diagonal(dist, 0.0)
         return dist

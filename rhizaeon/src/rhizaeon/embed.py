@@ -97,16 +97,20 @@ def load_embedding_matrices(weights_path: Optional[str] = None) -> Tuple[np.ndar
         from safetensors.torch import load_file
         sd = load_file(str(path), device="cpu")
     else:
-        # NumPy 1.x / 2.x unpickling compatibility bridge
-        if "numpy._core" not in sys.modules:
-            try:
-                import numpy.core
-                sys.modules["numpy._core"] = numpy.core
-                if hasattr(numpy.core, "multiarray"):
-                    sys.modules["numpy._core.multiarray"] = numpy.core.multiarray
-            except ImportError:
-                pass
-        ckpt = torch.load(path, map_location="cpu", weights_only=False)
+        import pickle
+
+        class _NumpyCompatUnpickler(pickle.Unpickler):
+            def find_class(self, module, name):
+                if module.startswith("numpy._core"):
+                    module = module.replace("numpy._core", "numpy.core")
+                return super().find_class(module, name)
+
+        class _CompatPickle:
+            Unpickler = _NumpyCompatUnpickler
+            load = pickle.load
+            loads = pickle.loads
+
+        ckpt = torch.load(path, map_location="cpu", weights_only=False, pickle_module=_CompatPickle)
         sd = ckpt.get("state_dict", ckpt.get("model_state_dict", ckpt))
 
     w_codon_tensor = sd.get("codon_embedding.weight", sd.get("backbone.codon_embedding.weight"))
@@ -178,6 +182,7 @@ class EmbeddingPrefixDistanceEngine:
         self.N = len(taxa)
         self.L_nt = len(seqs[0])
         self.num_units = self.L_nt // 3
+        self.codon_aligned = True
 
         dist_joint, dist_ds, dist_dn = load_embedding_matrices(weights_path)
         if track in ("ds", "synonymous"):
@@ -280,6 +285,7 @@ class ContextualPrefixDistanceEngine:
         self.taxa = taxa
         self.N = len(taxa)
         self.num_units = L
+        self.codon_aligned = True
         N, U = self.N, self.num_units
 
         # Neutral topological prior (unconditioned on global tree)

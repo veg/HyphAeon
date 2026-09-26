@@ -55,6 +55,12 @@ class FDABreakpoint:
     log_likelihood_gain: Optional[float] = None
     flanking_p1_site: Optional[int] = None
     flanking_p2_site: Optional[int] = None
+    nt_bp: Optional[int] = None
+    nt_ci_left: Optional[int] = None
+    nt_ci_right: Optional[int] = None
+    nt_plateau_width: Optional[int] = None
+    nt_flanking_p1: Optional[int] = None
+    nt_flanking_p2: Optional[int] = None
 
 
 def tv1d(y: np.ndarray, lam: float) -> np.ndarray:
@@ -388,8 +394,8 @@ def extract_fda_breakpoints(
                     b.ci_right = pol.ci_right // scale_coord if scale_coord > 1 else pol.ci_right
                     b.plateau_width = pol.plateau_width // scale_coord if scale_coord > 1 else pol.plateau_width
                     b.log_likelihood_gain = pol.log_likelihood_gain
-                    b.flanking_p1_site = pol.flanking_p1_site // scale_coord if scale_coord > 1 else pol.flanking_p1_site
-                    b.flanking_p2_site = pol.flanking_p2_site // scale_coord if scale_coord > 1 else pol.flanking_p2_site
+                    b.flanking_p1_site = pol.flanking_p1_site // scale_coord if scale_coord > 1 and pol.flanking_p1_site is not None else pol.flanking_p1_site
+                    b.flanking_p2_site = pol.flanking_p2_site // scale_coord if scale_coord > 1 and pol.flanking_p2_site is not None else pol.flanking_p2_site
                     b.breakpoint_nt = b.polished_bp
 
     return breakpoints
@@ -450,19 +456,27 @@ def run_recursive_partition_fda_screen(
     Recursively segments genomic intervals by identifying optimal bilateral
     functional incongruence changepoints, refining boundaries down to single-base
     precision in O(L log L) time. Optionally applies Frobenius triage (156x speedup),
-    crossover validation gates (eliminates false partition cascades), and
-    data-driven Maximum Likelihood (ML) breakpoint polishing.
+    crossover validation gates (eliminates false partition cascades), finite-sample
+    Thompson/Grubbs scaling for small cohorts (N <= 5), and data-driven Maximum
+    Likelihood (ML) breakpoint polishing.
     """
     N = engine.N
     L = engine.num_units
     taxa = taxa_names
     k_eff = min(4, N - 1)
     seq_mat = getattr(engine, "full_seq_matrix", getattr(engine, "seq_matrix", None))
+
+    # Finite-Sample Thompson/Grubbs Normalization:
+    # In any sample of size N, the maximum standardized residual from a sample mean
+    # is mathematically bounded by (N - 1) / sqrt(N) (Thompson 1935, Grubbs 1950).
+    # For small alignments (N <= 5), an unadjusted asymptotic threshold (e.g., Z >= 1.8)
+    # is mathematically unattainable or severely compressed. We scale min_z by the finite-sample bound.
+    eff_min_z = min(min_z, 0.88 * (N - 1) / np.sqrt(N)) if N <= 5 else min_z
     
-    # Adaptive scale-aware defaults
-    cur_min_flank = min_flank if min_flank is not None else max(15, min(50, L // 20))
-    cur_max_flank = max_flank if max_flank is not None else max(40, min(200, L // 5))
-    cur_step = step if step is not None else max(5, min(25, cur_min_flank // 2))
+    # Information-aware adaptive flanking bounds
+    cur_min_flank = min_flank if min_flank is not None else 30
+    cur_max_flank = max_flank if max_flank is not None else 250
+    cur_step = step if step is not None else max(5, cur_min_flank // 3)
     
     detected_bps: List[FDABreakpoint] = []
 
@@ -471,33 +485,32 @@ def run_recursive_partition_fda_screen(
             return
             
         step_sz = cur_step
-        flank = max(cur_min_flank, min(cur_max_flank, (s_end - s_start) // 4))
-        if s_end - s_start < 2 * flank:
+        if (s_end - s_start) < 2 * cur_min_flank:
             return
             
-        cps = np.arange(s_start + flank, s_end - flank + 1, step_sz)
-        if len(cps) < 3:
+        cps = np.arange(s_start + cur_min_flank, s_end - cur_min_flank + 1, step_sz)
+        if len(cps) < 2:
             return
             
         z_curve = []
-        top_tax = []
+        valid_cps = []
+        candidates_at_cp = []
         for cp in cps:
+            avail = min(cp - s_start, s_end - cp)
+            if avail < cur_min_flank:
+                continue
+            flank = min(cur_max_flank, avail)
             d1 = engine.query_distance_matrix(cp - flank, cp)
             d2 = engine.query_distance_matrix(cp, cp + flank)
             if np.max(d1) < 1e-4 or np.max(d2) < 1e-4:
-                z_curve.append(0.0)
-                top_tax.append(0)
                 continue
             if frobenius_triage:
                 f_diff = np.linalg.norm(d1 - d2)
                 f_sum = np.linalg.norm(d1 + d2) + 1e-9
                 if (f_diff / f_sum) < triage_threshold:
-                    z_curve.append(0.0)
-                    top_tax.append(0)
                     continue
+            valid_cps.append((cp, flank))
             if N <= 4:
-                # In small alignments (N <= 4), consensus degrees of freedom are insufficient
-                # for empirical IQR Z-scores. Evaluate bilateral L-PIR handover directly:
                 best_pir = 0.0
                 best_t = 0
                 for t_i in range(N):
@@ -508,93 +521,111 @@ def run_recursive_partition_fda_screen(
                 f_incong = np.linalg.norm(d1 - d2) / (np.linalg.norm(d1 + d2) + 1e-9)
                 score = float(best_pir * 5.0 * (1.0 + f_incong)) if best_pir > 0.0 else 0.0
                 z_curve.append(score)
-                top_tax.append(best_t)
+                candidates_at_cp.append([(best_t, score)])
             else:
                 z1 = compute_classical_mds(d1, k=k_eff)
                 z2 = compute_classical_mds(d2, k=k_eff)
                 _, res = align_procrustes(z1, z2)
                 z_sc = compute_ghost_node_zscores(res)
-                top_t = int(np.argmax(z_sc))
-                z_curve.append(float(z_sc[top_t]))
-                top_tax.append(top_t)
+                top_indices = np.argsort(-z_sc)[:min(5, N)]
+                top_taxa = [(int(t), float(z_sc[t])) for t in top_indices if z_sc[t] >= eff_min_z * 0.75]
+                if not top_taxa:
+                    top_taxa = [(int(top_indices[0]), float(z_sc[top_indices[0]]))]
+                z_curve.append(float(np.max(z_sc)))
+                candidates_at_cp.append(top_taxa)
             
+        if len(z_curve) < 3:
+            return
+
         z_curve_arr = np.array(z_curve)
-        peaks, _ = find_peaks(z_curve_arr, height=min_z, prominence=0.5, distance=3)
+        peaks, _ = find_peaks(z_curve_arr, height=eff_min_z, prominence=0.5, distance=3)
         if len(peaks) == 0:
             return
             
         peak_order = sorted(peaks, key=lambda p: z_curve_arr[p], reverse=True)
         valid_splits = []
         for p in peak_order:
-            bp = int(cps[p])
-            t_idx = top_tax[p]
+            bp, flank = valid_cps[p]
             d1 = engine.query_distance_matrix(bp - flank, bp)
             d2 = engine.query_distance_matrix(bp, bp + flank)
             
-            cands = evaluate_triplets_for_taxon(
-                d1, d2, t_idx, min_parent_dist=min_parent_dist, weight_by_divergence=True, top_k=5 if seq_mat is not None else 1
-            )
-            if not cands:
-                continue
-            if isinstance(cands, dict):
-                cands = [cands]
-
-            valid_trip = None
-            for trip in cands:
-                if trip["pir"] < min_pir:
+            cand_taxa = candidates_at_cp[p]
+            
+            for t_idx, t_z in cand_taxa:
+                if t_z < eff_min_z:
                     continue
-                if seq_mat is not None and crossover_validation:
-                    p_crit = crossover_p_threshold if crossover_p_threshold is not None else min(0.005, 0.05 / max(1, N))
-                    val_flank = max(flank, bp - s_start, s_end - bp)
-                    scale_coord = 3 if getattr(engine, "codon_aligned", False) else 1
-                    ok, _, _ = verify_crossover_support(
-                        seq_mat, t_idx, trip["parent_left_idx"], trip["parent_right_idx"],
-                        bp * scale_coord, flank=val_flank * scale_coord, min_informative=min_informative_sites, p_critical=p_crit
-                    )
-                    if ok:
-                        valid_trip = trip
+                cands = evaluate_triplets_for_taxon(
+                    d1, d2, t_idx, min_parent_dist=min_parent_dist, weight_by_divergence=True, top_k=5 if seq_mat is not None else 1
+                )
+                if not cands:
+                    continue
+                if isinstance(cands, dict):
+                    cands = [cands]
+
+                for trip in cands:
+                    if trip["pir"] < min_pir:
+                        continue
+                    p1 = trip["parent_left_idx"]
+                    p2 = trip["parent_right_idx"]
+                    
+                    # Information-aware adaptive coordinate refinement around coarse changepoint
+                    search_r = min(flank // 2, 80)
+                    best_b = bp
+                    min_loss = float("inf")
+                    for b in range(max(cur_min_flank, bp - search_r), min(L - cur_min_flank, bp + search_r + 1), 2):
+                        f_ref = min(flank, b - s_start, s_end - b)
+                        if f_ref < cur_min_flank:
+                            continue
+                        dl = engine.query_distance_matrix(b - f_ref, b)
+                        dr = engine.query_distance_matrix(b, b + f_ref)
+                        loss = dl[t_idx, p1] + dr[t_idx, p2]
+                        if loss < min_loss:
+                            min_loss = loss
+                            best_b = b
+
+                    if seq_mat is not None and crossover_validation:
+                        p_crit = crossover_p_threshold if crossover_p_threshold is not None else 0.01
+                        val_flank = min(flank, best_b - s_start, s_end - best_b)
+                        scale_coord = 3 if getattr(engine, "codon_aligned", False) else 1
+                        ok, _, _ = verify_crossover_support(
+                            seq_mat, t_idx, p1, p2,
+                            best_b * scale_coord, flank=val_flank * scale_coord, min_informative=min_informative_sites, p_critical=p_crit
+                        )
+                        if not ok:
+                            # Fallback check at original coarse changepoint
+                            ok, _, _ = verify_crossover_support(
+                                seq_mat, t_idx, p1, p2,
+                                bp * scale_coord, flank=min(flank, bp - s_start, s_end - bp) * scale_coord, min_informative=min_informative_sites, p_critical=p_crit
+                            )
+                        if ok:
+                            detected_bps.append(FDABreakpoint(
+                                breakpoint_nt=best_b,
+                                recombinant_taxon=taxa[t_idx],
+                                taxon_idx=t_idx,
+                                kinetic_z=float(t_z),
+                                l_pir=float(trip["pir"]),
+                                parent_1=taxa[p1],
+                                parent_2=taxa[p2],
+                                jump_magnitude=float(t_z),
+                                coarse_bp=best_b
+                            ))
+                            valid_splits.append(best_b)
+                            break
+                    else:
+                        detected_bps.append(FDABreakpoint(
+                            breakpoint_nt=best_b,
+                            recombinant_taxon=taxa[t_idx],
+                            taxon_idx=t_idx,
+                            kinetic_z=float(t_z),
+                            l_pir=float(trip["pir"]),
+                            parent_1=taxa[p1],
+                            parent_2=taxa[p2],
+                            jump_magnitude=float(t_z),
+                            coarse_bp=best_b
+                        ))
+                        valid_splits.append(best_b)
                         break
-                else:
-                    valid_trip = trip
-                    break
 
-            if valid_trip is None:
-                continue
-
-            trip = valid_trip
-            if (bp - s_start) >= min_len and (s_end - bp) >= min_len:
-                val_flank_left = min(bp - s_start, max(min_len, 3 * flank))
-                val_flank_right = min(s_end - bp, max(min_len, 3 * flank))
-                dl_full = engine.query_distance_matrix(bp - val_flank_left, bp)
-                dr_full = engine.query_distance_matrix(bp, bp + val_flank_right)
-                trip_full = evaluate_triplets_for_taxon(dl_full, dr_full, t_idx, min_parent_dist=min_parent_dist, weight_by_divergence=True)
-                if not trip_full or trip_full["pir"] < (min_pir * 0.70):
-                    continue
-                p1 = trip["parent_left_idx"]
-                p2 = trip["parent_right_idx"]
-                best_b = bp
-                min_loss = float("inf")
-                for b in range(max(flank, bp - 20), min(L - flank, bp + 21), 2):
-                    dl = engine.query_distance_matrix(b - flank, b)
-                    dr = engine.query_distance_matrix(b, b + flank)
-                    loss = dl[t_idx, p1] + dr[t_idx, p2]
-                    if loss < min_loss:
-                        min_loss = loss
-                        best_b = b
-                        
-                detected_bps.append(FDABreakpoint(
-                    breakpoint_nt=best_b,
-                    recombinant_taxon=taxa[t_idx],
-                    taxon_idx=t_idx,
-                    kinetic_z=float(z_curve_arr[p]),
-                    l_pir=float(trip["pir"]),
-                    parent_1=taxa[p1],
-                    parent_2=taxa[p2],
-                    jump_magnitude=float(z_curve_arr[p]),
-                    coarse_bp=best_b
-                ))
-                valid_splits.append(best_b)
-                
         if not valid_splits:
             return
             
@@ -607,11 +638,16 @@ def run_recursive_partition_fda_screen(
 
     recursive_fda_split(0, L, depth=0)
     
-    # Deduplicate within scale-adaptive window
-    min_dedup = max(10, min(50, L // 50))
+    # Deduplicate candidate breakpoints, prioritizing higher composite statistical evidence (kinetic_z * l_pir)
+    # Deduplicate within 40 nt per recombinant lineage to avoid cross-lineage masking
     dedup: List[FDABreakpoint] = []
-    for d in sorted(detected_bps, key=lambda x: x.breakpoint_nt):
-        if not any(abs(d.breakpoint_nt - c.breakpoint_nt) < min_dedup for c in dedup):
+    for d in sorted(detected_bps, key=lambda b: b.kinetic_z * b.l_pir, reverse=True):
+        duplicate = False
+        for c in dedup:
+            if abs(d.breakpoint_nt - c.breakpoint_nt) < 40 and d.recombinant_taxon == c.recombinant_taxon:
+                duplicate = True
+                break
+        if not duplicate:
             dedup.append(d)
             
     dedup.sort(key=lambda b: b.kinetic_z * b.l_pir, reverse=True)
@@ -643,9 +679,43 @@ def run_recursive_partition_fda_screen(
                     b.ci_right = pol.ci_right // scale_coord if scale_coord > 1 else pol.ci_right
                     b.plateau_width = pol.plateau_width // scale_coord if scale_coord > 1 else pol.plateau_width
                     b.log_likelihood_gain = pol.log_likelihood_gain
-                    b.flanking_p1_site = pol.flanking_p1_site // scale_coord if scale_coord > 1 else pol.flanking_p1_site
-                    b.flanking_p2_site = pol.flanking_p2_site // scale_coord if scale_coord > 1 else pol.flanking_p2_site
+                    b.flanking_p1_site = pol.flanking_p1_site // scale_coord if scale_coord > 1 and pol.flanking_p1_site is not None else pol.flanking_p1_site
+                    b.flanking_p2_site = pol.flanking_p2_site // scale_coord if scale_coord > 1 and pol.flanking_p2_site is not None else pol.flanking_p2_site
                     b.breakpoint_nt = b.polished_bp
+                    b.nt_bp = pol.polished_bp
+                    b.nt_ci_left = pol.ci_left
+                    b.nt_ci_right = pol.ci_right
+                    b.nt_plateau_width = pol.plateau_width
+                    b.nt_flanking_p1 = pol.flanking_p1_site
+                    b.nt_flanking_p2 = pol.flanking_p2_site
+
+            # Merge overlapping likelihood plateaus for identical recombinant taxon and parental transition
+            merged_plateaus: List[FDABreakpoint] = []
+            for b in sorted(dedup, key=lambda x: x.breakpoint_nt):
+                merged_into = None
+                for m in merged_plateaus:
+                    if m.recombinant_taxon == b.recombinant_taxon and m.parent_1 == b.parent_1 and m.parent_2 == b.parent_2:
+                        if m.ci_left is not None and m.ci_right is not None and b.ci_left is not None and b.ci_right is not None:
+                            if max(m.ci_left, b.ci_left) <= min(m.ci_right, b.ci_right):
+                                merged_into = m
+                                break
+                if merged_into is not None:
+                    merged_into.ci_left = min(merged_into.ci_left, b.ci_left)
+                    merged_into.ci_right = max(merged_into.ci_right, b.ci_right)
+                    merged_into.plateau_width = merged_into.ci_right - merged_into.ci_left
+                    merged_into.polished_bp = (merged_into.ci_left + merged_into.ci_right) // 2
+                    merged_into.breakpoint_nt = merged_into.polished_bp
+                    merged_into.log_likelihood_gain = max(merged_into.log_likelihood_gain or 0.0, b.log_likelihood_gain or 0.0)
+                    merged_into.kinetic_z = max(merged_into.kinetic_z, b.kinetic_z)
+                    merged_into.l_pir = max(merged_into.l_pir, b.l_pir)
+                    if scale_coord == 1:
+                        merged_into.nt_bp = merged_into.polished_bp
+                        merged_into.nt_ci_left = merged_into.ci_left
+                        merged_into.nt_ci_right = merged_into.ci_right
+                        merged_into.nt_plateau_width = merged_into.plateau_width
+                else:
+                    merged_plateaus.append(b)
+            dedup = merged_plateaus
 
     return dedup
 

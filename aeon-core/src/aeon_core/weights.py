@@ -19,14 +19,18 @@ import json
 from pathlib import Path
 from typing import Optional, Dict, List
 
-# NumPy 1.x / 2.x unpickling compatibility bridge
-try:
-    import numpy as np
-    if not hasattr(np, '_core') and hasattr(np, 'core'):
-        sys.modules['numpy._core'] = np.core
-        sys.modules['numpy._core.multiarray'] = np.core.multiarray
-except Exception:
-    pass
+import pickle
+
+class _NumpyCompatUnpickler(pickle.Unpickler):
+    def find_class(self, module, name):
+        if module.startswith("numpy._core"):
+            module = module.replace("numpy._core", "numpy.core")
+        return super().find_class(module, name)
+
+class _CompatPickle:
+    Unpickler = _NumpyCompatUnpickler
+    load = pickle.load
+    loads = pickle.loads
 
 from huggingface_hub import list_repo_files, hf_hub_download
 
@@ -231,7 +235,7 @@ def load_weights(
     try:
         ckpt = torch.load(path, map_location=map_location, weights_only=True)
     except Exception:
-        ckpt = torch.load(path, map_location=map_location, weights_only=False)
+        ckpt = torch.load(path, map_location=map_location, weights_only=False, pickle_module=_CompatPickle)
     if isinstance(ckpt, dict) and "model_state_dict" in ckpt:
         return ckpt["model_state_dict"]
     if isinstance(ckpt, dict) and "state_dict" in ckpt:
@@ -261,7 +265,7 @@ def load_arch_config(
         try:
             ckpt = torch.load(path, map_location="cpu", weights_only=True)
         except Exception:
-            ckpt = torch.load(path, map_location="cpu", weights_only=False)
+            ckpt = torch.load(path, map_location="cpu", weights_only=False, pickle_module=_CompatPickle)
         a = ckpt.get("args", {}) if isinstance(ckpt, dict) else {}
         if not a and isinstance(ckpt, dict):
             a = ckpt

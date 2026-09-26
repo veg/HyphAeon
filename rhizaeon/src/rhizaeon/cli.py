@@ -9,6 +9,7 @@ import sys
 import json
 import time
 from pathlib import Path
+import numpy as np
 
 from rhizaeon.tensor import encode_alignment_matrix, PrefixDistanceEngine, SNPCompressedPrefixEngine, parse_fasta
 from rhizaeon.embed import build_prefix_engine
@@ -89,10 +90,10 @@ def main():
     # Subcommand: rp-fda
     rpfda_p = subparsers.add_parser("rp-fda", help="Run Recursive Partitioning FDA (RP-FDA) with ML Breakpoint Polisher")
     rpfda_p.add_argument("alignment", type=str, help="Path to input nucleotide FASTA alignment")
-    rpfda_p.add_argument("--min-len", type=int, default=40, help="Minimum segment length (nt)")
-    rpfda_p.add_argument("--max-depth", type=int, default=5, help="Maximum recursion tree depth")
-    rpfda_p.add_argument("--min-z", type=float, default=1.8, help="Kinetic Z-score threshold")
-    rpfda_p.add_argument("--min-pir", type=float, default=0.08, help="L-PIR incongruence threshold")
+    rpfda_p.add_argument("--min-len", type=int, default=60, help="Minimum segment length (nt, default: 60)")
+    rpfda_p.add_argument("--max-depth", type=int, default=4, help="Maximum recursion tree depth (default: 4)")
+    rpfda_p.add_argument("--min-z", type=float, default=1.8, help="Kinetic Z-score threshold (default: 1.8; scaled by finite-sample Thompson/Grubbs bound for N <= 5)")
+    rpfda_p.add_argument("--min-pir", type=float, default=0.08, help="L-PIR incongruence threshold (default: 0.08)")
     rpfda_p.add_argument("--frobenius-triage", action="store_true", default=False, help="Enable bilateral Frobenius pre-triage (156x speedup)")
     rpfda_p.add_argument("--no-polish", action="store_false", dest="polish_ml", default=True, help="Disable ML breakpoint polisher")
     rpfda_p.add_argument("--compress-snps", action="store_true", default=False, help="Use SNP-compressed prefix engine (220x RAM reduction)")
@@ -103,6 +104,9 @@ def main():
     rpfda_p.add_argument("--export-hyphy-json", type=str, default=None, help="Export HyPhy partition JSON")
     rpfda_p.add_argument("--export-hyphy-bf", type=str, default=None, help="Export HyPhy batch script (.bf)")
     rpfda_p.add_argument("--export-partitions", type=str, default=None, help="Directory to export sliced non-recombinant FASTA files")
+    rpfda_p.add_argument("--no-tier2", action="store_false", dest="tier2", default=True, help="Disable Tier 2 Transformer handoff")
+    rpfda_p.add_argument("--weights", type=str, default=None, help="Custom path to Tier 2 transformer weights (.pt)")
+    rpfda_p.add_argument("--device", type=str, default="auto", choices=["auto", "cpu", "cuda", "mps"], help="Hardware accelerator for Tier 2 transformer")
 
     # Subcommand: alluvial
     alluvial_p = subparsers.add_parser("alluvial", help="Render Alluvial Genome River plot")
@@ -115,6 +119,8 @@ def main():
     viz_p = subparsers.add_parser("visualize", help="Generate standard self-contained interactive HTML dashboard")
     viz_p.add_argument("alignment", type=str, help="Path to input nucleotide FASTA alignment")
     viz_p.add_argument("--output", "-o", type=str, default="AUTO", help="Output HTML path (default: <alignment>_rhizaeon.html)")
+    viz_p.add_argument("--html", type=str, nargs="?", const="AUTO", default=None, help="Output HTML path alias")
+    viz_p.add_argument("--no-html", action="store_true", default=False, help="Disable generating interactive HTML dashboard")
     viz_p.add_argument("--title", type=str, default=None, help="Dashboard title")
 
     args = parser.parse_args()
@@ -122,6 +128,12 @@ def main():
     if args.command == "scan":
         t0 = time.time()
         print(f"[*] Loading alignment: {args.alignment}")
+        if not args.codon and args.engine in ("two-tier", "two-tier-static", "hybrid", "default"):
+            args.engine = "scalar"
+        if not args.codon and args.window == 25:
+            args.window = 300
+            if args.min_tract == 35:
+                args.min_tract = 150
         engine = build_prefix_engine(
             args.alignment,
             engine=args.engine,
@@ -164,7 +176,21 @@ def main():
             for idx, ev in enumerate(events, 1):
                 unit_str = "Codon" if args.codon else "Nucleotide"
                 tier_tag = " [Two-Tier Verified]" if ev.get("tier") == "two-tier" else ""
-                print(f"  {idx}. Breakpoint: {unit_str} {ev['breakpoint']}{tier_tag}")
+                nt_equiv = f" (~nt {ev['breakpoint_nt']})" if args.codon and ev.get("breakpoint_nt") else ""
+                print(f"  {idx}. Breakpoint: {unit_str} {ev['breakpoint']}{nt_equiv}{tier_tag}")
+                if ev.get("ci_left") is not None and ev.get("ci_right") is not None:
+                    p1_site = str(ev.get("flanking_p1_site", "None"))
+                    p2_site = str(ev.get("flanking_p2_site", "None"))
+                    ll_gain = ev.get("log_likelihood_gain", 0.0)
+                    w_val = ev.get("plateau_width", 0)
+                    if args.codon and ev.get("ci_left_nt") is not None and ev.get("ci_right_nt") is not None:
+                        print(f"     ML Plateau: [{ev['ci_left']}, {ev['ci_right']}] codons (nt [{ev['ci_left_nt']}, {ev['ci_right_nt']}], Width Δ={ev.get('plateau_width_nt', w_val*3)} nt) | LL Gain: +{ll_gain:.2f}")
+                    else:
+                        print(f"     ML Plateau: [{ev['ci_left']}, {ev['ci_right']}] (Width Δ={w_val} {unit_str.lower()}s) | LL Gain: +{ll_gain:.2f}")
+                    if ev.get("flanking_p1_site_nt") is not None:
+                        print(f"     Flanking Informative SNPs: nt {ev['flanking_p1_site_nt']} -> {ev['flanking_p2_site_nt']}")
+                    elif p1_site != "None":
+                        print(f"     Flanking Informative Sites: {p1_site} -> {p2_site}")
                 print(f"     Recombinant Lineage: {ev['recombinant']}")
                 print(f"     Parental Transition: {ev['parent_left']} ---> {ev['parent_right']}")
                 print(f"     Metrics: L-PIR = {ev.get('refined_pir', ev['l_pir']):.4f} | Ghost Node Z = {ev['ghost_z']:.2f}")
@@ -270,16 +296,105 @@ def main():
         print(f"[*] Alignment matrix: {N} taxa, {L:,} nt")
         print(f"[*] Running Recursive Partitioning FDA (RP-FDA) screen (Frobenius triage={args.frobenius_triage}, ML polish={args.polish_ml})...")
         
+        eff_min_len = args.min_len if args.min_len is not None else 60
         bps = run_recursive_partition_fda_screen(
             engine=engine,
             taxa_names=taxa,
-            min_len=args.min_len,
+            min_len=eff_min_len,
             max_depth=args.max_depth,
             min_z=args.min_z,
             min_pir=args.min_pir,
             frobenius_triage=args.frobenius_triage,
+            crossover_validation=True,
             polish_ml=args.polish_ml
         )
+
+        # Tier 2 Dual Architecture Handover (Section 4 of Manuscript)
+        if getattr(args, "tier2", True):
+            try:
+                from rhizaeon.adaptive import DualArchitectureConfig, evaluate_tier2_trigger, dispatch_tier2_transformer
+                from rhizaeon.fda import FDABreakpoint
+                from rhizaeon.polisher import polish_breakpoint_ml
+                cfg = DualArchitectureConfig(
+                    weights_path=getattr(args, "weights", None),
+                    device=getattr(args, "device", "auto")
+                )
+                # Handover 1: For each candidate detected by Tier 1, evaluate trigger
+                for b in bps:
+                    num_snps = (1 if b.flanking_p1_site is not None else 0) + (1 if b.flanking_p2_site is not None else 0)
+                    should_t2, reason = evaluate_tier2_trigger(
+                        plateau_width=b.plateau_width or 0,
+                        num_snps=num_snps,
+                        pir_val=b.l_pir,
+                        config=cfg
+                    )
+                    if should_t2:
+                        t2 = dispatch_tier2_transformer(
+                            fasta_path=args.alignment,
+                            candidate_nt=b.breakpoint_nt,
+                            uncertainty_window_nt=(b.ci_left or b.breakpoint_nt, b.ci_right or b.breakpoint_nt),
+                            recombinant_taxon=b.recombinant_taxon,
+                            config=cfg
+                        )
+                        if t2:
+                            setattr(b, 'tier2_result', t2)
+                            setattr(b, 'tier2_reason', reason)
+
+                # Handover 2: If Tier 1 found 0 breakpoints, evaluate Low-Divergence Mutational Voids (Trigger 2)
+                if len(bps) == 0:
+                    D_full = engine.query_distance_matrix(0, L)
+                    max_div = np.max(D_full)
+                    if 0.0 < max_div < 0.05:  # Low divergence regime (< 5% max distance / > 95% identity)
+                        # Dispatch Tier 2 over central candidate window to isolate mosaic lineage via attention drift
+                        t2 = dispatch_tier2_transformer(
+                            fasta_path=args.alignment,
+                            candidate_nt=L // 2,
+                            uncertainty_window_nt=(L // 4, 3 * L // 4),
+                            config=cfg
+                        )
+                        if t2 and t2.fiedler_divergence >= cfg.min_fiedler_div and t2.taxon_drift >= cfg.min_taxon_drift:
+                            rec_name = t2.top_recombinant_taxon
+                            r_idx = taxa.index(rec_name)
+                            refined_nt = t2.refined_breakpoint_nt
+
+                            D_l = engine.query_distance_matrix(0, refined_nt)
+                            D_r = engine.query_distance_matrix(refined_nt, L)
+                            cand_p1 = [i for i in range(N) if i != r_idx]
+                            best_p1 = min(cand_p1, key=lambda i: D_l[r_idx, i])
+                            cand_p2 = [i for i in range(N) if i != r_idx and i != best_p1]
+                            best_p2 = min(cand_p2, key=lambda i: D_r[r_idx, i])
+
+                            pol = polish_breakpoint_ml(seq_mat, coarse_bp=refined_nt, r_idx=r_idx, p1_idx=best_p1, p2_idx=best_p2, search_window=L//2, taxa_names=taxa)
+                            should_t2, reason = evaluate_tier2_trigger(
+                                plateau_width=pol.plateau_width,
+                                num_snps=pol.num_informative_sites,
+                                pir_val=0.0,
+                                config=cfg
+                            )
+                            fb = FDABreakpoint(
+                                breakpoint_nt=pol.polished_bp,
+                                recombinant_taxon=rec_name,
+                                taxon_idx=r_idx,
+                                kinetic_z=2.0,
+                                l_pir=0.0,
+                                parent_1=taxa[best_p1],
+                                parent_2=taxa[best_p2],
+                                jump_magnitude=t2.fiedler_divergence,
+                                coarse_bp=pol.coarse_bp,
+                                polished_bp=pol.polished_bp,
+                                ci_left=pol.ci_left,
+                                ci_right=pol.ci_right,
+                                plateau_width=pol.plateau_width,
+                                log_likelihood_gain=pol.log_likelihood_gain,
+                                flanking_p1_site=pol.flanking_p1_site,
+                                flanking_p2_site=pol.flanking_p2_site
+                            )
+                            setattr(fb, 'tier2_result', t2)
+                            setattr(fb, 'tier2_reason', reason)
+                            bps.append(fb)
+            except Exception:
+                pass
+
         elapsed = time.time() - t0
         
         print(f"\n================================================================================")
@@ -290,17 +405,21 @@ def main():
         else:
             print(f"[!] Detected {len(bps)} Recombination Breakpoint(s):")
             for idx, b in enumerate(bps, 1):
+                tier_tag = " [Two-Tier Verified]" if getattr(b, 'tier2_result', None) is not None else ""
                 if b.ci_left is not None and b.ci_right is not None:
                     p1_site = str(b.flanking_p1_site) if b.flanking_p1_site is not None else "None"
                     p2_site = str(b.flanking_p2_site) if b.flanking_p2_site is not None else "None"
-                    print(f"  {idx}. Breakpoint: {b.breakpoint_nt} nt (Coarse: {b.coarse_bp} nt)")
+                    print(f"  {idx}. Breakpoint: {b.breakpoint_nt} nt (Coarse: {b.coarse_bp} nt){tier_tag}")
                     print(f"     ML Plateau: [{b.ci_left}, {b.ci_right}] (Width Δ={b.plateau_width} nt) | LL Gain: +{b.log_likelihood_gain:.2f}")
                     print(f"     Flanking SNPs: {p1_site} -> {p2_site}")
                 else:
-                    print(f"  {idx}. Breakpoint: {b.breakpoint_nt} nt")
+                    print(f"  {idx}. Breakpoint: {b.breakpoint_nt} nt{tier_tag}")
                 print(f"     Recombinant: {b.recombinant_taxon}")
                 print(f"     Parental Transition: {b.parent_1} ---> {b.parent_2}")
                 print(f"     Significance: Kinetic Z = {b.kinetic_z:.2f} | L-PIR = {b.l_pir:.4f}")
+                if getattr(b, 'tier2_result', None) is not None:
+                    t2 = b.tier2_result
+                    print(f"     Tier 2 Axial Attention: Fiedler Div = {t2.fiedler_divergence:.4f} | Attention Drift = {t2.taxon_drift:.4f} | Refined Codon = {t2.refined_breakpoint_codon} (nt {t2.refined_breakpoint_nt})")
 
         print(f"================================================================================\n")
 
@@ -328,7 +447,13 @@ def main():
                         "parent_1": b.parent_1,
                         "parent_2": b.parent_2,
                         "kinetic_z": float(b.kinetic_z),
-                        "l_pir": float(b.l_pir)
+                        "l_pir": float(b.l_pir),
+                        "tier2_verified": getattr(b, 'tier2_result', None) is not None,
+                        "tier2_fiedler_divergence": float(b.tier2_result.fiedler_divergence) if getattr(b, 'tier2_result', None) is not None else None,
+                        "tier2_taxon_drift": float(b.tier2_result.taxon_drift) if getattr(b, 'tier2_result', None) is not None else None,
+                        "tier2_refined_bp": int(b.tier2_result.refined_breakpoint_nt) if getattr(b, 'tier2_result', None) is not None else None,
+                        "tier2_refined_codon": int(b.tier2_result.refined_breakpoint_codon) if getattr(b, 'tier2_result', None) is not None else None,
+                        "tier2_reason": getattr(b, 'tier2_reason', None)
                     } for b in bps
                 ]
             }
@@ -368,9 +493,13 @@ def main():
             print(f"[✓] Dashboard saved to: {html_out}")
 
     elif args.command == "visualize":
+        if args.no_html:
+            print("[*] HTML visualization suppressed by --no-html.")
+            return
         t0 = time.time()
         print(f"[*] Building standard interactive dashboard for: {args.alignment}")
-        html_out = f"{Path(args.alignment).stem}_rhizaeon.html" if args.output == "AUTO" else args.output
+        target_out = args.html if (args.html and args.html != "AUTO") else args.output
+        html_out = f"{Path(args.alignment).stem}_rhizaeon.html" if target_out == "AUTO" else target_out
         out_path = generate_interactive_html(
             alignment_path=args.alignment,
             detection_results=None,

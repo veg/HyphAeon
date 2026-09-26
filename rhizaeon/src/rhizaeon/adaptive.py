@@ -354,6 +354,14 @@ def evaluate_tier2_trigger(
     return should_dispatch, reason_str
 
 
+_TRANSFORMER_CACHE: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
+
+
+def clear_transformer_cache():
+    """Clears the cached Tier 2 transformer forward pass and tree cache."""
+    _TRANSFORMER_CACHE.clear()
+
+
 def dispatch_tier2_transformer(
     fasta_path: str,
     candidate_nt: int,
@@ -434,84 +442,100 @@ def dispatch_tier2_transformer(
     else:
         dev = torch.device("cpu")
 
-    # Load alignment and precompute TN93 tree cache
-    try:
-        c_tensor, a_tensor, d_tensor, z_tensor, _, taxa, L = load_alignment_and_tree(
-            fasta_path, use_tn93=True, prune_duplicates=False
-        )
-    except Exception:
-        return None
+    cache_key = (str(os.path.abspath(fasta_path)), str(os.path.abspath(weights_path)), str(dev))
+    if cache_key in _TRANSFORMER_CACHE:
+        cached = _TRANSFORMER_CACHE[cache_key]
+        taxa = cached["taxa"]
+        L = cached["L"]
+        root_attn = cached["root_attn"]
+        S_sites = cached["S_sites"]
+        num_species = len(taxa)
+    else:
+        # Load alignment and precompute TN93 tree cache
+        try:
+            c_tensor, a_tensor, d_tensor, z_tensor, _, taxa, L = load_alignment_and_tree(
+                fasta_path, use_tn93=True, prune_duplicates=False
+            )
+        except Exception:
+            return None
 
-    model = load_model(weights=weights_path, device=dev)
-    msa_codons = c_tensor.to(dev)
-    msa_aas = a_tensor.to(dev)
-    dist_mat = d_tensor.squeeze(0).cpu().numpy()
-    mds_coords = z_tensor.squeeze(0).cpu().numpy()
-    tree_cache = model.precompute_tree_cache(dist_mat, mds_coords)
+        model = load_model(weights=weights_path, device=dev)
+        msa_codons = c_tensor.to(dev)
+        msa_aas = a_tensor.to(dev)
+        dist_mat = d_tensor.squeeze(0).cpu().numpy()
+        mds_coords = z_tensor.squeeze(0).cpu().numpy()
+        tree_cache = model.precompute_tree_cache(dist_mat, mds_coords)
 
-    model.eval()
-    batch_size, num_species, window_size = msa_codons.shape
-    num_nodes = num_species + 1
+        model.eval()
+        batch_size, num_species, window_size = msa_codons.shape
+        num_nodes = num_species + 1
 
-    static_biases = tree_cache["static_phylo_biases"]
-    static_coss = tree_cache["static_rope_coss"]
-    static_sins = tree_cache["static_rope_sins"]
+        static_biases = tree_cache["static_phylo_biases"]
+        static_coss = tree_cache["static_rope_coss"]
+        static_sins = tree_cache["static_rope_sins"]
 
-    with torch.no_grad():
-        codon_emb = model.codon_embedding(msa_codons)
-        aa_emb = model.aa_embedding(msa_aas)
-        x = torch.cat([codon_emb, aa_emb], dim=-1) + model.pos_embedding.unsqueeze(1)
-        phylo_pos = tree_cache.get("mds_pos_static", tree_cache.get("static_phylo_pos"))
-        if phylo_pos.dim() == 3:
-            x = x + phylo_pos.unsqueeze(2)
-        else:
-            x = x + phylo_pos.unsqueeze(0).unsqueeze(2)
-        root = model.root_token.expand(batch_size, 1, window_size, -1)
-        x_full = torch.cat([root, x], dim=1)
+        with torch.no_grad():
+            codon_emb = model.codon_embedding(msa_codons)
+            aa_emb = model.aa_embedding(msa_aas)
+            x = torch.cat([codon_emb, aa_emb], dim=-1) + model.pos_embedding.unsqueeze(1)
+            phylo_pos = tree_cache.get("mds_pos_static", tree_cache.get("static_phylo_pos"))
+            if phylo_pos.dim() == 3:
+                x = x + phylo_pos.unsqueeze(2)
+            else:
+                x = x + phylo_pos.unsqueeze(0).unsqueeze(2)
+            root = model.root_token.expand(batch_size, 1, window_size, -1)
+            x_full = torch.cat([root, x], dim=1)
 
-        for i in range(len(model.col_layers)):
-            col_in = x_full.reshape(batch_size * num_nodes, window_size, model.embed_dim) if window_size > 1 else x_full.reshape(batch_size * num_nodes, model.embed_dim)
-            col_out = model.col_layers[i](col_in)
-            x_full = col_out.reshape(batch_size, num_nodes, window_size, model.embed_dim)
+            for i in range(len(model.col_layers)):
+                col_in = x_full.reshape(batch_size * num_nodes, window_size, model.embed_dim) if window_size > 1 else x_full.reshape(batch_size * num_nodes, model.embed_dim)
+                col_out = model.col_layers[i](col_in)
+                x_full = col_out.reshape(batch_size, num_nodes, window_size, model.embed_dim)
 
-        x0_dup = x_full.transpose(1, 2).contiguous().view(batch_size * window_size, num_nodes, model.embed_dim)
-        accum_site_attn = torch.zeros((batch_size, num_species, num_species), dtype=torch.float32, device=dev)
-        accum_root_attn = torch.zeros((batch_size, num_species), dtype=torch.float32, device=dev)
+            x0_dup = x_full.transpose(1, 2).contiguous().view(batch_size * window_size, num_nodes, model.embed_dim)
+            accum_site_attn = torch.zeros((batch_size, num_species, num_species), dtype=torch.float32, device=dev)
+            accum_root_attn = torch.zeros((batch_size, num_species), dtype=torch.float32, device=dev)
 
-        for i, layer in enumerate(model.row_layers):
-            row_in = x_full.transpose(1, 2).contiguous().view(batch_size * window_size, num_nodes, model.embed_dim)
-            q = layer.q_proj(row_in).view(batch_size * window_size, num_nodes, layer.num_heads, layer.head_dim).transpose(1, 2)
-            k = layer.k_proj(row_in).view(batch_size * window_size, num_nodes, layer.num_heads, layer.head_dim).transpose(1, 2)
-            v = layer.v_proj(row_in).view(batch_size * window_size, num_nodes, layer.num_heads, layer.head_dim).transpose(1, 2)
+            for i, layer in enumerate(model.row_layers):
+                row_in = x_full.transpose(1, 2).contiguous().view(batch_size * window_size, num_nodes, model.embed_dim)
+                q = layer.q_proj(row_in).view(batch_size * window_size, num_nodes, layer.num_heads, layer.head_dim).transpose(1, 2)
+                k = layer.k_proj(row_in).view(batch_size * window_size, num_nodes, layer.num_heads, layer.head_dim).transpose(1, 2)
+                v = layer.v_proj(row_in).view(batch_size * window_size, num_nodes, layer.num_heads, layer.head_dim).transpose(1, 2)
 
-            cos, sin = static_coss[i], static_sins[i]
-            half_dim = layer.head_dim // 2
-            q1, q2 = q[..., :half_dim], q[..., half_dim:]
-            k1, k2 = k[..., :half_dim], k[..., half_dim:]
-            q = torch.cat([q1 * cos - q2 * sin, q1 * sin + q2 * cos], dim=-1)
-            k = torch.cat([k1 * cos - k2 * sin, k1 * sin + k2 * cos], dim=-1)
+                cos, sin = static_coss[i], static_sins[i]
+                half_dim = layer.head_dim // 2
+                q1, q2 = q[..., :half_dim], q[..., half_dim:]
+                k1, k2 = k[..., :half_dim], k[..., half_dim:]
+                q = torch.cat([q1 * cos - q2 * sin, q1 * sin + q2 * cos], dim=-1)
+                k = torch.cat([k1 * cos - k2 * sin, k1 * sin + k2 * cos], dim=-1)
 
-            scores = torch.matmul(q, k.transpose(-2, -1)) / (layer.head_dim ** 0.5) + static_biases[i]
-            attn_weights = torch.softmax(scores, dim=-1)
+                scores = torch.matmul(q, k.transpose(-2, -1)) / (layer.head_dim ** 0.5) + static_biases[i]
+                attn_weights = torch.softmax(scores, dim=-1)
 
-            accum_site_attn += attn_weights[:, :, 1:, 1:].mean(dim=1)
-            accum_root_attn += attn_weights[:, :, 1:, 0].mean(dim=1)
+                accum_site_attn += attn_weights[:, :, 1:, 1:].mean(dim=1)
+                accum_root_attn += attn_weights[:, :, 1:, 0].mean(dim=1)
 
-            out = torch.matmul(attn_weights, v)
-            out = out.transpose(1, 2).contiguous().view(batch_size * window_size, num_nodes, layer.embed_dim)
-            out = layer.out_proj(out) + layer.alpha_skip * x0_dup
-            row_out = model.row_norms[i](row_in + out)
-            x_full = row_out.reshape(batch_size, window_size, num_nodes, model.embed_dim).transpose(1, 2)
+                out = torch.matmul(attn_weights, v)
+                out = out.transpose(1, 2).contiguous().view(batch_size * window_size, num_nodes, layer.embed_dim)
+                out = layer.out_proj(out) + layer.alpha_skip * x0_dup
+                row_out = model.row_norms[i](row_in + out)
+                x_full = row_out.reshape(batch_size, window_size, num_nodes, model.embed_dim).transpose(1, 2)
 
-    site_attn = (accum_site_attn / len(model.row_layers)).cpu().numpy()
-    root_attn = (accum_root_attn / len(model.row_layers)).cpu().numpy()
+        site_attn = (accum_site_attn / len(model.row_layers)).cpu().numpy()
+        root_attn = (accum_root_attn / len(model.row_layers)).cpu().numpy()
 
-    # Symmetrized attention graph
-    S_sites = np.zeros_like(site_attn)
-    for l in range(L):
-        s = (site_attn[l] + site_attn[l].T) / 2.0
-        np.fill_diagonal(s, 0.0)
-        S_sites[l] = s
+        # Symmetrized attention graph
+        S_sites = np.zeros_like(site_attn)
+        for l in range(L):
+            s = (site_attn[l] + site_attn[l].T) / 2.0
+            np.fill_diagonal(s, 0.0)
+            S_sites[l] = s
+
+        _TRANSFORMER_CACHE[cache_key] = {
+            "taxa": taxa,
+            "L": L,
+            "root_attn": root_attn,
+            "S_sites": S_sites
+        }
 
     # Convert candidate coordinates to codons
     c_start = max(cfg.window_codons, uncertainty_window_nt[0] // 3)

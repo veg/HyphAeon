@@ -16,8 +16,10 @@ from rhizaeon.tensor import (
 from rhizaeon.manifold import (
     compute_classical_mds,
     compute_laplacian_eigenmaps,
+    nystrom_out_of_sample_mds,
     align_procrustes,
     compute_ghost_node_zscores,
+    compute_grubbs_effective_z,
     trace_continuous_manifold_flow
 )
 from rhizaeon.pir import compute_pir, evaluate_triplets_for_taxon, refine_breakpoint_codon
@@ -68,6 +70,13 @@ from rhizaeon.visualizer import (
     compute_alignment_signals,
     compute_classical_mds_subspaces
 )
+from rhizaeon.streaming import (
+    OnlineManifoldCover,
+    PanGenomeCassetteTracker,
+    ThreadingResult,
+    compute_pairwise_p_distances,
+    compute_sample_to_basis_distances
+)
 
 __all__ = [
     "PrefixDistanceEngine",
@@ -76,6 +85,7 @@ __all__ = [
     "parse_fasta",
     "compute_classical_mds",
     "compute_laplacian_eigenmaps",
+    "nystrom_out_of_sample_mds",
     "align_procrustes",
     "compute_ghost_node_zscores",
     "trace_continuous_manifold_flow",
@@ -114,6 +124,11 @@ __all__ = [
     "load_embedding_matrices",
     "generate_interactive_html",
     "compute_alignment_signals",
-    "compute_classical_mds_subspaces"
+    "compute_classical_mds_subspaces",
+    "OnlineManifoldCover",
+    "PanGenomeCassetteTracker",
+    "ThreadingResult",
+    "compute_pairwise_p_distances",
+    "compute_sample_to_basis_distances"
 ]
 
