@@ -58,6 +58,13 @@ from rhizaeon.polisher import (
     polish_breakpoint_ml,
     polish_all_breakpoints
 )
+from rhizaeon.reporting import (
+    BreakpointRecord,
+    RecombinantLineage,
+    InferenceReport,
+    synthesize_inference_report,
+    format_humanized_report
+)
 from rhizaeon.embed import (
     TwoTierPrefixDistanceEngine,
     EmbeddingPrefixDistanceEngine,
@@ -117,6 +124,11 @@ __all__ = [
     "PolishedBreakpoint",
     "polish_breakpoint_ml",
     "polish_all_breakpoints",
+    "BreakpointRecord",
+    "RecombinantLineage",
+    "InferenceReport",
+    "synthesize_inference_report",
+    "format_humanized_report",
     "TwoTierPrefixDistanceEngine",
     "EmbeddingPrefixDistanceEngine",
     "ContextualPrefixDistanceEngine",

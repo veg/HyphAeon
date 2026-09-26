@@ -19,7 +19,7 @@ from scipy.signal import find_peaks
 from scipy.stats import fisher_exact
 
 from rhizaeon.tensor import PrefixDistanceEngine
-from rhizaeon.manifold import compute_classical_mds, align_procrustes, compute_ghost_node_zscores
+from rhizaeon.manifold import compute_classical_mds, align_procrustes, compute_ghost_node_zscores, compute_grubbs_effective_z
 from rhizaeon.pir import evaluate_triplets_for_taxon
 from rhizaeon.polisher import polish_breakpoint_ml
 
@@ -469,9 +469,8 @@ def run_recursive_partition_fda_screen(
     # Finite-Sample Thompson/Grubbs Normalization:
     # In any sample of size N, the maximum standardized residual from a sample mean
     # is mathematically bounded by (N - 1) / sqrt(N) (Thompson 1935, Grubbs 1950).
-    # For small alignments (N <= 5), an unadjusted asymptotic threshold (e.g., Z >= 1.8)
-    # is mathematically unattainable or severely compressed. We scale min_z by the finite-sample bound.
-    eff_min_z = min(min_z, 0.88 * (N - 1) / np.sqrt(N)) if N <= 5 else min_z
+    # Applies exact Student t critical values for Grubbs test across small to medium cohorts.
+    eff_min_z = compute_grubbs_effective_z(N, nominal_z=min_z, alpha=0.005)
     
     # Information-aware adaptive flanking bounds
     cur_min_flank = min_flank if min_flank is not None else 30
@@ -543,14 +542,16 @@ def run_recursive_partition_fda_screen(
             return
             
         peak_order = sorted(peaks, key=lambda p: z_curve_arr[p], reverse=True)
-        valid_splits = []
+        best_split_call = None
+        best_split_score = -1.0
+
         for p in peak_order:
             bp, flank = valid_cps[p]
             d1 = engine.query_distance_matrix(bp - flank, bp)
             d2 = engine.query_distance_matrix(bp, bp + flank)
-            
+
             cand_taxa = candidates_at_cp[p]
-            
+
             for t_idx, t_z in cand_taxa:
                 if t_z < eff_min_z:
                     continue
@@ -563,11 +564,12 @@ def run_recursive_partition_fda_screen(
                     cands = [cands]
 
                 for trip in cands:
-                    if trip["pir"] < min_pir:
+                    # Allow 30% margin at preliminary coarse changepoint because uncentered flanks straddle the junction
+                    if trip["pir"] < (min_pir * 0.70):
                         continue
                     p1 = trip["parent_left_idx"]
                     p2 = trip["parent_right_idx"]
-                    
+
                     # Information-aware adaptive coordinate refinement around coarse changepoint
                     search_r = min(flank // 2, 80)
                     best_b = bp
@@ -583,13 +585,21 @@ def run_recursive_partition_fda_screen(
                             min_loss = loss
                             best_b = b
 
+                    # Re-evaluate PIR at centered refined coordinate best_b
+                    f_ref_val = min(flank, best_b - s_start, s_end - best_b)
+                    dl_ref = engine.query_distance_matrix(best_b - f_ref_val, best_b)
+                    dr_ref = engine.query_distance_matrix(best_b, best_b + f_ref_val)
+                    ref_trip = evaluate_triplets_for_taxon(dl_ref, dr_ref, t_idx, min_parent_dist=min_parent_dist, weight_by_divergence=True)
+                    if ref_trip is None or ref_trip["pir"] < min_pir:
+                        continue
+
+                    ok = True
                     if seq_mat is not None and crossover_validation:
                         p_crit = crossover_p_threshold if crossover_p_threshold is not None else 0.01
-                        val_flank = min(flank, best_b - s_start, s_end - best_b)
                         scale_coord = 3 if getattr(engine, "codon_aligned", False) else 1
                         ok, _, _ = verify_crossover_support(
                             seq_mat, t_idx, p1, p2,
-                            best_b * scale_coord, flank=val_flank * scale_coord, min_informative=min_informative_sites, p_critical=p_crit
+                            best_b * scale_coord, flank=f_ref_val * scale_coord, min_informative=min_informative_sites, p_critical=p_crit
                         )
                         if not ok:
                             # Fallback check at original coarse changepoint
@@ -597,44 +607,35 @@ def run_recursive_partition_fda_screen(
                                 seq_mat, t_idx, p1, p2,
                                 bp * scale_coord, flank=min(flank, bp - s_start, s_end - bp) * scale_coord, min_informative=min_informative_sites, p_critical=p_crit
                             )
-                        if ok:
-                            detected_bps.append(FDABreakpoint(
+
+                    if ok:
+                        score = float(t_z * ref_trip["pir"])
+                        if score > best_split_score:
+                            best_split_score = score
+                            best_split_call = (best_b, FDABreakpoint(
                                 breakpoint_nt=best_b,
                                 recombinant_taxon=taxa[t_idx],
                                 taxon_idx=t_idx,
                                 kinetic_z=float(t_z),
-                                l_pir=float(trip["pir"]),
+                                l_pir=float(ref_trip["pir"]),
                                 parent_1=taxa[p1],
                                 parent_2=taxa[p2],
                                 jump_magnitude=float(t_z),
                                 coarse_bp=best_b
                             ))
-                            valid_splits.append(best_b)
                             break
-                    else:
-                        detected_bps.append(FDABreakpoint(
-                            breakpoint_nt=best_b,
-                            recombinant_taxon=taxa[t_idx],
-                            taxon_idx=t_idx,
-                            kinetic_z=float(t_z),
-                            l_pir=float(trip["pir"]),
-                            parent_1=taxa[p1],
-                            parent_2=taxa[p2],
-                            jump_magnitude=float(t_z),
-                            coarse_bp=best_b
-                        ))
-                        valid_splits.append(best_b)
-                        break
 
-        if not valid_splits:
+        if best_split_call is None:
             return
-            
-        split_pts = sorted(list(set([s_start] + valid_splits + [s_end])))
-        for i in range(len(split_pts) - 1):
-            left_sub = split_pts[i]
-            right_sub = split_pts[i + 1]
-            if (right_sub - left_sub) >= min_len:
-                recursive_fda_split(left_sub, right_sub, depth + 1)
+
+        split_bp, bp_record = best_split_call
+        detected_bps.append(bp_record)
+
+        # Recursive Binary Partitioning on left and right subsegments
+        if (split_bp - s_start) >= min_len:
+            recursive_fda_split(s_start, split_bp, depth + 1)
+        if (s_end - split_bp) >= min_len:
+            recursive_fda_split(split_bp, s_end, depth + 1)
 
     recursive_fda_split(0, L, depth=0)
     

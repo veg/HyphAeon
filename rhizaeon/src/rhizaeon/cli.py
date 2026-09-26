@@ -63,6 +63,9 @@ def main():
         help="Manual override for L-PIR incongruence threshold (default: derived from --calibration profile: calibrated=0.20, strict=0.25)."
     )
     scan_p.add_argument("--json", type=str, default=None, help="Save detection results to JSON")
+    scan_p.add_argument("--verbose", "-v", action="store_true", default=False, help="Display extended per-breakpoint inspection details")
+    scan_p.add_argument("--summary-only", "-s", action="store_true", default=False, help="Display only executive cohort summary and mosaic architecture maps without full catalog table")
+    scan_p.add_argument("--max-rows", type=int, default=None, help="Maximum number of rows to display in breakpoint catalog table (default: all)")
     scan_p.add_argument("--alluvial", type=str, default=None, help="Render Alluvial Genome River plot to file")
     scan_p.add_argument(
         "--engine",
@@ -113,12 +116,22 @@ def main():
     rpfda_p.add_argument("alignment", type=str, help="Path to input nucleotide FASTA alignment")
     rpfda_p.add_argument("--min-len", type=int, default=60, help="Minimum segment length (nt, default: 60)")
     rpfda_p.add_argument("--max-depth", type=int, default=4, help="Maximum recursion tree depth (default: 4)")
-    rpfda_p.add_argument("--min-z", type=float, default=1.8, help="Kinetic Z-score threshold (default: 1.8; scaled by finite-sample Thompson/Grubbs bound for N <= 5)")
-    rpfda_p.add_argument("--min-pir", type=float, default=0.08, help="L-PIR incongruence threshold (default: 0.08)")
+    rpfda_p.add_argument(
+        "--calibration",
+        type=str,
+        default="calibrated",
+        choices=["calibrated", "strict", "custom"],
+        help="Principled calibration profile: 'calibrated' (optimal F1; Z=2.75, PIR=0.20), 'strict' (conservative; Z=3.00, PIR=0.25), or 'custom' (respects manual --min-z / --min-pir)."
+    )
+    rpfda_p.add_argument("--min-z", type=float, default=None, help="Kinetic Z-score threshold (default: derived from --calibration profile; scaled by finite-sample Thompson/Grubbs bound for N <= 5)")
+    rpfda_p.add_argument("--min-pir", type=float, default=None, help="L-PIR incongruence threshold (default: derived from --calibration profile)")
     rpfda_p.add_argument("--frobenius-triage", action="store_true", default=False, help="Enable bilateral Frobenius pre-triage (156x speedup)")
     rpfda_p.add_argument("--no-polish", action="store_false", dest="polish_ml", default=True, help="Disable ML breakpoint polisher")
     rpfda_p.add_argument("--compress-snps", action="store_true", default=False, help="Use SNP-compressed prefix engine (220x RAM reduction)")
     rpfda_p.add_argument("--json", type=str, default=None, help="Save detection results to JSON")
+    rpfda_p.add_argument("--verbose", "-v", action="store_true", default=False, help="Display extended per-breakpoint inspection details")
+    rpfda_p.add_argument("--summary-only", "-s", action="store_true", default=False, help="Display only executive cohort summary and mosaic architecture maps without full catalog table")
+    rpfda_p.add_argument("--max-rows", type=int, default=None, help="Maximum number of rows to display in breakpoint catalog table (default: all)")
     rpfda_p.add_argument("--html", type=str, nargs="?", const="AUTO", default="AUTO", help="Generate standard self-contained interactive HTML dashboard (default: <alignment>_rhizaeon.html)")
     rpfda_p.add_argument("--no-html", action="store_true", default=False, help="Disable generating interactive HTML dashboard")
     rpfda_p.add_argument("--export-nexus", type=str, default=None, help="Export multi-partition NEXUS alignment")
@@ -190,36 +203,20 @@ def main():
         events = detector.detect_recombination(engine, taxa)
         elapsed = time.time() - t0
 
-        print(f"\n================================================================================")
-        print(f"RHIZAEON INFERENCE REPORT ({elapsed:.3f} seconds)")
-        print(f"================================================================================")
-        if len(events) == 0:
-            print("[✓] Alignment is CLONAL / NON-RECOMBINANT (0 breakpoints detected).")
-        else:
-            print(f"[!] Detected {len(events)} Recombination Breakpoint(s):")
-            for idx, ev in enumerate(events, 1):
-                unit_str = "Codon" if args.codon else "Nucleotide"
-                tier_tag = " [Two-Tier Verified]" if ev.get("tier") == "two-tier" else ""
-                nt_equiv = f" (~nt {ev['breakpoint_nt']})" if args.codon and ev.get("breakpoint_nt") else ""
-                print(f"  {idx}. Breakpoint: {unit_str} {ev['breakpoint']}{nt_equiv}{tier_tag}")
-                if ev.get("ci_left") is not None and ev.get("ci_right") is not None:
-                    p1_site = str(ev.get("flanking_p1_site", "None"))
-                    p2_site = str(ev.get("flanking_p2_site", "None"))
-                    ll_gain = ev.get("log_likelihood_gain", 0.0)
-                    w_val = ev.get("plateau_width", 0)
-                    if args.codon and ev.get("ci_left_nt") is not None and ev.get("ci_right_nt") is not None:
-                        print(f"     ML Plateau: [{ev['ci_left']}, {ev['ci_right']}] codons (nt [{ev['ci_left_nt']}, {ev['ci_right_nt']}], Width Δ={ev.get('plateau_width_nt', w_val*3)} nt) | LL Gain: +{ll_gain:.2f}")
-                    else:
-                        print(f"     ML Plateau: [{ev['ci_left']}, {ev['ci_right']}] (Width Δ={w_val} {unit_str.lower()}s) | LL Gain: +{ll_gain:.2f}")
-                    if ev.get("flanking_p1_site_nt") is not None:
-                        print(f"     Flanking Informative SNPs: nt {ev['flanking_p1_site_nt']} -> {ev['flanking_p2_site_nt']}")
-                    elif p1_site != "None":
-                        print(f"     Flanking Informative Sites: {p1_site} -> {p2_site}")
-                print(f"     Recombinant Lineage: {ev['recombinant']}")
-                print(f"     Parental Transition: {ev['parent_left']} ---> {ev['parent_right']}")
-                print(f"     Metrics: L-PIR = {ev.get('refined_pir', ev['l_pir']):.4f} | Ghost Node Z = {ev['ghost_z']:.2f}")
-
-        print(f"================================================================================\n")
+        from rhizaeon.reporting import synthesize_inference_report, format_humanized_report
+        report = synthesize_inference_report(
+            events_or_bps=events,
+            taxa=taxa,
+            alignment_path=args.alignment,
+            alignment_len=int(L),
+            unit_type="codon" if args.codon else "nt",
+            elapsed_sec=elapsed,
+            calibration=detector.calibration,
+            z_threshold=detector.ghost_z_threshold,
+            pir_threshold=detector.pir_threshold,
+            min_tract=eff_tract
+        )
+        print(f"\n{format_humanized_report(report, verbose=getattr(args, 'verbose', False), max_rows=getattr(args, 'max_rows', None), summary_only=getattr(args, 'summary_only', False))}\n")
 
         if args.json:
             def _to_json_safe(obj):
@@ -245,6 +242,7 @@ def main():
                     "unit_type": "codon" if args.codon else "nucleotide",
                     "runtime_sec": float(elapsed),
                     "num_breakpoints": len(events),
+                    "summary": report.to_summary_dict(),
                     "events": _to_json_safe(events)
                 }, f, indent=2)
             print(f"[✓] Saved JSON report to: {args.json}")
@@ -321,13 +319,26 @@ def main():
         print(f"[*] Running Recursive Partitioning FDA (RP-FDA) screen (Frobenius triage={args.frobenius_triage}, ML polish={args.polish_ml})...")
         
         eff_min_len = args.min_len if args.min_len is not None else 60
+        cal_profile = getattr(args, "calibration", "calibrated")
+        if cal_profile == "strict":
+            eff_min_z = 3.00 if args.min_z is None else args.min_z
+            eff_min_pir = 0.25 if args.min_pir is None else args.min_pir
+        elif cal_profile == "calibrated":
+            eff_min_z = 2.75 if args.min_z is None else args.min_z
+            eff_min_pir = 0.20 if args.min_pir is None else args.min_pir
+        else:
+            eff_min_z = 1.8 if args.min_z is None else args.min_z
+            eff_min_pir = 0.08 if args.min_pir is None else args.min_pir
+
+        print(f"[*] Calibration Profile: {cal_profile.capitalize()} (Z >= {eff_min_z:.2f}, PIR >= {eff_min_pir:.2f}, Min Length: {eff_min_len} nt)")
+
         bps = run_recursive_partition_fda_screen(
             engine=engine,
             taxa_names=taxa,
             min_len=eff_min_len,
             max_depth=args.max_depth,
-            min_z=args.min_z,
-            min_pir=args.min_pir,
+            min_z=eff_min_z,
+            min_pir=eff_min_pir,
             frobenius_triage=args.frobenius_triage,
             crossover_validation=True,
             polish_ml=args.polish_ml
@@ -421,31 +432,20 @@ def main():
 
         elapsed = time.time() - t0
         
-        print(f"\n================================================================================")
-        print(f"RHIZAEON RP-FDA + ML POLISHER INFERENCE REPORT ({elapsed:.3f} seconds)")
-        print(f"================================================================================")
-        if len(bps) == 0:
-            print("[✓] Alignment is CLONAL / NON-RECOMBINANT (0 breakpoints detected).")
-        else:
-            print(f"[!] Detected {len(bps)} Recombination Breakpoint(s):")
-            for idx, b in enumerate(bps, 1):
-                tier_tag = " [Two-Tier Verified]" if getattr(b, 'tier2_result', None) is not None else ""
-                if b.ci_left is not None and b.ci_right is not None:
-                    p1_site = str(b.flanking_p1_site) if b.flanking_p1_site is not None else "None"
-                    p2_site = str(b.flanking_p2_site) if b.flanking_p2_site is not None else "None"
-                    print(f"  {idx}. Breakpoint: {b.breakpoint_nt} nt (Coarse: {b.coarse_bp} nt){tier_tag}")
-                    print(f"     ML Plateau: [{b.ci_left}, {b.ci_right}] (Width Δ={b.plateau_width} nt) | LL Gain: +{b.log_likelihood_gain:.2f}")
-                    print(f"     Flanking SNPs: {p1_site} -> {p2_site}")
-                else:
-                    print(f"  {idx}. Breakpoint: {b.breakpoint_nt} nt{tier_tag}")
-                print(f"     Recombinant: {b.recombinant_taxon}")
-                print(f"     Parental Transition: {b.parent_1} ---> {b.parent_2}")
-                print(f"     Significance: Kinetic Z = {b.kinetic_z:.2f} | L-PIR = {b.l_pir:.4f}")
-                if getattr(b, 'tier2_result', None) is not None:
-                    t2 = b.tier2_result
-                    print(f"     Tier 2 Axial Attention: Fiedler Div = {t2.fiedler_divergence:.4f} | Attention Drift = {t2.taxon_drift:.4f} | Refined Codon = {t2.refined_breakpoint_codon} (nt {t2.refined_breakpoint_nt})")
-
-        print(f"================================================================================\n")
+        from rhizaeon.reporting import synthesize_inference_report, format_humanized_report
+        report = synthesize_inference_report(
+            events_or_bps=bps,
+            taxa=taxa,
+            alignment_path=args.alignment,
+            alignment_len=int(L),
+            unit_type="nt",
+            elapsed_sec=elapsed,
+            calibration=cal_profile,
+            z_threshold=eff_min_z,
+            pir_threshold=eff_min_pir,
+            min_tract=eff_min_len
+        )
+        print(f"\n{format_humanized_report(report, verbose=getattr(args, 'verbose', False), max_rows=getattr(args, 'max_rows', None), summary_only=getattr(args, 'summary_only', False))}\n")
 
         bp_coords = [b.breakpoint_nt for b in bps]
 
@@ -456,6 +456,7 @@ def main():
                 "length": int(L),
                 "runtime_sec": float(elapsed),
                 "num_breakpoints": len(bps),
+                "summary": report.to_summary_dict(),
                 "breakpoints": [
                     {
                         "breakpoint_nt": int(b.breakpoint_nt),

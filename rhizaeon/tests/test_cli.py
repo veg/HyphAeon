@@ -228,3 +228,37 @@ def test_cli_visualize_flags():
         assert not os.path.exists(out_html)
 
 
+def test_cli_rpfda_kal153(capsys):
+    example_path = os.path.join(os.path.dirname(__file__), "..", "examples", "hiv1_kal153.fasta")
+    if not os.path.exists(example_path):
+        pytest.skip("examples/hiv1_kal153.fasta not found")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        json_out = os.path.join(tmpdir, "kal153.json")
+        with patch.object(sys, "argv", [
+            "rhizaeon", "rp-fda", example_path,
+            "--no-html",
+            "--json", json_out
+        ]):
+            main()
+
+        assert os.path.exists(json_out)
+        with open(json_out) as f:
+            data = json.load(f)
+
+        captured = capsys.readouterr()
+        # Verify terminal output includes Primary Mosaic Genomes with R
+        assert "Primary Mosaic Genomes" in captured.out
+        assert "R" in captured.out
+        assert "[A]──2,800──[B]──8,842──[A]" in captured.out
+
+        # Verify JSON contains R's breakpoints
+        bps = data.get("breakpoints", [])
+        r_bps = [b for b in bps if b.get("recombinant") == "R"]
+        assert len(r_bps) == 2
+        coords = sorted([b.get("breakpoint_nt", b.get("breakpoint")) for b in r_bps])
+        assert abs(coords[0] - 2800) <= 20
+        assert abs(coords[1] - 8842) <= 20
+
+
+
