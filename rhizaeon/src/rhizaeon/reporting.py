@@ -177,6 +177,7 @@ def classify_breakpoint(
     plateau_width: Optional[int],
     tier: str = "tier1",
     has_tier2_result: bool = False,
+    tier2_resolved: bool = False,
     is_micro: bool = False
 ) -> Tuple[str, str, str]:
     """
@@ -194,7 +195,7 @@ def classify_breakpoint(
       - LOW  (★☆☆): near threshold or wide uninformative plateau
     """
     # Type classification
-    if has_tier2_result or tier in ("two-tier", "tier2"):
+    if tier2_resolved or (has_tier2_result and tier in ("two-tier", "tier2", "two-tier-attention")) or tier in ("two-tier", "tier2", "two-tier-attention"):
         bp_type = "T2-Attn"
     elif is_micro:
         bp_type = "Micro"
@@ -309,8 +310,9 @@ def synthesize_inference_report(
             ll_g = getattr(ev, "log_likelihood_gain", None)
             fp1 = getattr(ev, "flanking_p1_site", None)
             fp2 = getattr(ev, "flanking_p2_site", None)
-            tier_val = "two-tier" if getattr(ev, "tier2_result", None) is not None else "tier1"
-            has_t2 = getattr(ev, "tier2_result", None) is not None
+            t2_res = bool(getattr(ev, "tier2_resolved", False))
+            tier_val = "two-tier" if t2_res else "tier1"
+            has_t2 = t2_res
         else:
             # Dictionary from scan / detect_recombination
             coord = ev.get("breakpoint", ev.get("breakpoint_nt", 0))
@@ -329,15 +331,19 @@ def synthesize_inference_report(
             ll_g = ev.get("log_likelihood_gain")
             fp1 = ev.get("flanking_p1_site")
             fp2 = ev.get("flanking_p2_site")
+            t2_res = bool(ev.get("tier2_resolved", False))
             tier_val = ev.get("tier", "tier1")
-            has_t2 = tier_val in ("two-tier", "tier2")
+            has_t2 = t2_res or tier_val in ("two-tier", "tier2")
 
         rec_short = shorten_taxon_name(rec_taxon, max_len=18)
         p1_short = shorten_parent_name(p1, max_len=7)
         p2_short = shorten_parent_name(p2, max_len=7)
 
-        # Micro-tract check (tract length < 150 nt / < 50 codons)
-        is_micro = (plat_w_nt is not None and 0 < plat_w_nt <= 15)
+        # Micro-tract check (tract length < 200 nt / < 50 codons)
+        if hasattr(ev, "breakpoint_nt"):
+            is_micro = bool(getattr(ev, "is_micro", False) or (getattr(ev, "scale_regime", "") == "micro"))
+        else:
+            is_micro = bool(ev.get("is_micro", False) or (ev.get("scale_regime") == "micro"))
 
         bp_type, support, stars = classify_breakpoint(
             z_score=z_val,
@@ -345,6 +351,7 @@ def synthesize_inference_report(
             plateau_width=plat_w_nt if plat_w_nt is not None else plat_w,
             tier=tier_val,
             has_tier2_result=has_t2,
+            tier2_resolved=t2_res,
             is_micro=is_micro
         )
 
@@ -420,6 +427,16 @@ def synthesize_inference_report(
             and (min_seg * scale_nt) >= 200
             and any(b.support in ("HIGH", "MOD") for b in tbps)
         )
+
+        # Check for micro-tract conversions between adjacent breakpoints (<200 nt)
+        if len(tbps_sorted) >= 2:
+            for i in range(len(tbps_sorted) - 1):
+                inter_dist = (tbps_sorted[i+1].coord - tbps_sorted[i].coord) * scale_nt
+                if inter_dist < 200:
+                    if tbps_sorted[i].bp_type == "T1-Cross":
+                        tbps_sorted[i].bp_type = "Micro"
+                    if tbps_sorted[i+1].bp_type == "T1-Cross":
+                        tbps_sorted[i+1].bp_type = "Micro"
 
         for b in tbps:
             b.is_primary_mosaic = is_primary

@@ -61,6 +61,8 @@ class FDABreakpoint:
     nt_plateau_width: Optional[int] = None
     nt_flanking_p1: Optional[int] = None
     nt_flanking_p2: Optional[int] = None
+    num_informative_sites: Optional[int] = None
+    tier2_resolved: bool = False
 
 
 def tv1d(y: np.ndarray, lam: float) -> np.ndarray:
@@ -689,6 +691,7 @@ def run_recursive_partition_fda_screen(
                     b.nt_plateau_width = pol.plateau_width
                     b.nt_flanking_p1 = pol.flanking_p1_site
                     b.nt_flanking_p2 = pol.flanking_p2_site
+                    b.num_informative_sites = pol.num_informative_sites
 
             # Merge overlapping likelihood plateaus for identical recombinant taxon and parental transition
             merged_plateaus: List[FDABreakpoint] = []

@@ -138,7 +138,8 @@ def main():
     rpfda_p.add_argument("--export-hyphy-json", type=str, default=None, help="Export HyPhy partition JSON")
     rpfda_p.add_argument("--export-hyphy-bf", type=str, default=None, help="Export HyPhy batch script (.bf)")
     rpfda_p.add_argument("--export-partitions", type=str, default=None, help="Directory to export sliced non-recombinant FASTA files")
-    rpfda_p.add_argument("--no-tier2", action="store_false", dest="tier2", default=True, help="Disable Tier 2 Transformer handoff")
+    rpfda_p.add_argument("--tier2", action="store_true", dest="tier2", default=True, help="Enable automatic Tier 2 Transformer handoff (default: enabled)")
+    rpfda_p.add_argument("--no-tier2", action="store_false", dest="tier2", help="Disable Tier 2 Transformer handoff")
     rpfda_p.add_argument("--weights", type=str, default=None, help="Custom path to Tier 2 transformer weights (.pt)")
     rpfda_p.add_argument("--device", type=str, default="auto", choices=["auto", "cpu", "cuda", "mps"], help="Hardware accelerator for Tier 2 transformer")
 
@@ -344,7 +345,7 @@ def main():
             polish_ml=args.polish_ml
         )
 
-        # Tier 2 Dual Architecture Handover (Section 4 of Manuscript)
+        # Tier 2 Dual Architecture Handover (Section 4 & 10 of Manuscript)
         if getattr(args, "tier2", True):
             try:
                 from rhizaeon.adaptive import DualArchitectureConfig, evaluate_tier2_trigger, dispatch_tier2_transformer
@@ -356,7 +357,19 @@ def main():
                 )
                 # Handover 1: For each candidate detected by Tier 1, evaluate trigger
                 for b in bps:
-                    num_snps = (1 if b.flanking_p1_site is not None else 0) + (1 if b.flanking_p2_site is not None else 0)
+                    num_snps = getattr(b, "num_informative_sites", None)
+                    if num_snps is None and b.parent_1 in taxa and b.parent_2 in taxa and seq_mat is not None:
+                        p1_idx = taxa.index(b.parent_1)
+                        p2_idx = taxa.index(b.parent_2)
+                        w_start = max(0, b.breakpoint_nt - 150)
+                        w_end = min(L, b.breakpoint_nt + 150)
+                        s1 = seq_mat[p1_idx, w_start:w_end]
+                        s2 = seq_mat[p2_idx, w_start:w_end]
+                        valid = (s1 < 4) & (s2 < 4) & (s1 != s2)
+                        num_snps = int(np.sum(valid))
+                    if num_snps is None:
+                        num_snps = (1 if b.flanking_p1_site is not None else 0) + (1 if b.flanking_p2_site is not None else 0)
+
                     should_t2, reason = evaluate_tier2_trigger(
                         plateau_width=b.plateau_width or 0,
                         num_snps=num_snps,
@@ -374,6 +387,8 @@ def main():
                         if t2:
                             setattr(b, 'tier2_result', t2)
                             setattr(b, 'tier2_reason', reason)
+                            setattr(b, 'tier2_resolved', True)
+                            b.tier2_resolved = True
 
                 # Handover 2: If Tier 1 found 0 breakpoints, evaluate Low-Divergence Mutational Voids (Trigger 2)
                 if len(bps) == 0:
@@ -422,10 +437,13 @@ def main():
                                 plateau_width=pol.plateau_width,
                                 log_likelihood_gain=pol.log_likelihood_gain,
                                 flanking_p1_site=pol.flanking_p1_site,
-                                flanking_p2_site=pol.flanking_p2_site
+                                flanking_p2_site=pol.flanking_p2_site,
+                                num_informative_sites=pol.num_informative_sites,
+                                tier2_resolved=True
                             )
                             setattr(fb, 'tier2_result', t2)
                             setattr(fb, 'tier2_reason', reason)
+                            setattr(fb, 'tier2_resolved', True)
                             bps.append(fb)
             except Exception:
                 pass
