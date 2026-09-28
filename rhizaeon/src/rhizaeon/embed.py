@@ -19,6 +19,7 @@ Provides:
 
 import os
 import sys
+import functools
 from pathlib import Path
 from typing import List, Tuple, Optional, Union, Dict, Any, Callable
 import numpy as np
@@ -85,6 +86,7 @@ def resolve_checkpoint_path(custom_path: Optional[str] = None) -> str:
     )
 
 
+@functools.lru_cache(maxsize=8)
 def load_embedding_matrices(weights_path: Optional[str] = None) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Loads 384D embedding tables and precomputes normalized 66x66 distance matrices for:
@@ -229,7 +231,8 @@ class EmbeddingPrefixDistanceEngine:
         self,
         start_unit: int,
         end_unit: int,
-        model: str = "raw"
+        model: str = "raw",
+        missing_strategy: Optional[str] = None
     ) -> np.ndarray:
         """O(1) range query for pairwise distance matrix over [start_unit, end_unit)."""
         start_unit = max(0, start_unit)
@@ -242,9 +245,30 @@ class EmbeddingPrefixDistanceEngine:
         dist_sum = self.prefix_dist[:, :, end_unit] - self.prefix_dist[:, :, start_unit]
 
         safe_valid = np.maximum(valid, 1.0)
-        dist = dist_sum / safe_valid
+        d_obs = dist_sum / safe_valid
+
+        strat = missing_strategy or getattr(self, "missing_strategy", "coverage_shrinkage")
+        if strat in ("shrinkage", "coverage_shrinkage"):
+            if getattr(self, "global_distance", None) is None:
+                g_valid = self.prefix_valid[:, :, self.num_units] - self.prefix_valid[:, :, 0]
+                g_dist = self.prefix_dist[:, :, self.num_units] - self.prefix_dist[:, :, 0]
+                self.global_distance = g_dist / np.maximum(g_valid, 1.0)
+                np.fill_diagonal(self.global_distance, 0.0)
+
+            min_cov = 3.0
+            mask = valid < min_cov
+            dist = d_obs.copy()
+            if np.any(mask):
+                weight = np.clip(valid / min_cov, 0.0, 1.0)
+                dist[mask] = weight[mask] * dist[mask] + (1.0 - weight[mask]) * self.global_distance[mask]
+        else:
+            dist = d_obs
+
         np.fill_diagonal(dist, 0.0)
         return dist
+
+
+_CONTEXTUAL_MODEL_CACHE: Dict[Tuple[str, str], Any] = {}
 
 
 class ContextualPrefixDistanceEngine:
@@ -275,8 +299,13 @@ class ContextualPrefixDistanceEngine:
             from aeon_core.inference import load_model, prepare_alignment
 
         dev = self._resolve_device(device)
-        ckpt_path = resolve_checkpoint_path(weights_path)
-        model = load_model(weights=ckpt_path, device=dev)
+        ckpt_path = str(resolve_checkpoint_path(weights_path))
+        cache_key = (ckpt_path, str(dev))
+        if cache_key in _CONTEXTUAL_MODEL_CACHE:
+            model = _CONTEXTUAL_MODEL_CACHE[cache_key]
+        else:
+            model = load_model(weights=ckpt_path, device=dev)
+            _CONTEXTUAL_MODEL_CACHE[cache_key] = model
 
         c, a, d, z, inv, taxa, L, _ = prepare_alignment(
             fasta_path, model=model, device=dev, use_tn93=True, prune_duplicates=False
@@ -425,6 +454,7 @@ class TwoTierPrefixDistanceEngine:
         self.N = tier1.N
         self.num_units = tier1.num_units
         self.L_nt = getattr(tier1, "L_nt", getattr(tier1, "L", self.num_units * 3))
+        self.codon_aligned = getattr(tier1, "codon_aligned", False)
 
     @property
     def tier2(self) -> Union[EmbeddingPrefixDistanceEngine, ContextualPrefixDistanceEngine]:
@@ -481,13 +511,16 @@ def build_prefix_engine(
                 track=track,
                 weights_path=weights_path
             )
-        return TwoTierPrefixDistanceEngine(
+        eng = TwoTierPrefixDistanceEngine(
             tier1=tier1,
             tier2_factory=_factory,
             track=track,
             weights_path=weights_path,
             device=device
         )
+        eng.fasta_path = alignment_path
+        eng.alignment_path = alignment_path
+        return eng
     elif engine_norm in ("two-tier-contextual", "two-tier-transformer", "two-tier-neural"):
         tier1 = build_prefix_engine(alignment_path, engine="scalar", codon=codon)
         def _factory():
@@ -496,13 +529,16 @@ def build_prefix_engine(
                 weights_path=weights_path,
                 device=device
             )
-        return TwoTierPrefixDistanceEngine(
+        eng = TwoTierPrefixDistanceEngine(
             tier1=tier1,
             tier2_factory=_factory,
             track=track,
             weights_path=weights_path,
             device=device
         )
+        eng.fasta_path = alignment_path
+        eng.alignment_path = alignment_path
+        return eng
     elif engine_norm in ("embed-static", "static", "384d", "token"):
         return EmbeddingPrefixDistanceEngine(
             fasta_path=alignment_path,
@@ -519,5 +555,7 @@ def build_prefix_engine(
         seq_mat, taxa, L = encode_alignment_matrix(alignment_path)
         eng = PrefixDistanceEngine(seq_mat, codon_aligned=codon)
         eng.taxa = taxa
+        eng.fasta_path = alignment_path
+        eng.alignment_path = alignment_path
         return eng
 

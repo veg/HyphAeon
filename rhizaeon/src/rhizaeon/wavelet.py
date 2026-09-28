@@ -114,7 +114,8 @@ def compute_haar_scalogram(
             Z1 = compute_classical_mds(D1, k=k_eff)
             Z2 = compute_classical_mds(D2, k=k_eff)
             _, residuals = align_procrustes(Z1, Z2)
-            z_scores = compute_ghost_node_zscores(residuals)
+            mean_div = float(0.5 * (np.mean(D1) + np.mean(D2)))
+            z_scores = compute_ghost_node_zscores(residuals, mean_divergence=mean_div, window_len=half_a)
 
             top_t = int(np.argmax(z_scores))
             top_z = float(z_scores[top_t])

@@ -47,7 +47,8 @@ from rhizaeon.fda import (
     extract_fda_breakpoints,
     run_fda_recombination_screen,
     run_recursive_partition_fda_screen,
-    run_multiscale_fda_screen
+    run_multiscale_fda_screen,
+    evaluate_deaminase_hypermutation
 )
 from rhizaeon.adaptive import (
     AdaptiveBreakpoint,
@@ -119,6 +120,7 @@ __all__ = [
     "run_fda_recombination_screen",
     "run_recursive_partition_fda_screen",
     "run_multiscale_fda_screen",
+    "evaluate_deaminase_hypermutation",
     "AdaptiveBreakpoint",
     "run_adaptive_hybrid_screen",
     "PolishedBreakpoint",

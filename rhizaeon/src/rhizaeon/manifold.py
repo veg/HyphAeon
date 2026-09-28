@@ -209,10 +209,17 @@ def align_procrustes(
     return Z_aligned, residuals
 
 
-def compute_ghost_node_zscores(residuals: np.ndarray) -> np.ndarray:
+def compute_ghost_node_zscores(
+    residuals: np.ndarray,
+    mean_divergence: float = 0.0,
+    window_len: int = 1
+) -> np.ndarray:
     """
     Calculates robust Studentized / IQR Z-scores from Procrustes residuals:
-      Z_i = (r_i - median(r)) / max(IQR(r), 1e-5)
+      Z_i = (r_i - median(r)) / scale
+    where scale incorporates the Poisson sampling variance lower bound:
+      poisson_var = max(mean_divergence, 1e-5) / max(1, window_len)
+      scale = sqrt(iqr^2 + poisson_var)
     
     Non-recombinant taxa conform tightly to the global rigid rotation (Z ~ 0).
     Recombinant lineages detach as high-leverage 'Ghost Nodes' (Z >> 3.0).
@@ -221,9 +228,12 @@ def compute_ghost_node_zscores(residuals: np.ndarray) -> np.ndarray:
     valid_res = residuals[~np.isnan(residuals)]
     if len(valid_res) == 0:
         return np.full_like(residuals, np.nan)
+    N = len(valid_res)
     med = np.median(valid_res)
-    iqr = np.percentile(valid_res, 75) - np.percentile(valid_res, 25)
-    scale = max(iqr, 1e-5)
+    iqr = float(np.percentile(valid_res, 75) - np.percentile(valid_res, 25))
+    eff_n = N if mean_divergence > 0 else 1
+    poisson_var = float(max(mean_divergence, 1e-5) / max(1, eff_n * window_len))
+    scale = float(np.sqrt(iqr**2 + poisson_var))
     return (residuals - med) / scale
 
 

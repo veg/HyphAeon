@@ -12,7 +12,7 @@ as jump discontinuities in functional trajectories via:
   4. Vectorized Latent Parental Incongruence Ratio (L-PIR) attribution
 """
 
-from typing import List, Tuple, Dict, Any, Optional
+from typing import List, Tuple, Dict, Any, Optional, Union
 from dataclasses import dataclass
 import numpy as np
 from scipy.signal import find_peaks
@@ -63,6 +63,15 @@ class FDABreakpoint:
     nt_flanking_p2: Optional[int] = None
     num_informative_sites: Optional[int] = None
     tier2_resolved: bool = False
+    is_ambiguous: bool = False
+    ambiguity_reason: Optional[str] = None
+    is_hypermutation: bool = False
+    mechanism: Optional[str] = None
+
+
+class BreakpointList(list):
+    """List of confirmed breakpoints with optional ambiguity queue attached."""
+    ambiguous_candidates: List["FDABreakpoint"]
 
 
 def tv1d(y: np.ndarray, lam: float) -> np.ndarray:
@@ -268,6 +277,150 @@ def verify_crossover_support(
     return False, 1.0, stats
 
 
+def evaluate_deaminase_hypermutation(
+    seq_mat: np.ndarray,
+    t_idx: int,
+    bp: int,
+    flank: int,
+    min_mismatches: int = 4
+) -> Dict[str, Any]:
+    """
+    Directional Deaminase Hypermutation Test.
+    
+    Examines the substitution spectrum of private mutations in taxon t_idx
+    relative to its closest flanking reference across flanking and local windows:
+      Left flank:  [max(0, bp - flank), bp)
+      Right flank: [bp, min(L, bp + flank))
+      Full window: [max(0, bp - flank), min(L, bp + flank))
+    
+    Computes the dominant transition fraction:
+      f_deam = max(N_{C->T}, N_{G->A}, N_{A->G}) / sum(Mismatches)
+      
+    If mismatches >= min_mismatches (default 4), f_deam >= 0.85, and transversions <= 1:
+      Performs a one-sided Binomial test against neutral expectation p_0 = 0.35.
+      If significant (p < 0.005) and the mutations do not match synapomorphies of
+      any other sampled taxon in the alignment, tag the candidate with:
+        is_hypermutation = True, mechanism = "Deaminase Hypermutation"
+    """
+    from scipy.stats import binom
+    from rhizaeon.tensor import MUT_CLASS
+
+    N, L = seq_mat.shape
+    empty_res = {
+        "is_hypermutation": False,
+        "mechanism": None,
+        "dominant_transition": None,
+        "f_deam": 0.0,
+        "mismatches": 0,
+        "transversions": 0,
+        "p_value": 1.0,
+        "ref_taxon_idx": None
+    }
+    if N < 2:
+        return empty_res
+
+    other_taxa = [j for j in range(N) if j != t_idx]
+
+    intervals = []
+    if bp > 0:
+        intervals.append((max(0, bp - flank), bp))
+    if bp < L:
+        intervals.append((bp, min(L, bp + flank)))
+    intervals.append((max(0, bp - flank), min(L, bp + flank)))
+
+    for start, end in intervals:
+        if end - start < min_mismatches:
+            continue
+
+        t_sub = seq_mat[t_idx, start:end]
+        valid_t = (t_sub >= 0) & (t_sub < 4)
+        if np.sum(valid_t) < min_mismatches:
+            continue
+
+        # Find closest flanking reference taxon among other taxa
+        best_ref = None
+        min_mismatch_rate = float("inf")
+
+        for j in other_taxa:
+            j_sub = seq_mat[j, start:end]
+            valid_pair = valid_t & (j_sub >= 0) & (j_sub < 4)
+            n_valid = int(np.sum(valid_pair))
+            if n_valid < min_mismatches:
+                continue
+            n_diff = int(np.sum(valid_pair & (t_sub != j_sub)))
+            rate = n_diff / float(n_valid)
+            if rate < min_mismatch_rate:
+                min_mismatch_rate = rate
+                best_ref = j
+
+        if best_ref is None:
+            continue
+
+        ref_sub = seq_mat[best_ref, start:end]
+        valid_pair = valid_t & (ref_sub >= 0) & (ref_sub < 4)
+        mismatch_mask = valid_pair & (t_sub != ref_sub)
+        M = int(np.sum(mismatch_mask))
+
+        if M < min_mismatches:
+            continue
+
+        m_pos = np.where(mismatch_mask)[0]
+        ref_alleles = ref_sub[m_pos]
+        t_alleles = t_sub[m_pos]
+
+        # Nucleotide mapping: 0=A, 1=C, 2=G, 3=T
+        n_c_to_t = int(np.sum((ref_alleles == 1) & (t_alleles == 3)))
+        n_g_to_a = int(np.sum((ref_alleles == 2) & (t_alleles == 0)))
+        n_a_to_g = int(np.sum((ref_alleles == 0) & (t_alleles == 2)))
+
+        transitions = [
+            ("C->T", n_c_to_t, (ref_alleles == 1) & (t_alleles == 3)),
+            ("G->A", n_g_to_a, (ref_alleles == 2) & (t_alleles == 0)),
+            ("A->G", n_a_to_g, (ref_alleles == 0) & (t_alleles == 2)),
+        ]
+        dom_name, dom_count, dom_mask = max(transitions, key=lambda x: x[1])
+
+        # Transversions: MUT_CLASS == 2
+        n_tv = int(np.sum(MUT_CLASS[ref_alleles, t_alleles] == 2))
+
+        f_deam = float(dom_count) / float(M)
+
+        if M >= min_mismatches and f_deam >= 0.85 and n_tv <= 1 and dom_count >= min_mismatches:
+            # One-sided Binomial test against neutral expectation p_0 = 0.35
+            p_val = float(binom.sf(dom_count - 1, M, 0.35))
+
+            if p_val < 0.005:
+                # Check if mutations match synapomorphies of any other sampled taxon
+                dom_m_pos = m_pos[dom_mask]
+                global_pos = start + dom_m_pos
+                t_dom_alleles = seq_mat[t_idx, global_pos]
+
+                is_synapomorphy = False
+                for other in other_taxa:
+                    if other == best_ref:
+                        continue
+                    other_alleles = seq_mat[other, global_pos]
+                    valid_other = (other_alleles >= 0) & (other_alleles < 4)
+                    matches_other = int(np.sum(valid_other & (other_alleles == t_dom_alleles)))
+                    if matches_other >= 2 and matches_other >= int(np.ceil(0.60 * len(dom_m_pos))):
+                        is_synapomorphy = True
+                        break
+
+                if not is_synapomorphy:
+                    return {
+                        "is_hypermutation": True,
+                        "mechanism": "Deaminase Hypermutation",
+                        "dominant_transition": dom_name,
+                        "f_deam": float(f_deam),
+                        "mismatches": int(M),
+                        "transversions": int(n_tv),
+                        "p_value": float(p_val),
+                        "ref_taxon_idx": int(best_ref)
+                    }
+
+    return empty_res
+
+
 def extract_fda_breakpoints(
     fda_result: FDAResult,
     engine: PrefixDistanceEngine,
@@ -400,6 +553,23 @@ def extract_fda_breakpoints(
                     b.flanking_p2_site = pol.flanking_p2_site // scale_coord if scale_coord > 1 and pol.flanking_p2_site is not None else pol.flanking_p2_site
                     b.breakpoint_nt = b.polished_bp
 
+    # Directional Deaminase Hypermutation Test
+    if seq_mat is not None:
+        scale_coord = 3 if getattr(engine, "codon_aligned", False) else 1
+        for b in breakpoints:
+            bp_nt = (b.polished_bp if b.polished_bp is not None else b.breakpoint_nt) * scale_coord
+            flank_nt = min(200 * scale_coord, max(50 * scale_coord, bp_nt, (L * scale_coord) - bp_nt))
+            hyp_res = evaluate_deaminase_hypermutation(
+                seq_mat=seq_mat,
+                t_idx=b.taxon_idx,
+                bp=bp_nt,
+                flank=flank_nt,
+                min_mismatches=4
+            )
+            if hyp_res.get("is_hypermutation", False):
+                b.is_hypermutation = True
+                b.mechanism = "Deaminase Hypermutation"
+
     return breakpoints
 
 
@@ -436,7 +606,7 @@ def run_fda_recombination_screen(
 def run_recursive_partition_fda_screen(
     engine: PrefixDistanceEngine,
     taxa_names: List[str],
-    min_len: int = 40,
+    min_len: Optional[Union[int, str]] = "auto",
     max_depth: int = 5,
     min_z: float = 1.8,
     min_pir: float = 0.08,
@@ -465,8 +635,26 @@ def run_recursive_partition_fda_screen(
     N = engine.N
     L = engine.num_units
     taxa = taxa_names
-    k_eff = min(4, N - 1)
+    if N < 3:
+        return BreakpointList()
+    k_eff = min(3, N - 1)
     seq_mat = getattr(engine, "full_seq_matrix", getattr(engine, "seq_matrix", None))
+
+    # Dynamic Poisson Information Limit:
+    # If min_len is None or min_len == "auto", compute mean pairwise divergence D_bar across sequence:
+    # L_min = max(15, ceil(3.0 / max(D_bar, 1e-4)))
+    if min_len is None or min_len == "auto":
+        D_all = engine.query_distance_matrix(0, L)
+        if N <= 1:
+            d_mean = 0.05
+        else:
+            triu = np.triu_indices(N, k=1)
+            d_mean = float(np.mean(D_all[triu])) if len(triu[0]) > 0 else 0.05
+        eff_min_len = max(15, int(np.ceil(3.0 / max(d_mean, 1e-4))))
+    elif isinstance(min_len, str) and min_len.isdigit():
+        eff_min_len = int(min_len)
+    else:
+        eff_min_len = int(min_len)
 
     # Finite-Sample Thompson/Grubbs Normalization:
     # In any sample of size N, the maximum standardized residual from a sample mean
@@ -478,13 +666,28 @@ def run_recursive_partition_fda_screen(
     cur_min_flank = min_flank if min_flank is not None else 30
     cur_max_flank = max_flank if max_flank is not None else 250
     cur_step = step if step is not None else max(5, cur_min_flank // 3)
+
+    # Precompute segregating site cumulative array for Symmetrical Fisher Information Flank Balancing
+    scale_coord = 3 if getattr(engine, "codon_aligned", False) else 1
+    cum_seg = None
+    if seq_mat is not None:
+        valid_mask = (seq_mat >= 0) & (seq_mat < 4)
+        clean_mat = np.where(valid_mask, seq_mat, -1)
+        max_val = np.max(clean_mat, axis=0)
+        min_mat = np.where(valid_mask, seq_mat, 99)
+        min_val = np.min(min_mat, axis=0)
+        seg_mask = (max_val > min_val) & (min_val >= 0) & (max_val <= 3)
+        cum_seg = np.zeros(len(seg_mask) + 1, dtype=np.int32)
+        cum_seg[1:] = np.cumsum(seg_mask.astype(np.int32))
     
     detected_bps: List[FDABreakpoint] = []
+    ambiguous_bps: List[FDABreakpoint] = []
 
     def recursive_fda_split(s_start: int, s_end: int, depth: int = 0):
-        if depth >= max_depth or (s_end - s_start) < min_len:
+        if depth >= max_depth or (s_end - s_start) < eff_min_len:
             return
             
+        scale_coord = 3 if getattr(engine, "codon_aligned", False) else 1
         step_sz = cur_step
         if (s_end - s_start) < 2 * cur_min_flank:
             return
@@ -501,6 +704,22 @@ def run_recursive_partition_fda_screen(
             if avail < cur_min_flank:
                 continue
             flank = min(cur_max_flank, avail)
+
+            # Symmetrical Fisher Information Flank Balancing:
+            # Verify that both left flank [cp - flank, cp) and right flank [cp, cp + flank)
+            # possess >= min_informative_sites (default 3) informative segregating sites
+            if cum_seg is not None:
+                l_s = max(0, (cp - flank) * scale_coord)
+                l_e = max(0, cp * scale_coord)
+                r_s = max(0, cp * scale_coord)
+                r_e = min(len(cum_seg) - 1, (cp + flank) * scale_coord)
+                if l_s >= l_e or r_s >= r_e:
+                    continue
+                n_left = int(cum_seg[l_e] - cum_seg[l_s])
+                n_right = int(cum_seg[r_e] - cum_seg[r_s])
+                if n_left < min_informative_sites or n_right < min_informative_sites:
+                    continue
+
             d1 = engine.query_distance_matrix(cp - flank, cp)
             d2 = engine.query_distance_matrix(cp, cp + flank)
             if np.max(d1) < 1e-4 or np.max(d2) < 1e-4:
@@ -511,35 +730,25 @@ def run_recursive_partition_fda_screen(
                 if (f_diff / f_sum) < triage_threshold:
                     continue
             valid_cps.append((cp, flank))
-            if N <= 4:
-                best_pir = 0.0
-                best_t = 0
-                for t_i in range(N):
-                    tr = evaluate_triplets_for_taxon(d1, d2, t_i, min_parent_dist=min_parent_dist)
-                    if tr and tr["pir"] > best_pir:
-                        best_pir = tr["pir"]
-                        best_t = t_i
-                f_incong = np.linalg.norm(d1 - d2) / (np.linalg.norm(d1 + d2) + 1e-9)
-                score = float(best_pir * 5.0 * (1.0 + f_incong)) if best_pir > 0.0 else 0.0
-                z_curve.append(score)
-                candidates_at_cp.append([(best_t, score)])
-            else:
-                z1 = compute_classical_mds(d1, k=k_eff)
-                z2 = compute_classical_mds(d2, k=k_eff)
-                _, res = align_procrustes(z1, z2)
-                z_sc = compute_ghost_node_zscores(res)
-                top_indices = np.argsort(-z_sc)[:min(5, N)]
-                top_taxa = [(int(t), float(z_sc[t])) for t in top_indices if z_sc[t] >= eff_min_z * 0.75]
-                if not top_taxa:
-                    top_taxa = [(int(top_indices[0]), float(z_sc[top_indices[0]]))]
-                z_curve.append(float(np.max(z_sc)))
-                candidates_at_cp.append(top_taxa)
+            k_eff = min(3, N - 1)
+            z1 = compute_classical_mds(d1, k=k_eff)
+            z2 = compute_classical_mds(d2, k=k_eff)
+            _, res = align_procrustes(z1, z2)
+            mean_div = float(0.5 * (np.mean(d1) + np.mean(d2)))
+            z_sc = compute_ghost_node_zscores(res, mean_divergence=mean_div, window_len=flank * scale_coord)
+            top_indices = np.argsort(-z_sc)[:min(5, N)]
+            top_taxa = [(int(t), float(z_sc[t])) for t in top_indices if z_sc[t] >= eff_min_z * 0.75]
+            if not top_taxa:
+                top_taxa = [(int(top_indices[0]), float(z_sc[top_indices[0]]))]
+            z_curve.append(float(np.max(z_sc)))
+            candidates_at_cp.append(top_taxa)
             
         if len(z_curve) < 3:
             return
 
         z_curve_arr = np.array(z_curve)
-        peaks, _ = find_peaks(z_curve_arr, height=eff_min_z, prominence=0.5, distance=3)
+        prom_threshold = min(0.5, eff_min_z * 0.25) if N <= 5 else 0.5
+        peaks, _ = find_peaks(z_curve_arr, height=eff_min_z, prominence=prom_threshold, distance=3)
         if len(peaks) == 0:
             return
             
@@ -557,10 +766,27 @@ def run_recursive_partition_fda_screen(
             for t_idx, t_z in cand_taxa:
                 if t_z < eff_min_z:
                     continue
+                if hasattr(engine, "query_coverage"):
+                    cov = engine.query_coverage(max(0, bp - flank), min(L, bp + flank))
+                    if cov[t_idx] < 0.15:
+                        continue
                 cands = evaluate_triplets_for_taxon(
                     d1, d2, t_idx, min_parent_dist=min_parent_dist, weight_by_divergence=True, top_k=5 if seq_mat is not None else 1
                 )
                 if not cands:
+                    ambiguous_bps.append(FDABreakpoint(
+                        breakpoint_nt=bp,
+                        recombinant_taxon=taxa[t_idx],
+                        taxon_idx=t_idx,
+                        kinetic_z=float(t_z),
+                        l_pir=0.0,
+                        parent_1="Ghost",
+                        parent_2="Ghost",
+                        jump_magnitude=float(t_z),
+                        coarse_bp=bp,
+                        is_ambiguous=True,
+                        ambiguity_reason="ghost_donor_no_sampled_triplet"
+                    ))
                     continue
                 if isinstance(cands, dict):
                     cands = [cands]
@@ -568,6 +794,19 @@ def run_recursive_partition_fda_screen(
                 for trip in cands:
                     # Allow 30% margin at preliminary coarse changepoint because uncentered flanks straddle the junction
                     if trip["pir"] < (min_pir * 0.70):
+                        ambiguous_bps.append(FDABreakpoint(
+                            breakpoint_nt=bp,
+                            recombinant_taxon=taxa[t_idx],
+                            taxon_idx=t_idx,
+                            kinetic_z=float(t_z),
+                            l_pir=float(trip["pir"]),
+                            parent_1=taxa[trip["parent_left_idx"]],
+                            parent_2=taxa[trip["parent_right_idx"]],
+                            jump_magnitude=float(t_z),
+                            coarse_bp=bp,
+                            is_ambiguous=True,
+                            ambiguity_reason=f"borderline_pir_{trip['pir']:.3f}"
+                        ))
                         continue
                     p1 = trip["parent_left_idx"]
                     p2 = trip["parent_right_idx"]
@@ -593,12 +832,24 @@ def run_recursive_partition_fda_screen(
                     dr_ref = engine.query_distance_matrix(best_b, best_b + f_ref_val)
                     ref_trip = evaluate_triplets_for_taxon(dl_ref, dr_ref, t_idx, min_parent_dist=min_parent_dist, weight_by_divergence=True)
                     if ref_trip is None or ref_trip["pir"] < min_pir:
+                        ambiguous_bps.append(FDABreakpoint(
+                            breakpoint_nt=best_b,
+                            recombinant_taxon=taxa[t_idx],
+                            taxon_idx=t_idx,
+                            kinetic_z=float(t_z),
+                            l_pir=float(ref_trip["pir"]) if ref_trip is not None else float(trip["pir"]),
+                            parent_1=taxa[p1],
+                            parent_2=taxa[p2],
+                            jump_magnitude=float(t_z),
+                            coarse_bp=bp,
+                            is_ambiguous=True,
+                            ambiguity_reason=f"refined_pir_below_threshold_{ref_trip['pir'] if ref_trip else 0:.3f}"
+                        ))
                         continue
 
                     ok = True
                     if seq_mat is not None and crossover_validation:
                         p_crit = crossover_p_threshold if crossover_p_threshold is not None else 0.01
-                        scale_coord = 3 if getattr(engine, "codon_aligned", False) else 1
                         ok, _, _ = verify_crossover_support(
                             seq_mat, t_idx, p1, p2,
                             best_b * scale_coord, flank=f_ref_val * scale_coord, min_informative=min_informative_sites, p_critical=p_crit
@@ -623,9 +874,29 @@ def run_recursive_partition_fda_screen(
                                 parent_1=taxa[p1],
                                 parent_2=taxa[p2],
                                 jump_magnitude=float(t_z),
-                                coarse_bp=best_b
+                                coarse_bp=best_b,
+                                nt_bp=best_b * scale_coord,
+                                nt_ci_left=best_b * scale_coord,
+                                nt_ci_right=best_b * scale_coord
                             ))
                             break
+                    else:
+                        ambiguous_bps.append(FDABreakpoint(
+                            breakpoint_nt=best_b,
+                            recombinant_taxon=taxa[t_idx],
+                            taxon_idx=t_idx,
+                            kinetic_z=float(t_z),
+                            l_pir=float(ref_trip["pir"]),
+                            parent_1=taxa[p1],
+                            parent_2=taxa[p2],
+                            jump_magnitude=float(t_z),
+                            coarse_bp=bp,
+                            nt_bp=best_b * scale_coord,
+                            nt_ci_left=best_b * scale_coord,
+                            nt_ci_right=best_b * scale_coord,
+                            is_ambiguous=True,
+                            ambiguity_reason="crossover_unverified_divergence"
+                        ))
 
         if best_split_call is None:
             return
@@ -634,16 +905,16 @@ def run_recursive_partition_fda_screen(
         detected_bps.append(bp_record)
 
         # Recursive Binary Partitioning on left and right subsegments
-        if (split_bp - s_start) >= min_len:
+        if (split_bp - s_start) >= eff_min_len:
             recursive_fda_split(s_start, split_bp, depth + 1)
-        if (s_end - split_bp) >= min_len:
+        if (s_end - split_bp) >= eff_min_len:
             recursive_fda_split(split_bp, s_end, depth + 1)
 
     recursive_fda_split(0, L, depth=0)
     
     # Deduplicate candidate breakpoints, prioritizing higher composite statistical evidence (kinetic_z * l_pir)
     # Deduplicate within 40 nt per recombinant lineage to avoid cross-lineage masking
-    dedup: List[FDABreakpoint] = []
+    dedup: BreakpointList = BreakpointList()
     for d in sorted(detected_bps, key=lambda b: b.kinetic_z * b.l_pir, reverse=True):
         duplicate = False
         for c in dedup:
@@ -654,6 +925,24 @@ def run_recursive_partition_fda_screen(
             dedup.append(d)
             
     dedup.sort(key=lambda b: b.kinetic_z * b.l_pir, reverse=True)
+
+    # Deduplicate ambiguous candidates by proximity (within eff_min_len) and filter out any covered by confirmed
+    dedup_ambiguous: List[FDABreakpoint] = []
+    for amb in sorted(ambiguous_bps, key=lambda b: b.kinetic_z, reverse=True):
+        near_confirmed = any(
+            amb.recombinant_taxon == c.recombinant_taxon and abs(amb.breakpoint_nt - c.breakpoint_nt) < max(20, eff_min_len)
+            for c in dedup
+        )
+        if near_confirmed:
+            continue
+        near_amb = any(
+            amb.recombinant_taxon == a.recombinant_taxon and abs(amb.breakpoint_nt - a.breakpoint_nt) < max(15, eff_min_len // 2)
+            for a in dedup_ambiguous
+        )
+        if not near_amb:
+            dedup_ambiguous.append(amb)
+
+    dedup.ambiguous_candidates = dedup_ambiguous
 
     if polish_ml:
         seq_mat = getattr(engine, "full_seq_matrix", getattr(engine, "seq_matrix", None))
@@ -717,9 +1006,60 @@ def run_recursive_partition_fda_screen(
                         merged_into.nt_ci_left = merged_into.ci_left
                         merged_into.nt_ci_right = merged_into.ci_right
                         merged_into.nt_plateau_width = merged_into.plateau_width
+                    else:
+                        merged_into.nt_bp = merged_into.polished_bp * scale_coord
+                        merged_into.nt_ci_left = merged_into.ci_left * scale_coord
+                        merged_into.nt_ci_right = merged_into.ci_right * scale_coord
+                        merged_into.nt_plateau_width = merged_into.plateau_width * scale_coord
                 else:
                     merged_plateaus.append(b)
             dedup = merged_plateaus
+    else:
+        scale_coord = 3 if getattr(engine, "codon_aligned", False) else 1
+        for b in dedup:
+            if b.nt_bp is None:
+                b.nt_bp = b.breakpoint_nt * scale_coord
+                b.nt_ci_left = (b.ci_left if b.ci_left is not None else b.breakpoint_nt) * scale_coord
+                b.nt_ci_right = (b.ci_right if b.ci_right is not None else b.breakpoint_nt) * scale_coord
+                b.nt_plateau_width = (b.plateau_width if b.plateau_width is not None else 0) * scale_coord
+        for amb in getattr(dedup, "ambiguous_candidates", []):
+            if amb.nt_bp is None:
+                amb.nt_bp = amb.breakpoint_nt * scale_coord
+                amb.nt_ci_left = (amb.ci_left if amb.ci_left is not None else amb.breakpoint_nt) * scale_coord
+                amb.nt_ci_right = (amb.ci_right if amb.ci_right is not None else amb.breakpoint_nt) * scale_coord
+                amb.nt_plateau_width = (amb.plateau_width if amb.plateau_width is not None else 0) * scale_coord
+
+    # Directional Deaminase Hypermutation Test
+    if seq_mat is not None:
+        for b in dedup:
+            raw_c_bp = b.coarse_bp if b.coarse_bp is not None else b.breakpoint_nt
+            bp_nt = (b.polished_bp if b.polished_bp is not None else raw_c_bp) * scale_coord
+            flank_nt = min(200 * scale_coord, max(50 * scale_coord, bp_nt, (L * scale_coord) - bp_nt))
+            hyp_res = evaluate_deaminase_hypermutation(
+                seq_mat=seq_mat,
+                t_idx=b.taxon_idx,
+                bp=bp_nt,
+                flank=flank_nt,
+                min_mismatches=4
+            )
+            if hyp_res.get("is_hypermutation", False):
+                b.is_hypermutation = True
+                b.mechanism = "Deaminase Hypermutation"
+
+        for amb in getattr(dedup, "ambiguous_candidates", []):
+            raw_c_bp = amb.coarse_bp if amb.coarse_bp is not None else amb.breakpoint_nt
+            bp_nt = raw_c_bp * scale_coord
+            flank_nt = min(200 * scale_coord, max(50 * scale_coord, bp_nt, (L * scale_coord) - bp_nt))
+            hyp_res = evaluate_deaminase_hypermutation(
+                seq_mat=seq_mat,
+                t_idx=amb.taxon_idx,
+                bp=bp_nt,
+                flank=flank_nt,
+                min_mismatches=4
+            )
+            if hyp_res.get("is_hypermutation", False):
+                amb.is_hypermutation = True
+                amb.mechanism = "Deaminase Hypermutation"
 
     return dedup
 
@@ -779,7 +1119,9 @@ def run_multiscale_fda_screen(
             z1 = compute_classical_mds(d1, k=k_eff)
             z2 = compute_classical_mds(d2, k=k_eff)
             _, res = align_procrustes(z1, z2)
-            z_sc = compute_ghost_node_zscores(res)
+            mean_div = float(0.5 * (np.mean(d1) + np.mean(d2)))
+            scale_coord = 3 if getattr(engine, "codon_aligned", False) else 1
+            z_sc = compute_ghost_node_zscores(res, mean_divergence=mean_div, window_len=flank * scale_coord)
             top_t = int(np.argmax(z_sc))
             z_curve.append(float(z_sc[top_t]))
             tax_curve.append(top_t)
@@ -832,6 +1174,7 @@ def run_multiscale_fda_screen(
             
     dedup.sort(key=lambda b: b.kinetic_z * b.l_pir, reverse=True)
 
+    scale_coord = 3 if getattr(engine, "codon_aligned", False) else 1
     if polish_ml:
         seq_mat = getattr(engine, "full_seq_matrix", getattr(engine, "seq_matrix", None))
         if seq_mat is not None:
@@ -842,24 +1185,56 @@ def run_multiscale_fda_screen(
                     r_idx = taxa_map[b.recombinant_taxon]
                     p1_idx = taxa_map[b.parent_1]
                     p2_idx = taxa_map[b.parent_2]
+                    raw_c_bp = b.coarse_bp if b.coarse_bp is not None else b.breakpoint_nt
                     pol = polish_breakpoint_ml(
                         seq_mat,
-                        coarse_bp=b.coarse_bp if b.coarse_bp is not None else b.breakpoint_nt,
+                        coarse_bp=raw_c_bp * scale_coord,
                         r_idx=r_idx,
                         p1_idx=p1_idx,
                         p2_idx=p2_idx,
-                        search_window=win,
+                        search_window=win * scale_coord,
                         error_rate=error_rate,
                         taxa_names=taxa
                     )
-                    b.polished_bp = pol.polished_bp
-                    b.ci_left = pol.ci_left
-                    b.ci_right = pol.ci_right
-                    b.plateau_width = pol.plateau_width
+                    b.polished_bp = pol.polished_bp // scale_coord if scale_coord > 1 else pol.polished_bp
+                    b.ci_left = pol.ci_left // scale_coord if scale_coord > 1 else pol.ci_left
+                    b.ci_right = pol.ci_right // scale_coord if scale_coord > 1 else pol.ci_right
+                    b.plateau_width = pol.plateau_width // scale_coord if scale_coord > 1 else pol.plateau_width
                     b.log_likelihood_gain = pol.log_likelihood_gain
-                    b.flanking_p1_site = pol.flanking_p1_site
-                    b.flanking_p2_site = pol.flanking_p2_site
-                    b.breakpoint_nt = pol.polished_bp
+                    b.flanking_p1_site = pol.flanking_p1_site // scale_coord if scale_coord > 1 and pol.flanking_p1_site is not None else pol.flanking_p1_site
+                    b.flanking_p2_site = pol.flanking_p2_site // scale_coord if scale_coord > 1 and pol.flanking_p2_site is not None else pol.flanking_p2_site
+                    b.breakpoint_nt = b.polished_bp
+                    b.nt_bp = pol.polished_bp
+                    b.nt_ci_left = pol.ci_left
+                    b.nt_ci_right = pol.ci_right
+                    b.nt_plateau_width = pol.plateau_width
+                    b.nt_flanking_p1 = pol.flanking_p1_site
+                    b.nt_flanking_p2 = pol.flanking_p2_site
+                    b.num_informative_sites = pol.num_informative_sites
+    else:
+        for b in dedup:
+            if b.nt_bp is None:
+                b.nt_bp = b.breakpoint_nt * scale_coord
+                b.nt_ci_left = (b.ci_left if b.ci_left is not None else b.breakpoint_nt) * scale_coord
+                b.nt_ci_right = (b.ci_right if b.ci_right is not None else b.breakpoint_nt) * scale_coord
+                b.nt_plateau_width = (b.plateau_width if b.plateau_width is not None else 0) * scale_coord
+
+    # Directional Deaminase Hypermutation Test
+    if seq_mat is not None:
+        for b in dedup:
+            raw_c_bp = b.coarse_bp if b.coarse_bp is not None else b.breakpoint_nt
+            bp_nt = (b.polished_bp if b.polished_bp is not None else raw_c_bp) * scale_coord
+            flank_nt = min(200 * scale_coord, max(50 * scale_coord, bp_nt, (L * scale_coord) - bp_nt))
+            hyp_res = evaluate_deaminase_hypermutation(
+                seq_mat=seq_mat,
+                t_idx=b.taxon_idx,
+                bp=bp_nt,
+                flank=flank_nt,
+                min_mismatches=4
+            )
+            if hyp_res.get("is_hypermutation", False):
+                b.is_hypermutation = True
+                b.mechanism = "Deaminase Hypermutation"
 
     return dedup
 

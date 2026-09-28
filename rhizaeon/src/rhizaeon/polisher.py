@@ -29,6 +29,7 @@ class PolishedBreakpoint:
     recombinant_taxon: str
     parent_1: str
     parent_2: str
+    min_ll_threshold: Optional[float] = None
 
 
 def polish_breakpoint_ml(
@@ -39,7 +40,8 @@ def polish_breakpoint_ml(
     p2_idx: int,
     search_window: int = 500,
     error_rate: float = 0.01,
-    taxa_names: Optional[List[str]] = None
+    taxa_names: Optional[List[str]] = None,
+    min_ll_threshold: Optional[float] = None
 ) -> PolishedBreakpoint:
     """
     Polishes a candidate breakpoint using a localized 2-state likelihood profile.
@@ -53,6 +55,7 @@ def polish_breakpoint_ml(
       search_window: radius in base pairs around coarse_bp to inspect.
       error_rate: assumed sequencing / private mutation rate epsilon (default: 0.01).
       taxa_names: optional list of taxon names for display.
+      min_ll_threshold: optional override for minimum log-likelihood threshold.
       
     Returns:
       PolishedBreakpoint dataclass with exact ML plateau bounds and midpoint.
@@ -73,15 +76,39 @@ def polish_breakpoint_ml(
     
     valid = (r_seq < 4) & (p1_seq < 4) & (p2_seq < 4)
     diff_parents = valid & (p1_seq != p2_seq)
-    
+
+    # Detect orientation: does R transition P1 -> P2 or P2 -> P1 across coarse_bp?
+    coarse_rel = min(max(0, coarse_bp - w_start), win_len - 1)
+    diff_left = diff_parents[:coarse_rel]
+    diff_right = diff_parents[coarse_rel:]
+
+    match_l1 = np.sum(diff_left & (r_seq[:coarse_rel] == p1_seq[:coarse_rel]))
+    match_l2 = np.sum(diff_left & (r_seq[:coarse_rel] == p2_seq[:coarse_rel]))
+    match_r1 = np.sum(diff_right & (r_seq[coarse_rel:] == p1_seq[coarse_rel:]))
+    match_r2 = np.sum(diff_right & (r_seq[coarse_rel:] == p2_seq[coarse_rel:]))
+
+    # If evidence indicates P2 -> P1 transition across the window, swap P1 and P2
+    if (match_l2 + match_r1) > (match_l1 + match_r2):
+        p1_seq, p2_seq = p2_seq, p1_seq
+        p1_idx, p2_idx = p2_idx, p1_idx
+
     matches_p1 = diff_parents & (r_seq == p1_seq)
     matches_p2 = diff_parents & (r_seq == p2_seq)
-    
+
     delta_l[matches_p1] = +gamma
     delta_l[matches_p2] = -gamma
     
     num_inf = int(np.sum(diff_parents))
     
+    # Adaptive Flank Information Sieve:
+    # LL_min = max(0.5, min(2.5, 0.25 * N_informative))
+    # When informative sites are sparse (e.g. N_informative <= 8), the minimum log-likelihood
+    # required scales with the Fisher information of the flanking window.
+    if min_ll_threshold is not None:
+        ll_min = float(min_ll_threshold)
+    else:
+        ll_min = float(max(0.5, min(2.5, 0.25 * num_inf)))
+
     # Cumulative profile log-likelihood
     profile_ll = np.cumsum(delta_l)
     max_ll = float(np.max(profile_ll))
@@ -91,7 +118,7 @@ def polish_breakpoint_ml(
     tol = 1e-7
     plateau_rel_indices = np.where(np.abs(profile_ll - max_ll) <= tol)[0]
     
-    if len(plateau_rel_indices) == 0:
+    if len(plateau_rel_indices) == 0 or num_inf == 0:
         # Fallback if no informative sites found
         ci_left = coarse_bp
         ci_right = coarse_bp
@@ -102,12 +129,21 @@ def polish_breakpoint_ml(
     else:
         ci_left = w_start + int(plateau_rel_indices[0])
         ci_right = w_start + int(plateau_rel_indices[-1])
-        ml_mid = int(round((ci_left + ci_right) / 2.0))
+        candidate_ml_mid = int(round((ci_left + ci_right) / 2.0))
         
         # Log likelihood gain over the coarse starting point
         coarse_rel = min(max(0, coarse_bp - w_start), win_len - 1)
         gain = float(max_ll - profile_ll[coarse_rel])
         
+        # Adaptive Information Sieve:
+        # If coarse_bp is outside the ML plateau and the log-likelihood gain
+        # is below LL_min, the observed gain is statistically uninformative relative
+        # to the Fisher information of the flanking window. Retain coarse_bp.
+        if (coarse_bp < ci_left or coarse_bp > ci_right) and gain < ll_min:
+            ml_mid = coarse_bp
+        else:
+            ml_mid = candidate_ml_mid
+
         # Find nearest informative sites flanking the plateau
         inf_indices = np.where(diff_parents)[0] + w_start
         p1_indices = np.where(matches_p1)[0] + w_start
@@ -135,7 +171,8 @@ def polish_breakpoint_ml(
         log_likelihood_gain=gain,
         recombinant_taxon=r_name,
         parent_1=p1_name,
-        parent_2=p2_name
+        parent_2=p2_name,
+        min_ll_threshold=ll_min
     )
 
 

@@ -96,7 +96,11 @@ class RhizAeonDetector:
             d_mean = 0.10
 
         # Minimum 3 informative substitutions between parents; geometric stability floor of 15
-        return max(15, int(np.ceil(3.0 / max(d_mean, 1e-4))))
+        # Cap at min(60, U // 4) to ensure searchable cutpoint interval remains open even under low divergence
+        U = getattr(engine, "num_units", 600)
+        max_tract_cap = max(15, min(60, U // 4))
+        raw_limit = int(np.ceil(3.0 / max(d_mean, 1e-4)))
+        return max(15, min(max_tract_cap, raw_limit))
 
 
     def find_best_split_in_segment(
@@ -143,7 +147,9 @@ class RhizAeonDetector:
                 Z2 = compute_classical_mds(D2, k=self.k_dims)
 
             _, residuals = align_procrustes(Z1, Z2)
-            z_scores = compute_ghost_node_zscores(residuals)
+            scale_coord = 3 if getattr(engine, "codon_aligned", False) else 1
+            mean_div = float(0.5 * (np.mean(D1) + np.mean(D2)))
+            z_scores = compute_ghost_node_zscores(residuals, mean_divergence=mean_div, window_len=flank * scale_coord)
 
             # Test top drifting taxa
             top_indices = np.argsort(-z_scores)[:5]
@@ -239,6 +245,7 @@ class RhizAeonDetector:
 
         if is_two_tier or tier2_engine is not None:
             tier1 = engine.tier1 if is_two_tier else engine
+            is_codon = getattr(tier1, "codon_aligned", getattr(engine, "codon_aligned", False))
 
             # === Two-Tier Pipeline ===
             # Step 1: Tier 1 RP-FDA screening sieve
@@ -253,43 +260,45 @@ class RhizAeonDetector:
                 crossover_validation=True,
                 polish_ml=True
             )
-            if len(bps_t1) == 0:
+            ambiguous_queue = list(getattr(bps_t1, "ambiguous_candidates", []))
+            if len(bps_t1) == 0 and len(ambiguous_queue) == 0:
                 return []
 
             # Step 2: Tier 2 Manifold Verification & Handoff
-            from rhizaeon.adaptive import DualArchitectureConfig, evaluate_tier2_trigger
+            from rhizaeon.adaptive import DualArchitectureConfig, evaluate_tier2_trigger, dispatch_tier2_transformer
             cfg = DualArchitectureConfig()
             tier2 = engine.tier2 if is_two_tier else tier2_engine
-            U = tier2.num_units
+            U1 = tier1.num_units
+            U2 = tier2.num_units if tier2 is not None else U1
             N = len(taxa)
             eff_z_thresh = compute_grubbs_effective_z(N, self.ghost_z_threshold, alpha=0.005)
             validated = []
 
             for b in bps_t1:
-                target_bp = b.breakpoint_nt if b.breakpoint_nt is not None else b.coarse_bp
-                if target_bp is None or target_bp <= 0 or target_bp >= U:
+                # Coordinate in Tier 1 units
+                target_bp_t1 = b.coarse_bp if b.coarse_bp is not None else (b.breakpoint_nt // 3 if is_codon else b.breakpoint_nt)
+                if target_bp_t1 is None or target_bp_t1 <= 0 or target_bp_t1 >= U1:
                     continue
 
                 if float(b.kinetic_z) < eff_z_thresh:
                     continue
 
-                flank = min(max(self.window_units, 50), max(20, min(target_bp, U - target_bp)))
-                if target_bp - flank < 0 or target_bp + flank > U:
-                    flank = min(target_bp, U - target_bp)
-                if flank < 5:
+                flank_t1 = min(max(self.window_units, 50), max(20, min(target_bp_t1, U1 - target_bp_t1)))
+                if target_bp_t1 - flank_t1 < 0 or target_bp_t1 + flank_t1 > U1:
+                    flank_t1 = min(target_bp_t1, U1 - target_bp_t1)
+                if flank_t1 < 5:
                     continue
 
-                D1 = tier1.query_distance_matrix(target_bp - flank, target_bp)
-                D2 = tier1.query_distance_matrix(target_bp, target_bp + flank)
+                D1 = tier1.query_distance_matrix(target_bp_t1 - flank_t1, target_bp_t1)
+                D2 = tier1.query_distance_matrix(target_bp_t1, target_bp_t1 + flank_t1)
 
                 trip2 = evaluate_triplets_for_taxon(
                     D1, D2, b.taxon_idx,
                     bound_factor=self.bound_factor,
                     min_parent_dist=self.min_parent_dist
                 )
-                if trip2 is None:
-                    continue
-                if trip2["pir"] < self.pir_threshold:
+                if trip2 is None or trip2["pir"] < self.pir_threshold:
+                    ambiguous_queue.append(b)
                     continue
 
                 p1_idx = trip2["parent_left_idx"]
@@ -297,17 +306,27 @@ class RhizAeonDetector:
                 p1_name = taxa[p1_idx]
                 p2_name = taxa[p2_idx]
 
-                refined_bp, refined_pir = refine_breakpoint_codon(
-                    tier2,
-                    bp=target_bp,
-                    r_idx=b.taxon_idx,
-                    p1_idx=p1_idx,
-                    p2_idx=p2_idx,
-                    flank_len=flank,
-                    search_radius=15
-                )
+                # Coordinate in Tier 2 units (codons)
+                target_bp_t2 = target_bp_t1 if is_codon else (target_bp_t1 // 3)
+                flank_t2 = max(10, flank_t1 if is_codon else (flank_t1 // 3))
+                if target_bp_t2 <= 0 or target_bp_t2 >= U2:
+                    refined_bp = target_bp_t1
+                    refined_pir = trip2["pir"]
+                    should_t2 = False
+                else:
+                    refined_bp_codon, refined_pir = refine_breakpoint_codon(
+                        tier2,
+                        bp=target_bp_t2,
+                        r_idx=b.taxon_idx,
+                        p1_idx=p1_idx,
+                        p2_idx=p2_idx,
+                        flank_len=flank_t2,
+                        search_radius=15
+                    )
+                    refined_bp = refined_bp_codon if is_codon else (refined_bp_codon * 3)
 
                 if refined_pir < self.pir_threshold:
+                    ambiguous_queue.append(b)
                     continue
 
                 # Evaluate formal Tier 1 breakdown trigger
@@ -315,18 +334,20 @@ class RhizAeonDetector:
                     plateau_width=b.plateau_width or 0,
                     num_snps=b.num_informative_sites or 10,
                     pir_val=refined_pir,
-                    config=cfg
+                    config=cfg,
+                    is_hypermutation=getattr(b, "is_hypermutation", False),
+                    topological_jump=getattr(b, "kinetic_z", None)
                 )
 
                 if tol is not None and tol > 0:
-                    if abs(refined_bp - target_bp) > tol:
+                    tol_units = tol if not is_codon else (tol // 3)
+                    if abs(refined_bp - target_bp_t1) > max(tol_units, 20):
                         continue
 
-                is_codon = getattr(tier1, "codon_aligned", getattr(engine, "codon_aligned", False))
                 scale_coord = 3 if is_codon else 1
                 ev = {
                     "breakpoint": refined_bp,
-                    "raw_breakpoint": target_bp,
+                    "raw_breakpoint": target_bp_t1,
                     "breakpoint_nt": refined_bp * scale_coord,
                     "recombinant_idx": b.taxon_idx,
                     "recombinant": b.recombinant_taxon,
@@ -355,7 +376,7 @@ class RhizAeonDetector:
 
                 duplicate = False
                 for v in validated:
-                    if abs(v["breakpoint"] - ev["breakpoint"]) <= 20:
+                    if v["recombinant_idx"] == ev["recombinant_idx"] and abs(v["breakpoint"] - ev["breakpoint"]) <= 20:
                         duplicate = True
                         if ev["refined_pir"] > v["refined_pir"]:
                             v.update(ev)
@@ -363,6 +384,117 @@ class RhizAeonDetector:
 
                 if not duplicate:
                     validated.append(ev)
+
+            # Step 3: Autonomous Tier 2 Manifold Verification of Ambiguous Candidates
+            is_codon = getattr(tier1, "codon_aligned", getattr(engine, "codon_aligned", False))
+            scale_coord = 3 if is_codon else 1
+            fasta_path = getattr(engine, "fasta_path", getattr(tier2, "fasta_path", getattr(tier1, "fasta_path", None)))
+
+            for amb in ambiguous_queue:
+                target_bp_t1 = amb.coarse_bp if amb.coarse_bp is not None else (amb.breakpoint_nt // 3 if is_codon else amb.breakpoint_nt)
+                if target_bp_t1 is None or target_bp_t1 <= 0 or target_bp_t1 >= U1:
+                    continue
+
+                if float(amb.kinetic_z) < eff_z_thresh:
+                    continue
+
+                near_val = any(
+                    abs(v["raw_breakpoint"] - target_bp_t1) <= 25
+                    for v in validated
+                )
+                if near_val:
+                    continue
+
+                ci_l = (amb.ci_left if amb.ci_left is not None else max(0, target_bp_t1 - 20)) * scale_coord
+                ci_r = (amb.ci_right if amb.ci_right is not None else min(U1, target_bp_t1 + 20)) * scale_coord
+
+                t2_res = dispatch_tier2_transformer(
+                    fasta_path=fasta_path,
+                    candidate_nt=target_bp_t1 * scale_coord,
+                    uncertainty_window_nt=(ci_l, ci_r),
+                    recombinant_taxon=amb.recombinant_taxon,
+                    config=cfg
+                )
+
+                if t2_res is not None and (t2_res.fiedler_divergence >= cfg.min_fiedler_div or t2_res.taxon_drift >= cfg.min_taxon_drift):
+                    refined_bp = t2_res.refined_breakpoint_codon if is_codon else t2_res.refined_breakpoint_nt
+                    rec_name = amb.recombinant_taxon
+                    rec_idx = amb.taxon_idx
+                    if rec_name not in taxa:
+                        rec_name = t2_res.top_recombinant_taxon
+                        rec_idx = taxa.index(rec_name) if rec_name in taxa else amb.taxon_idx
+
+                    flank = min(max(self.window_units, 50), max(20, min(refined_bp, U1 - refined_bp)))
+                    D1 = tier1.query_distance_matrix(max(0, refined_bp - flank), refined_bp)
+                    D2 = tier1.query_distance_matrix(refined_bp, min(U1, refined_bp + flank))
+                    cand_parents = [i for i in range(N) if i != rec_idx]
+                    p1_idx = min(cand_parents, key=lambda i: D1[rec_idx, i]) if cand_parents else 0
+                    p2_candidates = [i for i in cand_parents if i != p1_idx]
+                    p2_idx = min(p2_candidates, key=lambda i: D2[rec_idx, i]) if p2_candidates else p1_idx
+
+                    ev = {
+                        "breakpoint": refined_bp,
+                        "raw_breakpoint": target_bp_t1,
+                        "breakpoint_nt": refined_bp * scale_coord,
+                        "recombinant_idx": rec_idx,
+                        "recombinant": rec_name,
+                        "parent_left_idx": p1_idx,
+                        "parent_left": taxa[p1_idx],
+                        "parent_right_idx": p2_idx,
+                        "parent_right": taxa[p2_idx],
+                        "l_pir": float(amb.l_pir),
+                        "refined_pir": float(t2_res.fiedler_divergence),
+                        "ghost_z": float(amb.kinetic_z),
+                        "kinetic_z": float(amb.kinetic_z),
+                        "tier": "two-tier",
+                        "tier2_resolved": True,
+                        "mechanism": "Ghost" if t2_res.is_ghost_parent else "Two-Tier Manifold",
+                        "ci_left": max(0, refined_bp - 10),
+                        "ci_right": min(U1, refined_bp + 10),
+                        "ci_left_nt": max(0, refined_bp - 10) * scale_coord,
+                        "ci_right_nt": min(U1, refined_bp + 10) * scale_coord,
+                        "plateau_width": 20,
+                        "plateau_width_nt": 20 * scale_coord,
+                        "log_likelihood_gain": float(t2_res.fiedler_divergence * 10.0),
+                        "flanking_p1_site": None,
+                        "flanking_p2_site": None,
+                        "flanking_p1_site_nt": None,
+                        "flanking_p2_site_nt": None,
+                    }
+
+                    duplicate = False
+                    for v in validated:
+                        if v["recombinant_idx"] == ev["recombinant_idx"] and abs(v["breakpoint"] - ev["breakpoint"]) <= 20:
+                            duplicate = True
+                            break
+                    if not duplicate:
+                        validated.append(ev)
+
+            # Directional Deaminase Hypermutation Check
+            seq_mat = getattr(engine, "full_seq_matrix", getattr(engine, "seq_matrix", None))
+            if seq_mat is None and hasattr(engine, "tier1"):
+                seq_mat = getattr(engine.tier1, "full_seq_matrix", getattr(engine.tier1, "seq_matrix", None))
+            if seq_mat is not None:
+                from rhizaeon.fda import evaluate_deaminase_hypermutation
+                scale_coord = 3 if getattr(engine, "codon_aligned", False) else 1
+                for ev in validated:
+                    bp_nt = ev["breakpoint"] * scale_coord
+                    flank_nt = min(200 * scale_coord, max(50 * scale_coord, bp_nt, (U1 - ev["breakpoint"]) * scale_coord))
+                    hyp_res = evaluate_deaminase_hypermutation(
+                        seq_mat=seq_mat,
+                        t_idx=ev["recombinant_idx"],
+                        bp=bp_nt,
+                        flank=flank_nt,
+                        min_mismatches=4
+                    )
+                    if hyp_res.get("is_hypermutation", False):
+                        ev["is_hypermutation"] = True
+                        sig_fiedler = (ev.get("refined_pir", 0.0) >= cfg.min_fiedler_div) or (ev.get("fiedler_divergence", 0.0) >= cfg.min_fiedler_div)
+                        sig_jump = (ev.get("ghost_z", 0.0) >= eff_z_thresh) or (ev.get("kinetic_z", 0.0) >= eff_z_thresh)
+                        if sig_fiedler or sig_jump or ev.get("tier2_resolved", False):
+                            ev["mechanism"] = "Mosaic Recombination with Hypermutation"
+                        else:
+                            ev["mechanism"] = "Deaminase Hypermutation"
 
             validated.sort(key=lambda x: x["breakpoint"])
             return validated
@@ -380,7 +512,7 @@ class RhizAeonDetector:
         # Refine each breakpoint to single-codon precision
         validated = []
         for ev in raw_events:
-            flank = min(80, max(35, ev["raw_breakpoint"], U - ev["raw_breakpoint"]))
+            flank = min(80, max(20, min(ev["raw_breakpoint"], U - ev["raw_breakpoint"])))
             refined_bp, refined_pir = refine_breakpoint_codon(
                 engine,
                 bp=ev["raw_breakpoint"],
@@ -397,16 +529,39 @@ class RhizAeonDetector:
             ev["breakpoint"] = refined_bp
             ev["refined_pir"] = refined_pir
 
-            # Deduplication: if another event was found within 20 codons, keep the higher L-PIR
+            # Deduplication: if another event was found within 20 codons for the SAME recombinant, keep higher L-PIR
             duplicate = False
             for v in validated:
-                if abs(v["breakpoint"] - ev["breakpoint"]) <= 20:
+                if v["recombinant_idx"] == ev["recombinant_idx"] and abs(v["breakpoint"] - ev["breakpoint"]) <= 20:
                     duplicate = True
                     if ev["refined_pir"] > v["refined_pir"]:
                         v.update(ev)
                     break
             if not duplicate:
                 validated.append(ev)
+
+        # Directional Deaminase Hypermutation Check
+        seq_mat = getattr(engine, "full_seq_matrix", getattr(engine, "seq_matrix", None))
+        if seq_mat is not None:
+            from rhizaeon.fda import evaluate_deaminase_hypermutation
+            scale_coord = 3 if getattr(engine, "codon_aligned", False) else 1
+            for ev in validated:
+                bp_nt = ev["breakpoint"] * scale_coord
+                flank_nt = min(200 * scale_coord, max(50 * scale_coord, bp_nt, (U - ev["breakpoint"]) * scale_coord))
+                hyp_res = evaluate_deaminase_hypermutation(
+                    seq_mat=seq_mat,
+                    t_idx=ev["recombinant_idx"],
+                    bp=bp_nt,
+                    flank=flank_nt,
+                    min_mismatches=4
+                )
+                if hyp_res.get("is_hypermutation", False):
+                    ev["is_hypermutation"] = True
+                    sig_topo = (ev.get("refined_pir", 0.0) >= 0.40) or (ev.get("kinetic_z", 0.0) >= 2.75)
+                    if sig_topo:
+                        ev["mechanism"] = "Mosaic Recombination with Hypermutation"
+                    else:
+                        ev["mechanism"] = "Deaminase Hypermutation"
 
         # Final sort
         validated.sort(key=lambda x: x["breakpoint"])

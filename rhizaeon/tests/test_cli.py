@@ -75,6 +75,36 @@ def test_cli_rpfda_toy():
         assert data["length"] == 120
 
 
+def test_cli_rpfda_codon_awareness():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        fasta_path = os.path.join(tmpdir, "toy_codon.fasta")
+        json_path = os.path.join(tmpdir, "rpfda_codon.json")
+        # 40 codons = 120 nt
+        with open(fasta_path, "w") as f:
+            f.write(">Taxon_Rec\n" + ("AAA" * 20 + "GGG" * 20) + "\n")
+            f.write(">Taxon_P1\n" + ("AAA" * 40) + "\n")
+            f.write(">Taxon_P2\n" + ("GGG" * 40) + "\n")
+            f.write(">Taxon_Out\n" + ("CCC" * 40) + "\n")
+
+        with patch.object(sys, "argv", [
+            "rhizaeon", "rp-fda", fasta_path,
+            "--codon",
+            "--min-len", "10",
+            "--min-z", "1.0",
+            "--json", json_path
+        ]):
+            main()
+
+        assert os.path.exists(json_path)
+        with open(json_path) as f:
+            data = json.load(f)
+        assert data["num_taxa"] == 4
+        assert data["length"] == 120
+        assert data["units"] == 40
+        assert data["unit_type"] == "codons"
+        assert data["scale_coord"] == 3
+
+
 def test_cli_visualize():
     with tempfile.TemporaryDirectory() as tmpdir:
         fasta_path = os.path.join(tmpdir, "toy.fasta")
@@ -193,7 +223,7 @@ def test_cli_html_flags_rpfda():
         with open(custom_html, "r", encoding="utf-8") as f:
             content = f.read()
         assert "RhizAeon Recombination Explorer" in content
-        assert "Alluvial Corridors" in content
+        assert "Contiguous Ancestral Mosaic Architecture" in content or "Alluvial Corridors" in content
 
         # 2. --no-html suppresses HTML
         no_html_target = os.path.join(tmpdir, "suppressed.html")

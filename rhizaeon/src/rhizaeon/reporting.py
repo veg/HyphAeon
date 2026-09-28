@@ -178,12 +178,14 @@ def classify_breakpoint(
     tier: str = "tier1",
     has_tier2_result: bool = False,
     tier2_resolved: bool = False,
-    is_micro: bool = False
+    is_micro: bool = False,
+    is_hypermutation: bool = False
 ) -> Tuple[str, str, str]:
     """
     Classifies a breakpoint into (bp_type, support_str, stars).
     
     Types:
+      - Hypermutation: Directional deaminase hypermutation
       - T2-Attn: Tier 2 contextual transformer handoff
       - Micro: Micro-tract gene conversion (<150 nt / <50 codons)
       - Ghost: Unsampled donor introgression (high Z, low PIR)
@@ -195,7 +197,9 @@ def classify_breakpoint(
       - LOW  (★☆☆): near threshold or wide uninformative plateau
     """
     # Type classification
-    if tier2_resolved or (has_tier2_result and tier in ("two-tier", "tier2", "two-tier-attention")) or tier in ("two-tier", "tier2", "two-tier-attention"):
+    if is_hypermutation:
+        bp_type = "Hypermutation"
+    elif tier2_resolved or (has_tier2_result and tier in ("two-tier", "tier2", "two-tier-attention")) or tier in ("two-tier", "tier2", "two-tier-attention"):
         bp_type = "T2-Attn"
     elif is_micro:
         bp_type = "Micro"
@@ -251,8 +255,19 @@ def construct_mosaic_architecture(
         coord_val = b.coord
         if i > 0:
             seg_len = max(0, coord_val - prev_coord)
-            p_curr = b.parent_left_short
-            parent_lengths[p_curr] = parent_lengths.get(p_curr, 0) + seg_len
+            p_prev_right = sorted_bps[i - 1].parent_right_short
+            p_curr_left = b.parent_left_short
+            if p_prev_right == p_curr_left:
+                parent_lengths[p_curr_left] = parent_lengths.get(p_curr_left, 0) + seg_len
+            else:
+                # Discordant intermediate segment: divide length attribution evenly between candidate donors
+                half_prev = seg_len // 2
+                half_curr = seg_len - half_prev
+                parent_lengths[p_prev_right] = parent_lengths.get(p_prev_right, 0) + half_prev
+                parent_lengths[p_curr_left] = parent_lengths.get(p_curr_left, 0) + half_curr
+                if segments and segments[-1].endswith(f"[{p_prev_right}]"):
+                    prefix_part = segments[-1][:-len(f"[{p_prev_right}]")]
+                    segments[-1] = f"{prefix_part}[{p_prev_right}/{p_curr_left}]"
 
         p_next = b.parent_right_short
         coord_str = f"{coord_val:,}"
@@ -342,8 +357,10 @@ def synthesize_inference_report(
         # Micro-tract check (tract length < 200 nt / < 50 codons)
         if hasattr(ev, "breakpoint_nt"):
             is_micro = bool(getattr(ev, "is_micro", False) or (getattr(ev, "scale_regime", "") == "micro"))
+            is_hyp = bool(getattr(ev, "is_hypermutation", False))
         else:
             is_micro = bool(ev.get("is_micro", False) or (ev.get("scale_regime") == "micro"))
+            is_hyp = bool(ev.get("is_hypermutation", False))
 
         bp_type, support, stars = classify_breakpoint(
             z_score=z_val,
@@ -352,7 +369,8 @@ def synthesize_inference_report(
             tier="two-tier" if t2_res else "tier1",
             has_tier2_result=t2_res,
             tier2_resolved=t2_res,
-            is_micro=is_micro
+            is_micro=is_micro,
+            is_hypermutation=is_hyp
         )
 
         rec = BreakpointRecord(
@@ -486,7 +504,8 @@ def synthesize_inference_report(
         "T1-Cross": sum(1 for r in catalog if r.bp_type == "T1-Cross"),
         "T2-Attn": sum(1 for r in catalog if r.bp_type == "T2-Attn"),
         "Micro": sum(1 for r in catalog if r.bp_type == "Micro"),
-        "Ghost": sum(1 for r in catalog if r.bp_type == "Ghost")
+        "Ghost": sum(1 for r in catalog if r.bp_type == "Ghost"),
+        "Hypermutation": sum(1 for r in catalog if r.bp_type == "Hypermutation")
     }
 
     return InferenceReport(
@@ -573,12 +592,15 @@ def format_humanized_report(
     )
     lines.append(f"│  • {conf_str[:max_info_w]:<{max_info_w}}│")
 
-    type_str = (
-        f"Mechanisms:  {report.type_counts['T1-Cross']} T1-Cross, "
-        f"{report.type_counts['T2-Attn']} T2-Attn, "
-        f"{report.type_counts['Micro']} Micro, "
-        f"{report.type_counts['Ghost']} Ghost"
-    )
+    type_parts = [
+        f"{report.type_counts.get('T1-Cross', 0)} T1-Cross",
+        f"{report.type_counts.get('T2-Attn', 0)} T2-Attn",
+        f"{report.type_counts.get('Micro', 0)} Micro",
+        f"{report.type_counts.get('Ghost', 0)} Ghost"
+    ]
+    if report.type_counts.get("Hypermutation", 0) > 0:
+        type_parts.append(f"{report.type_counts['Hypermutation']} Hypermutation")
+    type_str = "Mechanisms:  " + ", ".join(type_parts)
     lines.append(f"│  • {type_str[:max_info_w]:<{max_info_w}}│")
     lines.append("└" + "─" * (width - 2) + "┘")
     lines.append("")
@@ -641,12 +663,12 @@ def format_humanized_report(
     cols = [
         ("#", 3, lambda r: str(r.idx)),
         ("Position", 12, lambda r: f"{r.coord:,} {r.unit_type}"),
-        ("Plateau (Δ)", 19, lambda r: f"[{r.ci_left}, {r.ci_right}] (Δ={r.plateau_width})" if r.ci_left is not None and r.ci_right is not None else "-"),
-        ("Recombinant", 19, lambda r: ("● " if r.is_primary_mosaic else "○ ") + r.recombinant_short),
+        ("Plateau (Δ)", 17, lambda r: f"[{r.ci_left}, {r.ci_right}] (Δ={r.plateau_width})" if r.ci_left is not None and r.ci_right is not None else "-"),
+        ("Recombinant", 18, lambda r: ("● " if r.is_primary_mosaic else "○ ") + r.recombinant_short),
         ("Transition", 15, lambda r: f"{r.parent_left_short} ➔ {r.parent_right_short}"),
         ("Z-Score", 7, lambda r: f"Z={r.z_score:.2f}"),
         ("L-PIR", 6, lambda r: f"{r.pir:.3f}"),
-        ("Type", 8, lambda r: r.bp_type),
+        ("Type", 14, lambda r: r.bp_type),
         ("Support", 8, lambda r: f"{r.support} {r.stars}"),
     ]
     gutter = "  "

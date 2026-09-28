@@ -111,7 +111,13 @@ class PrefixDistanceEngine:
     Supports either single-nucleotide or codon-aggregated units.
     """
 
-    def __init__(self, seq_matrix: np.ndarray, codon_aligned: bool = True, compute_transitions: bool = False):
+    def __init__(
+        self,
+        seq_matrix: np.ndarray,
+        codon_aligned: bool = True,
+        compute_transitions: bool = False,
+        missing_strategy: str = "coverage_shrinkage"
+    ):
         """
         seq_matrix: shape [N, L] containing encoded nucleotides (0..4).
         codon_aligned: if True, units are codons (L // 3); otherwise nucleotides.
@@ -121,6 +127,7 @@ class PrefixDistanceEngine:
         self.N, self.L = seq_matrix.shape
         self.codon_aligned = codon_aligned
         self.compute_transitions = compute_transitions
+        self.missing_strategy = missing_strategy
 
         if codon_aligned:
             self.num_units = self.L // 3
@@ -140,8 +147,8 @@ class PrefixDistanceEngine:
         # Reshape to [N, U, unit_size]
         sub = self.seq_matrix[:, :total_len].reshape(N, U, self.unit_size)
 
-        # Use uint16 if sequence length fits within 65,535 units; uint32 otherwise
-        dtype = np.uint16 if U <= 65535 else np.uint32
+        # Use uint16 if maximum cumulative site count fits within 65,535; uint32 otherwise
+        dtype = np.uint16 if total_len <= 65535 else np.uint32
 
         self.prefix_valid = np.zeros((N, N, U + 1), dtype=dtype)
         self.prefix_diff = np.zeros((N, N, U + 1), dtype=dtype)
@@ -209,8 +216,8 @@ class PrefixDistanceEngine:
         end_unit: int,
         model: str = "raw",
         min_overlap: int = 1,
-        missing_strategy: str = "raw",
-        shrinkage_kappa: float = 20.0,
+        missing_strategy: Optional[str] = None,
+        shrinkage_kappa: float = 15.0,
         prior_distance: Optional[np.ndarray] = None
     ) -> np.ndarray:
         """
@@ -223,10 +230,11 @@ class PrefixDistanceEngine:
 
         Missing data / gappy sequence strategies:
           - "raw": standard p = diffs / max(valid, 1) (default)
+          - "shrinkage" / "coverage_shrinkage": Coverage-aware Empirical Bayes shrinkage toward prior_distance:
+              phi = valid / window_sites
+              d_shrunk = phi * d + (1 - phi) * d_prior
+              guaranteeing unsequenced/gapped pairs smoothly revert to prior without penalizing 100% valid sites.
           - "nan": assigns np.nan to pairs with valid < min_overlap
-          - "shrinkage": Empirical Bayes shrinkage toward prior_distance:
-              d_shrunk = (valid / (valid + kappa)) * d + (kappa / (valid + kappa)) * d_prior
-              guaranteeing unsequenced pairs smoothly revert to prior instead of collapsing to 0.0.
         """
         start_unit = max(0, start_unit)
         end_unit = min(self.num_units, end_unit)
@@ -257,23 +265,21 @@ class PrefixDistanceEngine:
         else:
             dist = p.copy()
 
-        if missing_strategy == "nan":
+        strat = missing_strategy if missing_strategy is not None else getattr(self, "missing_strategy", "coverage_shrinkage")
+        if strat == "nan":
             invalid_mask = valid < min_overlap
             dist[invalid_mask] = np.nan
-        elif missing_strategy == "shrinkage":
-            if prior_distance is None:
-                diag_mask = ~np.eye(self.N, dtype=bool)
-                valid_pairs = (valid >= min_overlap) & diag_mask
-                if np.any(valid_pairs):
-                    prior_val = float(np.median(dist[valid_pairs]))
-                else:
-                    prior_val = 0.10
-                prior_matrix = np.full((self.N, self.N), prior_val, dtype=np.float64)
-            else:
-                prior_matrix = prior_distance
+        elif strat in ("shrinkage", "coverage_shrinkage"):
+            prior_matrix = prior_distance if prior_distance is not None else getattr(self, "global_distance", None)
+            if prior_matrix is None:
+                self.global_distance = self.query_distance_matrix(0, self.num_units, model=model, missing_strategy="raw")
+                prior_matrix = self.global_distance
 
-            weight = valid.astype(np.float64) / (valid.astype(np.float64) + shrinkage_kappa)
-            dist = weight * dist + (1.0 - weight) * prior_matrix
+            min_cov = float(max(3, min_overlap))
+            mask = valid < min_cov
+            if np.any(mask):
+                weight = np.clip(valid.astype(np.float64) / min_cov, 0.0, 1.0)
+                dist[mask] = weight[mask] * dist[mask] + (1.0 - weight[mask]) * prior_matrix[mask]
 
         np.fill_diagonal(dist, 0.0)
         return dist
@@ -305,6 +311,11 @@ class SNPCompressedPrefixEngine(PrefixDistanceEngine):
         codon_aligned: bool = False,
         compute_transitions: bool = False
     ):
+        if codon_aligned:
+            raise ValueError(
+                "SNPCompressedPrefixEngine operates strictly on nucleotide segregating sites; "
+                "codon_aligned must be False."
+            )
         N, L = seq_matrix.shape
         # Fast vectorized segregating site identification
         valid_mask = (seq_matrix < 4)

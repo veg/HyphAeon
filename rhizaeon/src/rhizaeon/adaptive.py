@@ -108,7 +108,8 @@ def run_adaptive_hybrid_screen(
             Z1 = compute_classical_mds(D1, k=min(4, N - 1))
             Z2 = compute_classical_mds(D2, k=min(4, N - 1))
             _, res = align_procrustes(Z1, Z2)
-            z_sc = compute_ghost_node_zscores(res)
+            mean_div = float(0.5 * (np.mean(D1) + np.mean(D2)))
+            z_sc = compute_ghost_node_zscores(res, mean_divergence=mean_div, window_len=half_a)
             top_i = int(np.argmax(z_sc))
             top_z = float(z_sc[top_i])
             if top_z >= 1.8:
@@ -182,7 +183,8 @@ def run_adaptive_hybrid_screen(
                 z1 = compute_classical_mds(d1, k=min(4, N - 1))
                 z2 = compute_classical_mds(d2, k=min(4, N - 1))
                 _, res = align_procrustes(z1, z2)
-                z_sc = compute_ghost_node_zscores(res)
+                mean_div = float(0.5 * (np.mean(d1) + np.mean(d2)))
+                z_sc = compute_ghost_node_zscores(res, mean_divergence=mean_div, window_len=half_a)
                 top_t = int(np.argmax(z_sc))
                 max_z = float(z_sc[top_t])
                 if max_z > best_z_local:
@@ -335,13 +337,35 @@ def evaluate_tier2_trigger(
     plateau_width: int,
     num_snps: int,
     pir_val: float,
-    config: Optional[DualArchitectureConfig] = None
+    config: Optional[DualArchitectureConfig] = None,
+    fiedler_divergence: Optional[float] = None,
+    topological_jump: Optional[float] = None,
+    is_hypermutation: bool = False,
+    autapomorphic_snps: int = 0
 ) -> Tuple[bool, str]:
     """
     Evaluates whether a candidate breakpoint from Tier 1 warrants Tier 2 Transformer dispatch.
+
+    Principled protection against false rejections:
+    Hypermutation or autapomorphic mutations in the mosaic tract often degrade scalar
+    PIR or distort local site counts. If the underlying Fiedler divergence or topological
+    manifold jump is statistically significant (>= min_fiedler_div or >= min_taxon_drift),
+    the candidate is preserved and dispatched for Tier 2 manifold verification rather than
+    being discarded as non-recombinant noise.
     """
     cfg = config or DualArchitectureConfig()
     reasons = []
+
+    # Statistically significant topological signal overrides hypermutation / autapomorphic masking
+    has_sig_fiedler = fiedler_divergence is not None and fiedler_divergence >= cfg.min_fiedler_div
+    has_sig_jump = topological_jump is not None and topological_jump >= cfg.min_taxon_drift
+
+    if (is_hypermutation or autapomorphic_snps > 0) and (has_sig_fiedler or has_sig_jump):
+        fied_val = fiedler_divergence if fiedler_divergence is not None else 0.0
+        reasons.append(f"significant_topology_overrides_hypermutation(fiedler={fied_val:.3f})")
+    elif is_hypermutation or autapomorphic_snps >= cfg.min_flank_snps:
+        reasons.append(f"hypermutation_mosaic_tract_{autapomorphic_snps}snps")
+
     if plateau_width > cfg.max_plateau_nt:
         reasons.append(f"wide_plateau_{plateau_width}nt")
     if num_snps < cfg.min_flank_snps:
@@ -360,6 +384,105 @@ _TRANSFORMER_CACHE: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
 def clear_transformer_cache():
     """Clears the cached Tier 2 transformer forward pass and tree cache."""
     _TRANSFORMER_CACHE.clear()
+
+
+def resolve_static_manifold(
+    fasta_path: str,
+    candidate_nt: int,
+    uncertainty_window_nt: Tuple[int, int],
+    recombinant_taxon: Optional[str] = None,
+    config: Optional[DualArchitectureConfig] = None
+) -> Tier2TransformerResult:
+    """
+    Tier 2 Static Manifold Fallback using normalized Graph Laplacians and Fiedler vectors.
+    Invoked when in-frame stop codons > 10 (multi-frame/reverse-strand/non-coding circular viral genomes)
+    or when neural transformer weights are unavailable.
+    """
+    import os
+    if not fasta_path or not os.path.exists(fasta_path):
+        return None
+
+    from rhizaeon.embed import build_prefix_engine
+    import scipy.linalg as la
+
+    cfg = config or DualArchitectureConfig()
+    engine = build_prefix_engine(fasta_path, engine="scalar", codon=True)
+    taxa = engine.taxa
+    N = len(taxa)
+    L = engine.num_units
+    w = getattr(cfg, "window_codons", 20)
+
+    # Estimate characteristic distance scale sigma
+    D_glob = engine.query_distance_matrix(0, L, missing_strategy="coverage_shrinkage")
+    diag_mask = ~np.eye(N, dtype=bool)
+    valid_d = D_glob[diag_mask]
+    sigma = float(np.median(valid_d)) if len(valid_d) > 0 else 0.10
+    sigma = max(1e-4, sigma)
+
+    c_start = max(w, uncertainty_window_nt[0] // 3)
+    c_end = min(L - w, uncertainty_window_nt[1] // 3)
+    if c_start >= c_end:
+        c_start = max(w, (candidate_nt // 3) - 20)
+        c_end = min(L - w, (candidate_nt // 3) + 20)
+
+    best_codon = candidate_nt // 3
+    max_fiedler = 0.0
+    best_taxa_drifts = np.zeros(N)
+
+    for l in range(c_start, c_end):
+        Dl = engine.query_distance_matrix(l - w, l, missing_strategy="coverage_shrinkage")
+        Dr = engine.query_distance_matrix(l, l + w, missing_strategy="coverage_shrinkage")
+        Sl = np.exp(-Dl / sigma)
+        Sr = np.exp(-Dr / sigma)
+        np.fill_diagonal(Sl, 0.0)
+        np.fill_diagonal(Sr, 0.0)
+
+        deg_l = np.sum(Sl, axis=1)
+        deg_r = np.sum(Sr, axis=1)
+        deg_l_inv_sqrt = np.where(deg_l > 1e-8, 1.0 / np.sqrt(deg_l), 0.0)
+        deg_r_inv_sqrt = np.where(deg_r > 1e-8, 1.0 / np.sqrt(deg_r), 0.0)
+
+        L_left = np.eye(N) - np.outer(deg_l_inv_sqrt, deg_l_inv_sqrt) * Sl
+        L_right = np.eye(N) - np.outer(deg_r_inv_sqrt, deg_r_inv_sqrt) * Sr
+
+        w_l, v_l = la.eigh(L_left)
+        w_r, v_r = la.eigh(L_right)
+
+        v2_l, v2_r = v_l[:, 1], v_r[:, 1]
+        if np.dot(v2_l, v2_r) < 0:
+            v2_r = -v2_r
+
+        cos_sim = np.dot(v2_l, v2_r) / (np.linalg.norm(v2_l) * np.linalg.norm(v2_r) + 1e-12)
+        d_fiedler = 1.0 - max(-1.0, min(1.0, cos_sim))
+
+        if d_fiedler > max_fiedler:
+            max_fiedler = float(d_fiedler)
+            best_codon = l
+            for i in range(N):
+                best_taxa_drifts[i] = float(np.linalg.norm(Sl[i, :] - Sr[i, :]))
+
+    # Top drifting taxon or recombinant taxon
+    if recombinant_taxon and recombinant_taxon in taxa:
+        rec_idx = taxa.index(recombinant_taxon)
+        rec_drift = float(best_taxa_drifts[rec_idx])
+    else:
+        rec_idx = int(np.argmax(best_taxa_drifts))
+        rec_drift = float(best_taxa_drifts[rec_idx])
+
+    top_idx = int(np.argmax(best_taxa_drifts))
+    top_tax = taxa[top_idx]
+
+    return Tier2TransformerResult(
+        refined_breakpoint_codon=int(best_codon),
+        refined_breakpoint_nt=int(best_codon * 3),
+        fiedler_divergence=float(max_fiedler),
+        top_recombinant_taxon=str(taxa[rec_idx] if recombinant_taxon and recombinant_taxon in taxa else top_tax),
+        taxon_drift=float(rec_drift),
+        is_ghost_parent=True,
+        ghost_root_enrichment=1.5,
+        all_taxa_drifts={taxa[i]: float(best_taxa_drifts[i]) for i in range(N)},
+        dispatch_reason=f"static_manifold_fiedler_{max_fiedler:.3f}"
+    )
 
 
 def dispatch_tier2_transformer(
@@ -384,6 +507,9 @@ def dispatch_tier2_transformer(
     import os
     from pathlib import Path
     import scipy.linalg as la
+
+    if not fasta_path or not os.path.exists(fasta_path):
+        return None
 
     cfg = config or DualArchitectureConfig()
 
@@ -428,7 +554,13 @@ def dispatch_tier2_transformer(
                 break
 
     if not weights_path:
-        return None
+        return resolve_static_manifold(
+            fasta_path=fasta_path,
+            candidate_nt=candidate_nt,
+            uncertainty_window_nt=uncertainty_window_nt,
+            recombinant_taxon=recombinant_taxon,
+            config=cfg
+        )
 
     # Resolve device
     if cfg.device == "auto":
@@ -457,7 +589,25 @@ def dispatch_tier2_transformer(
                 fasta_path, use_tn93=True, prune_duplicates=False
             )
         except Exception:
-            return None
+            return resolve_static_manifold(
+                fasta_path=fasta_path,
+                candidate_nt=candidate_nt,
+                uncertainty_window_nt=uncertainty_window_nt,
+                recombinant_taxon=recombinant_taxon,
+                config=cfg
+            )
+
+        # Automatic Static Manifold Fallback when in-frame stop codons > 10
+        # (signifying multi-frame/reverse-strand/non-coding circular viral genomes)
+        stop_codon_count = int(torch.sum(c_tensor == 64).item())
+        if stop_codon_count > 10:
+            return resolve_static_manifold(
+                fasta_path=fasta_path,
+                candidate_nt=candidate_nt,
+                uncertainty_window_nt=uncertainty_window_nt,
+                recombinant_taxon=recombinant_taxon,
+                config=cfg
+            )
 
         model = load_model(weights=weights_path, device=dev)
         msa_codons = c_tensor.to(dev)
@@ -509,6 +659,14 @@ def dispatch_tier2_transformer(
                 k = torch.cat([k1 * cos - k2 * sin, k1 * sin + k2 * cos], dim=-1)
 
                 scores = torch.matmul(q, k.transpose(-2, -1)) / (layer.head_dim ** 0.5) + static_biases[i]
+
+                # Key padding mask: mask out gap/padding tokens (>= 64) from attention keys
+                flat_codons = msa_codons.permute(0, 2, 1).reshape(batch_size * window_size, num_species)
+                node_gap_mask = (flat_codons >= 64)
+                root_gap = torch.zeros((batch_size * window_size, 1), dtype=torch.bool, device=dev)
+                full_gap_mask = torch.cat([root_gap, node_gap_mask], dim=1)
+                scores = scores.masked_fill(full_gap_mask.unsqueeze(1).unsqueeze(2), -1e9)
+
                 attn_weights = torch.softmax(scores, dim=-1)
 
                 accum_site_attn += attn_weights[:, :, 1:, 1:].mean(dim=1)

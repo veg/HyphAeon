@@ -77,6 +77,21 @@ class TestAdaptiveHybridEngine(unittest.TestCase):
         self.assertFalse(should)
         self.assertEqual(reason, "tier1_confident")
 
+        # 5. Hypermutation with significant Fiedler divergence -> Trigger (prevents false rejection)
+        should, reason = evaluate_tier2_trigger(20, 10, 0.50, cfg, fiedler_divergence=0.45, is_hypermutation=True)
+        self.assertTrue(should)
+        self.assertIn("significant_topology_overrides_hypermutation", reason)
+
+        # 6. Hypermutation with significant topological jump -> Trigger
+        should, reason = evaluate_tier2_trigger(20, 10, 0.50, cfg, topological_jump=0.08, is_hypermutation=True)
+        self.assertTrue(should)
+        self.assertIn("significant_topology_overrides_hypermutation", reason)
+
+        # 7. Autapomorphic mutations with significant Fiedler divergence -> Trigger
+        should, reason = evaluate_tier2_trigger(20, 10, 0.50, cfg, fiedler_divergence=0.52, autapomorphic_snps=6)
+        self.assertTrue(should)
+        self.assertIn("significant_topology_overrides_hypermutation", reason)
+
     def test_dispatch_tier2_fallback_on_invalid_path(self):
         cfg = DualArchitectureConfig(weights_path="/non/existent/checkpoint.pt")
         res = dispatch_tier2_transformer(
