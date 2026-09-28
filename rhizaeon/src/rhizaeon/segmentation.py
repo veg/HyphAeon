@@ -51,8 +51,8 @@ class RhizAeonDetector:
         pir_threshold: Optional[float] = None,
         calibration: str = "calibrated",
         k_dims: int = 4,
-        bound_factor: float = 1.25,
-        min_parent_dist: float = 0.025,
+        bound_factor: float = 2.0,
+        min_parent_dist: float = 1e-4,
         step: int = 5,
         concordance_tolerance: Optional[int] = 60,
         embedding_method: str = "mds"
@@ -130,7 +130,7 @@ class RhizAeonDetector:
 
         for bp in cutpoints:
             flank = min(max(self.window_units, 75), bp - start_u, end_u - bp)
-            if flank < min(eff_tract, 25):
+            if flank < min(eff_tract, 15):
                 continue
 
             D1 = engine.query_distance_matrix(bp - flank, bp)
@@ -455,7 +455,9 @@ class RhizAeonDetector:
                         "ci_right_nt": min(U1, refined_bp + 10) * scale_coord,
                         "plateau_width": 20,
                         "plateau_width_nt": 20 * scale_coord,
-                        "log_likelihood_gain": float(t2_res.fiedler_divergence * 10.0),
+                        "log_likelihood_gain": float(amb.kinetic_z * t2_res.fiedler_divergence),
+                        "fiedler_divergence": float(t2_res.fiedler_divergence),
+                        "taxon_drift": float(t2_res.taxon_drift),
                         "flanking_p1_site": None,
                         "flanking_p2_site": None,
                         "flanking_p1_site_nt": None,

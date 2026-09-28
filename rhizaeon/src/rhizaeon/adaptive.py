@@ -46,7 +46,7 @@ class AdaptiveBreakpoint:
 def run_adaptive_hybrid_screen(
     engine: PrefixDistanceEngine,
     taxa_names: List[str],
-    k_global: int = 6,
+    k_global: int = 4,
     fda_bin_size: int = 300,
     fda_step: int = 30,
     min_kinetic_z: float = 2.5,

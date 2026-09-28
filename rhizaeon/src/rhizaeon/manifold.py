@@ -215,25 +215,34 @@ def compute_ghost_node_zscores(
     window_len: int = 1
 ) -> np.ndarray:
     """
-    Calculates robust Studentized / IQR Z-scores from Procrustes residuals:
+    Calculates robust Studentized / MAD Z-scores from Procrustes residuals:
       Z_i = (r_i - median(r)) / scale
-    where scale incorporates the Poisson sampling variance lower bound:
+    where scale incorporates the consistent normal dispersion and Poisson sampling variance lower bound:
+      sigma_mad = 1.4826 * MAD(r)
+      sigma_iqr = IQR(r) / 1.34898
       poisson_var = max(mean_divergence, 1e-5) / max(1, window_len)
-      scale = sqrt(iqr^2 + poisson_var)
-    
+      scale = max(sigma_mad, sigma_iqr, sqrt(poisson_var), 1e-6)
+
     Non-recombinant taxa conform tightly to the global rigid rotation (Z ~ 0).
-    Recombinant lineages detach as high-leverage 'Ghost Nodes' (Z >> 3.0).
+    Recombinant lineages detach as high-leverage 'Ghost Nodes' (Z >> 2.5).
     Ignores NaNs for partial/unsequenced genomes.
     """
     valid_res = residuals[~np.isnan(residuals)]
     if len(valid_res) == 0:
         return np.full_like(residuals, np.nan)
     N = len(valid_res)
-    med = np.median(valid_res)
+    med = float(np.median(valid_res))
+    mad = float(np.median(np.abs(valid_res - med)))
+    sigma_mad = 1.4826 * mad
     iqr = float(np.percentile(valid_res, 75) - np.percentile(valid_res, 25))
-    eff_n = N if mean_divergence > 0 else 1
-    poisson_var = float(max(mean_divergence, 1e-5) / max(1, eff_n * window_len))
-    scale = float(np.sqrt(iqr**2 + poisson_var))
+    sigma_iqr = iqr / 1.34898
+    emp_scale = float(max(sigma_mad, sigma_iqr))
+
+    # Poisson sampling variance floor for individual taxon residual
+    poisson_var = float(max(mean_divergence, 1e-5) / max(1, window_len))
+    sigma_poisson = float(np.sqrt(poisson_var))
+
+    scale = float(max(emp_scale, sigma_poisson, 1e-6))
     return (residuals - med) / scale
 
 
@@ -258,15 +267,13 @@ def compute_grubbs_effective_z(N: int, nominal_z: float = 2.75, alpha: float = 0
     if N < 3:
         return float(nominal_z)
     max_z = (N - 1) / np.sqrt(N)
-    if N <= 5:
-        # For small cohorts (N=3, 4, 5), standard asymptotic/Grubbs alpha=0.005 evaluates to >99.7% of max_z,
-        # mathematically extinguishing outlier detection for real recombinants in quartets.
-        # Scale to 0.95 * max_z (Z=1.425 for N=4, 1.70 for N=5).
-        return float(min(nominal_z, 0.95 * max_z))
+    
+    # Scale effective alpha smoothly for small cohorts (N <= 6) to avoid asymptotic over-conservatism
+    eff_alpha = min(0.05, alpha * (8.0 / max(1, N))) if N <= 6 else alpha
 
     try:
         from scipy import stats
-        t_crit = stats.t.ppf(1.0 - alpha / N, df=N - 2)
+        t_crit = stats.t.ppf(1.0 - eff_alpha / N, df=N - 2)
         g_crit = ((N - 1) * t_crit) / np.sqrt(N * (N - 2 + t_crit**2))
         return float(min(nominal_z, g_crit))
     except Exception:

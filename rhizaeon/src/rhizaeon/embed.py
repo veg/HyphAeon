@@ -154,7 +154,7 @@ def load_embedding_matrices(weights_path: Optional[str] = None) -> Tuple[np.ndar
                 D[i, j] = np.linalg.norm(E[i] - E[j])
         nz = D[D > 0]
         if len(nz) > 0:
-            scale = 0.10 / np.mean(nz)
+            scale = 0.75 / np.mean(nz)
             D = D * scale
         return D
 
@@ -267,6 +267,13 @@ class EmbeddingPrefixDistanceEngine:
         np.fill_diagonal(dist, 0.0)
         return dist
 
+    def get_mean_divergence(self) -> float:
+        """Calculates average pairwise divergence across the complete alignment."""
+        D_global = self.query_distance_matrix(0, self.num_units)
+        if self.N <= 1:
+            return 0.0
+        return float(np.sum(D_global) / (self.N * (self.N - 1)))
+
 
 _CONTEXTUAL_MODEL_CACHE: Dict[Tuple[str, str], Any] = {}
 
@@ -331,7 +338,7 @@ class ContextualPrefixDistanceEngine:
 
         nz = dist_per_site[dist_per_site > 0]
         if len(nz) > 0:
-            scale = 0.10 / np.mean(nz)
+            scale = 0.75 / np.mean(nz)
             dist_per_site = dist_per_site * scale
 
         self.prefix_dist = np.zeros((N, N, U + 1), dtype=np.float64)
@@ -420,6 +427,13 @@ class ContextualPrefixDistanceEngine:
         dist = (self.prefix_dist[:, :, end_unit] - self.prefix_dist[:, :, start_unit]) / max(1, (end_unit - start_unit))
         np.fill_diagonal(dist, 0.0)
         return dist
+
+    def get_mean_divergence(self) -> float:
+        """Calculates average pairwise divergence across the complete alignment."""
+        D_global = self.query_distance_matrix(0, self.num_units)
+        if self.N <= 1:
+            return 0.0
+        return float(np.sum(D_global) / (self.N * (self.N - 1)))
 
 
 class TwoTierPrefixDistanceEngine:

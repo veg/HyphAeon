@@ -157,7 +157,7 @@ def main():
         default="auto",
         help="Minimum segment length in nt (default: 'auto'). When 'auto', dynamically calculates the Poisson mutation information limit: L_min = max(15, ceil(3.0 / mean_divergence))."
     )
-    rpfda_p.add_argument("--max-depth", type=int, default=4, help="Maximum recursion tree depth (default: 4)")
+    rpfda_p.add_argument("--max-depth", type=int, default=5, help="Maximum recursion tree depth (default: 5)")
     rpfda_p.add_argument(
         "--calibration",
         type=str,
@@ -695,7 +695,7 @@ def main():
                         recombinant_taxon=amb.recombinant_taxon,
                         config=cfg
                     )
-                    if t2 and (t2.fiedler_divergence >= cfg.min_fiedler_div and t2.taxon_drift >= cfg.min_taxon_drift):
+                    if t2 and (t2.fiedler_divergence >= cfg.min_fiedler_div or t2.taxon_drift >= cfg.min_taxon_drift):
                         rec_name = amb.recombinant_taxon
                         rec_idx = amb.taxon_idx
                         if rec_name not in taxa:
@@ -707,7 +707,7 @@ def main():
                             recombinant_taxon=rec_name,
                             taxon_idx=rec_idx,
                             kinetic_z=amb.kinetic_z,
-                            l_pir=float(t2.fiedler_divergence),
+                            l_pir=float(amb.l_pir if amb.l_pir > 0 else t2.fiedler_divergence),
                             parent_1=amb.parent_1,
                             parent_2=amb.parent_2,
                             jump_magnitude=float(t2.fiedler_divergence),

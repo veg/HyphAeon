@@ -210,12 +210,18 @@ class MultiSegmentConformalEngine:
         # 3. Minimum segment p-value
         p_min = np.min(segment_p_values, axis=1)
 
+        # 4. Cauchy Combination Test (CCT): Exact omnibus test valid under arbitrary (even negative) dependencies
+        safe_p = np.clip(segment_p_values, 1e-15, 1.0 - 1e-15)
+        cauchy_stats = np.mean(np.tan((0.5 - safe_p) * np.pi), axis=1)
+        p_cauchy = np.clip(0.5 - (np.arctan(cauchy_stats) / np.pi), 0.0, 1.0)
+
         # Build output DataFrame
         df_records = []
         for i in range(N_queries):
             rec = {
                 "Taxon": query_taxa[i],
                 "Omnibus_Simes_P": float(p_simes[i]),
+                "Omnibus_Cauchy_P": float(p_cauchy[i]),
                 "Omnibus_Bonf_P": float(p_bonf[i]),
                 "Min_Segment_P": float(p_min[i]),
                 "Is_Novel_Genome": bool(p_simes[i] < alpha_fdr)

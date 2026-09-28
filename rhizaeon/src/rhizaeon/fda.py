@@ -717,7 +717,7 @@ def run_recursive_partition_fda_screen(
                     continue
                 n_left = int(cum_seg[l_e] - cum_seg[l_s])
                 n_right = int(cum_seg[r_e] - cum_seg[r_s])
-                if n_left < min_informative_sites or n_right < min_informative_sites:
+                if (n_left + n_right) < min_informative_sites or min(n_left, n_right) < 1:
                     continue
 
             d1 = engine.query_distance_matrix(cp - flank, cp)
@@ -725,9 +725,11 @@ def run_recursive_partition_fda_screen(
             if np.max(d1) < 1e-4 or np.max(d2) < 1e-4:
                 continue
             if frobenius_triage:
-                f_diff = np.linalg.norm(d1 - d2)
-                f_sum = np.linalg.norm(d1 + d2) + 1e-9
-                if (f_diff / f_sum) < triage_threshold:
+                # Max-row discrepancy scales as O(1) with respect to N, immune to cohort dilution
+                row_diffs = np.linalg.norm(d1 - d2, axis=1)
+                row_sums = np.linalg.norm(d1 + d2, axis=1) + 1e-9
+                max_row_ratio = float(np.max(row_diffs / row_sums))
+                if max_row_ratio < triage_threshold:
                     continue
             valid_cps.append((cp, flank))
             k_eff = min(4, N - 1)
@@ -875,9 +877,11 @@ def run_recursive_partition_fda_screen(
     for d in sorted(detected_bps, key=lambda b: b.kinetic_z * b.l_pir, reverse=True):
         duplicate = False
         for c in dedup:
-            if abs(d.breakpoint_nt - c.breakpoint_nt) < 40 and d.recombinant_taxon == c.recombinant_taxon:
-                duplicate = True
-                break
+            if abs(d.breakpoint_nt - c.breakpoint_nt) < 25 and d.recombinant_taxon == c.recombinant_taxon:
+                # Same parental transition direction indicates duplicate call of the same boundary
+                if (d.parent_1 == c.parent_1 and d.parent_2 == c.parent_2) or (d.parent_1 == "Ghost" and c.parent_1 == "Ghost"):
+                    duplicate = True
+                    break
         if not duplicate:
             dedup.append(d)
             
@@ -1067,9 +1071,10 @@ def run_multiscale_fda_screen(
                 tax_curve.append(0)
                 continue
             if frobenius_triage:
-                f_diff = np.linalg.norm(d1 - d2)
-                f_sum = np.linalg.norm(d1 + d2) + 1e-9
-                if (f_diff / f_sum) < triage_threshold:
+                row_diffs = np.linalg.norm(d1 - d2, axis=1)
+                row_sums = np.linalg.norm(d1 + d2, axis=1) + 1e-9
+                max_row_ratio = float(np.max(row_diffs / row_sums))
+                if max_row_ratio < triage_threshold:
                     z_curve.append(0.0)
                     tax_curve.append(0)
                     continue

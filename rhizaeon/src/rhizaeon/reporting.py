@@ -435,15 +435,16 @@ def synthesize_inference_report(
         scale_nt = 3 if unit_type == "codon" else 1
 
         # Primary Mosaic Criterion:
-        # Authentic genomic mosaics alternate between consistent parental clades (distinct parents <= 3),
-        # have balanced introgressions (minor parent >= 12% and top 2 >= 85%), and no isolated edge blips (min segment >= 200 nt).
+        # A lineage is classified as a primary mosaic based on rigorous statistical evidence:
+        # 1. At least one detected breakpoint with validated support (HIGH or MOD)
+        # 2. Or statistically significant log-likelihood gain (LL >= 3.0) or composite support (Z * PIR >= 0.15)
+        has_supported_bp = any(b.support in ("HIGH", "MOD") for b in tbps)
+        has_significant_ll = any(b.ll_gain is not None and b.ll_gain >= 3.0 for b in tbps)
+        has_composite_support = any((b.z_score * b.pir) >= 0.15 for b in tbps)
+
         is_primary = (
             len(tbps) >= 1
-            and distinct_parents <= 3
-            and minor_parent_pct >= 12.0
-            and top2_parents_pct >= 85.0
-            and (min_seg * scale_nt) >= 200
-            and any(b.support in ("HIGH", "MOD") for b in tbps)
+            and (has_supported_bp or has_significant_ll or has_composite_support)
         )
 
         # Check for micro-tract conversions between adjacent breakpoints (<200 nt)

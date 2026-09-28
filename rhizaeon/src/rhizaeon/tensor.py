@@ -370,11 +370,10 @@ class SNPCompressedPrefixEngine(PrefixDistanceEngine):
         if s_start >= s_end:
             return np.zeros((self.N, self.N), dtype=np.float64)
 
+        span = float(max(1, end_unit - start_unit))
         if not self.use_blas:
-            valid = self.prefix_valid[:, :, s_end].astype(np.int32) - self.prefix_valid[:, :, s_start].astype(np.int32)
             diffs = self.prefix_diff[:, :, s_end].astype(np.int32) - self.prefix_diff[:, :, s_start].astype(np.int32)
-            safe_valid = np.maximum(valid, 1)
-            p = diffs.astype(np.float64) / safe_valid
+            p = diffs.astype(np.float64) / span
         else:
             sub = self.seq_matrix[:, s_start:s_end]
             W = s_end - s_start
@@ -385,8 +384,7 @@ class SNPCompressedPrefixEngine(PrefixDistanceEngine):
             H = eye[sub_clean].reshape(self.N, W * 4) * np.repeat(val, 4, axis=1)
             matches = H @ H.T
             diffs = valid - matches
-            safe_valid = np.maximum(valid, 1.0)
-            p = diffs / safe_valid
+            p = diffs / span
 
         if model == "raw":
             dist = p

@@ -131,14 +131,25 @@ def polish_breakpoint_ml(
         ci_right = w_start + int(plateau_rel_indices[-1])
         candidate_ml_mid = int(round((ci_left + ci_right) / 2.0))
         
-        # Log likelihood gain over the coarse starting point
-        coarse_rel = min(max(0, coarse_bp - w_start), win_len - 1)
-        gain = float(max_ll - profile_ll[coarse_rel])
+        # True LRT statistic against the clonal null hypothesis:
+        # Null model 1: entire window derived from P1 -> N1 * gamma
+        # Null model 2: entire window derived from P2 -> N2 * gamma
+        n1_total = int(np.sum(matches_p1))
+        n2_total = int(np.sum(matches_p2))
+        null_ll = float(max(n1_total, n2_total) * gamma)
         
+        rel_mid = min(max(0, candidate_ml_mid - w_start), win_len)
+        rec_ll = float((np.sum(matches_p1[:rel_mid]) + np.sum(matches_p2[rel_mid:])) * gamma)
+        lrt_gain = float(max(0.0, rec_ll - null_ll))
+
+        # Marginal gain over the coarse starting point
+        coarse_rel = min(max(0, coarse_bp - w_start), win_len - 1)
+        marginal_gain = float(max_ll - profile_ll[coarse_rel])
+        gain = float(max(lrt_gain, marginal_gain))
+
         # Adaptive Information Sieve:
-        # If coarse_bp is outside the ML plateau and the log-likelihood gain
-        # is below LL_min, the observed gain is statistically uninformative relative
-        # to the Fisher information of the flanking window. Retain coarse_bp.
+        # If coarse_bp is outside the ML plateau and statistical evidence
+        # is below LL_min, retain coarse_bp.
         if (coarse_bp < ci_left or coarse_bp > ci_right) and gain < ll_min:
             ml_mid = coarse_bp
         else:

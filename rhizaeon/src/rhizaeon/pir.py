@@ -15,8 +15,8 @@ def compute_pir(
     r_idx: int,
     p1_idx: int,
     p2_idx: int,
-    bound_factor: float = 1.25,
-    min_parent_dist: float = 0.025
+    bound_factor: float = 2.0,
+    min_parent_dist: float = 1e-4
 ) -> Tuple[float, float, float, bool]:
     """
     Computes bounded Parental Incongruence Ratio (PIR):
@@ -27,7 +27,7 @@ def compute_pir(
     Enforces geometric bounding:
       D1(R, P1) <= bound_factor * D1(P1, P2)
       D2(R, P2) <= bound_factor * D2(P1, P2)
-    This strictly excludes outgroups that fluctuate spuriously between two clades.
+    This strictly excludes distant outgroups that fluctuate spuriously between clades.
     """
     d1_p = D1[p1_idx, p2_idx]
     d2_p = D2[p1_idx, p2_idx]
@@ -39,8 +39,8 @@ def compute_pir(
     if D1[r_idx, p1_idx] > bound_factor * d1_p or D2[r_idx, p2_idx] > bound_factor * d2_p:
         return 0.0, 0.0, 0.0, False
 
-    term1 = (D1[r_idx, p2_idx] - D1[r_idx, p1_idx]) / d1_p
-    term2 = (D2[r_idx, p1_idx] - D2[r_idx, p2_idx]) / d2_p
+    term1 = (D1[r_idx, p2_idx] - D1[r_idx, p1_idx]) / max(d1_p, 1e-9)
+    term2 = (D2[r_idx, p1_idx] - D2[r_idx, p2_idx]) / max(d2_p, 1e-9)
 
     if term1 <= 0.0 or term2 <= 0.0:
         return 0.0, term1, term2, False
@@ -53,8 +53,8 @@ def evaluate_triplets_for_taxon(
     D1: np.ndarray,
     D2: np.ndarray,
     r_idx: int,
-    bound_factor: float = 1.25,
-    min_parent_dist: float = 0.025,
+    bound_factor: float = 2.0,
+    min_parent_dist: float = 1e-4,
     weight_by_divergence: bool = True,
     top_k: int = 1
 ) -> Optional[Any]:
@@ -65,9 +65,10 @@ def evaluate_triplets_for_taxon(
       term2 = (D2(R, P1) - D2(R, P2)) / D2(P1, P2)
       PIR = term1 * term2
 
-    When weight_by_divergence is True, evidentiary score = PIR * (D1 + D2).
-    This strictly prevents intra-clade clonal siblings with 1-2 private mutations
-    from shadowing genuine divergent parental lineages.
+    Parental attribution employs Minimum Evolution penalized by path residual:
+      score = PIR * div_factor / (1.0 + D1(R, P1) + D2(R, P2))
+    This rewards genuine divergent separation while selecting immediate sister donors
+    over distant outgroups.
     """
     N = D1.shape[0]
     d1_r = D1[r_idx]
@@ -88,7 +89,7 @@ def evaluate_triplets_for_taxon(
     # Outgroup bounding:
     # D1(R, p1) <= bound_factor * D1(p1, p2)
     # D2(R, p2) <= bound_factor * D2(p1, p2)
-    bounded = (d1_r[:, None] <= bound_factor * D1) & (d2_r[None, :] <= bound_factor * D2)
+    bounded = (d1_r[:, None] <= bound_factor * D1 + 1e-5) & (d2_r[None, :] <= bound_factor * D2 + 1e-5)
     valid &= bounded
 
     term1 = np.where(valid, diff1 / np.maximum(D1, 1e-9), 0.0)
@@ -97,7 +98,14 @@ def evaluate_triplets_for_taxon(
     pos = (term1 > 0.0) & (term2 > 0.0)
     pir_mat = np.where(pos, term1 * term2, 0.0)
 
-    score_mat = pir_mat * (D1 + D2) if weight_by_divergence else pir_mat
+    if weight_by_divergence:
+        # Saturated divergence factor avoids zeroing low divergence while penalizing identical siblings
+        div_factor = np.clip((D1 + D2) / 0.015, 0.10, 1.0)
+        # Minimum Evolution penalty: closer donors are preferred over distant outgroups
+        residual_pen = 1.0 + (d1_r[:, None] + d2_r[None, :])
+        score_mat = (pir_mat * div_factor) / residual_pen
+    else:
+        score_mat = pir_mat
 
     max_score = float(np.max(score_mat))
     if max_score <= 0.0:
