@@ -730,7 +730,7 @@ def run_recursive_partition_fda_screen(
                 if (f_diff / f_sum) < triage_threshold:
                     continue
             valid_cps.append((cp, flank))
-            k_eff = min(3, N - 1)
+            k_eff = min(4, N - 1)
             z1 = compute_classical_mds(d1, k=k_eff)
             z2 = compute_classical_mds(d2, k=k_eff)
             _, res = align_procrustes(z1, z2)
@@ -794,19 +794,6 @@ def run_recursive_partition_fda_screen(
                 for trip in cands:
                     # Allow 30% margin at preliminary coarse changepoint because uncentered flanks straddle the junction
                     if trip["pir"] < (min_pir * 0.70):
-                        ambiguous_bps.append(FDABreakpoint(
-                            breakpoint_nt=bp,
-                            recombinant_taxon=taxa[t_idx],
-                            taxon_idx=t_idx,
-                            kinetic_z=float(t_z),
-                            l_pir=float(trip["pir"]),
-                            parent_1=taxa[trip["parent_left_idx"]],
-                            parent_2=taxa[trip["parent_right_idx"]],
-                            jump_magnitude=float(t_z),
-                            coarse_bp=bp,
-                            is_ambiguous=True,
-                            ambiguity_reason=f"borderline_pir_{trip['pir']:.3f}"
-                        ))
                         continue
                     p1 = trip["parent_left_idx"]
                     p2 = trip["parent_right_idx"]
@@ -832,19 +819,6 @@ def run_recursive_partition_fda_screen(
                     dr_ref = engine.query_distance_matrix(best_b, best_b + f_ref_val)
                     ref_trip = evaluate_triplets_for_taxon(dl_ref, dr_ref, t_idx, min_parent_dist=min_parent_dist, weight_by_divergence=True)
                     if ref_trip is None or ref_trip["pir"] < min_pir:
-                        ambiguous_bps.append(FDABreakpoint(
-                            breakpoint_nt=best_b,
-                            recombinant_taxon=taxa[t_idx],
-                            taxon_idx=t_idx,
-                            kinetic_z=float(t_z),
-                            l_pir=float(ref_trip["pir"]) if ref_trip is not None else float(trip["pir"]),
-                            parent_1=taxa[p1],
-                            parent_2=taxa[p2],
-                            jump_magnitude=float(t_z),
-                            coarse_bp=bp,
-                            is_ambiguous=True,
-                            ambiguity_reason=f"refined_pir_below_threshold_{ref_trip['pir'] if ref_trip else 0:.3f}"
-                        ))
                         continue
 
                     ok = True
@@ -880,23 +854,6 @@ def run_recursive_partition_fda_screen(
                                 nt_ci_right=best_b * scale_coord
                             ))
                             break
-                    else:
-                        ambiguous_bps.append(FDABreakpoint(
-                            breakpoint_nt=best_b,
-                            recombinant_taxon=taxa[t_idx],
-                            taxon_idx=t_idx,
-                            kinetic_z=float(t_z),
-                            l_pir=float(ref_trip["pir"]),
-                            parent_1=taxa[p1],
-                            parent_2=taxa[p2],
-                            jump_magnitude=float(t_z),
-                            coarse_bp=bp,
-                            nt_bp=best_b * scale_coord,
-                            nt_ci_left=best_b * scale_coord,
-                            nt_ci_right=best_b * scale_coord,
-                            is_ambiguous=True,
-                            ambiguity_reason="crossover_unverified_divergence"
-                        ))
 
         if best_split_call is None:
             return

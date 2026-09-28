@@ -258,8 +258,11 @@ def compute_grubbs_effective_z(N: int, nominal_z: float = 2.75, alpha: float = 0
     if N < 3:
         return float(nominal_z)
     max_z = (N - 1) / np.sqrt(N)
-    if N == 3:
-        return float(min(nominal_z, 0.98 * max_z))
+    if N <= 5:
+        # For small cohorts (N=3, 4, 5), standard asymptotic/Grubbs alpha=0.005 evaluates to >99.7% of max_z,
+        # mathematically extinguishing outlier detection for real recombinants in quartets.
+        # Scale to 0.95 * max_z (Z=1.425 for N=4, 1.70 for N=5).
+        return float(min(nominal_z, 0.95 * max_z))
 
     try:
         from scipy import stats

@@ -197,9 +197,9 @@ class MultiSegmentConformalEngine:
 
         # Omnibus Hypothesis Aggregation:
         # 1. Simes test for intersection null H_0: all segments conform
-        # p_simes = min_{k=1..8} (8 / k * p_(k))
-        sorted_p = np.sort(segment_p_values, axis=1) # shape (N, 8)
-        k_factors = 8.0 / np.arange(1, 9, dtype=float)
+        # p_simes = min_{k=1..S} (S / k * p_(k))
+        sorted_p = np.sort(segment_p_values, axis=1)
+        k_factors = float(self.n_segments) / np.arange(1, self.n_segments + 1, dtype=float)
         simes_matrix = sorted_p * k_factors[np.newaxis, :]
         p_simes = np.min(simes_matrix, axis=1)
         p_simes = np.clip(p_simes, 0.0, 1.0)

@@ -695,7 +695,7 @@ def main():
                         recombinant_taxon=amb.recombinant_taxon,
                         config=cfg
                     )
-                    if t2 and (t2.fiedler_divergence >= cfg.min_fiedler_div or t2.taxon_drift >= cfg.min_taxon_drift):
+                    if t2 and (t2.fiedler_divergence >= cfg.min_fiedler_div and t2.taxon_drift >= cfg.min_taxon_drift):
                         rec_name = amb.recombinant_taxon
                         rec_idx = amb.taxon_idx
                         if rec_name not in taxa:
