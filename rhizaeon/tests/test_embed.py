@@ -132,16 +132,18 @@ class TestEmbeddingEngines(unittest.TestCase):
 class TestCLIEngineSelection(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.manifest_dataset = (
-            "/Users/sergei/Projects/TOGA_MEME/axomeme_repo/benchmarks/"
-            "simulated_recombination/single_deep_mid/rep_0/alignment.fasta"
+        from pathlib import Path
+        base_dir = Path(__file__).resolve().parent.parent.parent
+        cls.manifest_dataset = str(
+            base_dir / "benchmarks" / "simulated_recombination" / "single_deep_mid" / "rep_0" / "alignment.fasta"
         )
 
     def test_cli_default_scan(self):
         import subprocess
+        import sys
         # Invoking scan without --engine should default to two-tier
         cmd = [
-            "python3", "-m", "rhizaeon.cli", "scan",
+            sys.executable, "-m", "rhizaeon.cli", "scan",
             self.manifest_dataset
         ]
         res = subprocess.run(cmd, capture_output=True, text=True)
@@ -153,8 +155,9 @@ class TestCLIEngineSelection(unittest.TestCase):
 
     def test_cli_explicit_two_tier_scan(self):
         import subprocess
+        import sys
         cmd = [
-            "python3", "-m", "rhizaeon.cli", "scan",
+            sys.executable, "-m", "rhizaeon.cli", "scan",
             self.manifest_dataset,
             "--engine", "two-tier"
         ]
@@ -166,8 +169,9 @@ class TestCLIEngineSelection(unittest.TestCase):
 
     def test_cli_two_tier_contextual_scan(self):
         import subprocess
+        import sys
         cmd = [
-            "python3", "-m", "rhizaeon.cli", "scan",
+            sys.executable, "-m", "rhizaeon.cli", "scan",
             self.manifest_dataset,
             "--engine", "two-tier-contextual",
             "--device", "cpu"
@@ -180,8 +184,9 @@ class TestCLIEngineSelection(unittest.TestCase):
 
     def test_cli_scalar_scan(self):
         import subprocess
+        import sys
         cmd = [
-            "python3", "-m", "rhizaeon.cli", "scan",
+            sys.executable, "-m", "rhizaeon.cli", "scan",
             self.manifest_dataset,
             "--engine", "scalar"
         ]
@@ -193,8 +198,9 @@ class TestCLIEngineSelection(unittest.TestCase):
 
     def test_cli_static_scan(self):
         import subprocess
+        import sys
         cmd = [
-            "python3", "-m", "rhizaeon.cli", "scan",
+            sys.executable, "-m", "rhizaeon.cli", "scan",
             self.manifest_dataset,
             "--engine", "embed-static"
         ]
@@ -206,8 +212,9 @@ class TestCLIEngineSelection(unittest.TestCase):
 
     def test_cli_contextual_scan(self):
         import subprocess
+        import sys
         cmd = [
-            "python3", "-m", "rhizaeon.cli", "scan",
+            sys.executable, "-m", "rhizaeon.cli", "scan",
             self.manifest_dataset,
             "--engine", "embed-contextual",
             "--device", "cpu"
