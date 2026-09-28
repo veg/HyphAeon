@@ -208,8 +208,6 @@ def main():
             alignment_path = alignments[0]
             t0 = time.time()
             print(f"[*] Loading alignment: {alignment_path}")
-            if not args.codon and args.engine in ("two-tier", "two-tier-static", "hybrid", "default"):
-                args.engine = "scalar"
             if not args.codon and args.window == 25:
                 args.window = 75
                 if args.min_tract == 35:

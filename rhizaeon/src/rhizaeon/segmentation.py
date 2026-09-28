@@ -314,8 +314,9 @@ class RhizAeonDetector:
                     refined_pir = trip2["pir"]
                     should_t2 = False
                 else:
+                    refine_eng = tier2 if tier2 is not None else tier1
                     refined_bp_codon, refined_pir = refine_breakpoint_codon(
-                        tier2,
+                        refine_eng,
                         bp=target_bp_t2,
                         r_idx=b.taxon_idx,
                         p1_idx=p1_idx,

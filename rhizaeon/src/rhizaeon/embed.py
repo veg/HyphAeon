@@ -519,19 +519,28 @@ def build_prefix_engine(
 
     if engine_norm in ("two-tier", "two-tier-static", "hybrid", "default"):
         tier1 = build_prefix_engine(alignment_path, engine="scalar", codon=codon)
-        def _factory():
-            return EmbeddingPrefixDistanceEngine(
-                fasta_path=alignment_path,
+        if not codon:
+            eng = TwoTierPrefixDistanceEngine(
+                tier1=tier1,
+                tier2=tier1,
                 track=track,
-                weights_path=weights_path
+                weights_path=weights_path,
+                device=device
             )
-        eng = TwoTierPrefixDistanceEngine(
-            tier1=tier1,
-            tier2_factory=_factory,
-            track=track,
-            weights_path=weights_path,
-            device=device
-        )
+        else:
+            def _factory():
+                return EmbeddingPrefixDistanceEngine(
+                    fasta_path=alignment_path,
+                    track=track,
+                    weights_path=weights_path
+                )
+            eng = TwoTierPrefixDistanceEngine(
+                tier1=tier1,
+                tier2_factory=_factory,
+                track=track,
+                weights_path=weights_path,
+                device=device
+            )
         eng.fasta_path = alignment_path
         eng.alignment_path = alignment_path
         return eng
