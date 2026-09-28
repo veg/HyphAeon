@@ -500,36 +500,74 @@ class RhizAeonDetector:
             return validated
 
         # === Single-Tier Standalone Pipeline ===
-        U = engine.num_units
-        raw_events = self.recursive_binary_segmentation(engine, taxa, 0, U)
-
-        if len(raw_events) == 0:
+        from rhizaeon.fda import run_recursive_partition_fda_screen
+        is_codon = getattr(engine, "codon_aligned", False)
+        scale_coord = 3 if is_codon else 1
+        eff_min_tract = self.get_effective_min_tract(engine)
+        bps_t1 = run_recursive_partition_fda_screen(
+            engine=engine,
+            taxa_names=taxa,
+            min_len=max(15, eff_min_tract),
+            min_z=max(1.5, self.ghost_z_threshold * 0.70),
+            min_pir=max(0.08, self.pir_threshold * 0.70),
+            crossover_validation=True,
+            polish_ml=True
+        )
+        if len(bps_t1) == 0:
             return []
 
-        # Sort by genomic coordinate
-        raw_events.sort(key=lambda x: x["raw_breakpoint"])
-
-        # Refine each breakpoint to single-codon precision
+        U = engine.num_units
         validated = []
-        for ev in raw_events:
-            flank = min(80, max(20, min(ev["raw_breakpoint"], U - ev["raw_breakpoint"])))
-            refined_bp, refined_pir = refine_breakpoint_codon(
-                engine,
-                bp=ev["raw_breakpoint"],
-                r_idx=ev["recombinant_idx"],
-                p1_idx=ev["parent_left_idx"],
-                p2_idx=ev["parent_right_idx"],
-                flank_len=flank,
-                search_radius=15
-            )
+        for b in bps_t1:
+            raw_bp = b.coarse_bp if b.coarse_bp is not None else b.breakpoint_nt
+            flank = min(80, max(20, min(raw_bp, U - raw_bp)))
+            if is_codon:
+                refined_bp, refined_pir = refine_breakpoint_codon(
+                    engine,
+                    bp=raw_bp,
+                    r_idx=b.taxon_idx,
+                    p1_idx=taxa.index(b.parent_1) if b.parent_1 in taxa else 0,
+                    p2_idx=taxa.index(b.parent_2) if b.parent_2 in taxa else 0,
+                    flank_len=flank,
+                    search_radius=15
+                )
+            else:
+                refined_bp = b.breakpoint_nt
+                refined_pir = b.l_pir
 
             if refined_pir < self.pir_threshold:
                 continue
 
-            ev["breakpoint"] = refined_bp
-            ev["refined_pir"] = refined_pir
+            ev = {
+                "breakpoint": refined_bp,
+                "raw_breakpoint": raw_bp,
+                "breakpoint_nt": refined_bp * scale_coord,
+                "recombinant_idx": b.taxon_idx,
+                "recombinant": b.recombinant_taxon,
+                "parent_left_idx": taxa.index(b.parent_1) if b.parent_1 in taxa else 0,
+                "parent_left": b.parent_1,
+                "parent_right_idx": taxa.index(b.parent_2) if b.parent_2 in taxa else 0,
+                "parent_right": b.parent_2,
+                "l_pir": float(b.l_pir),
+                "refined_pir": float(refined_pir),
+                "ghost_z": float(b.kinetic_z),
+                "kinetic_z": float(b.kinetic_z),
+                "tier": "standalone",
+                "tier2_resolved": False,
+                "mechanism": "Mosaic Recombination",
+                "ci_left": b.ci_left,
+                "ci_right": b.ci_right,
+                "ci_left_nt": b.nt_ci_left if b.nt_ci_left is not None else (b.ci_left * scale_coord if b.ci_left is not None else None),
+                "ci_right_nt": b.nt_ci_right if b.nt_ci_right is not None else (b.ci_right * scale_coord if b.ci_right is not None else None),
+                "plateau_width": b.plateau_width,
+                "plateau_width_nt": b.nt_plateau_width if b.nt_plateau_width is not None else (b.plateau_width * scale_coord if b.plateau_width is not None else None),
+                "log_likelihood_gain": b.log_likelihood_gain,
+                "flanking_p1_site": b.flanking_p1_site,
+                "flanking_p2_site": b.flanking_p2_site,
+                "flanking_p1_site_nt": b.nt_flanking_p1 if b.nt_flanking_p1 is not None else (b.flanking_p1_site * scale_coord if b.flanking_p1_site is not None else None),
+                "flanking_p2_site_nt": b.nt_flanking_p2 if b.nt_flanking_p2 is not None else (b.flanking_p2_site * scale_coord if b.flanking_p2_site is not None else None),
+            }
 
-            # Deduplication: if another event was found within 20 codons for the SAME recombinant, keep higher L-PIR
             duplicate = False
             for v in validated:
                 if v["recombinant_idx"] == ev["recombinant_idx"] and abs(v["breakpoint"] - ev["breakpoint"]) <= 20:
