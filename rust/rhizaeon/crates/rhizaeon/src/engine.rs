@@ -1,4 +1,4 @@
-use crate::attention::PhyloAttentionEngine;
+use crate::attention::{compute_attention_masks, AttentionMasks, PhyloAttentionEngine};
 use crate::attribution::TrajectoryParentalResolver;
 use crate::due_diligence::SequenceDueDiligence;
 use crate::fasta::{
@@ -161,14 +161,32 @@ impl RhizAeonEngine {
         // 3. Ancestral Simplex Soft Root
         let root_seq = compute_consensus_soft_root(&aln, None);
 
-        // 4. Attention & Zero-drift Force Field
+        // 4. Attention & Zero-drift Force Field. Only the (N, K+1) sequence-wide mean and the
+        // (N, K) masks are retained; the attention, force and momentum rows themselves are
+        // streamed per taxon, so no (L, N, K+1) tensor is ever allocated.
         let attention = PhyloAttentionEngine::new(self.dim, self.root_sink_factor);
-        let (a_tensor, f_tensor, c_tensor) = attention
-            .compute_attention_and_force_tensors(&aln, &landmarks, &m_matrix, &b_prior, &root_seq);
+        let masks = compute_attention_masks(&aln, &landmarks);
+        let mean_a = attention.compute_mean_attention(
+            &aln,
+            &landmarks,
+            &m_matrix,
+            &b_prior,
+            &root_seq,
+            &masks,
+        );
 
         // 5. Pass 1 Screener
         let screener = LocalFluxScreener::new().with_tier2_stringency(self.tier2_stringency);
-        let screening = screener.screen(&f_tensor, &c_tensor, &aln, &landmarks);
+        let screening = screener.screen(
+            &attention,
+            &m_matrix,
+            &b_prior,
+            &root_seq,
+            &masks,
+            &mean_a,
+            &aln,
+            &landmarks,
+        );
 
         if screening.is_non_recombinant_h0 {
             return ScanResult {
@@ -205,18 +223,54 @@ impl RhizAeonEngine {
             .with_d_sister(d_sister)
             .with_d_clade(d_clade);
 
+        // Pass 2 regenerates each candidate's rows into buffers allocated once per scan rather
+        // than slicing resident tensors, so residency is one row per candidate for any candidate
+        // count. Regenerating rather than caching matters because the screener's recombination
+        // sieve admits nearly all of N on large cohorts.
         let run_candidate_scan = |target_aln: &Alignment,
-                                  target_c: &[f64],
-                                  target_a: &[f64],
+                                  target_masks: &AttentionMasks,
+                                  target_mean_a: &[f64],
                                   target_landmarks: &crate::types::LandmarkSet,
                                   target_screening: &crate::types::ScreeningResult|
          -> Vec<crate::types::RecombinationEvent> {
             let mut pass_events = Vec::new();
+
+            // Reused across candidates; the row providers rewrite every element, so no stale
+            // tail can survive into a reduction.
+            let mut a_row = vec![0.0f64; l * num_channels];
+            let mut c_row = vec![0.0f64; l * num_channels];
+            // The force row is a by-product here: Pass 2 consumes only A and C.
+            let mut f_scratch = vec![0.0f64; l * num_channels];
+
             for &cand_idx in &target_screening.candidate_recombinant_indices {
+                attention.compute_attention_row(
+                    target_aln,
+                    target_landmarks,
+                    &m_matrix,
+                    &b_prior,
+                    &root_seq,
+                    target_masks,
+                    target_mean_a,
+                    cand_idx,
+                    &mut a_row,
+                );
+                attention.compute_force_and_momentum_row(
+                    target_aln,
+                    target_landmarks,
+                    &m_matrix,
+                    &b_prior,
+                    &root_seq,
+                    target_masks,
+                    target_mean_a,
+                    cand_idx,
+                    &mut f_scratch,
+                    &mut c_row,
+                );
+
                 let parental_pairs = resolver.resolve_all_reticulation_channels(
                     cand_idx,
-                    target_c,
-                    target_a,
+                    &c_row,
+                    &a_row,
                     l,
                     n,
                     target_landmarks,
@@ -227,7 +281,7 @@ impl RhizAeonEngine {
                 let mut candidate_tracts = Vec::new();
                 for pair in &parental_pairs {
                     let tracts =
-                        polisher.deconvolve_candidate(cand_idx, pair, target_c, l, n, num_channels);
+                        polisher.deconvolve_candidate(cand_idx, pair, &c_row, l, n, num_channels);
                     candidate_tracts.extend(tracts);
                 }
 
@@ -237,9 +291,8 @@ impl RhizAeonEngine {
                         cand_idx,
                         tract.u1_discrete,
                         tract.u2_discrete,
-                        target_c,
+                        &c_row,
                         l,
-                        n,
                         target_landmarks,
                         target_aln,
                         Some(tract.home_channel),
@@ -296,7 +349,7 @@ impl RhizAeonEngine {
 
         // Pass 1: Initial forward scan on `aln`
         let mut verified_events =
-            run_candidate_scan(&aln, &c_tensor, &a_tensor, &landmarks, &screening);
+            run_candidate_scan(&aln, &masks, &mean_a, &landmarks, &screening);
         verified_events =
             due_diligence.adjudicate_reticulation_graph(verified_events, &aln, &screening);
 
@@ -411,15 +464,25 @@ impl RhizAeonEngine {
             }
 
             if any_scrubbed {
-                let (a_scrub, _f_scrub, c_scrub) = attention.compute_attention_and_force_tensors(
+                // The scrubbed alignment is a different alignment, so it carries its own masks
+                // and its own sequence-wide mean, exactly as the whole-tensor path recomputed
+                // both implicitly inside its second call.
+                let masks_scrub = compute_attention_masks(&aln_scrubbed, &landmarks);
+                let mean_a_scrub = attention.compute_mean_attention(
                     &aln_scrubbed,
                     &landmarks,
                     &m_matrix,
                     &b_prior,
                     &root_seq,
+                    &masks_scrub,
                 );
-                let mut peeled_events =
-                    run_candidate_scan(&aln_scrubbed, &c_scrub, &a_scrub, &landmarks, &screening);
+                let mut peeled_events = run_candidate_scan(
+                    &aln_scrubbed,
+                    &masks_scrub,
+                    &mean_a_scrub,
+                    &landmarks,
+                    &screening,
+                );
                 if !peeled_events.is_empty() {
                     verified_events.append(&mut peeled_events);
                     let mut combined_by_cand = Vec::new();

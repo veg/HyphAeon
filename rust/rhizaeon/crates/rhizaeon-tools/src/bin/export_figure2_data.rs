@@ -1,5 +1,5 @@
 use clap::Parser;
-use rhizaeon::attention::PhyloAttentionEngine;
+use rhizaeon::attention::{compute_attention_masks, PhyloAttentionEngine};
 use rhizaeon::fasta::parse_fasta;
 use rhizaeon::landmarks::{compute_pairwise_distance, jukes_cantor_distance, select_landmarks};
 use rhizaeon::prior::PhyloBias;
@@ -334,8 +334,59 @@ fn main() {
     }
 
     let attention_engine = PhyloAttentionEngine::new(args.dim, 1.0);
-    let (a_tensor, _f_tensor, c_tensor) = attention_engine
-        .compute_attention_and_force_tensors(&aln, &landmarks, &m_matrix, &b_prior, &root_seq);
+    let masks = compute_attention_masks(&aln, &landmarks);
+    let mean_a = attention_engine.compute_mean_attention(
+        &aln,
+        &landmarks,
+        &m_matrix,
+        &b_prior,
+        &root_seq,
+        &masks,
+    );
+
+    // Only the two taxa this figure plots are materialized, one (L, K+1) row each, instead of
+    // the three (L, N, K+1) tensors. The cumulative-sum loop below reads both taxa interleaved,
+    // so both momentum rows are live at once.
+    let mut a_row_07 = vec![0.0f64; l * num_channels];
+    let mut f_scratch = vec![0.0f64; l * num_channels];
+    let mut c_row_07 = vec![0.0f64; l * num_channels];
+    let mut c_row_08 = vec![0.0f64; l * num_channels];
+
+    attention_engine.compute_attention_row(
+        &aln,
+        &landmarks,
+        &m_matrix,
+        &b_prior,
+        &root_seq,
+        &masks,
+        &mean_a,
+        af286230_idx,
+        &mut a_row_07,
+    );
+    attention_engine.compute_force_and_momentum_row(
+        &aln,
+        &landmarks,
+        &m_matrix,
+        &b_prior,
+        &root_seq,
+        &masks,
+        &mean_a,
+        af286230_idx,
+        &mut f_scratch,
+        &mut c_row_07,
+    );
+    attention_engine.compute_force_and_momentum_row(
+        &aln,
+        &landmarks,
+        &m_matrix,
+        &b_prior,
+        &root_seq,
+        &masks,
+        &mean_a,
+        ay008715_idx,
+        &mut f_scratch,
+        &mut c_row_08,
+    );
 
     // Identify landmark subtype subsets
     let mut b_landmarks = Vec::new();
@@ -359,18 +410,16 @@ fn main() {
 
     for u in 0..l {
         u_coords.push(u);
-        let u_offset = u * n * num_channels;
-        let in_offset = af286230_idx * num_channels;
-        let base_idx = u_offset + in_offset;
+        let base_idx = u * num_channels;
 
-        let a_root = a_tensor[base_idx + 0];
+        let a_root = a_row_07[base_idx + 0];
         let mut a_b = 0.0;
         for &ch in &b_landmarks {
-            a_b += a_tensor[base_idx + ch];
+            a_b += a_row_07[base_idx + ch];
         }
         let mut a_c = 0.0;
         for &ch in &c_landmarks {
-            a_c += a_tensor[base_idx + ch];
+            a_c += a_row_07[base_idx + ch];
         }
 
         crf07_attention_root.push(a_root);
@@ -379,7 +428,7 @@ fn main() {
 
         let mut row = Vec::with_capacity(num_channels);
         for ch in 0..num_channels {
-            row.push(a_tensor[base_idx + ch]);
+            row.push(a_row_07[base_idx + ch]);
         }
         crf07_channel_attention.push(row);
     }
@@ -396,18 +445,17 @@ fn main() {
     let mut crf08_diff_bridge = Vec::with_capacity(l);
 
     for u in 0..l {
-        let u_offset = u * n * num_channels;
+        let base = u * num_channels;
 
         // CRF07
-        let base07 = u_offset + af286230_idx * num_channels;
-        let c_root07 = c_tensor[base07 + 0];
+        let c_root07 = c_row_07[base + 0];
         let mut c_b07 = 0.0;
         for &ch in &b_landmarks {
-            c_b07 += c_tensor[base07 + ch];
+            c_b07 += c_row_07[base + ch];
         }
         let mut c_c07 = 0.0;
         for &ch in &c_landmarks {
-            c_c07 += c_tensor[base07 + ch];
+            c_c07 += c_row_07[base + ch];
         }
         crf07_cumsum_b.push(c_b07);
         crf07_cumsum_c.push(c_c07);
@@ -415,15 +463,14 @@ fn main() {
         crf07_diff_bridge.push(c_b07 - c_c07);
 
         // CRF08
-        let base08 = u_offset + ay008715_idx * num_channels;
-        let c_root08 = c_tensor[base08 + 0];
+        let c_root08 = c_row_08[base + 0];
         let mut c_b08 = 0.0;
         for &ch in &b_landmarks {
-            c_b08 += c_tensor[base08 + ch];
+            c_b08 += c_row_08[base + ch];
         }
         let mut c_c08 = 0.0;
         for &ch in &c_landmarks {
-            c_c08 += c_tensor[base08 + ch];
+            c_c08 += c_row_08[base + ch];
         }
         crf08_cumsum_b.push(c_b08);
         crf08_cumsum_c.push(c_c08);

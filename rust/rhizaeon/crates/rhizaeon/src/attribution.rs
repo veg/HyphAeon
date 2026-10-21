@@ -44,8 +44,8 @@ impl TrajectoryParentalResolver {
     pub fn resolve_reticulation_channels(
         &self,
         candidate_idx: usize,
-        c_tensor: &[f64],
-        a_tensor: &[f64],
+        c_row: &[f64],
+        a_row: &[f64],
         l: usize,
         n: usize,
         landmarks: &LandmarkSet,
@@ -53,8 +53,8 @@ impl TrajectoryParentalResolver {
     ) -> TrajectoryParentalPair {
         let all_pairs = self.resolve_all_reticulation_channels(
             candidate_idx,
-            c_tensor,
-            a_tensor,
+            c_row,
+            a_row,
             l,
             n,
             landmarks,
@@ -66,11 +66,14 @@ impl TrajectoryParentalResolver {
 
     /// Resolves all significant reticulation dipoles (P_Home, P_Donor_k) for candidate R
     /// enabling Multi-Way Mosaicism resolution across distinct parental channels.
+    ///
+    /// `c_row` and `a_row` are the candidate's own momentum and (Pass 2 patched) attention rows
+    /// of shape (L, K+1), indexed `u * num_channels + ch`.
     pub fn resolve_all_reticulation_channels(
         &self,
         candidate_idx: usize,
-        c_tensor: &[f64],
-        a_tensor: &[f64],
+        c_row: &[f64],
+        a_row: &[f64],
         l: usize,
         n: usize,
         landmarks: &LandmarkSet,
@@ -80,13 +83,15 @@ impl TrajectoryParentalResolver {
         let k = landmarks.num_landmarks;
         let num_channels = k + 1;
         let inv_l = 1.0 / (l as f64);
+        debug_assert_eq!(c_row.len(), l * num_channels);
+        debug_assert_eq!(a_row.len(), l * num_channels);
 
         // 1. Sequence-wide mean attention for candidate
         let mut mean_a = vec![0.0f64; num_channels];
         for u in 0..l {
-            let offset = u * n * num_channels + candidate_idx * num_channels;
+            let offset = u * num_channels;
             for ch in 0..num_channels {
-                mean_a[ch] += a_tensor[offset + ch];
+                mean_a[ch] += a_row[offset + ch];
             }
         }
         for ch in 0..num_channels {
@@ -99,7 +104,7 @@ impl TrajectoryParentalResolver {
             let mut min_c = f64::INFINITY;
             let mut max_c = f64::NEG_INFINITY;
             for u in 0..l {
-                let c = c_tensor[u * n * num_channels + candidate_idx * num_channels + ch];
+                let c = c_row[u * num_channels + ch];
                 if c < min_c {
                     min_c = c;
                 }
@@ -115,7 +120,7 @@ impl TrajectoryParentalResolver {
         for ch in 0..num_channels {
             let mut sum_sq_a = 0.0;
             for u in 0..l {
-                let a_val = a_tensor[u * n * num_channels + candidate_idx * num_channels + ch];
+                let a_val = a_row[u * num_channels + ch];
                 let diff = a_val - mean_a[ch];
                 sum_sq_a += diff * diff;
             }
@@ -133,9 +138,9 @@ impl TrajectoryParentalResolver {
         // 3. Channel-contiguous trajectory buffer for SIMD cache-friendly dot products
         let mut c_traj = vec![0.0f64; num_channels * l];
         for u in 0..l {
-            let offset = u * n * num_channels + candidate_idx * num_channels;
+            let offset = u * num_channels;
             for ch in 0..num_channels {
-                c_traj[ch * l + u] = c_tensor[offset + ch];
+                c_traj[ch * l + u] = c_row[offset + ch];
             }
         }
 
@@ -663,14 +668,17 @@ impl TrajectoryParentalResolver {
     }
 
     /// Localized Attractive Work Integration (DIR-RHIZ-PAFF-012.0)
+    ///
+    /// `c_row` is the candidate's own momentum row of shape (L, K+1), indexed
+    /// `u * num_channels + ch`.
+    #[allow(clippy::too_many_arguments)]
     pub fn resolve_reticulation_channels_localized(
         &self,
         candidate_idx: usize,
         u1: usize,
         u2: usize,
-        c_tensor: &[f64],
+        c_row: &[f64],
         l: usize,
-        n: usize,
         landmarks: &LandmarkSet,
         aln: &crate::types::Alignment,
         preferred_home_ch: Option<usize>,
@@ -703,15 +711,15 @@ impl TrajectoryParentalResolver {
             }
 
             let c_u1 = if s_idx > 0 {
-                c_tensor[(s_idx - 1) * n * num_channels + candidate_idx * num_channels + ch]
+                c_row[(s_idx - 1) * num_channels + ch]
             } else {
                 0.0
             };
-            let c_u2 = c_tensor[e_idx * n * num_channels + candidate_idx * num_channels + ch];
+            let c_u2 = c_row[e_idx * num_channels + ch];
             w_tract[ch] = c_u2 - c_u1;
 
             let c_0 = 0.0;
-            let c_l = c_tensor[(l - 1) * n * num_channels + candidate_idx * num_channels + ch];
+            let c_l = c_row[(l - 1) * num_channels + ch];
             w_flank[ch] = (c_u1 - c_0) + (c_l - c_u2);
         }
 

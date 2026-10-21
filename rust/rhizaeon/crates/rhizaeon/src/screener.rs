@@ -1,3 +1,4 @@
+use crate::attention::{AttentionMasks, PhyloAttentionEngine};
 use crate::types::{Alignment, LandmarkSet, ScreeningResult};
 
 pub struct LocalFluxScreener {
@@ -34,15 +35,9 @@ impl LocalFluxScreener {
         self
     }
 
-    /// Evaluates spatial coherence of the Root flux stream
-    fn compute_spatial_coherence(
-        &self,
-        f_tensor: &[f64],
-        i: usize,
-        l: usize,
-        n: usize,
-        num_channels: usize,
-    ) -> f64 {
+    /// Evaluates spatial coherence of the Root flux stream over one taxon's force row
+    /// `f_row` of shape (L, K+1), indexed `u * num_channels + ch`.
+    fn compute_spatial_coherence(&self, f_row: &[f64], l: usize, num_channels: usize) -> f64 {
         let mut total_abs = 0.0f64;
         let w = self.coherence_window.min(l);
         if w == 0 {
@@ -55,7 +50,7 @@ impl LocalFluxScreener {
         let mut max_window_sum = 0.0f64;
 
         for u in 0..l {
-            let val = f_tensor[u * n * num_channels + i * num_channels + 0];
+            let val = f_row[u * num_channels + 0];
             total_abs += val.abs();
             let pos_val = val.max(0.0);
 
@@ -86,13 +81,14 @@ impl LocalFluxScreener {
     /// Computes Spectral Participation Ratio (PR) of contemporary channels for a candidate taxon.
     /// Measures effective dimensional complexity of contemporary flux to distinguish
     /// multidirectional heterotachy bursts (high PR) from low-rank reticulation dipoles (PR ~ 1).
+    ///
+    /// `c_row` is the candidate's own momentum row of shape (L, K+1), indexed
+    /// `u * num_channels + ch`.
     #[allow(dead_code)]
     fn compute_participation_ratio(
         &self,
-        c_tensor: &[f64],
-        i: usize,
+        c_row: &[f64],
         l: usize,
-        n: usize,
         num_channels: usize,
         home_ch: Option<usize>,
         inv_l: f64,
@@ -111,9 +107,9 @@ impl LocalFluxScreener {
         // 1. Single pass to compute channel means
         let mut sum_a = vec![0.0f64; m];
         for u in 0..l {
-            let base_idx = u * n * num_channels + i * num_channels;
+            let base_idx = u * num_channels;
             for (a_idx, &cha) in active_channels.iter().enumerate() {
-                sum_a[a_idx] += c_tensor[base_idx + cha];
+                sum_a[a_idx] += c_row[base_idx + cha];
             }
         }
         let mut means = vec![0.0f64; m];
@@ -125,9 +121,9 @@ impl LocalFluxScreener {
         let mut cov = vec![0.0f64; m * m];
         let mut diff = vec![0.0f64; m];
         for u in 0..l {
-            let base_idx = u * n * num_channels + i * num_channels;
+            let base_idx = u * num_channels;
             for (a_idx, &cha) in active_channels.iter().enumerate() {
-                diff[a_idx] = c_tensor[base_idx + cha] - means[a_idx];
+                diff[a_idx] = c_row[base_idx + cha] - means[a_idx];
             }
             for a in 0..m {
                 let da = diff[a];
@@ -166,11 +162,23 @@ impl LocalFluxScreener {
         }
     }
 
-    /// Executes Pass 1 O(NL) Screening
+    /// Executes Pass 1 O(NL) Screening.
+    ///
+    /// Each taxon's force and momentum rows are regenerated on demand into two reusable
+    /// (L, K+1) scratch buffers rather than read out of resident (L, N, K+1) tensors. This
+    /// loop is a sequential per-taxon reduction: every value crossing the `i` boundary is a
+    /// per-taxon scalar, the channel accumulators are consumed before the next taxon, and
+    /// `running_c` restarts at zero per row, so each prefix sum is independent of every other
+    /// taxon.
+    #[allow(clippy::too_many_arguments)]
     pub fn screen(
         &self,
-        f_tensor: &[f64],
-        c_tensor: &[f64],
+        attention: &PhyloAttentionEngine,
+        m_matrix: &[f64],
+        b_prior: &[f64],
+        root_sequence: &[u8],
+        masks: &AttentionMasks,
+        mean_a: &[f64],
         aln: &Alignment,
         landmarks: &LandmarkSet,
     ) -> ScreeningResult {
@@ -190,17 +198,34 @@ impl LocalFluxScreener {
 
         let inv_l = 1.0 / (l as f64);
 
+        // Per-taxon scratch rows, allocated once outside both loops
+        let mut f_row = vec![0.0f64; l * num_channels];
+        let mut c_row = vec![0.0f64; l * num_channels];
+
         // 1. Compute variances and peak-to-trough pulses in a single cache-friendly pass per taxon
         for i in 0..n {
+            attention.compute_force_and_momentum_row(
+                aln,
+                landmarks,
+                m_matrix,
+                b_prior,
+                root_sequence,
+                masks,
+                mean_a,
+                i,
+                &mut f_row,
+                &mut c_row,
+            );
+
             let mut sum_c = vec![0.0f64; num_channels];
             let mut sum_sq_c = vec![0.0f64; num_channels];
             let mut min_c = vec![f64::INFINITY; num_channels];
             let mut max_c = vec![f64::NEG_INFINITY; num_channels];
 
             for u in 0..l {
-                let base_idx = u * n * num_channels + i * num_channels;
+                let base_idx = u * num_channels;
                 for ch in 0..num_channels {
-                    let c = c_tensor[base_idx + ch];
+                    let c = c_row[base_idx + ch];
                     sum_c[ch] += c;
                     sum_sq_c[ch] += c * c;
                     if c < min_c[ch] {
@@ -221,7 +246,7 @@ impl LocalFluxScreener {
 
             let mut sum_sq_f0 = 0.0;
             for u in 0..l {
-                let f0 = f_tensor[u * n * num_channels + i * num_channels + 0];
+                let f0 = f_row[u * num_channels + 0];
                 sum_sq_f0 += f0 * f0;
             }
             let sigma_f0 = (sum_sq_f0 * inv_l).sqrt().max(1e-6);
@@ -250,7 +275,7 @@ impl LocalFluxScreener {
             r_dim[i] = var_c0 / (v_cont_mean + var_c0 + self.epsilon);
 
             // Spatial coherence
-            gamma_root[i] = self.compute_spatial_coherence(f_tensor, i, l, n, num_channels);
+            gamma_root[i] = self.compute_spatial_coherence(&f_row, l, num_channels);
         }
 
         // 2. Heterotachy logit outlier screening

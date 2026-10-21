@@ -228,12 +228,15 @@ impl CumulativeTrajectoryPolisher {
         }
     }
 
-    /// Deconvolves continuous recombination breakpoints for a candidate taxon
+    /// Deconvolves continuous recombination breakpoints for a candidate taxon.
+    ///
+    /// `c_row` is the candidate's own momentum row of shape (L, K+1), indexed
+    /// `u * num_channels + ch`.
     pub fn deconvolve_candidate(
         &self,
         candidate_idx: usize,
         parental: &TrajectoryParentalPair,
-        c_tensor: &[f64],
+        c_row: &[f64],
         l: usize,
         n: usize,
         num_channels: usize,
@@ -254,9 +257,9 @@ impl CumulativeTrajectoryPolisher {
         let mut run_sum = 0.0;
 
         for u in 0..l {
-            let offset = u * n * num_channels + candidate_idx * num_channels;
-            let cd = c_tensor[offset + donor_ch];
-            let ch = c_tensor[offset + home_ch];
+            let offset = u * num_channels;
+            let cd = c_row[offset + donor_ch];
+            let ch = c_row[offset + home_ch];
             let diff_c = cd - ch;
 
             let inst_x = diff_c - prev_c;
@@ -473,8 +476,8 @@ impl CumulativeTrajectoryPolisher {
                     s_disc
                 };
                 let turn_idx = u_turn.clamp(1, l);
-                let off_turn = (turn_idx - 1) * n * num_channels + candidate_idx * num_channels;
-                let off_end = (l - 1) * n * num_channels + candidate_idx * num_channels;
+                let off_turn = (turn_idx - 1) * num_channels;
+                let off_end = (l - 1) * num_channels;
 
                 let l_span = turn_idx.max(1) as f64;
                 let r_span = (l - turn_idx).max(1) as f64;
@@ -482,8 +485,8 @@ impl CumulativeTrajectoryPolisher {
                 let mut vl = Vec::with_capacity(num_channels.saturating_sub(1));
                 let mut vr = Vec::with_capacity(num_channels.saturating_sub(1));
                 for ch in 1..num_channels {
-                    let c_turn = c_tensor[off_turn + ch];
-                    let c_end = c_tensor[off_end + ch];
+                    let c_turn = c_row[off_turn + ch];
+                    let c_end = c_row[off_end + ch];
                     vl.push(c_turn / l_span);
                     vr.push((c_end - c_turn) / r_span);
                 }
@@ -492,9 +495,9 @@ impl CumulativeTrajectoryPolisher {
                 let s_prev = s_disc.saturating_sub(2);
                 let e_prev = e_disc - 1;
 
-                let off_s = s_prev * n * num_channels + candidate_idx * num_channels;
-                let off_e = e_prev * n * num_channels + candidate_idx * num_channels;
-                let off_end = (l - 1) * n * num_channels + candidate_idx * num_channels;
+                let off_s = s_prev * num_channels;
+                let off_e = e_prev * num_channels;
+                let off_end = (l - 1) * num_channels;
 
                 let tr_span = (e_disc - s_disc + 1).max(1) as f64;
                 let fl_span = ((s_disc - 1) + (l - e_disc)).max(1) as f64;
@@ -503,12 +506,12 @@ impl CumulativeTrajectoryPolisher {
                 let mut vr = Vec::with_capacity(num_channels.saturating_sub(1));
                 for ch in 1..num_channels {
                     let c_s = if s_disc > 1 {
-                        c_tensor[off_s + ch]
+                        c_row[off_s + ch]
                     } else {
                         0.0
                     };
-                    let c_e = c_tensor[off_e + ch];
-                    let c_end = c_tensor[off_end + ch];
+                    let c_e = c_row[off_e + ch];
+                    let c_end = c_row[off_end + ch];
 
                     let v_tr = (c_e - c_s) / tr_span;
                     let v_fl = (c_s + (c_end - c_e)) / fl_span;
