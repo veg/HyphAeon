@@ -335,14 +335,8 @@ fn main() {
 
     let attention_engine = PhyloAttentionEngine::new(args.dim, 1.0);
     let masks = compute_attention_masks(&aln, &landmarks);
-    let mean_a = attention_engine.compute_mean_attention(
-        &aln,
-        &landmarks,
-        &m_matrix,
-        &b_prior,
-        &root_seq,
-        &masks,
-    );
+    let mean_a = attention_engine
+        .compute_mean_attention(&aln, &landmarks, &m_matrix, &b_prior, &root_seq, &masks);
 
     // Only the two taxa this figure plots are materialized, one (L, K+1) row each, instead of
     // the three (L, N, K+1) tensors. The cumulative-sum loop below reads both taxa interleaved,

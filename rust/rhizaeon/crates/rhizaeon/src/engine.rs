@@ -166,26 +166,13 @@ impl RhizAeonEngine {
         // streamed per taxon, so no (L, N, K+1) tensor is ever allocated.
         let attention = PhyloAttentionEngine::new(self.dim, self.root_sink_factor);
         let masks = compute_attention_masks(&aln, &landmarks);
-        let mean_a = attention.compute_mean_attention(
-            &aln,
-            &landmarks,
-            &m_matrix,
-            &b_prior,
-            &root_seq,
-            &masks,
-        );
+        let mean_a = attention
+            .compute_mean_attention(&aln, &landmarks, &m_matrix, &b_prior, &root_seq, &masks);
 
         // 5. Pass 1 Screener
         let screener = LocalFluxScreener::new().with_tier2_stringency(self.tier2_stringency);
         let screening = screener.screen(
-            &attention,
-            &m_matrix,
-            &b_prior,
-            &root_seq,
-            &masks,
-            &mean_a,
-            &aln,
-            &landmarks,
+            &attention, &m_matrix, &b_prior, &root_seq, &masks, &mean_a, &aln, &landmarks,
         );
 
         if screening.is_non_recombinant_h0 {
@@ -348,8 +335,7 @@ impl RhizAeonEngine {
         };
 
         // Pass 1: Initial forward scan on `aln`
-        let mut verified_events =
-            run_candidate_scan(&aln, &masks, &mean_a, &landmarks, &screening);
+        let mut verified_events = run_candidate_scan(&aln, &masks, &mean_a, &landmarks, &screening);
         verified_events =
             due_diligence.adjudicate_reticulation_graph(verified_events, &aln, &screening);
 

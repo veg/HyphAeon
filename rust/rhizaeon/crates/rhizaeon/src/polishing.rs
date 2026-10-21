@@ -505,11 +505,7 @@ impl CumulativeTrajectoryPolisher {
                 let mut vl = Vec::with_capacity(num_channels.saturating_sub(1));
                 let mut vr = Vec::with_capacity(num_channels.saturating_sub(1));
                 for ch in 1..num_channels {
-                    let c_s = if s_disc > 1 {
-                        c_row[off_s + ch]
-                    } else {
-                        0.0
-                    };
+                    let c_s = if s_disc > 1 { c_row[off_s + ch] } else { 0.0 };
                     let c_e = c_row[off_e + ch];
                     let c_end = c_row[off_end + ch];
 

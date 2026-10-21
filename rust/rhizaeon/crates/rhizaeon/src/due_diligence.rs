@@ -1857,9 +1857,8 @@ impl SequenceDueDiligence {
                         && e2.d_tract_donor >= 0.75 * e2.d_flank_donor;
 
                     let e1_has_ext_donor = e1.donor_idx.is_some() && !e1_donor_internal;
-                    let e2_has_ext_donor = e2.donor_idx.is_some()
-                        && !e2_donor_internal
-                        && !e2_is_ghost_home_mirror;
+                    let e2_has_ext_donor =
+                        e2.donor_idx.is_some() && !e2_donor_internal && !e2_is_ghost_home_mirror;
 
                     if e2_is_ghost_home_mirror || (e1_has_ext_donor && !e2_has_ext_donor) {
                         pruned[j] = true;

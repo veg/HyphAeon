@@ -82,7 +82,8 @@ pub fn compute_attention_masks(aln: &Alignment, landmarks: &LandmarkSet) -> Atte
                         let mut l2_size = 1usize;
                         for j in 0..n {
                             if j != l2
-                                && crate::landmarks::compute_pairwise_distance(aln, l2, j) < d_sister
+                                && crate::landmarks::compute_pairwise_distance(aln, l2, j)
+                                    < d_sister
                             {
                                 l2_size += 1;
                             }
@@ -410,7 +411,11 @@ impl PhyloAttentionEngine {
         let l = aln.length;
         let num_channels = k + 1;
         assert_eq!(f_row.len(), l * num_channels, "force row buffer mismatch");
-        assert_eq!(c_row.len(), l * num_channels, "momentum row buffer mismatch");
+        assert_eq!(
+            c_row.len(),
+            l * num_channels,
+            "momentum row buffer mismatch"
+        );
         assert!(num_channels <= 128, "K+1 exceeds stack buffer limit");
 
         let in_offset = i * num_channels;
