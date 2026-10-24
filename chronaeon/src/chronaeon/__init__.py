@@ -46,6 +46,13 @@ from .alignment import (
     ReferenceCodonAligner,
     ReferenceGuidedCodonThreader,
 )
+from .timetree import (
+    ChronAeonTimeTree,
+    SkylineResult,
+    compute_skyline,
+    date_timetree,
+    fast_nj,
+)
 
 try:
     __version__ = _pkg_version("chronaeon")
@@ -67,4 +74,5 @@ __all__ = [
     "ChronAeonSieve",
     "CanonicalMinHashSketcher", "AlignmentFreeBinner", "AlignmentFreeCentrifuge",
     "ReferenceCodonAligner", "ReferenceGuidedCodonThreader",
+    "ChronAeonTimeTree", "SkylineResult", "compute_skyline", "date_timetree", "fast_nj",
 ]
