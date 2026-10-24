@@ -864,6 +864,31 @@ def date_timetree(
     if input_newick is not None:
         tips, adj, syntactic_root = _parse_newick_adj(input_newick)
         n_tips = len(tips)
+        # Suppress unary internal nodes before rooting. A degree-1 stub (e.g.
+        # a single-child root `(X):0.0`) carries no descendants and becomes a
+        # childless internal node after re-rooting, crashing the isotonic
+        # solver's upper-bound pass. Degree-2 single-child groups `((X):b,c)`
+        # are contracted by merging their incident edges. The syntactic root
+        # of a properly binary-rooted input is also degree 2 but is kept so
+        # respect_existing_root can honor it.
+        changed = True
+        while changed:
+            changed = False
+            for u in list(adj.keys()):
+                deg = len(adj.get(u, []))
+                if u < n_tips or deg > 2 or (deg == 2 and u == syntactic_root):
+                    continue
+                if deg == 1:
+                    for v, _ in adj[u]:
+                        adj[v] = [(w, b) for w, b in adj[v] if w != u]
+                    if syntactic_root == u:
+                        syntactic_root = None
+                else:
+                    (v1, b1), (v2, b2) = adj[u]
+                    adj[v1] = [(w, b) for w, b in adj[v1] if w != u] + [(v2, b1 + b2)]
+                    adj[v2] = [(w, b) for w, b in adj[v2] if w != u] + [(v1, b1 + b2)]
+                del adj[u]
+                changed = True
         if not dates_map:
             dates_map, _ = parse_sample_dates(tips)
         times = np.array([dates_map[t] for t in tips], dtype=np.float64)
