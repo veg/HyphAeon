@@ -957,12 +957,61 @@ def main():
     align_parser.add_argument("-o", "--output", default=None, help="Optional path to output aligned FASTA")
     align_parser.add_argument("--quiet", action="store_true", help="Suppress verbose logging")
 
-    # 8. List-models Subcommand
+    # 8. TimeTree Subcommand
+    tt_parser = subparsers.add_parser(
+        "timetree",
+        aliases=["time-tree", "dated-tree"],
+        help="ChronAeon TimeTree: infer a time-calibrated phylogeny from sequences or substitution trees",
+    )
+    tt_parser.add_argument("-a", "--alignment", default=None, help="Path to FASTA/NEXUS alignment")
+    tt_parser.add_argument("-t", "--tree", default=None, help="Optional path to substitution Newick tree")
+    tt_parser.add_argument("--beast", default=None, help="Optional path to BEAST XML (.xml or .xml.gz)")
+    tt_parser.add_argument("-d", "--dates", default=None, help="Optional path to dates TSV/CSV")
+    tt_parser.add_argument("-o", "--output", default=None, help="Path to output time-calibrated Newick file")
+    tt_parser.add_argument("-j", "--json", default=None, help="Optional path to output JSON summary")
+    tt_parser.add_argument("--autoclock", action="store_true", help="Include AutoClock spectral community deconvolution")
+    tt_parser.add_argument("--date-col", default=None, help="Column name for sample collection date in metadata CSV/TSV")
+    tt_parser.add_argument("--strain-col", default=None, help="Column name for taxon / strain identifier in metadata CSV/TSV")
+    tt_parser.add_argument("--date-regex", default=None, help="Optional regex with capture group to extract dates from sequence headers")
+
+    # 9. List-models Subcommand
     list_parser = subparsers.add_parser("list-models", help="List available model variants from Hugging Face")
 
     args = parser.parse_args()
     if args.command == "list-models":
         list_models()
+    elif args.command in ["timetree", "time-tree", "dated-tree"]:
+        from .timetree import date_timetree
+        primary = args.beast or args.tree or args.alignment
+        if not primary:
+            print("[!] Error: Provide --alignment, --tree, or --beast.")
+            sys.exit(1)
+        tt_res = date_timetree(
+            primary, args.dates, alignment=args.alignment, ci=True,
+            autoclock=args.autoclock,
+            date_col=getattr(args, "date_col", None),
+            strain_col=getattr(args, "strain_col", None),
+            date_regex=getattr(args, "date_regex", None),
+        )
+        ci_s = f"[{tt_res.tmrca_ci[0]:.2f}, {tt_res.tmrca_ci[1]:.2f}]" if tt_res.tmrca_ci else "[n/a]"
+        print(f"[✓] ChronAeon TimeTree: t_MRCA = {tt_res.tmrca:.2f} {ci_s}, rate = {tt_res.rate:.3e} subs/site/yr (N_eff={tt_res.n_eff:.1f}, g={tt_res.fieller_g:.4f})")
+        if args.output and tt_res.newick:
+            Path(args.output).write_text(tt_res.newick + "\n")
+            print(f"[✓] Saved dated Newick tree to: {args.output}")
+        if args.json:
+            Path(args.json).write_text(json.dumps({
+                "method": tt_res.method,
+                "tmrca": tt_res.tmrca,
+                "tmrca_ci": list(tt_res.tmrca_ci) if tt_res.tmrca_ci else None,
+                "rate": tt_res.rate,
+                "rate_ci": list(tt_res.rate_ci) if tt_res.rate_ci else None,
+                "fieller_g": tt_res.fieller_g,
+                "n_eff": tt_res.n_eff,
+                "dispersion": tt_res.dispersion,
+                "outliers": tt_res.outliers,
+                "newick": tt_res.newick,
+            }, indent=2))
+            print(f"[✓] Saved JSON summary to: {args.json}")
     elif args.command in ["date", "dating", "mrca", "clock", "chronaeon"]:
         cmd_dating(args)
     elif args.command in ["phylogeo", "geo", "phylogeography", "spatial", "migration", "dispersal"]:
