@@ -363,6 +363,27 @@ def test_date_timetree_unary_root_and_midtree_unary():
     assert res2.rate > 0.0
 
 
+def test_date_timetree_dates_from_metadata_file(tmp_path):
+    nwk = "(a:0.05,(b:0.05,(c:0.035,(d:0.025,e:0.035):0.02):0.025):0.02);"
+    meta = tmp_path / "meta.tsv"
+    meta.write_text(
+        "strain\tcollection_date\n"
+        "a\t10.0\nb\t14.0\nc\t16.0\nd\t18.0\ne\t20.0\n"
+    )
+    res = date_timetree(nwk, str(meta), seq_length=2000, ci=False)
+    assert res.rate > 0.0
+    assert set(res.tip_dates()) == {"a", "b", "c", "d", "e"}
+    assert res.tip_dates()["e"] == 20.0
+
+
+def test_date_timetree_dates_mapping_string_values():
+    nwk = "(a:0.05,(b:0.05,(c:0.035,(d:0.025,e:0.035):0.02):0.025):0.02);"
+    dates = {"a": "2010-01-01", "b": "2014-06-30", "c": "2016-07-15", "d": "2018-05-20", "e": "2020-11-11"}
+    res = date_timetree(nwk, dates, seq_length=2000, ci=False)
+    assert res.rate > 0.0
+    assert set(res.tip_dates()) == set(dates)
+
+
 def test_date_timetree_node_date_ci_bounded_by_descendant_tips():
     nwk = "((a:0.05,(b:0.05,(c:0.035,(d:0.025,e:0.035):0.02):0.025):0.02):0.0);"
     dates = {"a": 10.0, "b": 14.0, "c": 16.0, "d": 18.0, "e": 20.0}

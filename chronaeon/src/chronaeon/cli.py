@@ -970,6 +970,9 @@ def main():
     tt_parser.add_argument("-o", "--output", default=None, help="Path to output time-calibrated Newick file")
     tt_parser.add_argument("-j", "--json", default=None, help="Optional path to output JSON summary")
     tt_parser.add_argument("--autoclock", action="store_true", help="Include AutoClock spectral community deconvolution")
+    tt_parser.add_argument("--date-col", default=None, help="Column name for sample collection date in metadata CSV/TSV")
+    tt_parser.add_argument("--strain-col", default=None, help="Column name for taxon / strain identifier in metadata CSV/TSV")
+    tt_parser.add_argument("--date-regex", default=None, help="Optional regex with capture group to extract dates from sequence headers")
 
     # 9. List-models Subcommand
     list_parser = subparsers.add_parser("list-models", help="List available model variants from Hugging Face")
@@ -983,7 +986,13 @@ def main():
         if not primary:
             print("[!] Error: Provide --alignment, --tree, or --beast.")
             sys.exit(1)
-        tt_res = date_timetree(primary, args.dates, alignment=args.alignment, ci=True, autoclock=args.autoclock)
+        tt_res = date_timetree(
+            primary, args.dates, alignment=args.alignment, ci=True,
+            autoclock=args.autoclock,
+            date_col=getattr(args, "date_col", None),
+            strain_col=getattr(args, "strain_col", None),
+            date_regex=getattr(args, "date_regex", None),
+        )
         ci_s = f"[{tt_res.tmrca_ci[0]:.2f}, {tt_res.tmrca_ci[1]:.2f}]" if tt_res.tmrca_ci else "[n/a]"
         print(f"[✓] ChronAeon TimeTree: t_MRCA = {tt_res.tmrca:.2f} {ci_s}, rate = {tt_res.rate:.3e} subs/site/yr (N_eff={tt_res.n_eff:.1f}, g={tt_res.fieller_g:.4f})")
         if args.output and tt_res.newick:

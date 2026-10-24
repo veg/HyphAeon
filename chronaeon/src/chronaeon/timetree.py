@@ -23,10 +23,7 @@ from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 
 import numpy as np
 from scipy import sparse, stats
-from scipy.cluster.hierarchy import linkage
-from scipy.optimize import minimize
 from scipy.sparse.linalg import spsolve
-from scipy.spatial.distance import squareform
 
 from aeon_core import _native
 from aeon_core.dataset import (
@@ -37,11 +34,6 @@ from aeon_core.dataset import (
 from .dating_io import (
     compute_time_decay_profile_divergences,
     parse_sample_dates,
-)
-from .dating_models import (
-    compute_fieller_mrca_interval,
-    run_ols_dating,
-    run_restricted_spline_clock_dating,
 )
 
 
@@ -784,6 +776,9 @@ def date_timetree(
     ci: bool = True,
     autoclock: bool = False,
     outlier_z_threshold: float = 3.0,
+    date_col: Optional[str] = None,
+    strain_col: Optional[str] = None,
+    date_regex: Optional[str] = None,
 ) -> ChronAeonTimeTree:
     """
     Infers a complete time-calibrated phylogeny (`ChronAeonTimeTree`) from either:
@@ -832,28 +827,17 @@ def date_timetree(
         elif os.path.exists(str(alignment)):
             seq_dict = parse_alignment_sequences(str(alignment))
 
-    # 2. Parse tip dates
+    # 2. Parse tip dates. File-based sources (CSV/TSV/Auspice JSON/BEAST
+    #    XML) are resolved in step 3 once the tip set is known, via the shared
+    #    parse_sample_dates loader, which also handles header auto-extraction.
     dates_map: Dict[str, float] = {}
+    dates_file: Optional[str] = None
     if dates is not None:
         if isinstance(dates, Mapping):
-            for k, v in dates.items():
-                if isinstance(v, (int, float)):
-                    dates_map[str(k).strip().strip("'\"")] = float(v)
-                else:
-                    d_parsed, _ = parse_sample_dates([str(k)], dates_source={str(k): v})
-                    if str(k) in d_parsed:
-                        dates_map[str(k).strip().strip("'\"")] = float(d_parsed[str(k)])
+            src = {str(k).strip().strip("'\""): v for k, v in dates.items()}
+            dates_map, _ = parse_sample_dates(list(src), dates_source=src)
         elif isinstance(dates, (str, Path)) and os.path.exists(str(dates)):
-            lines = Path(dates).read_text().splitlines()
-            if lines and len(lines[0].split()) == 1 and lines[0].split()[0].isdigit():
-                lines = lines[1:]
-            for ln in lines:
-                parts = ln.strip().split()
-                if len(parts) >= 2:
-                    try:
-                        dates_map[parts[0].strip("'\"")] = float(parts[1])
-                    except ValueError:
-                        pass
+            dates_file = str(dates)
     elif beast_dates:
         dates_map = {str(k).strip().strip("'\""): float(v) for k, v in beast_dates.items()}
 
@@ -890,7 +874,10 @@ def date_timetree(
                 del adj[u]
                 changed = True
         if not dates_map:
-            dates_map, _ = parse_sample_dates(tips)
+            dates_map, _ = parse_sample_dates(
+                tips, dates_source=dates_file,
+                date_col=date_col, strain_col=strain_col, date_regex=date_regex,
+            )
         times = np.array([dates_map[t] for t in tips], dtype=np.float64)
         dist_all = _all_nodes_to_tips_distances(adj, n_tips)
         D = dist_all[:n_tips, :n_tips].copy()
@@ -905,7 +892,10 @@ def date_timetree(
     elif seq_dict is not None:
         raw_taxa = list(seq_dict.keys())
         if not dates_map:
-            dates_map, _ = parse_sample_dates(raw_taxa)
+            dates_map, _ = parse_sample_dates(
+                raw_taxa, dates_source=dates_file,
+                date_col=date_col, strain_col=strain_col, date_regex=date_regex,
+            )
             if len(dates_map) < 3:
                 for t in raw_taxa:
                     if "|" in t:
