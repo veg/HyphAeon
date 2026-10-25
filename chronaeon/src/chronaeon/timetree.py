@@ -726,9 +726,13 @@ def _solve_tree_isotonic_wls(
             mu_wls = num / den
             mu_pois = (sum_b / sum_tau) if sum_tau > 1e-9 else mu_wls
             # Blend tree-path root-to-tip rate (mu_rtt) with branch MLE/WLS rate
-            # so heterotachy or polytomy resolution never collapses the global rate.
+            # proportionally to active polytomy fraction so well-resolved trees rely
+            # on the tree-Laplacian branch estimator while low-divergence polytomies
+            # are protected from zero-branch attenuation.
+            f_zero = float(n_zero_active) / max(len(edges), 1)
+            w_rtt = float(np.clip(0.15 + 0.70 * f_zero, 0.15, 0.50))
             mu_branch = max(mu_wls, mu_pois) if n_zero_active > 0 else (0.7 * mu_wls + 0.3 * mu_pois)
-            mu_new = 0.5 * mu_rtt + 0.5 * mu_branch
+            mu_new = w_rtt * mu_rtt + (1.0 - w_rtt) * mu_branch
             mu_new = max(1e-7, mu_new)
             if abs(mu_new - mu_curr) / mu_curr < 1e-5 and outer_it >= 1:
                 mu_curr = mu_new
@@ -863,14 +867,17 @@ def date_timetree(
                 if u < n_tips or deg > 2 or (deg == 2 and u == syntactic_root):
                     continue
                 if deg == 1:
-                    for v, _ in adj[u]:
-                        adj[v] = [(w, b) for w, b in adj[v] if w != u]
+                    v = adj[u][0][0]
+                    adj[v] = [(w, b) for w, b in adj[v] if w != u]
                     if syntactic_root == u:
-                        syntactic_root = None
+                        syntactic_root = v if v >= n_tips else None
                 else:
                     (v1, b1), (v2, b2) = adj[u]
-                    adj[v1] = [(w, b) for w, b in adj[v1] if w != u] + [(v2, b1 + b2)]
-                    adj[v2] = [(w, b) for w, b in adj[v2] if w != u] + [(v1, b1 + b2)]
+                    adj[v1] = [(w, b) for w, b in adj[v1] if w != u]
+                    adj[v2] = [(w, b) for w, b in adj[v2] if w != u]
+                    if v1 != v2 and not any(w == v2 for w, _ in adj[v1]):
+                        adj[v1].append((v2, b1 + b2))
+                        adj[v2].append((v1, b1 + b2))
                 del adj[u]
                 changed = True
         if not dates_map:

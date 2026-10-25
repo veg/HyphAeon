@@ -353,14 +353,20 @@ def test_date_timetree_rooted_newick_respected():
 def test_date_timetree_unary_root_and_midtree_unary():
     # Single-child root `(X):0.0` leaves a degree-1 stub; single-child groups
     # inside the tree leave degree-2 unaries. Both must be suppressed instead
-    # of crashing the isotonic solver.
+    # of crashing the isotonic solver, while transferring syntactic_root to
+    # the true binary root so respect_existing_root remains intact.
     dates = {"a": 10.0, "b": 14.0, "c": 16.0, "d": 18.0, "e": 20.0}
     unary_root = "((a:0.05,(b:0.05,(c:0.035,(d:0.025,e:0.035):0.02):0.025):0.02):0.0);"
+    binary_root = "(a:0.05,(b:0.05,(c:0.035,(d:0.025,e:0.035):0.02):0.025):0.02);"
     res = date_timetree(unary_root, dates, seq_length=2000, ci=True)
+    res_bin = date_timetree(binary_root, dates, seq_length=2000, ci=True)
     assert res.rate > 0.0 and res.tmrca < min(dates.values())
+    assert res.tmrca == pytest.approx(res_bin.tmrca, abs=1e-6)
+    assert res.rate == pytest.approx(res_bin.rate, rel=1e-6)
     midtree_unary = "(a:0.05,((b:0.05):0.0,(c:0.035,(d:0.025,e:0.035):0.02):0.025):0.02);"
     res2 = date_timetree(midtree_unary, dates, seq_length=2000, ci=False)
     assert res2.rate > 0.0
+    assert res2.tmrca == pytest.approx(res_bin.tmrca, abs=1e-6)
 
 
 def test_date_timetree_dates_from_metadata_file(tmp_path):
