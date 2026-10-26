@@ -427,15 +427,22 @@ def run_permutation_bssvs(
     for j in range(K):
         for k in range(K):
             if j != k:
-                # Empirical one-tailed p-value
+                # Empirical one-tailed Phipson-Smyth p-value
                 p = (np.sum(null_M[:, j, k] >= M_obs[j, k]) + 1.0) / (n_perms + 1.0)
                 p_vals[j, k] = p
 
-                # Posterior inclusion odds & Bayes Factor
-                tail_p = np.sum(null_M[:, j, k] < M_obs[j, k]) / n_perms
-                post_prob = min(max(tail_p, 0.01), 0.99)
-                post_odds = post_prob / (1.0 - post_prob)
-                bf = post_odds / prior_odds
+                # Calibrated Bayes Factor (Sellke-Berger-Bayarri -e*p*ln(p) bound combined
+                # with Phipson-Smyth tail odds bounded by permutation resolution n_perms).
+                # Requires p < 1/e (~0.368) to exceed 0, and scales with n_perms rather than
+                # saturating at a fixed 0.99 clamp.
+                if p < (1.0 / np.exp(1.0)) and Z_scores[j, k] > 0.0:
+                    sbb_bf = float(-1.0 / (np.exp(1.0) * p * np.log(max(p, 1e-15))))
+                    p_eff = max(float(p), 0.5 / (n_perms + 1.0))
+                    tail_odds = (1.0 - p_eff) / p_eff
+                    bf = float(min(sbb_bf, tail_odds / max(prior_odds, 1e-6)))
+                else:
+                    bf = float(max(0.0, (1.0 - p) / max(p, 1e-6) * 0.25))
+                    bf = min(bf, 1.0)
                 bf_mat[j, k] = bf
 
                 all_routes.append({
@@ -460,10 +467,15 @@ def run_permutation_bssvs(
     for i in range(m_tests - 2, -1, -1):
         all_routes[i]["fdr_q"] = min(all_routes[i]["fdr_q"], all_routes[i + 1]["fdr_q"])
 
-    # Categorize support
+    # Categorize support: require both BF threshold and multiplicity-adjusted FDR q <= fdr_thresh
+    # (or p_value <= 0.05 when permutation count is too small for BH floor to reach fdr_thresh)
+    fdr_achievable = (1.0 / (n_perms + 1.0)) * m_tests <= fdr_thresh
     for r in all_routes:
         bf = r["bayes_factor"]
-        if bf >= 100.0:
+        passes_fdr = (r["fdr_q"] <= fdr_thresh) if fdr_achievable else (r["p_value"] <= 0.05 and r["fdr_q"] <= 0.25)
+        if not passes_fdr or bf < min_bf:
+            r["support"] = "Unsupported (FDR / BF)" if bf >= min_bf else "Unsupported (BF < 3)"
+        elif bf >= 100.0:
             r["support"] = "Decisive (BF >= 100)"
         elif bf >= 10.0:
             r["support"] = "Strong (10 <= BF < 100)"
@@ -831,7 +843,14 @@ def run_phylogeography_analysis(
         fdr_thresh=fdr_thresh,
     )
 
-    sig_routes = [r for r in all_routes if r["bayes_factor"] >= min_bf or r["fdr_q"] <= fdr_thresh]
+    m_tests = max(1, len(all_routes))
+    fdr_achievable = (1.0 / (n_perms + 1.0)) * m_tests <= fdr_thresh
+    sig_routes = [
+        r for r in all_routes
+        if r["bayes_factor"] >= min_bf and (
+            r["fdr_q"] <= fdr_thresh if fdr_achievable else (r["p_value"] <= 0.05 and r["fdr_q"] <= 0.25)
+        )
+    ]
 
     # 5. Spatial PGLS Continuous Coordinates (if lat/lon available)
     spatial_coords = None

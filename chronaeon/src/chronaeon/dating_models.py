@@ -548,10 +548,11 @@ def run_ols_dating(
                     seq_len=seq_len or 1000, n_boot=n_boot, seed=seed, min_time=min_time
                 )
             elif ci_method_lower in ["residual-boot", "wild"]:
-                ci_mrca = compute_residual_bootstrap_mrca_interval(
+                ci_bootstrap = compute_residual_bootstrap_mrca_interval(
                     times, dists, beta_ols, X.T @ X, X, np.eye(n), np.eye(n), np.eye(n),
                     t_ref, n_boot=n_boot, seed=seed, min_time=min_time
                 )
+                ci_mrca = ci_bootstrap
             elif ci_method_lower in ["jackknife", "jack", "loocv"]:
                 loocv_tmp = run_dating_loocv(times, dists, method="ols", min_time=min_time)
                 ci_mrca = loocv_tmp['jackknife_ci']
@@ -1247,10 +1248,33 @@ def run_restricted_spline_clock_dating(
         ci_mu_rec = [float(np.percentile(boot_mu_rec, 2.5)), float(np.percentile(boot_mu_rec, 97.5))]
         ci_beta2 = [float(np.percentile(boot_beta2, 2.5)), float(np.percentile(boot_beta2, 97.5))]
     else:
-        ci_t0 = [t0_sp, t0_sp]
-        ci_mu_anc = [mu_ancestral, mu_ancestral]
-        ci_mu_rec = [mu_recent, mu_recent]
-        ci_beta2 = [float(beta_sp[2]), float(beta_sp[2])]
+        # Analytical GLS covariance + Fieller's theorem fallback when n_boot == 0
+        # or fewer than 20 bootstrap draws yield positive ancestral rates.
+        # Center at t_ref = t_min so d(t) = d0_min + mu_anc * (t - t_min) + beta_2 * B(t).
+        X_sp_c = np.column_stack([times - t_min, np.ones(n), B])
+        Xt_Cinv_X_c = X_sp_c.T @ C_inv @ X_sp_c
+        sigma2_sp = float(rss_sp / max(1, df_sp))
+        try:
+            cov_sp_c = sigma2_sp * la.inv(Xt_Cinv_X_c)
+        except la.LinAlgError:
+            cov_sp_c = sigma2_sp * la.pinv(Xt_Cinv_X_c)
+        d0_min = float(beta_sp[0] + beta_sp[1] * t_min)
+        if mu_ancestral > 1e-9:
+            ci_t0, _ = compute_fieller_mrca_interval(
+                mu_ancestral, d0_min, cov_sp_c[:2, :2], t_min, df=max(1, df_sp), min_time=t_min
+            )
+            if len(ci_t0) == 2 and not np.isnan(ci_t0[0]) and abs(ci_t0[1] - ci_t0[0]) < 1e-12:
+                ci_t0 = [float('nan'), float('nan')]
+        else:
+            ci_t0 = [float('nan'), float('nan')]
+        t_crit_sp = float(stats.t.ppf(0.975, df=max(1, df_sp)))
+        se_mu_anc = float(np.sqrt(max(0.0, cov_sp_c[0, 0])))
+        se_beta2 = float(np.sqrt(max(0.0, cov_sp_c[2, 2])))
+        var_rec = float(cov_sp_c[0, 0] + (dB_max ** 2) * cov_sp_c[2, 2] + 2.0 * dB_max * cov_sp_c[0, 2])
+        se_mu_rec = float(np.sqrt(max(0.0, var_rec)))
+        ci_mu_anc = [float(mu_ancestral - t_crit_sp * se_mu_anc), float(mu_ancestral + t_crit_sp * se_mu_anc)]
+        ci_mu_rec = [float(mu_recent - t_crit_sp * se_mu_rec), float(mu_recent + t_crit_sp * se_mu_rec)]
+        ci_beta2 = [float(beta_sp[2] - t_crit_sp * se_beta2), float(beta_sp[2] + t_crit_sp * se_beta2)]
 
     # Generalized R^2
     r2_sp = _generalized_r2(rss_sp, dists, C_inv)

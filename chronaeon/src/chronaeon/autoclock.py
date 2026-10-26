@@ -1101,7 +1101,7 @@ class AutoClockDeconvolution:
                 method=comm_method,
                 clock_model="auto",
                 ridge="auto",
-                n_bootstrap=0,
+                n_bootstrap=200,
                 ci_method="fieller",
                 allow_stop_codons=self.allow_stop_codons,
                 output_prefix=str(c_prefix)
@@ -1113,7 +1113,9 @@ class AutoClockDeconvolution:
 
             calibrated_rate = pgls.get("mu") if pgls.get("mu") and pgls.get("mu") > 0 else ols.get("mu", 0.0)
             calibrated_tmrca = pgls.get("t_mrca") if pgls.get("t_mrca") else ols.get("t_mrca", 0.0)
-            ci_mrca = pgls.get("ci_mrca") if pgls.get("ci_mrca") else ols.get("ci_mrca", [calibrated_tmrca, calibrated_tmrca])
+            ci_mrca = pgls.get("ci_mrca") if pgls.get("ci_mrca") else ols.get("ci_mrca", [float("nan"), float("nan")])
+            if isinstance(ci_mrca, (list, tuple)) and len(ci_mrca) == 2 and not np.isnan(ci_mrca[0]) and abs(ci_mrca[1] - ci_mrca[0]) < 1e-12:
+                ci_mrca = [float("nan"), float("nan")]
 
             c_dates = [self.dates_map[t] for t in c_taxa]
             self.community_results[c_id] = {

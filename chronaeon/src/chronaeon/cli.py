@@ -19,8 +19,9 @@ from aeon_core.weights import print_available_variants
 from aeon_core.cli import handle_cli_errors, add_weights_args, weights_kwargs, add_memory_args, memory_kwargs
 from aeon_core.io import write_json, write_csv
 
+_PKG_EXAMPLES_DIR = Path(__file__).resolve().parent / "examples"
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
-EXAMPLES_DIR = _REPO_ROOT / "chronaeon" / "examples"
+EXAMPLES_DIR = _PKG_EXAMPLES_DIR if _PKG_EXAMPLES_DIR.exists() else (_REPO_ROOT / "chronaeon" / "examples")
 
 
 def cmd_dating(args):
@@ -372,7 +373,7 @@ def cmd_phylogeo(args):
     )
 
     print("\n" + "=" * 105)
-    print(f"{'Rank':<6} {'Geographic Region':<24} {'Posterior P(Root)':<22} {'Isolates':<12} {'Role / Dynamics':<24}")
+    print(f"{'Rank':<6} {'Geographic Region':<24} {'GLS Root Weight P':<22} {'Isolates':<12} {'Role / Dynamics':<24}")
     print("-" * 105)
 
     root_dist = res["root_epicenter"]["distribution"]
@@ -387,7 +388,7 @@ def cmd_phylogeo(args):
     print("-" * 105)
 
     sig_routes = res["significant_routes"]
-    print(f"\n[*] Statistically Supported Transmission Routes (BF >= {getattr(args, 'min_bf', 3.0):.1f} or FDR <= {getattr(args, 'fdr', 0.10):.2f}):")
+    print(f"\n[*] Statistically Supported Transmission Routes (BF >= {getattr(args, 'min_bf', 3.0):.1f} and FDR <= {getattr(args, 'fdr', 0.10):.2f}):")
     if sig_routes:
         print(f"{'Source':<16} {'Target (Sink)':<16} {'Flux':<12} {'Z-Score':<10} {'p-value':<10} {'FDR q':<10} {'Bayes Factor':<14} {'Support':<16}")
         print("-" * 105)
