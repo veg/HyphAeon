@@ -182,6 +182,32 @@ impl LocalFluxScreener {
         aln: &Alignment,
         landmarks: &LandmarkSet,
     ) -> ScreeningResult {
+        self.screen_with_progress(
+            attention,
+            m_matrix,
+            b_prior,
+            root_sequence,
+            masks,
+            mean_a,
+            aln,
+            landmarks,
+            &mut |_, _| {},
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn screen_with_progress<F: FnMut(usize, usize)>(
+        &self,
+        attention: &PhyloAttentionEngine,
+        m_matrix: &[f64],
+        b_prior: &[f64],
+        root_sequence: &[u8],
+        masks: &AttentionMasks,
+        mean_a: &[f64],
+        aln: &Alignment,
+        landmarks: &LandmarkSet,
+        on_taxon_progress: &mut F,
+    ) -> ScreeningResult {
         let n = aln.num_taxa;
         let l = aln.length;
         let k = landmarks.num_landmarks;
@@ -201,6 +227,7 @@ impl LocalFluxScreener {
         // Per-taxon scratch rows, allocated once outside both loops
         let mut f_row = vec![0.0f64; l * num_channels];
         let mut c_row = vec![0.0f64; l * num_channels];
+        let step_report = (n / 20).max(1);
 
         // 1. Compute variances and peak-to-trough pulses in a single cache-friendly pass per taxon
         for i in 0..n {
@@ -276,6 +303,9 @@ impl LocalFluxScreener {
 
             // Spatial coherence
             gamma_root[i] = self.compute_spatial_coherence(&f_row, l, num_channels);
+            if (i + 1) % step_report == 0 || i + 1 == n {
+                on_taxon_progress(i + 1, n);
+            }
         }
 
         // 2. Heterotachy logit outlier screening

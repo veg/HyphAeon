@@ -1,6 +1,6 @@
 [package]
 name = "rhizaeon-wasm"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 authors = ["Sergei L. Kosakovsky Pond", "Antigravity AI Engine"]
 description = "WebAssembly client-side engine for RhizAeon PA-FF (v2.1)"

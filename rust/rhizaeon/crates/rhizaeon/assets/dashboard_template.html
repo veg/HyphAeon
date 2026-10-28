@@ -554,6 +554,7 @@
           </button>
         </div>
       </div>
+      <button class="btn" onclick="window.saveFullAnalysis()">Save Full Analysis</button>
       <button class="btn" onclick="window.exportJSON()">Export JSON</button>
     </div>
   </header>
@@ -2210,6 +2211,7 @@ __RHIZAEON_DATA_JSON__
           // Draw a single contiguous red border around the ENTIRE recombined tract of the selected event
           const tractBounds = getEventTractBounds(state.activeEventId, state.activeBpId, t);
           if (tractBounds) {
+            row.classList.add('selected-event-seq-row');
             const [tStart, tEnd] = tractBounds;
             const tractLeftPct = ((tStart - 1) / L_TOTAL) * 100;
             const tractWidthPct = ((tEnd - tStart + 1) / L_TOTAL) * 100;
@@ -2228,6 +2230,49 @@ __RHIZAEON_DATA_JSON__
           row.appendChild(bar);
           matrixContainer.appendChild(row);
         });
+
+        if (state.shouldCenterMatrixOnEvent) {
+          centerMatrixOnSelectedEvent();
+        }
+      }
+
+      function centerMatrixOnSelectedEvent() {
+        if (!matrixContainer) return;
+        const selectedRows = Array.from(matrixContainer.querySelectorAll('.selected-event-seq-row'));
+        const targetRows = selectedRows.length > 0
+          ? selectedRows
+          : Array.from(matrixContainer.querySelectorAll('.seq-row.active'));
+        if (targetRows.length > 0) {
+          const containerRect = matrixContainer.getBoundingClientRect();
+          let sumCenterY = 0;
+          targetRows.forEach(r => {
+            const rRect = r.getBoundingClientRect();
+            const relTop = (rRect.top - containerRect.top) + matrixContainer.scrollTop;
+            sumCenterY += relTop + rRect.height / 2;
+          });
+          const meanCenterY = sumCenterY / targetRows.length;
+          const visibleH = matrixContainer.clientHeight || 260;
+          const targetScrollTop = Math.max(0, Math.round(meanCenterY - visibleH / 2));
+          if (typeof matrixContainer.scrollTo === 'function') {
+            matrixContainer.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+          } else {
+            matrixContainer.scrollTop = targetScrollTop;
+          }
+        }
+
+        const tractEl = matrixContainer.querySelector('.selected-mosaic-tract');
+        if (tractEl && matrixContainer.scrollWidth > matrixContainer.clientWidth) {
+          const containerRect = matrixContainer.getBoundingClientRect();
+          const tRect = tractEl.getBoundingClientRect();
+          const relLeft = (tRect.left - containerRect.left) + matrixContainer.scrollLeft;
+          const tractCenterX = relLeft + tRect.width / 2;
+          const targetScrollLeft = Math.max(0, Math.round(tractCenterX - matrixContainer.clientWidth / 2));
+          if (typeof matrixContainer.scrollTo === 'function') {
+            matrixContainer.scrollTo({ left: targetScrollLeft, behavior: 'smooth' });
+          } else {
+            matrixContainer.scrollLeft = targetScrollLeft;
+          }
+        }
       }
 
       // Render Level 3: Micro Signals
@@ -2997,8 +3042,12 @@ __RHIZAEON_DATA_JSON__
       function highlightInventoryRow() {
         if (!inventoryTableBody) return;
         const activeRow = inventoryTableBody.querySelector('.active-row');
-        if (activeRow) {
-          activeRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        const tableContainer = inventoryTableBody.closest('.table-container');
+        if (activeRow && tableContainer && tableContainer.scrollHeight > tableContainer.clientHeight) {
+          const cRect = tableContainer.getBoundingClientRect();
+          const rRect = activeRow.getBoundingClientRect();
+          const relTop = (rRect.top - cRect.top) + tableContainer.scrollTop;
+          tableContainer.scrollTop = Math.max(0, Math.round(relTop - tableContainer.clientHeight / 2 + rRect.height / 2));
         }
       }
 
@@ -3011,6 +3060,7 @@ __RHIZAEON_DATA_JSON__
           if (bp) state.activeEventId = bp.event_id;
         }
         state.shouldCenterTreesOnRec = true;
+        state.shouldCenterMatrixOnEvent = true;
         setFocalTaxon(rec, p1, p2);
         state.shouldCenterTreesOnRec = true;
         const bounds = getEventTractBounds(state.activeEventId, state.activeBpId, rec);
@@ -3019,7 +3069,12 @@ __RHIZAEON_DATA_JSON__
         } else {
           window.jumpTo(ciL - 45, ciR + 45);
         }
+        centerMatrixOnSelectedEvent();
+        if (matrixContainer) {
+          matrixContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
         state.shouldCenterTreesOnRec = false;
+        state.shouldCenterMatrixOnEvent = false;
         notifyParentEvent(state.activeEventId, state.activeBpId, rec);
         highlightInventoryRow();
       };
@@ -3030,6 +3085,7 @@ __RHIZAEON_DATA_JSON__
         if (bp) {
           state.activeBpId = bp.breakpoint_id;
           state.shouldCenterTreesOnRec = true;
+          state.shouldCenterMatrixOnEvent = true;
           setFocalTaxon(bp.recombinant, bp.parent_1, bp.parent_2);
           state.shouldCenterTreesOnRec = true;
           const bounds = getEventTractBounds(eventId, bp.breakpoint_id, bp.recombinant);
@@ -3038,18 +3094,63 @@ __RHIZAEON_DATA_JSON__
           } else {
             window.jumpTo(bp.ci_left - 45, bp.ci_right + 45);
           }
+          centerMatrixOnSelectedEvent();
+          if (matrixContainer) {
+            matrixContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
           state.shouldCenterTreesOnRec = false;
+          state.shouldCenterMatrixOnEvent = false;
           notifyParentEvent(state.activeEventId, state.activeBpId, bp.recombinant);
           highlightInventoryRow();
         } else {
           state.shouldCenterTreesOnRec = true;
+          state.shouldCenterMatrixOnEvent = true;
           renderMatrix();
           renderInventoryTable();
           refreshAll();
+          centerMatrixOnSelectedEvent();
+          if (matrixContainer) {
+            matrixContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
           state.shouldCenterTreesOnRec = false;
+          state.shouldCenterMatrixOnEvent = false;
           notifyParentEvent(state.activeEventId, null, state.focalTaxon);
           highlightInventoryRow();
         }
+      };
+
+      window.saveFullAnalysis = function() {
+        try {
+          if (window.parent && window.parent !== window && typeof window.parent.saveFullAnalysis === 'function') {
+            window.parent.saveFullAnalysis();
+            return;
+          }
+        } catch (_e) {}
+        const fastaLines = [];
+        for (const t of (DATA.taxa || [])) {
+          if (DATA.sequences && DATA.sequences[t]) {
+            fastaLines.push(`>${t}\n${DATA.sequences[t]}`);
+          }
+        }
+        const payload = {
+          rhizaeon_analysis_format: '1.0',
+          engine_version: (DATA.metadata && DATA.metadata.engine_version) || '0.1.3',
+          saved_at: new Date().toISOString(),
+          filename: (DATA.metadata && DATA.metadata.title) || 'rhizaeon_analysis',
+          fasta: fastaLines.join('\n') + (fastaLines.length ? '\n' : ''),
+          dossier: DATA,
+          landscape: DATA.recombination_landscape || null,
+          html: '<!DOCTYPE html>\n' + document.documentElement.outerHTML
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'rhizaeon_full_analysis.rhizaeon.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
       };
 
       // Global View Controllers

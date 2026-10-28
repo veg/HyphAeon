@@ -24,12 +24,21 @@ pub struct AttentionMasks {
 /// This prevents minority co-recombinant twins (e.g. pop1.21 and pop1.23, or Rec_0..K) from
 /// absorbing 100% of each other's attention while preserving majority parental clades.
 pub fn compute_attention_masks(aln: &Alignment, landmarks: &LandmarkSet) -> AttentionMasks {
+    compute_attention_masks_with_progress(aln, landmarks, &mut |_, _| {})
+}
+
+pub fn compute_attention_masks_with_progress<F: FnMut(usize, usize)>(
+    aln: &Alignment,
+    landmarks: &LandmarkSet,
+    on_taxon_progress: &mut F,
+) -> AttentionMasks {
     let n = aln.num_taxa;
     let k = landmarks.num_landmarks;
 
     let (d_sister, d_clade) = crate::landmarks::compute_scale_invariant_distance_thresholds(aln);
     let mut mask_landmark = vec![false; n * k];
     let mut is_non_sister_landmark = vec![false; n * k];
+    let step_report = (n / 20).max(1);
     for i in 0..n {
         let mut sister_landmarks = Vec::new();
         let mut ext_landmarks = Vec::new();
@@ -119,6 +128,9 @@ pub fn compute_attention_masks(aln: &Alignment, landmarks: &LandmarkSet) -> Atte
                     mask_landmark[i * k + p] = true;
                 }
             }
+        }
+        if (i + 1) % step_report == 0 || i + 1 == n {
+            on_taxon_progress(i + 1, n);
         }
     }
 
@@ -276,6 +288,28 @@ impl PhyloAttentionEngine {
         root_sequence: &[u8],
         masks: &AttentionMasks,
     ) -> Vec<f64> {
+        self.compute_mean_attention_with_progress(
+            aln,
+            landmarks,
+            m_matrix,
+            b_prior,
+            root_sequence,
+            masks,
+            &mut |_, _| {},
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn compute_mean_attention_with_progress<F: FnMut(usize, usize)>(
+        &self,
+        aln: &Alignment,
+        landmarks: &LandmarkSet,
+        m_matrix: &[f64],
+        b_prior: &[f64],
+        root_sequence: &[u8],
+        masks: &AttentionMasks,
+        on_taxon_progress: &mut F,
+    ) -> Vec<f64> {
         let n = aln.num_taxa;
         let k = landmarks.num_landmarks;
         let l = aln.length;
@@ -287,6 +321,7 @@ impl PhyloAttentionEngine {
 
         // Single cell buffer, hoisted above both loops: zero heap allocation per site.
         let mut cell = [0.0f64; 128];
+        let step_report = (n / 20).max(1);
 
         for i in 0..n {
             let in_offset = i * num_channels;
@@ -317,6 +352,9 @@ impl PhyloAttentionEngine {
                         valid_pair_counts[in_offset + ch] += 1;
                     }
                 }
+            }
+            if (i + 1) % step_report == 0 || i + 1 == n {
+                on_taxon_progress(i + 1, n);
             }
         }
 

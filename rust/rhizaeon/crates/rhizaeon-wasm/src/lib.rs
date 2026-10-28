@@ -264,15 +264,15 @@ pub fn scan_fasta_bundle_with_progress(
         engine = engine.with_compress_snps(cs);
     }
     let mut res = engine.scan_with_progress(&aln, |frac, msg| {
-        report_progress(0.05 + frac * 0.80, msg);
+        report_progress(0.03 + frac * 0.89, msg);
     });
 
     let end_time = js_sys::Date::now();
     res.run_time_ms = end_time - start_time;
 
-    report_progress(0.88, "Synthesizing visualization dossier & 2D MDS subspaces...");
+    report_progress(0.94, "Synthesizing visualization dossier & 2D MDS subspaces...");
     let dossier = rhizaeon::generate_visualization_dossier(&aln, &res, title.as_deref());
-    report_progress(0.96, "Rendering interactive HTML dashboard...");
+    report_progress(0.98, "Rendering interactive HTML dashboard...");
     let html = rhizaeon::generate_standalone_html(&dossier).map_err(|e| JsValue::from_str(&e))?;
     let landscape = dossier.recombination_landscape.clone();
     report_progress(1.0, "Complete");
