@@ -74,15 +74,15 @@ pub fn generate_visualization_dossier(
         }
     }
 
-    // 2. Reconstruct decoded nucleotide sequences (capped for megabase or large-N alignments to prevent JSON bloat)
+    // 2. Reconstruct decoded nucleotide sequences (capped for megabase or very large-N alignments to prevent JSON bloat)
     let mut sequences = BTreeMap::new();
     let max_store_len = 100_000;
     let store_l = l.min(max_store_len);
-    let max_stored_seqs = 72usize;
+    let max_stored_seqs = 320usize;
     let mut stored_count = 0usize;
     for i in 0..n {
         let t_name = &aln.taxa[i];
-        let is_priority = rec_taxa_set.contains(t_name) || parent_taxa_set.contains(t_name) || i < 8;
+        let is_priority = rec_taxa_set.contains(t_name) || parent_taxa_set.contains(t_name) || i < 16;
         if n > max_stored_seqs && !is_priority && stored_count >= max_stored_seqs {
             continue;
         }

@@ -537,6 +537,23 @@
       <button class="btn btn-primary" onclick="window.resetView()">Fit Full Genome</button>
       <div id="top-jump-buttons" style="display:inline-flex; gap:6px; flex-wrap:wrap;"></div>
       <button class="btn" onclick="document.body.classList.toggle('light-theme')">Theme</button>
+      <div style="position:relative; display:inline-block;" id="save-alignment-dropdown-wrapper">
+        <button class="btn" onclick="const m=document.getElementById('save-alignment-menu'); m.style.display=(m.style.display==='block'?'none':'block');">Save Alignment &#9662;</button>
+        <div id="save-alignment-menu" style="display:none; position:absolute; right:0; top:calc(100% + 4px); width:330px; background:var(--bg-surface); border:1px solid var(--border-bright); border-radius:5px; box-shadow:0 8px 20px rgba(0,0,0,0.35); z-index:200; padding:6px;">
+          <button class="btn" style="width:100%; justify-content:flex-start; text-align:left; margin-bottom:4px; flex-direction:column; align-items:flex-start; gap:2px; padding:7px 10px;" onclick="window.saveAlignmentOption('masked'); document.getElementById('save-alignment-menu').style.display='none';">
+            <span style="font-weight:700; color:var(--cyan);">1. Recombinant Regions Removed (N-Masked)</span>
+            <span style="font-size:10px; color:var(--text-muted); font-weight:normal; white-space:normal;">Replaces recombinationally acquired tracts with &ldquo;N&rdquo; symbols</span>
+          </button>
+          <button class="btn" style="width:100%; justify-content:flex-start; text-align:left; margin-bottom:4px; flex-direction:column; align-items:flex-start; gap:2px; padding:7px 10px;" onclick="window.saveAlignmentOption('deconstructed'); document.getElementById('save-alignment-menu').style.display='none';">
+            <span style="font-weight:700; color:var(--purple);">2. Deconstructed Into Substituent Parts</span>
+            <span style="font-size:10px; color:var(--text-muted); font-weight:normal; white-space:normal;">Splits recombinants into N-masked backbones and N-padded tract sequences</span>
+          </button>
+          <button class="btn" style="width:100%; justify-content:flex-start; text-align:left; flex-direction:column; align-items:flex-start; gap:2px; padding:7px 10px;" onclick="window.saveAlignmentOption('split'); document.getElementById('save-alignment-menu').style.display='none';">
+            <span style="font-weight:700; color:var(--emerald);">3. Split At Recombination Breakpoints</span>
+            <span style="font-size:10px; color:var(--text-muted); font-weight:normal; white-space:normal;">Saves alignment regions demarcated by all detected breakpoints</span>
+          </button>
+        </div>
+      </div>
       <button class="btn" onclick="window.exportJSON()">Export JSON</button>
     </div>
   </header>
@@ -758,10 +775,10 @@
     </div>
   </div>
 
-  <!-- LEVEL 6: Phylogenetic Verification (NJ Trees) -->
+  <!-- LEVEL 6: Phylogenetic Verification (NJ / Clearcut RNJ Trees) -->
   <div class="panel" id="panel-nj-trees">
     <div class="panel-header">
-      <span>6 &middot; Phylogenetic Verification (Midpoint-Rooted NJ Trees)</span>
+      <span id="tree-panel-header-title">6 &middot; Phylogenetic Verification (Midpoint-Rooted NJ Trees)</span>
     </div>
     <div class="panel-body">
       <div class="subspaces-grid">
@@ -920,7 +937,7 @@ __RHIZAEON_DATA_JSON__
         return { ctx, width: rect.width, height: rect.height };
       }
 
-      function getActiveCohortSubset(maxTaxa = 42) {
+      function getActiveCohortSubset(maxTaxa = 180) {
           const allAvailable = DATA.taxa.filter(t => DATA.sequences && DATA.sequences[t]);
           if (allAvailable.length <= maxTaxa) return allAvailable;
           const subset = [];
@@ -944,6 +961,256 @@ __RHIZAEON_DATA_JSON__
               pushUnique(remaining[i]);
           }
           return subset;
+      }
+
+      // Exact Midpoint Rooting across the longest leaf-to-leaf path (Tree Diameter)
+      function midpointRootEdges(nodes, edges, n, taxaNames, nextId) {
+          const adj = new Map();
+          nodes.forEach(nd => adj.set(nd.id, []));
+          edges.forEach(e => {
+              adj.get(e.u).push({ to: e.v, weight: e.weight });
+              adj.get(e.v).push({ to: e.u, weight: e.weight });
+          });
+
+          let maxDist = -1;
+          let leafA = -1, leafB = -1;
+          let bestPath = [];
+
+          for (let i = 0; i < n; i++) {
+              const dMap = new Map();
+              const pMap = new Map();
+              dMap.set(i, 0);
+              pMap.set(i, null);
+              const queue = [i];
+
+              while (queue.length > 0) {
+                  const curr = queue.shift();
+                  const cd = dMap.get(curr);
+                  for (const edge of adj.get(curr)) {
+                      if (!dMap.has(edge.to)) {
+                          dMap.set(edge.to, cd + edge.weight);
+                          pMap.set(edge.to, curr);
+                          queue.push(edge.to);
+                      }
+                  }
+              }
+
+              for (let j = i + 1; j < n; j++) {
+                  const d = dMap.get(j) || 0;
+                  if (d > maxDist) {
+                      maxDist = d;
+                      leafA = i; leafB = j;
+                      const path = [];
+                      let c = j;
+                      while (c !== null) {
+                          path.push(c);
+                          c = pMap.get(c);
+                      }
+                      bestPath = path.reverse();
+                  }
+              }
+          }
+
+          if (maxDist <= 0 || bestPath.length < 2) {
+              const half = edges[0] ? edges[0].weight / 2 : 0;
+              return {
+                  id: nextId++, name: "", isLeaf: false, edgeLength: 0,
+                  left: { id: 0, name: taxaNames[0], isLeaf: true, edgeLength: half },
+                  right: { id: 1, name: taxaNames[1] || taxaNames[0], isLeaf: true, edgeLength: half },
+                  diameter: 0, farthestTaxa: [taxaNames[0], taxaNames[1] || taxaNames[0]],
+                  method: 'NJ'
+              };
+          }
+
+          const targetMid = maxDist / 2;
+          let accumulated = 0;
+          let splitU = -1, splitV = -1;
+          let lenU = 0, lenV = 0;
+
+          for (let idx = 0; idx < bestPath.length - 1; idx++) {
+              const u = bestPath[idx];
+              const v = bestPath[idx + 1];
+              const edge = adj.get(u).find(e => e.to === v);
+              const w = edge ? edge.weight : 0;
+              if (accumulated + w >= targetMid - 1e-9) {
+                  splitU = u;
+                  splitV = v;
+                  lenU = targetMid - accumulated;
+                  lenV = Math.max(0, w - lenU);
+                  break;
+              }
+              accumulated += w;
+          }
+
+          function buildSubtree(currId, fromId, edgeLen) {
+              const isLeaf = (currId < n);
+              const res = {
+                  id: currId,
+                  name: isLeaf ? taxaNames[currId] : "",
+                  isLeaf: isLeaf,
+                  edgeLength: edgeLen,
+                  left: null,
+                  right: null
+              };
+              if (isLeaf) return res;
+
+              const children = adj.get(currId).filter(e => e.to !== fromId);
+              if (children.length >= 2) {
+                  res.left = buildSubtree(children[0].to, currId, children[0].weight);
+                  res.right = buildSubtree(children[1].to, currId, children[1].weight);
+              } else if (children.length === 1) {
+                  res.left = buildSubtree(children[0].to, currId, children[0].weight);
+              }
+              return res;
+          }
+
+          return {
+              id: nextId++,
+              name: "",
+              isLeaf: false,
+              edgeLength: 0,
+              left: buildSubtree(splitU, splitV, lenU),
+              right: buildSubtree(splitV, splitU, lenV),
+              diameter: maxDist,
+              farthestTaxa: [taxaNames[leafA], taxaNames[leafB]]
+          };
+      }
+
+      // Clearcut Relaxed Neighbor Joining (Sheneman, Evans & Foster, 2006) for N > 100 sequences
+      // O(N^2) construction by accepting the first pair (u, v) satisfying the additive/Buneman
+      // quartet condition across active taxa, avoiding the O(N^3) global Q-matrix minimum scan.
+      function clearcutTree(D, taxaNames) {
+          const n = D.length;
+          if (n <= 2) return neighborJoining(D, taxaNames);
+
+          const nodes = taxaNames.map((name, i) => ({ id: i, name, isLeaf: true }));
+          let active = nodes.map((_, i) => i);
+          const dist = D.map(row => [...row]);
+          let nextId = n;
+          const edges = [];
+
+          // Maintained row sums S[u] = sum_{w in active, w != u} dist[u][w] for O(1) r[u] lookup
+          const rowSum = new Float64Array(2 * n + 2);
+          for (let i = 0; i < n; i++) {
+              let s = 0;
+              for (let j = 0; j < n; j++) {
+                  if (i !== j) s += dist[i][j];
+              }
+              rowSum[i] = s;
+          }
+
+          let rngState = 0x9e3779b9;
+          const nextRand = () => {
+              rngState ^= rngState << 13;
+              rngState ^= rngState >>> 17;
+              rngState ^= rngState << 5;
+              return (rngState >>> 0);
+          };
+
+          while (active.length > 2) {
+              const numActive = active.length;
+              const denom = Math.max(1, numActive - 2);
+
+              // Deterministic pseudo-random permutation of active indices (Clearcut random evaluation order)
+              const order = active.map((_, idx) => idx);
+              for (let i = numActive - 1; i > 0; i--) {
+                  const j = nextRand() % (i + 1);
+                  const tmp = order[i];
+                  order[i] = order[j];
+                  order[j] = tmp;
+              }
+
+              let chosenI = -1, chosenJ = -1;
+              let bestFallbackQ = Infinity;
+              let fallbackI = order[0], fallbackJ = order[1];
+
+              outerLoop:
+              for (let oi = 0; oi < numActive; oi++) {
+                  const idxI = order[oi];
+                  const u = active[idxI];
+                  const ru = rowSum[u] / denom;
+                  // Find u's closest neighbor candidate v first, then verify Clearcut's additive criterion
+                  for (let oj = oi + 1; oj < numActive; oj++) {
+                      const idxJ = order[oj];
+                      const v = active[idxJ];
+                      const rv = rowSum[v] / denom;
+                      const duv = dist[u][v];
+                      const q = duv - ru - rv;
+                      if (q < bestFallbackQ) {
+                          bestFallbackQ = q;
+                          fallbackI = Math.min(idxI, idxJ);
+                          fallbackJ = Math.max(idxI, idxJ);
+                      }
+
+                      // Clearcut relaxed criterion: check if (u, v) is mutually closer than to other active nodes x
+                      // in transformed space: d(u,v) - r(u) - r(v) <= min(d(u,x) - r(u) - r(x), d(v,x) - r(v) - r(x))
+                      let isRelaxedNeighbor = true;
+                      const checkStride = numActive > 60 ? Math.max(1, Math.floor(numActive / 24)) : 1;
+                      for (let k = 0; k < numActive; k += checkStride) {
+                          if (k === idxI || k === idxJ) continue;
+                          const x = active[k];
+                          const rx = rowSum[x] / denom;
+                          if (q > (dist[u][x] - ru - rx) + 1e-9 || q > (dist[v][x] - rv - rx) + 1e-9) {
+                              isRelaxedNeighbor = false;
+                              break;
+                          }
+                      }
+                      if (isRelaxedNeighbor) {
+                          chosenI = Math.min(idxI, idxJ);
+                          chosenJ = Math.max(idxI, idxJ);
+                          break outerLoop;
+                      }
+                  }
+              }
+
+              if (chosenI < 0) {
+                  chosenI = fallbackI;
+                  chosenJ = fallbackJ;
+              }
+
+              const u = active[chosenI];
+              const v = active[chosenJ];
+              const distUV = dist[u][v];
+              const ru = rowSum[u] / denom;
+              const rv = rowSum[v] / denom;
+
+              const distToU = Math.max(0, distUV / 2 + (ru - rv) / 2);
+              const distToV = Math.max(0, distUV - distToU);
+
+              const newNodeId = nextId++;
+              nodes.push({ id: newNodeId, name: "", isLeaf: false });
+              edges.push({ u: newNodeId, v: u, weight: distToU });
+              edges.push({ u: newNodeId, v: v, weight: distToV });
+
+              dist[newNodeId] = [];
+              let newSum = 0;
+              for (let i = 0; i < numActive; i++) {
+                  if (i !== chosenI && i !== chosenJ) {
+                      const w = active[i];
+                      const d = Math.max(0, (dist[u][w] + dist[v][w] - distUV) / 2);
+                      dist[newNodeId][w] = d;
+                      dist[w][newNodeId] = d;
+                      rowSum[w] = rowSum[w] - dist[u][w] - dist[v][w] + d;
+                      newSum += d;
+                  }
+              }
+              rowSum[newNodeId] = newSum;
+              active = active.filter((_, idx) => idx !== chosenI && idx !== chosenJ);
+              active.push(newNodeId);
+          }
+
+          edges.push({ u: active[0], v: active[1], weight: Math.max(0, dist[active[0]][active[1]]) });
+          const rooted = midpointRootEdges(nodes, edges, n, taxaNames, nextId);
+          rooted.method = 'Clearcut';
+          return rooted;
+      }
+
+      function buildPhylogeneticTree(D, taxaNames) {
+          const totalAlignmentTaxa = (DATA && DATA.metadata && DATA.metadata.taxa_count) ? DATA.metadata.taxa_count : taxaNames.length;
+          if (totalAlignmentTaxa > 100 || taxaNames.length > 100) {
+              return clearcutTree(D, taxaNames);
+          }
+          return neighborJoining(D, taxaNames);
       }
 
       function computeDistanceMatrix(spans, taxaList, sequences, L_TOTAL) {
@@ -1355,6 +1622,8 @@ __RHIZAEON_DATA_JSON__
           let roleBadgeWidth = 110;
           let endX = Math.max(30, Math.min(width * 0.52, width - maxNameWidth - roleBadgeWidth - 30));
 
+          const recLeafYs = [];
+
           function renderNode(node, pX, pY) {
               let x = pX + ((node.edgeLength || 0) / maxDepth) * (endX - startX);
               
@@ -1372,6 +1641,7 @@ __RHIZAEON_DATA_JSON__
                   let isP1 = !isRec && ((node.name === state.p1Taxon) || (state.p1Taxon && metaData[node.name] && metaData[node.name].clade === state.p1Taxon));
                   let isP2 = !isRec && ((node.name === state.p2Taxon) || (state.p2Taxon && metaData[node.name] && metaData[node.name].clade === state.p2Taxon));
                   let meta = metaData[node.name] || { color: '#64748b' };
+                  if (isRec) recLeafYs.push(node.y);
                   
                   let dotRadius = (isRec || isP1 || isP2) ? 5.5 : 3.5;
                   ctx.beginPath();
@@ -1418,6 +1688,18 @@ __RHIZAEON_DATA_JSON__
           ctx.fillStyle = '#000';
           ctx.font = '9px monospace';
           ctx.fillText('0.1 subst/site', startX, height - 20);
+
+          // Center the scrollable wrapper vertically on the recombinant sequence(s)
+          if (wrapper && recLeafYs.length > 0 && state.shouldCenterTreesOnRec) {
+              const meanRecY = recLeafYs.reduce((a, b) => a + b, 0) / recLeafYs.length;
+              const visibleH = wrapper.clientHeight || 260;
+              const targetScrollTop = Math.max(0, Math.round(meanRecY - visibleH / 2));
+              if (typeof wrapper.scrollTo === 'function') {
+                  wrapper.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+              } else {
+                  wrapper.scrollTop = targetScrollTop;
+              }
+          }
       }
 
       // High-performance client-side signal computer (runs in < 2ms)
@@ -1504,7 +1786,7 @@ __RHIZAEON_DATA_JSON__
 
       // Dynamic Classical MDS for Any Alignment Partition (< 5ms)
       function computeDynamicMDS(startNt, endNt) {
-        const taxa = getActiveCohortSubset(44);
+        const taxa = getActiveCohortSubset(180);
         const N = taxa.length;
         const s0 = Math.max(0, startNt - 1);
         const s1 = Math.min(L_TOTAL, endNt);
@@ -1561,9 +1843,11 @@ __RHIZAEON_DATA_JSON__
           }
         }
 
-        function powerIter(mat, deflateVec = null, deflateVal = 0) {
+        function powerIter(mat, deflateVec = null, deflateVal = 0, seedOffset = 0) {
           let v = new Float64Array(N);
-          for (let i = 0; i < N; i++) v[i] = Math.random() - 0.5;
+          for (let i = 0; i < N; i++) {
+            v[i] = (((i + seedOffset + 1) * 2654435761) % 1000) / 1000.0 - 0.5;
+          }
           let norm = Math.hypot(...v);
           for (let i = 0; i < N; i++) v[i] /= (norm || 1);
 
@@ -1600,8 +1884,8 @@ __RHIZAEON_DATA_JSON__
           return { vec: v, val: Math.max(0, rayleigh) };
         }
 
-        const e1 = powerIter(B);
-        const e2 = powerIter(B, e1.vec, e1.val);
+        const e1 = powerIter(B, null, 0, 0);
+        const e2 = powerIter(B, e1.vec, e1.val, 17);
 
         const coords = {};
         const s1Val = Math.sqrt(e1.val);
@@ -1663,9 +1947,12 @@ __RHIZAEON_DATA_JSON__
           state.activeBpId = selectMdsBp.value;
           const bp = DATA.breakpoints.find(b => b.breakpoint_id === state.activeBpId);
           if (bp) state.activeEventId = bp.event_id;
+          state.shouldCenterTreesOnRec = true;
           renderMatrix();
           renderInventoryTable();
           renderSubspaces();
+          renderTrees();
+          state.shouldCenterTreesOnRec = false;
         };
       }
 
@@ -1731,12 +2018,14 @@ __RHIZAEON_DATA_JSON__
           btn.onclick = () => {
             state.activeBpId = b.breakpoint_id;
             state.activeEventId = b.event_id;
+            state.shouldCenterTreesOnRec = true;
             const bounds = getEventTractBounds(b.event_id, b.breakpoint_id, state.focalTaxon);
             if (bounds) {
               window.jumpTo(bounds[0] - 45, bounds[1] + 45);
             } else {
               window.jumpTo(b.ci_left - 45, b.ci_right + 45);
             }
+            state.shouldCenterTreesOnRec = false;
             renderMatrix();
             renderInventoryTable();
             document.getElementById('signals-stack').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1748,6 +2037,7 @@ __RHIZAEON_DATA_JSON__
       // Main Focal Taxon Setter
       function setFocalTaxon(t, forcedP1 = null, forcedP2 = null) {
         state.focalTaxon = t;
+        state.shouldCenterTreesOnRec = true;
         
         if (forcedP1 && forcedP2) {
           state.p1Taxon = forcedP1;
@@ -1799,6 +2089,7 @@ __RHIZAEON_DATA_JSON__
         renderMatrix();
         renderInventoryTable();
         refreshAll();
+        state.shouldCenterTreesOnRec = false;
       }
 
       // Render Level 1: Minimap
@@ -2409,6 +2700,9 @@ __RHIZAEON_DATA_JSON__
           return [px, py];
         }
 
+        const totalAlignmentTaxa = (DATA && DATA.metadata && DATA.metadata.taxa_count) ? DATA.metadata.taxa_count : Object.keys(coords).length;
+        const suppressBgNames = (totalAlignmentTaxa > 50 || Object.keys(coords).length > 50);
+
         // Border & axes
         ctx.strokeStyle = '#1f2937';
         ctx.strokeRect(margin, margin, width - 2 * margin, height - 2 * margin);
@@ -2453,24 +2747,32 @@ __RHIZAEON_DATA_JSON__
           }
         });
 
+        const interactiveDots = [];
+
         // 1. Draw Background Taxa (lower layer)
         bgEntries.forEach(([t, c]) => {
           const [px, py] = toPx(c[0], c[1]);
           const meta = DATA.taxa_meta[t] || { color: '#64748b' };
+          const isHovered = (canvas._hoveredTaxon === t);
 
           ctx.beginPath();
-          ctx.arc(px, py, 4.0, 0, 2 * Math.PI);
-          ctx.fillStyle = meta.color || '#64748b';
+          ctx.arc(px, py, isHovered ? 5.8 : 4.0, 0, 2 * Math.PI);
+          ctx.fillStyle = isHovered ? '#f59e0b' : (meta.color || '#64748b');
           ctx.fill();
-          ctx.strokeStyle = '#0f172a';
-          ctx.lineWidth = 0.8;
+          ctx.strokeStyle = isHovered ? '#ffffff' : '#0f172a';
+          ctx.lineWidth = isHovered ? 1.6 : 0.8;
           ctx.stroke();
 
-          ctx.fillStyle = '#64748b';
-          ctx.font = '9px monospace';
-          ctx.textAlign = 'left';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(t, px + 7, py);
+          interactiveDots.push({ t, px, py, radius: 7.5, role: 'Reference', color: meta.color || '#64748b' });
+
+          // For alignments with > 50 sequences, only print background sequence names on hover
+          if (!suppressBgNames) {
+            ctx.fillStyle = '#64748b';
+            ctx.font = '9px monospace';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(t, px + 7, py);
+          }
         });
 
         // 2. Draw Foreground Taxa (Home -> Donor -> Recombinants strictly in foreground)
@@ -2488,6 +2790,7 @@ __RHIZAEON_DATA_JSON__
           item.px = px;
           item.py = py;
           item.labelY = py;
+          interactiveDots.push({ t: item.t, px, py, radius: item.radius + 3, role: item.role, color: item.color });
         });
 
         for (let i = 0; i < fgItems.length; i++) {
@@ -2555,6 +2858,83 @@ __RHIZAEON_DATA_JSON__
             drawLabeledRoleArrow(ctx, arrowX, labelY, item.role, item.textCol, item.bgCol, item.borderCol, 'right', px - item.radius - 1, py);
           }
         });
+
+        // 3. Draw Hover Tooltip for hovered sequence dot
+        if (canvas._hoveredTaxon) {
+          const hit = interactiveDots.find(d => d.t === canvas._hoveredTaxon);
+          if (hit) {
+            ctx.save();
+            ctx.font = 'bold 10.5px ui-monospace, SFMono-Regular, Menlo, monospace';
+            const labelStr = `${hit.t} (${hit.role})`;
+            const textW = ctx.measureText(labelStr).width;
+            const padX = 8;
+            const boxW = textW + padX * 2;
+            const boxH = 20;
+            let tipX = hit.px + 10;
+            let tipY = hit.py - boxH - 6;
+            if (tipX + boxW > width - 6) tipX = Math.max(6, hit.px - boxW - 10);
+            if (tipY < 6) tipY = Math.min(height - boxH - 6, hit.py + 10);
+
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.94)';
+            ctx.beginPath();
+            if (ctx.roundRect) {
+              ctx.roundRect(tipX, tipY, boxW, boxH, 4);
+            } else {
+              ctx.rect(tipX, tipY, boxW, boxH);
+            }
+            ctx.fill();
+            ctx.strokeStyle = hit.color || '#f59e0b';
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
+
+            ctx.fillStyle = '#f8fafc';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(labelStr, tipX + padX, tipY + boxH / 2);
+            ctx.restore();
+          }
+        }
+
+        canvas._mdsCoords = coords;
+        canvas._mdsPartKey = partKey;
+        canvas._interactiveDots = interactiveDots;
+
+        if (!canvas._hasMdsHoverListener) {
+          canvas._hasMdsHoverListener = true;
+          canvas.addEventListener('mousemove', (e) => {
+            const r = canvas.getBoundingClientRect();
+            const mx = e.clientX - r.left;
+            const my = e.clientY - r.top;
+            const dots = canvas._interactiveDots || [];
+            let bestTaxon = null;
+            let bestDist = 14.0;
+            for (let i = dots.length - 1; i >= 0; i--) {
+              const d = Math.hypot(mx - dots[i].px, my - dots[i].py);
+              if (d <= Math.max(bestDist, dots[i].radius + 3)) {
+                if (d < bestDist) {
+                  bestDist = d;
+                  bestTaxon = dots[i].t;
+                }
+              }
+            }
+            if (canvas._hoveredTaxon !== bestTaxon) {
+              canvas._hoveredTaxon = bestTaxon;
+              canvas.style.cursor = bestTaxon ? 'pointer' : 'default';
+              if (canvas._mdsCoords) {
+                drawMDSPlot(canvas, canvas._mdsCoords, canvas._mdsPartKey);
+              }
+            }
+          });
+          canvas.addEventListener('mouseleave', () => {
+            if (canvas._hoveredTaxon) {
+              canvas._hoveredTaxon = null;
+              canvas.style.cursor = 'default';
+              if (canvas._mdsCoords) {
+                drawMDSPlot(canvas, canvas._mdsCoords, canvas._mdsPartKey);
+              }
+            }
+          });
+        }
       }
 
       // Render Level 6: Breakpoint Inventory Table
@@ -2630,13 +3010,16 @@ __RHIZAEON_DATA_JSON__
           const bp = DATA.breakpoints.find(b => b.breakpoint_id === bId);
           if (bp) state.activeEventId = bp.event_id;
         }
+        state.shouldCenterTreesOnRec = true;
         setFocalTaxon(rec, p1, p2);
+        state.shouldCenterTreesOnRec = true;
         const bounds = getEventTractBounds(state.activeEventId, state.activeBpId, rec);
         if (bounds) {
           window.jumpTo(bounds[0] - 45, bounds[1] + 45);
         } else {
           window.jumpTo(ciL - 45, ciR + 45);
         }
+        state.shouldCenterTreesOnRec = false;
         notifyParentEvent(state.activeEventId, state.activeBpId, rec);
         highlightInventoryRow();
       };
@@ -2646,19 +3029,24 @@ __RHIZAEON_DATA_JSON__
         const bp = DATA.breakpoints.find(b => b.event_id === eventId);
         if (bp) {
           state.activeBpId = bp.breakpoint_id;
+          state.shouldCenterTreesOnRec = true;
           setFocalTaxon(bp.recombinant, bp.parent_1, bp.parent_2);
+          state.shouldCenterTreesOnRec = true;
           const bounds = getEventTractBounds(eventId, bp.breakpoint_id, bp.recombinant);
           if (bounds) {
             window.jumpTo(bounds[0] - 45, bounds[1] + 45);
           } else {
             window.jumpTo(bp.ci_left - 45, bp.ci_right + 45);
           }
+          state.shouldCenterTreesOnRec = false;
           notifyParentEvent(state.activeEventId, state.activeBpId, bp.recombinant);
           highlightInventoryRow();
         } else {
+          state.shouldCenterTreesOnRec = true;
           renderMatrix();
           renderInventoryTable();
           refreshAll();
+          state.shouldCenterTreesOnRec = false;
           notifyParentEvent(state.activeEventId, null, state.focalTaxon);
           highlightInventoryRow();
         }
@@ -2711,10 +3099,168 @@ __RHIZAEON_DATA_JSON__
         a.click();
       };
 
+      function getTaxonRecombinantTracts(taxon) {
+        const tractMap = new Map();
+        (DATA.breakpoints || []).forEach(b => {
+          const isIso = (b.recombinant === taxon) || (b.isolates && b.isolates.includes(taxon));
+          if (isIso && typeof b.tract_start === 'number' && typeof b.tract_end === 'number' && b.tract_end >= b.tract_start) {
+            const key = `${b.event_id || 0}_${b.tract_start}_${b.tract_end}`;
+            if (!tractMap.has(key)) {
+              tractMap.set(key, {
+                event_id: b.event_id || 1,
+                u1: Math.max(1, b.tract_start),
+                u2: Math.min(L_TOTAL, b.tract_end),
+                donor: b.parent_1 || 'Donor'
+              });
+            }
+          }
+        });
+        if (tractMap.size === 0 && DATA.mosaic_taxa && DATA.mosaic_taxa[taxon]) {
+          DATA.mosaic_taxa[taxon].forEach(seg => {
+            if (seg.lineage && seg.lineage.startsWith('Donor:')) {
+              const key = `${seg.event_id || 0}_${seg.start}_${seg.end}`;
+              tractMap.set(key, {
+                event_id: seg.event_id || 1,
+                u1: Math.max(1, seg.start),
+                u2: Math.min(L_TOTAL, seg.end),
+                donor: seg.lineage.replace('Donor: ', '')
+              });
+            }
+          });
+        }
+        return Array.from(tractMap.values()).sort((a, b) => a.u1 - b.u1);
+      }
+
+      function triggerFastaDownload(filename, content) {
+        const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1500);
+      }
+
+      window.saveAlignmentOption = function(mode) {
+        try {
+          if (window.parent && window.parent !== window && typeof window.parent.saveAlignmentExport === 'function') {
+            window.parent.saveAlignmentExport(mode);
+            return;
+          }
+        } catch(e) {}
+
+        const baseTitle = (DATA.metadata && DATA.metadata.title ? DATA.metadata.title : 'rhizaeon_alignment')
+          .toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'rhizaeon_alignment';
+        const taxa = (DATA.taxa || []).filter(t => DATA.sequences && DATA.sequences[t]);
+        if (taxa.length === 0) return;
+
+        if (mode === 'masked') {
+          const lines = [];
+          taxa.forEach(t => {
+            const seq = DATA.sequences[t];
+            const chars = seq.split('');
+            const tracts = getTaxonRecombinantTracts(t);
+            tracts.forEach(tr => {
+              const s = Math.max(0, tr.u1 - 1);
+              const e = Math.min(chars.length, tr.u2);
+              for (let i = s; i < e; i++) chars[i] = 'N';
+            });
+            lines.push(`>${t}`);
+            lines.push(chars.join(''));
+          });
+          triggerFastaDownload(`${baseTitle}_recombinant_regions_removed.fasta`, lines.join('\n') + '\n');
+        } else if (mode === 'deconstructed') {
+          const lines = [];
+          taxa.forEach(t => {
+            const seq = DATA.sequences[t];
+            const tracts = getTaxonRecombinantTracts(t);
+            if (tracts.length === 0) {
+              lines.push(`>${t}`);
+              lines.push(seq);
+            } else {
+              const backbone = seq.split('');
+              tracts.forEach(tr => {
+                const s = Math.max(0, tr.u1 - 1);
+                const e = Math.min(backbone.length, tr.u2);
+                for (let i = s; i < e; i++) backbone[i] = 'N';
+              });
+              lines.push(`>${t}_backbone`);
+              lines.push(backbone.join(''));
+
+              tracts.forEach((tr, idx) => {
+                const tractSeq = new Array(seq.length).fill('N');
+                const s = Math.max(0, tr.u1 - 1);
+                const e = Math.min(seq.length, tr.u2);
+                for (let i = s; i < e; i++) tractSeq[i] = seq[i];
+                lines.push(`>${t}_recomb_tract_${idx + 1}_${tr.u1}_${tr.u2}`);
+                lines.push(tractSeq.join(''));
+              });
+            }
+          });
+          triggerFastaDownload(`${baseTitle}_deconstructed_substituent_parts.fasta`, lines.join('\n') + '\n');
+        } else if (mode === 'split') {
+          const bpsSet = new Set();
+          (DATA.breakpoints || []).forEach(b => {
+            if (typeof b.breakpoint_nt === 'number' && b.breakpoint_nt >= 1 && b.breakpoint_nt < L_TOTAL) {
+              bpsSet.add(b.breakpoint_nt);
+            }
+            if (typeof b.tract_start === 'number' && b.tract_start > 1 && b.tract_start <= L_TOTAL) {
+              bpsSet.add(b.tract_start - 1);
+            }
+            if (typeof b.tract_end === 'number' && b.tract_end >= 1 && b.tract_end < L_TOTAL) {
+              bpsSet.add(b.tract_end);
+            }
+          });
+          const sortedBps = Array.from(bpsSet).sort((a, b) => a - b);
+          const regions = [];
+          let startNt = 1;
+          sortedBps.forEach(bp => {
+            if (bp >= startNt && bp < L_TOTAL) {
+              regions.push([startNt, bp]);
+              startNt = bp + 1;
+            }
+          });
+          if (startNt <= L_TOTAL) {
+            regions.push([startNt, L_TOTAL]);
+          }
+          regions.forEach(([rStart, rEnd], idx) => {
+            const lines = [];
+            taxa.forEach(t => {
+              const seq = DATA.sequences[t];
+              lines.push(`>${t}`);
+              lines.push(seq.slice(Math.max(0, rStart - 1), Math.min(seq.length, rEnd)));
+            });
+            const regNum = String(idx + 1).padStart(2, '0');
+            setTimeout(() => {
+              triggerFastaDownload(`${baseTitle}_region_${regNum}_${rStart}_${rEnd}.fasta`, lines.join('\n') + '\n');
+            }, idx * 140);
+          });
+        }
+      };
+
+      window.addEventListener('click', (e) => {
+        const wrap = document.getElementById('save-alignment-dropdown-wrapper');
+        const menu = document.getElementById('save-alignment-menu');
+        if (wrap && menu && !wrap.contains(e.target)) {
+          menu.style.display = 'none';
+        }
+      });
+
       window.setFocalTaxon = setFocalTaxon;
 
       function renderTrees() {
-        const treeTaxa = getActiveCohortSubset(38);
+        const totalAlignmentTaxa = (DATA && DATA.metadata && DATA.metadata.taxa_count) ? DATA.metadata.taxa_count : DATA.taxa.length;
+        const maxTreeTaxa = totalAlignmentTaxa > 100 ? 180 : 100;
+        const treeTaxa = getActiveCohortSubset(maxTreeTaxa);
+        const useClearcut = (totalAlignmentTaxa > 100 || treeTaxa.length > 100);
+        const headerTitleEl = document.getElementById('tree-panel-header-title');
+        if (headerTitleEl) {
+            headerTitleEl.innerHTML = useClearcut
+                ? '6 &middot; Phylogenetic Verification (Midpoint-Rooted Clearcut RNJ Trees)'
+                : '6 &middot; Phylogenetic Verification (Midpoint-Rooted NJ Trees)';
+        }
         let myBps = DATA.breakpoints.filter(b => b.recombinant === state.focalTaxon || (b.isolates && b.isolates.includes(state.focalTaxon)));
         if (myBps.length === 0 && state.activeEventId) {
             myBps = DATA.breakpoints.filter(b => b.event_id === state.activeEventId);
@@ -2722,7 +3268,7 @@ __RHIZAEON_DATA_JSON__
         if (myBps.length === 0) {
             // Just draw one whole tree
             const D = computeDistanceMatrix([[1, L_TOTAL]], treeTaxa, DATA.sequences, L_TOTAL);
-            const root = neighborJoining(D, treeTaxa);
+            const root = buildPhylogeneticTree(D, treeTaxa);
             drawRectangularTree(document.getElementById('canvas-tree-p1'), root, treeTaxa, state, DATA.taxa_meta);
             drawRectangularTree(document.getElementById('canvas-tree-p2'), root, treeTaxa, state, DATA.taxa_meta);
             const t1 = document.getElementById('tree-p1-title');
@@ -2783,10 +3329,10 @@ __RHIZAEON_DATA_JSON__
         if (bgSpans.length === 0) bgSpans.push([1, L_TOTAL]);
 
         const D_tract = computeDistanceMatrix(tractSpans, treeTaxa, DATA.sequences, L_TOTAL);
-        const root_tract = neighborJoining(D_tract, treeTaxa);
+        const root_tract = buildPhylogeneticTree(D_tract, treeTaxa);
         
         const D_bg = computeDistanceMatrix(bgSpans, treeTaxa, DATA.sequences, L_TOTAL);
-        const root_bg = neighborJoining(D_bg, treeTaxa);
+        const root_bg = buildPhylogeneticTree(D_bg, treeTaxa);
 
         drawRectangularTree(document.getElementById('canvas-tree-p1'), root_bg, treeTaxa, state, DATA.taxa_meta);
         drawRectangularTree(document.getElementById('canvas-tree-p2'), root_tract, treeTaxa, state, DATA.taxa_meta);
@@ -2794,8 +3340,9 @@ __RHIZAEON_DATA_JSON__
         const t1 = document.getElementById('tree-p1-title');
         const t2 = document.getElementById('tree-p2-title');
         const bgLabel = bgSpans.map(([s, e]) => `${s}–${e}`).join(' & ');
-        if (t1) t1.textContent = `Background Tree (Outside Tract: nt ${bgLabel})`;
-        if (t2) t2.textContent = `Recombinant Tract Tree (nt ${u1}–${u2})`;
+        const methodSuffix = useClearcut ? ' [Clearcut RNJ]' : '';
+        if (t1) t1.textContent = `Background Tree (Outside Tract: nt ${bgLabel})${methodSuffix}`;
+        if (t2) t2.textContent = `Recombinant Tract Tree (nt ${u1}–${u2})${methodSuffix}`;
       }
 
       function renderLandscape() {

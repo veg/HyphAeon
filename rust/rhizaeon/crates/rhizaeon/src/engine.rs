@@ -89,6 +89,15 @@ impl RhizAeonEngine {
 
     /// Scans an alignment for mosaic recombination events using the full PA-FF v2.1 pipeline
     pub fn scan(&self, raw_aln: &Alignment) -> ScanResult {
+        self.scan_with_progress(raw_aln, |_, _| {})
+    }
+
+    /// Scans an alignment for mosaic recombination events while reporting stage progress `(fraction, stage_label)`
+    pub fn scan_with_progress<F>(&self, raw_aln: &Alignment, mut on_progress: F) -> ScanResult
+    where
+        F: FnMut(f64, &str),
+    {
+        on_progress(0.04, "Trimming coverage envelope & counting informative SNPs...");
         let (aln_trimmed, u_offset) = trim_coverage_envelope(raw_aln);
         let n = aln_trimmed.num_taxa;
         let l_chromosomal = raw_aln.length;
@@ -103,6 +112,7 @@ impl RhizAeonEngine {
 
         // Early exit: non-recombinant H0 if informative sites below admission floor
         if m_inf < m_min {
+            on_progress(1.0, "Complete (Clonal H0)");
             return ScanResult {
                 num_taxa: n,
                 length: l_chromosomal,
@@ -146,6 +156,7 @@ impl RhizAeonEngine {
         let l = aln.length;
 
         // 1. Landmark Selection on Delta^K with adaptive scaling for large cohorts
+        on_progress(0.10, "Projecting 4D Buneman manifold & selecting landmarks...");
         let effective_k = if self.target_landmarks == 16 {
             self.target_landmarks.max(n / 2).min(32).min(n)
         } else {
@@ -154,6 +165,7 @@ impl RhizAeonEngine {
         let landmarks = select_landmarks(&aln, effective_k);
 
         // 2. Tree-RoPE & Prior
+        on_progress(0.18, "Computing Tree-RoPE rotary embeddings & PhyloBias priors...");
         let rope = TreeRoPE::new(self.dim);
         let m_matrix = rope.compute_query_landmark_rotary_factors(&aln, &landmarks);
 
@@ -166,18 +178,21 @@ impl RhizAeonEngine {
         // 4. Attention & Zero-drift Force Field. Only the (N, K+1) sequence-wide mean and the
         // (N, K) masks are retained; the attention, force and momentum rows themselves are
         // streamed per taxon, so no (L, N, K+1) tensor is ever allocated.
+        on_progress(0.26, "Evaluating continuous attention force fields...");
         let attention = PhyloAttentionEngine::new(self.dim, self.root_sink_factor);
         let masks = compute_attention_masks(&aln, &landmarks);
         let mean_a = attention
             .compute_mean_attention(&aln, &landmarks, &m_matrix, &b_prior, &root_seq, &masks);
 
         // 5. Pass 1 Screener
+        on_progress(0.36, "Pass 1: Screening cohort for local manifold flux...");
         let screener = LocalFluxScreener::new().with_tier2_stringency(self.tier2_stringency);
         let screening = screener.screen(
             &attention, &m_matrix, &b_prior, &root_seq, &masks, &mean_a, &aln, &landmarks,
         );
 
         if screening.is_non_recombinant_h0 {
+            on_progress(1.0, "Complete (Clonal H0)");
             return ScanResult {
                 num_taxa: n,
                 length: l,
@@ -371,7 +386,9 @@ impl RhizAeonEngine {
         };
 
         // Pass 1: Initial forward scan on `aln`
+        on_progress(0.45, "Pass 2: Deconvolving candidate trajectories & polishing breakpoints...");
         let mut verified_events = run_candidate_scan(&aln, &masks, &mean_a, &landmarks, &screening);
+        on_progress(0.66, "Pass 2: Adjudicating primary reticulation graph...");
         verified_events =
             due_diligence.adjudicate_reticulation_graph(verified_events, &aln, &screening);
 
@@ -380,6 +397,7 @@ impl RhizAeonEngine {
         // so secondary crossovers (e.g. triple crossovers) and split outer Russian-doll cassettes
         // can be resolved cleanly without interference from the primary tract.
         if !verified_events.is_empty() && l >= 300 {
+            on_progress(0.74, "Pass 2B: Forward peeling & secondary mosaic deconvolution...");
             let mut aln_scrubbed = aln.clone();
             let mut any_scrubbed = false;
 
@@ -535,6 +553,7 @@ impl RhizAeonEngine {
         //   (b) Parental mirror false positives (where a pure parent cited a recombinant as Home
         //       because the recombinant carried the parent's DNA inside a disjoint tract).
         if verified_events.len() > 1 {
+            on_progress(0.84, "Pass 3: Leave-One-In Due Diligence verification...");
             verified_events.sort_by(|a, b| {
                 a.p_fisher
                     .partial_cmp(&b.p_fisher)
@@ -756,6 +775,7 @@ impl RhizAeonEngine {
             .dedup_by(|a, b| a.isolates[0] == b.isolates[0] && a.u1 == b.u1 && a.u2 == b.u2);
 
         // Adjudicate reticulation graph (DIR-RHIZ-PAFF-013.1)
+        on_progress(0.92, "Finalizing donor chains, cohort parental snapping & ancestral grouping...");
         let mut verified_events =
             due_diligence.adjudicate_reticulation_graph(verified_events, &raw_aln, &screening);
 
@@ -782,6 +802,7 @@ impl RhizAeonEngine {
 
         // Group ancestral events
         verified_events = group_ancestral_events(verified_events, &raw_aln);
+        on_progress(1.0, "Scan complete");
 
         let is_h0 = verified_events.is_empty();
 

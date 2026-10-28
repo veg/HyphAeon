@@ -25,7 +25,7 @@ pub fn engine_version() -> String {
 #[wasm_bindgen]
 pub fn engine_build_timestamp() -> String {
     option_env!("RHIZAEON_BUILD_DATE")
-        .unwrap_or("2026-10-22")
+        .unwrap_or("2026-10-28")
         .to_string()
 }
 
@@ -223,6 +223,59 @@ pub fn scan_fasta_bundle(
     let dossier = rhizaeon::generate_visualization_dossier(&aln, &res, title.as_deref());
     let html = rhizaeon::generate_standalone_html(&dossier).map_err(|e| JsValue::from_str(&e))?;
     let landscape = dossier.recombination_landscape.clone();
+
+    let bundle = WasmScanBundle {
+        result: res,
+        html,
+        landscape,
+    };
+    serde_wasm_bindgen::to_value(&bundle).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+/// Scans a FASTA string with a JavaScript progress callback `(fraction, stage_label)` and returns `{ result, html, landscape }`
+#[wasm_bindgen]
+pub fn scan_fasta_bundle_with_progress(
+    fasta_str: &str,
+    title: Option<String>,
+    target_landmarks: Option<usize>,
+    compress_snps: Option<bool>,
+    tier2_stringency: Option<f64>,
+    tier3_stringency: Option<f64>,
+    progress_cb: Option<js_sys::Function>,
+) -> Result<JsValue, JsValue> {
+    init_panic_hook();
+
+    let report_progress = |frac: f64, msg: &str| {
+        if let Some(ref cb) = progress_cb {
+            let _ = cb.call2(&JsValue::NULL, &JsValue::from_f64(frac), &JsValue::from_str(msg));
+        }
+    };
+
+    report_progress(0.02, "Parsing FASTA alignment...");
+    let start_time = js_sys::Date::now();
+    let aln = parse_fasta(fasta_str).map_err(|e| JsValue::from_str(&e))?;
+
+    let k = target_landmarks.unwrap_or(16);
+    let mut engine = RhizAeonEngine::new()
+        .with_landmarks(k)
+        .with_tier2_stringency(tier2_stringency.unwrap_or(1.0))
+        .with_tier3_stringency(tier3_stringency.unwrap_or(1.0));
+    if let Some(cs) = compress_snps {
+        engine = engine.with_compress_snps(cs);
+    }
+    let mut res = engine.scan_with_progress(&aln, |frac, msg| {
+        report_progress(0.05 + frac * 0.80, msg);
+    });
+
+    let end_time = js_sys::Date::now();
+    res.run_time_ms = end_time - start_time;
+
+    report_progress(0.88, "Synthesizing visualization dossier & 2D MDS subspaces...");
+    let dossier = rhizaeon::generate_visualization_dossier(&aln, &res, title.as_deref());
+    report_progress(0.96, "Rendering interactive HTML dashboard...");
+    let html = rhizaeon::generate_standalone_html(&dossier).map_err(|e| JsValue::from_str(&e))?;
+    let landscape = dossier.recombination_landscape.clone();
+    report_progress(1.0, "Complete");
 
     let bundle = WasmScanBundle {
         result: res,

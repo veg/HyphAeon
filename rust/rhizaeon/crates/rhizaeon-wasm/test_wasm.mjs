@@ -10,6 +10,7 @@ import wasmPkg, {
     scan_fasta_dossier_json,
     scan_fasta_html,
     scan_fasta_bundle,
+    scan_fasta_bundle_with_progress,
 } from './pkg/rhizaeon_wasm.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -173,6 +174,34 @@ async function run() {
         console.log("  >>> PASS: scan_fasta_bundle returned result + html + landscape!");
     } else {
         fail("scan_fasta_bundle validation failed");
+    }
+
+    const progressSteps = [];
+    const progBundle = scan_fasta_bundle_with_progress(
+        hivFasta,
+        "HIV-1 KAL153 Progress Bundle",
+        16,
+        undefined,
+        1.0,
+        1.0,
+        (frac, msg) => {
+            progressSteps.push({ frac, msg });
+        }
+    );
+    console.log(`  Progress callbacks emitted: ${progressSteps.length} stages (${progressSteps.map(p => Math.round(p.frac * 100) + '%').join(' -> ')})`);
+    if (
+        progBundle &&
+        progBundle.result &&
+        progressSteps.length >= 6 &&
+        progressSteps[progressSteps.length - 1].frac === 1.0 &&
+        htmlStr.includes('function clearcutTree(') &&
+        htmlStr.includes('shouldCenterTreesOnRec') &&
+        htmlStr.includes('_hasMdsHoverListener') &&
+        htmlStr.includes('saveAlignmentOption')
+    ) {
+        console.log("  >>> PASS: scan_fasta_bundle_with_progress + v0.1.2 dashboard features verified!");
+    } else {
+        fail("scan_fasta_bundle_with_progress or v0.1.2 dashboard feature verification failed");
     }
 
     console.log("================================================================================");
