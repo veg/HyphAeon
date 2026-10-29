@@ -396,7 +396,7 @@ dependencies = [
 
 [[package]]
 name = "rhizaeon"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "aeon-manifold",
  "serde",
@@ -405,7 +405,7 @@ dependencies = [
 
 [[package]]
 name = "rhizaeon-native"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "aeon-cli-utils",
  "clap",
@@ -417,7 +417,7 @@ dependencies = [
 
 [[package]]
 name = "rhizaeon-tools"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "aeon-cli-utils",
  "clap",
@@ -429,7 +429,7 @@ dependencies = [
 
 [[package]]
 name = "rhizaeon-wasm"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",

@@ -147,6 +147,8 @@ pub struct TaxonMeta {
     #[serde(rename = "type")]
     pub taxon_type: String,
     pub color: String,
+    #[serde(default)]
+    pub input_order: usize,
 }
 
 /// Macro genomic domain or partition segment

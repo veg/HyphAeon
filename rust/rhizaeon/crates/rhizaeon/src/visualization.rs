@@ -132,8 +132,14 @@ pub fn generate_visualization_dossier(
         parent_colors.insert(name.clone(), col);
     }
 
+    let mut input_order_map = BTreeMap::new();
+    for (idx, t_name) in aln.taxa.iter().enumerate() {
+        input_order_map.entry(t_name.clone()).or_insert(idx);
+    }
+
     let mut taxa_meta = BTreeMap::new();
     for t in &sorted_taxa {
+        let input_order = input_order_map.get(t).copied().unwrap_or(0);
         if rec_taxa_set.contains(t) {
             let color = parent_colors
                 .get(t)
@@ -145,6 +151,7 @@ pub fn generate_visualization_dossier(
                     label: format!("{} [Recombinant]", t),
                     taxon_type: "recombinant".to_string(),
                     color,
+                    input_order,
                 },
             );
         } else if parent_taxa_set.contains(t) {
@@ -158,6 +165,7 @@ pub fn generate_visualization_dossier(
                     label: format!("{} [Parent Donor]", t),
                     taxon_type: "parent".to_string(),
                     color,
+                    input_order,
                 },
             );
         } else {
@@ -167,6 +175,7 @@ pub fn generate_visualization_dossier(
                     label: format!("{} [Reference]", t),
                     taxon_type: "reference".to_string(),
                     color: "#64748b".to_string(), // Slate
+                    input_order,
                 },
             );
         }

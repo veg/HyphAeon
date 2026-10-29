@@ -651,7 +651,14 @@
     </div>
     <div class="panel-body">
       <div class="matrix-toolbar">
-        <input type="text" class="search-input" id="seq-filter-input" placeholder="Search taxon name...">
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <input type="text" class="search-input" id="seq-filter-input" placeholder="Search taxon name...">
+          <div style="display:inline-flex; align-items:center; gap:4px; background:var(--bg-surface-elevated); border:1px solid var(--border-bright); border-radius:4px; padding:2px;" title="Choose whether sequences in the Cohort Mosaic Alignment Matrix are ordered by recombination role or in the order they appeared in the input alignment">
+            <span style="font-size:10.5px; color:var(--text-muted); padding:0 6px; font-weight:600;">Sequence Order:</span>
+            <button type="button" class="btn btn-outline" id="btn-order-role" style="padding:2px 8px; font-size:10.5px; border-color:var(--cyan); color:var(--cyan); background:rgba(6,182,212,0.12);" onclick="window.setMatrixOrder('role')">By Role (Recombinants First)</button>
+            <button type="button" class="btn btn-outline" id="btn-order-input" style="padding:2px 8px; font-size:10.5px;" onclick="window.setMatrixOrder('input')">Input Alignment Order</button>
+          </div>
+        </div>
         <div style="font-size:11px; color:var(--text-dim); display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
           <span><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#a855f7"></span> Active Focal Query</span>
           <span><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#d55e00"></span> Donor 1</span>
@@ -885,6 +892,7 @@ __RHIZAEON_DATA_JSON__
         activeEventId: (DATA.breakpoints.length > 0) ? DATA.breakpoints[0].event_id : null,
         signals: null,
         filterText: '',
+        matrixOrder: 'role',
         isDraggingBrush: false,
         isResizingLeft: false,
         isResizingRight: false,
@@ -2144,10 +2152,81 @@ __RHIZAEON_DATA_JSON__
         coordLabel.textContent = `${state.zoomStart.toLocaleString()} – ${state.zoomEnd.toLocaleString()} nt (${(state.zoomEnd - state.zoomStart + 1).toLocaleString()} nt span)`;
       }
 
+      function getOrderedTaxaForMatrix() {
+        const baseTaxa = Array.isArray(DATA.taxa) ? DATA.taxa.slice() : [];
+        if (state.matrixOrder !== 'input') {
+          return baseTaxa;
+        }
+        const hasMetaOrder = baseTaxa.some((t, idx) => {
+          const m = DATA.taxa_meta && DATA.taxa_meta[t];
+          return m && typeof m.input_order === 'number' && m.input_order !== 0 && idx > 0;
+        });
+        if (hasMetaOrder) {
+          return baseTaxa.sort((a, b) => {
+            const oa = (DATA.taxa_meta && DATA.taxa_meta[a] && typeof DATA.taxa_meta[a].input_order === 'number') ? DATA.taxa_meta[a].input_order : 0;
+            const ob = (DATA.taxa_meta && DATA.taxa_meta[b] && typeof DATA.taxa_meta[b].input_order === 'number') ? DATA.taxa_meta[b].input_order : 0;
+            return oa - ob;
+          });
+        }
+        try {
+          if (window.parent && window.parent !== window && window.parent.document) {
+            const fastaEl = window.parent.document.getElementById('fastaInput');
+            if (fastaEl && typeof fastaEl.value === 'string' && fastaEl.value.includes('>')) {
+              const orderMap = new Map();
+              let pos = 0;
+              for (const line of fastaEl.value.split(/\r?\n/)) {
+                const trimmed = line.trim();
+                if (trimmed.startsWith('>')) {
+                  const full = trimmed.slice(1).trim();
+                  const tok = full.split(/\s+/)[0];
+                  if (full && !orderMap.has(full)) orderMap.set(full, pos);
+                  if (tok && !orderMap.has(tok)) orderMap.set(tok, pos);
+                  pos++;
+                }
+              }
+              if (orderMap.size > 0) {
+                return baseTaxa.sort((a, b) => {
+                  const ia = orderMap.has(a) ? orderMap.get(a) : 999999;
+                  const ib = orderMap.has(b) ? orderMap.get(b) : 999999;
+                  return ia - ib;
+                });
+              }
+            }
+          }
+        } catch (_e) {}
+        return baseTaxa;
+      }
+
+      window.setMatrixOrder = function(mode) {
+        state.matrixOrder = (mode === 'input') ? 'input' : 'role';
+        const btnRole = document.getElementById('btn-order-role');
+        const btnInput = document.getElementById('btn-order-input');
+        if (btnRole && btnInput) {
+          if (state.matrixOrder === 'input') {
+            btnInput.style.borderColor = 'var(--cyan)';
+            btnInput.style.color = 'var(--cyan)';
+            btnInput.style.background = 'rgba(6,182,212,0.12)';
+            btnRole.style.borderColor = '';
+            btnRole.style.color = '';
+            btnRole.style.background = '';
+          } else {
+            btnRole.style.borderColor = 'var(--cyan)';
+            btnRole.style.color = 'var(--cyan)';
+            btnRole.style.background = 'rgba(6,182,212,0.12)';
+            btnInput.style.borderColor = '';
+            btnInput.style.color = '';
+            btnInput.style.background = '';
+          }
+        }
+        renderMatrix();
+        centerMatrixOnSelectedEvent();
+      };
+
       // Render Level 2: Meso Matrix
       function renderMatrix() {
         matrixContainer.innerHTML = '';
-        const taxaList = DATA.taxa.filter(t => t.toLowerCase().includes(state.filterText.toLowerCase()));
+        const orderedTaxa = getOrderedTaxaForMatrix();
+        const taxaList = orderedTaxa.filter(t => t.toLowerCase().includes(state.filterText.toLowerCase()));
         
         taxaList.forEach(t => {
           const meta = DATA.taxa_meta[t] || { label: t, color: '#64748b' };
