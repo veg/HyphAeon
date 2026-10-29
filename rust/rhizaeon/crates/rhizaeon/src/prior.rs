@@ -28,30 +28,9 @@ impl PhyloBias {
         let mut p_full = vec![0.0f64; n * num_channels];
         let mut d_landmarks = vec![0.0f64; n * k];
 
-        // 1. Landmark retention probabilities (columns 1..=K) and Ancestral Root (column 0)
-        let mut is_landmark = vec![None; n];
-        for (pos, &idx) in landmarks.indices.iter().enumerate() {
-            if idx < n {
-                is_landmark[idx] = Some(pos);
-            }
-        }
-        let mut hap_cache: std::collections::HashMap<&[u8], usize> = if n >= 500 {
-            std::collections::HashMap::with_capacity(n.min(4096))
-        } else {
-            std::collections::HashMap::new()
-        };
-
-        for i in 0..n {
-            if n >= 500 && is_landmark[i].is_none() {
-                let row_slice = aln.row(i);
-                if let Some(&rep) = hap_cache.get(row_slice) {
-                    for ch in 0..num_channels {
-                        p_full[i * num_channels + ch] = p_full[rep * num_channels + ch];
-                    }
-                    continue;
-                }
-            }
-            for (k_idx, &l_global) in landmarks.indices.iter().enumerate() {
+        // 1. Landmark retention probabilities (columns 1..=K)
+        for (k_idx, &l_global) in landmarks.indices.iter().enumerate() {
+            for i in 0..n {
                 let dist = compute_pairwise_distance(aln, i, l_global);
                 let jc = jukes_cantor_distance(dist);
                 d_landmarks[i * k + k_idx] = jc;
@@ -59,7 +38,11 @@ impl PhyloBias {
                 let p = self.retention_probability(jc);
                 p_full[i * num_channels + (k_idx + 1)] = p;
             }
-            let t_query = if let Some(pos) = is_landmark[i] {
+        }
+
+        // 2. Ancestral Root retention probability (column 0)
+        for i in 0..n {
+            let t_query = if let Some(pos) = landmarks.indices.iter().position(|&idx| idx == i) {
                 landmarks.root_to_tip.get(pos).copied().unwrap_or(0.1)
             } else {
                 let mut min_proj = f64::INFINITY;
@@ -74,9 +57,6 @@ impl PhyloBias {
                 min_proj
             };
             p_full[i * num_channels + 0] = self.retention_probability(t_query);
-            if n >= 500 && is_landmark[i].is_none() {
-                hap_cache.insert(aln.row(i), i);
-            }
         }
 
         // 3. Construct logit bias B^prior

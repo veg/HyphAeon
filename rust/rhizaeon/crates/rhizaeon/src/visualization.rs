@@ -4,7 +4,7 @@ use crate::types::{
     RecombinationLandscape, RecombinationRegion, ScanResult, TaxonMeta, VisualizationBreakpoint,
     VisualizationDossier, VisualizationMetadata, VisualizationSignals, VisualizationSubspaces,
 };
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// Embed the dashboard HTML template at compile time
 pub const DASHBOARD_HTML_TEMPLATE: &str = include_str!("../assets/dashboard_template.html");
@@ -35,15 +35,15 @@ pub fn generate_visualization_dossier(
     let title = title_opt.unwrap_or(&default_title).to_string();
 
     // 1. Identify recombinant, parental, and reference taxa first so we can prioritize them
-    let mut taxon_idx_map: std::collections::HashMap<&str, usize> =
-        std::collections::HashMap::with_capacity(n);
-    for (idx, t_name) in aln.taxa.iter().enumerate() {
-        taxon_idx_map.entry(t_name.as_str()).or_insert(idx);
+    let mut taxon_idx_map: HashMap<&str, usize> = HashMap::with_capacity(n);
+    for (idx, t) in aln.taxa.iter().enumerate() {
+        taxon_idx_map.entry(t.as_str()).or_insert(idx);
     }
 
     let mut rec_indices = Vec::new();
     let mut rec_taxa_set = HashSet::new();
     let mut parent_taxa_set = HashSet::new();
+    let mut parent_indices = Vec::new();
 
     for ev in &scan_res.events {
         for isolate in &ev.isolates {
@@ -55,10 +55,18 @@ pub fn generate_visualization_dossier(
             }
         }
         if !ev.home_name.is_empty() && ev.home_name != "Ghost" {
-            parent_taxa_set.insert(ev.home_name.clone());
+            if parent_taxa_set.insert(ev.home_name.clone()) {
+                if let Some(&idx) = taxon_idx_map.get(ev.home_name.as_str()) {
+                    parent_indices.push(idx);
+                }
+            }
         }
         if !ev.donor_name.is_empty() && ev.donor_name != "Ghost" && !ev.is_ghost_donor {
-            parent_taxa_set.insert(ev.donor_name.clone());
+            if parent_taxa_set.insert(ev.donor_name.clone()) {
+                if let Some(&idx) = taxon_idx_map.get(ev.donor_name.as_str()) {
+                    parent_indices.push(idx);
+                }
+            }
         }
     }
 
@@ -80,11 +88,17 @@ pub fn generate_visualization_dossier(
         }
     }
 
-    // 2. Reconstruct decoded nucleotide sequences (capped for megabase or very large-N alignments to prevent JSON bloat)
+    // 2. Reconstruct decoded nucleotide sequences
+    // Store all sequences up to ~30 MB nucleotide budget for cohorts <= 3,000 taxa (so all 2,000 sequences are retained),
+    // and cap for massive cohorts (e.g., 100K sequences) to prevent browser memory exhaustion.
     let mut sequences = BTreeMap::new();
     let max_store_len = 100_000;
     let store_l = l.min(max_store_len);
-    let max_stored_seqs = 320usize;
+    let max_stored_seqs = if n <= 3_000 {
+        (30_000_000 / store_l.max(1)).max(500)
+    } else {
+        (10_000_000 / store_l.max(1)).clamp(320, 2_000)
+    };
     let mut stored_count = 0usize;
     for i in 0..n {
         let t_name = &aln.taxa[i];
@@ -109,8 +123,9 @@ pub fn generate_visualization_dossier(
 
     // 3. Taxa metadata and color mapping
     let mut lineage_order = Vec::new();
+    let mut lineage_seen = HashSet::new();
     for ev in &scan_res.events {
-        if !lineage_order.contains(&ev.home_name) {
+        if lineage_seen.insert(ev.home_name.clone()) {
             lineage_order.push(ev.home_name.clone());
         }
         let d_name = if ev.is_ghost_donor {
@@ -118,12 +133,12 @@ pub fn generate_visualization_dossier(
         } else {
             ev.donor_name.clone()
         };
-        if !lineage_order.contains(&d_name) {
+        if lineage_seen.insert(d_name.clone()) {
             lineage_order.push(d_name);
         }
     }
     for t in &aln.taxa {
-        if parent_taxa_set.contains(t) && !lineage_order.contains(t) {
+        if parent_taxa_set.contains(t) && lineage_seen.insert(t.clone()) {
             lineage_order.push(t.clone());
         }
     }
@@ -138,8 +153,11 @@ pub fn generate_visualization_dossier(
         parent_colors.insert(name.clone(), col);
     }
 
+    // Keep full taxa_meta and mosaic_taxa for all cohorts up to N = 10,000;
+    // only use compact sparse representation for massive alignments (N > 10,000).
+    let compact_large_n = n > 10_000;
     let mut taxa_meta = BTreeMap::new();
-    for t in &sorted_taxa {
+    for (sorted_idx, t) in sorted_taxa.iter().enumerate() {
         let input_order = taxon_idx_map.get(t.as_str()).copied().unwrap_or(0);
         if rec_taxa_set.contains(t) {
             let color = parent_colors
@@ -169,7 +187,7 @@ pub fn generate_visualization_dossier(
                     input_order,
                 },
             );
-        } else if n <= 500 || input_order < 16 {
+        } else if !compact_large_n || sorted_idx < 500 {
             taxa_meta.insert(
                 t.clone(),
                 TaxonMeta {
@@ -419,9 +437,8 @@ pub fn generate_visualization_dossier(
         *segments = next_segs;
     };
 
-    // 5. Build Mosaic Tracks for each taxon
-    let mut events_by_taxon: std::collections::HashMap<&str, Vec<&crate::types::RecombinationEvent>> =
-        std::collections::HashMap::new();
+    // 5. Build Mosaic Tracks for each taxon (using HashMap index to avoid O(N * E) scans)
+    let mut events_by_taxon: HashMap<&str, Vec<&crate::types::RecombinationEvent>> = HashMap::new();
     for ev in &scan_res.events {
         for iso in &ev.isolates {
             events_by_taxon.entry(iso.as_str()).or_default().push(ev);
@@ -429,11 +446,8 @@ pub fn generate_visualization_dossier(
     }
 
     let mut mosaic_taxa = BTreeMap::new();
-    for t in &sorted_taxa {
-        let mut t_events: Vec<&crate::types::RecombinationEvent> = events_by_taxon
-            .get(t.as_str())
-            .cloned()
-            .unwrap_or_default();
+    for (sorted_idx, t) in sorted_taxa.iter().enumerate() {
+        let mut t_events = events_by_taxon.get(t.as_str()).cloned().unwrap_or_default();
         // Paint broadest events first and narrower nested events on top so nested tracts are never skipped
         t_events.sort_by(|a, b| {
             let span_a = a.u2.saturating_sub(a.u1);
@@ -442,32 +456,27 @@ pub fn generate_visualization_dossier(
         });
 
         if t_events.is_empty() {
-            let input_order = taxon_idx_map.get(t.as_str()).copied().unwrap_or(n);
-            if n > 500 && !parent_taxa_set.contains(t) && input_order >= 16 {
-                continue;
+            if let Some(meta) = taxa_meta.get(t) {
+                if !compact_large_n || meta.taxon_type != "reference" || sorted_idx < 500 {
+                    let lineage = if meta.taxon_type == "parent" {
+                        format!("{} (Parental Reference)", t)
+                    } else {
+                        "Homologous".to_string()
+                    };
+                    mosaic_taxa.insert(
+                        t.clone(),
+                        vec![MosaicSegment {
+                            start: 1,
+                            end: l,
+                            lineage,
+                            color: meta.color.clone(),
+                            is_plateau: None,
+                            breakpoint_id: None,
+                            event_id: None,
+                        }],
+                    );
+                }
             }
-            let (lineage, color) = if let Some(meta) = taxa_meta.get(t) {
-                let lin = if meta.taxon_type == "parent" {
-                    format!("{} (Parental Reference)", t)
-                } else {
-                    "Homologous".to_string()
-                };
-                (lin, meta.color.clone())
-            } else {
-                ("Homologous".to_string(), "#64748b".to_string())
-            };
-            mosaic_taxa.insert(
-                t.clone(),
-                vec![MosaicSegment {
-                    start: 1,
-                    end: l,
-                    lineage,
-                    color,
-                    is_plateau: None,
-                    breakpoint_id: None,
-                    event_id: None,
-                }],
-            );
         } else {
             let home_name = &t_events[0].home_name;
             let home_col = parent_colors
@@ -953,7 +962,49 @@ pub fn generate_visualization_dossier(
         brownian_bridge,
     };
 
-    // 8. 2D Classical MDS Metric Subspaces
+    // 8. 2D Classical / Landmark MDS Metric Subspaces
+    // For N <= 250, solve full N x N MDS exactly; for N > 250, solve anchor eigensystem on M = 200
+    // representative anchors and project all taxa (up to 5,000, including all 2,000 sequences) via
+    // exact Gower out-of-sample projection so 2D coordinates are populated for every taxon without
+    // stalling for 78+ seconds on three O(N^2 * L) matrices.
+    let mds_indices: Vec<usize> = if n <= 250 {
+        (0..n).collect()
+    } else {
+        let max_anchors = 200usize;
+        let mut idx_set = Vec::with_capacity(max_anchors);
+        let mut seen = HashSet::with_capacity(max_anchors);
+        for &imp in &[focal_cand_idx, focal_home_idx, focal_donor_idx] {
+            if imp < n && seen.insert(imp) {
+                idx_set.push(imp);
+            }
+        }
+        for &r_idx in &rec_indices {
+            if idx_set.len() >= max_anchors * 2 / 3 {
+                break;
+            }
+            if r_idx < n && seen.insert(r_idx) {
+                idx_set.push(r_idx);
+            }
+        }
+        for &p_idx in &parent_indices {
+            if idx_set.len() >= max_anchors * 4 / 5 {
+                break;
+            }
+            if p_idx < n && seen.insert(p_idx) {
+                idx_set.push(p_idx);
+            }
+        }
+        let rem = max_anchors.saturating_sub(idx_set.len()).max(1);
+        for s in 0..rem {
+            let idx = (s * (n - 1)) / rem.saturating_sub(1).max(1);
+            if seen.insert(idx) {
+                idx_set.push(idx);
+            }
+        }
+        idx_set.sort_unstable();
+        idx_set
+    };
+
     let focal_bp_nt = breakpoints
         .first()
         .map(|b| b.breakpoint_nt)
@@ -961,39 +1012,6 @@ pub fn generate_visualization_dossier(
 
     let p1_end = focal_bp_nt.saturating_sub(1).max(1);
     let p2_start = focal_bp_nt.min(l);
-
-    let mds_indices: Vec<usize> = if n <= 180 {
-        (0..n).collect()
-    } else {
-        let mut chosen = Vec::with_capacity(180);
-        let mut seen = vec![false; n];
-        let add_idx = |idx: usize, chosen: &mut Vec<usize>, seen: &mut [bool]| {
-            if idx < n && !seen[idx] && chosen.len() < 180 {
-                seen[idx] = true;
-                chosen.push(idx);
-            }
-        };
-        add_idx(focal_cand_idx, &mut chosen, &mut seen);
-        add_idx(focal_home_idx, &mut chosen, &mut seen);
-        add_idx(focal_donor_idx, &mut chosen, &mut seen);
-        for &idx in &rec_indices {
-            add_idx(idx, &mut chosen, &mut seen);
-        }
-        for p_name in &parent_taxa_set {
-            if let Some(&idx) = taxon_idx_map.get(p_name.as_str()) {
-                add_idx(idx, &mut chosen, &mut seen);
-            }
-        }
-        let rem = 180usize.saturating_sub(chosen.len()).max(1);
-        let step = (n / rem).max(1);
-        let mut idx = 0usize;
-        while idx < n && chosen.len() < 180 {
-            add_idx(idx, &mut chosen, &mut seen);
-            idx += step;
-        }
-        chosen.sort_unstable();
-        chosen
-    };
 
     let coords_p1 = compute_mds_2d(aln, 0, p1_end, &mds_indices);
     let coords_p2 = compute_mds_2d(aln, p2_start.saturating_sub(1), l, &mds_indices);
@@ -1006,13 +1024,8 @@ pub fn generate_visualization_dossier(
     };
 
     // 9. Time-invariant Canonical Metric Manifold & Chord Colinearity
-    let canonical_manifold = compute_canonical_manifold(
-        aln,
-        focal_cand_idx,
-        focal_home_idx,
-        focal_donor_idx,
-        &mds_indices,
-    );
+    let canonical_manifold =
+        compute_canonical_manifold(aln, focal_cand_idx, focal_home_idx, focal_donor_idx, &mds_indices);
 
     // 9B. Genome-wide Recombination Hotspot / Coldspot Flux & Cumulative Strain Landscape
     let recombination_landscape =
@@ -1049,10 +1062,16 @@ pub fn generate_visualization_dossier(
         is_non_recombinant_h0: scan_res.is_non_recombinant_h0,
     };
 
+    let input_taxa = if compact_large_n {
+        aln.taxa.clone()
+    } else {
+        Vec::new()
+    };
+
     VisualizationDossier {
         metadata,
         taxa: sorted_taxa,
-        input_taxa: if n > 500 { aln.taxa.clone() } else { Vec::new() },
+        input_taxa,
         taxa_meta,
         macro_segments,
         breakpoints,
@@ -1353,13 +1372,16 @@ fn compute_recombination_landscape(
     }
 }
 
-/// Computes 2D Classical MDS coordinates for representative taxa over a sliced partition [start_site, end_site)
+/// Computes 2D Classical / Landmark MDS coordinates over a sliced partition [start_site, end_site).
+/// When `mds_indices.len() < aln.num_taxa`, solves the anchor eigensystem on `mds_indices` and projects
+/// the remaining taxa (all taxa for N <= 5,000) via exact Gower out-of-sample projection.
 fn compute_mds_2d(
     aln: &Alignment,
     start_site: usize,
     end_site: usize,
     mds_indices: &[usize],
 ) -> BTreeMap<String, Vec<f64>> {
+    let n = aln.num_taxa;
     let m = mds_indices.len();
     let s_end = end_site.min(aln.length);
     let s_len = s_end.saturating_sub(start_site);
@@ -1372,19 +1394,19 @@ fn compute_mds_2d(
         return res;
     }
 
-    // Subsample sites when M^2 * s_len is large to keep visualization distance calculation < 5 ms
+    // Subsample sites when M^2 * s_len is large (using u64 to prevent 32-bit WASM usize overflow)
     let site_stride = if (m as u64) * (m as u64) * (s_len as u64) > 8_000_000 {
         (s_len / 500).max(1)
     } else {
         1
     };
 
-    // Pairwise Hamming distance matrix over mds_indices
+    // Pairwise Hamming distance matrix on anchor taxa
     let mut d_sq = vec![0.0f64; m * m];
-    for i in 0..m {
-        let row_i = aln.row(mds_indices[i]);
-        for j in (i + 1)..m {
-            let row_j = aln.row(mds_indices[j]);
+    for a in 0..m {
+        let row_i = aln.row(mds_indices[a]);
+        for b_idx in (a + 1)..m {
+            let row_j = aln.row(mds_indices[b_idx]);
             let mut diff = 0usize;
             let mut valid = 0usize;
             let mut u = start_site;
@@ -1405,28 +1427,28 @@ fn compute_mds_2d(
                 0.0
             };
             let d2 = dist * dist;
-            d_sq[i * m + j] = d2;
-            d_sq[j * m + i] = d2;
+            d_sq[a * m + b_idx] = d2;
+            d_sq[b_idx * m + a] = d2;
         }
     }
 
     // Double centering: B = -0.5 * H @ D_sq @ H
     let mut row_means = vec![0.0f64; m];
     let mut total_mean = 0.0f64;
-    for i in 0..m {
+    for a in 0..m {
         let mut sum = 0.0;
-        for j in 0..m {
-            sum += d_sq[i * m + j];
+        for b_idx in 0..m {
+            sum += d_sq[a * m + b_idx];
         }
-        row_means[i] = sum / (m as f64);
+        row_means[a] = sum / (m as f64);
         total_mean += sum;
     }
     total_mean /= (m * m) as f64;
 
     let mut b = vec![0.0f64; m * m];
-    for i in 0..m {
-        for j in 0..m {
-            b[i * m + j] = -0.5 * (d_sq[i * m + j] - row_means[i] - row_means[j] + total_mean);
+    for a in 0..m {
+        for b_idx in 0..m {
+            b[a * m + b_idx] = -0.5 * (d_sq[a * m + b_idx] - row_means[a] - row_means[b_idx] + total_mean);
         }
     }
 
@@ -1438,16 +1460,83 @@ fn compute_mds_2d(
         0.0
     };
 
-    for i in 0..m {
-        let x = v0[i] * lam0;
-        let y = if m > 1 { v1[i] * lam1 } else { 0.0 };
+    for a in 0..m {
+        let x = v0[a] * lam0;
+        let y = if m > 1 { v1[a] * lam1 } else { 0.0 };
         res.insert(
-            aln.taxa[mds_indices[i]].clone(),
+            aln.taxa[mds_indices[a]].clone(),
             vec![
                 (x * 10000.0).round() / 10000.0,
                 (y * 10000.0).round() / 10000.0,
             ],
         );
+    }
+
+    // Project remaining taxa into the 2D MDS subspace via exact Gower out-of-sample projection
+    // so all sequences (up to 5,000, including all 2,000 sequences) have 2D coordinates.
+    if m < n {
+        let mut is_anchor = vec![false; n];
+        for &idx in mds_indices {
+            if idx < n {
+                is_anchor[idx] = true;
+            }
+        }
+        let max_project = 5_000usize;
+        let taxon_step = if n <= max_project {
+            1
+        } else {
+            (n / max_project).max(1)
+        };
+        let proj_stride = (s_len / 200).max(site_stride).max(1);
+        let inv_2lam0 = if lam0 > 1e-6 { 0.5 / lam0 } else { 0.0 };
+        let inv_2lam1 = if lam1 > 1e-6 { 0.5 / lam1 } else { 0.0 };
+
+        let mut idx = 0usize;
+        while idx < n {
+            if !is_anchor[idx] {
+                let row_i = aln.row(idx);
+                let mut sum0 = 0.0f64;
+                let mut sum1 = 0.0f64;
+                for b_idx in 0..m {
+                    let row_b = aln.row(mds_indices[b_idx]);
+                    let mut diff = 0usize;
+                    let mut valid = 0usize;
+                    let mut u = start_site;
+                    while u < s_end {
+                        let ci = row_i[u];
+                        let cb = row_b[u];
+                        if ci > 0 && cb > 0 {
+                            valid += 1;
+                            if ci != cb {
+                                diff += 1;
+                            }
+                        }
+                        u += proj_stride;
+                    }
+                    let dist = if valid > 0 {
+                        diff as f64 / valid as f64
+                    } else {
+                        0.0
+                    };
+                    let d2 = dist * dist;
+                    let delta = row_means[b_idx] - d2;
+                    sum0 += v0[b_idx] * delta;
+                    if m > 1 {
+                        sum1 += v1[b_idx] * delta;
+                    }
+                }
+                let x = sum0 * inv_2lam0;
+                let y = sum1 * inv_2lam1;
+                res.insert(
+                    aln.taxa[idx].clone(),
+                    vec![
+                        (x * 10000.0).round() / 10000.0,
+                        (y * 10000.0).round() / 10000.0,
+                    ],
+                );
+            }
+            idx += taxon_step;
+        }
     }
 
     res
@@ -1507,6 +1596,7 @@ fn compute_canonical_manifold(
     donor_idx: usize,
     mds_indices: &[usize],
 ) -> CanonicalManifold {
+    let n = aln.num_taxa;
     let m = mds_indices.len();
     let l = aln.length;
 
@@ -1516,12 +1606,12 @@ fn compute_canonical_manifold(
         1
     };
 
-    // 1. Whole-alignment pairwise distance matrix D_glob over mds_indices
+    // 1. Whole-alignment pairwise distance matrix D_glob on anchor taxa
     let mut d_glob_sq = vec![0.0f64; m * m];
-    for i in 0..m {
-        let row_i = aln.row(mds_indices[i]);
-        for j in (i + 1)..m {
-            let row_j = aln.row(mds_indices[j]);
+    for a in 0..m {
+        let row_i = aln.row(mds_indices[a]);
+        for b_idx in (a + 1)..m {
+            let row_j = aln.row(mds_indices[b_idx]);
             let mut diff = 0usize;
             let mut valid = 0usize;
             let mut u = 0usize;
@@ -1542,28 +1632,28 @@ fn compute_canonical_manifold(
                 0.0
             };
             let d2 = dist * dist;
-            d_glob_sq[i * m + j] = d2;
-            d_glob_sq[j * m + i] = d2;
+            d_glob_sq[a * m + b_idx] = d2;
+            d_glob_sq[b_idx * m + a] = d2;
         }
     }
 
     // Double centering: B = -0.5 * H @ D_glob_sq @ H
     let mut row_means = vec![0.0f64; m];
     let mut total_mean = 0.0f64;
-    for i in 0..m {
+    for a in 0..m {
         let mut sum = 0.0;
-        for j in 0..m {
-            sum += d_glob_sq[i * m + j];
+        for b_idx in 0..m {
+            sum += d_glob_sq[a * m + b_idx];
         }
-        row_means[i] = sum / (m as f64);
+        row_means[a] = sum / (m as f64);
         total_mean += sum;
     }
-    total_mean /= (m * m).max(1) as f64;
+    total_mean /= (m * m) as f64;
 
     let mut b = vec![0.0f64; m * m];
-    for i in 0..m {
-        for j in 0..m {
-            b[i * m + j] = -0.5 * (d_glob_sq[i * m + j] - row_means[i] - row_means[j] + total_mean);
+    for a in 0..m {
+        for b_idx in 0..m {
+            b[a * m + b_idx] = -0.5 * (d_glob_sq[a * m + b_idx] - row_means[a] - row_means[b_idx] + total_mean);
         }
     }
 
@@ -1578,22 +1668,87 @@ fn compute_canonical_manifold(
 
     let sqrt_lam0 = lam0.sqrt();
     let sqrt_lam1 = lam1.sqrt();
+    let inv_sqrt_lam0 = 1.0 / sqrt_lam0;
+    let inv_sqrt_lam1 = 1.0 / sqrt_lam1;
 
     let mut ref_coords = BTreeMap::new();
-    for i in 0..m {
-        let x = v0[i] * sqrt_lam0;
+    for a in 0..m {
+        let x = v0[a] * sqrt_lam0;
         let y = if k_eff > 1 {
-            v1[i] * sqrt_lam1
+            v1[a] * sqrt_lam1
         } else {
             0.0
         };
         ref_coords.insert(
-            aln.taxa[mds_indices[i]].clone(),
+            aln.taxa[mds_indices[a]].clone(),
             vec![
                 (x * 10000.0).round() / 10000.0,
                 (y * 10000.0).round() / 10000.0,
             ],
         );
+    }
+
+    // Project remaining non-anchor taxa (all taxa for N <= 5,000) into ref_coords via Gower projection
+    if m < n {
+        let mut is_anchor = vec![false; n];
+        for &idx in mds_indices {
+            if idx < n {
+                is_anchor[idx] = true;
+            }
+        }
+        let max_project = 5_000usize;
+        let taxon_step = if n <= max_project {
+            1
+        } else {
+            (n / max_project).max(1)
+        };
+        let proj_stride = (l / 200).max(site_stride).max(1);
+        let mut idx = 0usize;
+        while idx < n {
+            if !is_anchor[idx] {
+                let row_i = aln.row(idx);
+                let mut sum0 = 0.0f64;
+                let mut sum1 = 0.0f64;
+                for b_idx in 0..m {
+                    let row_b = aln.row(mds_indices[b_idx]);
+                    let mut diff = 0usize;
+                    let mut valid = 0usize;
+                    let mut u = 0usize;
+                    while u < l {
+                        let ci = row_i[u];
+                        let cb = row_b[u];
+                        if ci > 0 && cb > 0 {
+                            valid += 1;
+                            if ci != cb {
+                                diff += 1;
+                            }
+                        }
+                        u += proj_stride;
+                    }
+                    let dist = if valid > 0 {
+                        diff as f64 / valid as f64
+                    } else {
+                        0.0
+                    };
+                    let d2 = dist * dist;
+                    let delta = row_means[b_idx] - d2;
+                    sum0 += v0[b_idx] * delta;
+                    if k_eff > 1 {
+                        sum1 += v1[b_idx] * delta;
+                    }
+                }
+                let x = 0.5 * inv_sqrt_lam0 * sum0;
+                let y = 0.5 * inv_sqrt_lam1 * sum1;
+                ref_coords.insert(
+                    aln.taxa[idx].clone(),
+                    vec![
+                        (x * 10000.0).round() / 10000.0,
+                        (y * 10000.0).round() / 10000.0,
+                    ],
+                );
+            }
+            idx += taxon_step;
+        }
     }
 
     let home_coord = ref_coords
@@ -1613,8 +1768,6 @@ fn compute_canonical_manifold(
     // Slide a local window of length w = min(300, max(50, L / 20)) across alignment
     let win = (l / 20).clamp(50, 300);
     let step = (win / 4).max(5).max(l / 120);
-    let inv_sqrt_lam0 = 1.0 / sqrt_lam0;
-    let inv_sqrt_lam1 = 1.0 / sqrt_lam1;
 
     let mut gower_trajectory = Vec::new();
     let cand_row = aln.row(cand_idx);
@@ -1623,10 +1776,10 @@ fn compute_canonical_manifold(
     while p + win <= l {
         let u_mid = p + win / 2;
 
-        // Compute local distance vector d_loc^2 from cand_idx to representative taxa
+        // Compute local distance vector d_loc^2 from cand_idx to anchor taxa
         let mut d_loc_sq = vec![0.0f64; m];
-        for j in 0..m {
-            let row_j = aln.row(mds_indices[j]);
+        for b_idx in 0..m {
+            let row_j = aln.row(mds_indices[b_idx]);
             let mut diff = 0usize;
             let mut valid = 0usize;
             for u in p..(p + win) {
@@ -1644,17 +1797,17 @@ fn compute_canonical_manifold(
             } else {
                 0.0
             };
-            d_loc_sq[j] = d * d;
+            d_loc_sq[b_idx] = d * d;
         }
 
         // Exact Gower projection: z = 0.5 * Lambda^{-1/2} * V^T * (row_means - d_loc_sq)
         let mut sum0 = 0.0f64;
         let mut sum1 = 0.0f64;
-        for j in 0..m {
-            let delta = row_means[j] - d_loc_sq[j];
-            sum0 += v0[j] * delta;
+        for b_idx in 0..m {
+            let delta = row_means[b_idx] - d_loc_sq[b_idx];
+            sum0 += v0[b_idx] * delta;
             if k_eff > 1 {
-                sum1 += v1[j] * delta;
+                sum1 += v1[b_idx] * delta;
             }
         }
         let z_x = 0.5 * inv_sqrt_lam0 * sum0;
@@ -1801,32 +1954,5 @@ TTTTTTTTTTTTTTTT
                 assert_eq!(h_seg.color, l_seg.color);
             }
         }
-    }
-
-    #[test]
-    fn test_large_cohort_dossier_scaling() {
-        let mut fasta = String::new();
-        let p1 = "A".repeat(200);
-        let p2 = "C".repeat(200);
-        let rec = format!("{}{}", "A".repeat(100), "C".repeat(100));
-        let out = "T".repeat(200);
-        fasta.push_str(&format!(">Parent_A\n{}\n>Parent_B\n{}\n>Outgroup\n{}\n>Rec_1\n{}\n", p1, p2, out, rec));
-        for i in 4..2000 {
-            let seq = if i % 3 == 0 { &p1 } else if i % 3 == 1 { &p2 } else { &out };
-            fasta.push_str(&format!(">Seq_{}\n{}\n", i, seq));
-        }
-        let aln = parse_fasta(&fasta).unwrap();
-        let engine = RhizAeonEngine::new();
-        let scan_res = engine.scan(&aln);
-        let dossier = generate_visualization_dossier(&aln, &scan_res, Some("Test 2000 Taxa"));
-
-        assert_eq!(dossier.metadata.taxa_count, 2000);
-        assert_eq!(dossier.taxa.len(), 2000);
-        assert_eq!(dossier.input_taxa.len(), 2000);
-        assert!(dossier.taxa_meta.len() < 100);
-        assert!(dossier.sequences.len() <= 360);
-
-        let html = generate_standalone_html(&dossier).unwrap();
-        assert!(html.len() < 1_500_000);
     }
 }

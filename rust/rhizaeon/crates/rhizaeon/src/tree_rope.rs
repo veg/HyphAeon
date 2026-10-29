@@ -46,33 +46,14 @@ impl TreeRoPE {
 
         // Derive query coordinates in R^{N x 2} via Barycentric Simplex Projection
         let mut query_coords = vec![0.0f64; n * 2];
-        let mut is_landmark = vec![None; n];
-        for (pos, &idx) in landmarks.indices.iter().enumerate() {
-            if idx < n {
-                is_landmark[idx] = Some(pos);
-            }
-        }
-        let mut hap_cache: std::collections::HashMap<&[u8], usize> = if n >= 500 {
-            std::collections::HashMap::with_capacity(n.min(4096))
-        } else {
-            std::collections::HashMap::new()
-        };
 
         for i in 0..n {
-            if let Some(pos) = is_landmark[i] {
+            if let Some(pos) = landmarks.indices.iter().position(|&idx| idx == i) {
                 // Exact landmark coordinates
                 let l_idx = (pos + 1) * 2;
                 query_coords[i * 2 + 0] = landmarks.coords[l_idx + 0];
                 query_coords[i * 2 + 1] = landmarks.coords[l_idx + 1];
             } else {
-                if n >= 500 {
-                    let row_slice = aln.row(i);
-                    if let Some(&rep) = hap_cache.get(row_slice) {
-                        query_coords[i * 2 + 0] = query_coords[rep * 2 + 0];
-                        query_coords[i * 2 + 1] = query_coords[rep * 2 + 1];
-                        continue;
-                    }
-                }
                 // Compute distances to each landmark
                 let mut dists = Vec::with_capacity(k);
                 for &l_idx in &landmarks.indices {
@@ -128,9 +109,6 @@ impl TreeRoPE {
 
                 query_coords[i * 2 + 0] = t_proj;
                 query_coords[i * 2 + 1] = th_proj;
-                if n >= 500 {
-                    hap_cache.insert(aln.row(i), i);
-                }
             }
         }
 

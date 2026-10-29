@@ -39,74 +39,7 @@ pub fn compute_attention_masks_with_progress<F: FnMut(usize, usize)>(
     let mut mask_landmark = vec![false; n * k];
     let mut is_non_sister_landmark = vec![false; n * k];
     let step_report = (n / 20).max(1);
-    let peer_sample: Vec<usize> = if n <= 256 {
-        (0..n).collect()
-    } else {
-        let j_stride = (n / 128).max(1);
-        let mut s = Vec::with_capacity(192);
-        for idx in 0..n.min(32) {
-            s.push(idx);
-        }
-        for &l_idx in &landmarks.indices {
-            if l_idx < n {
-                s.push(l_idx);
-            }
-        }
-        for idx in (0..n).step_by(j_stride) {
-            s.push(idx);
-        }
-        s.sort_unstable();
-        s.dedup();
-        s
-    };
-
-    // Precompute landmark-to-landmark distances and landmark sister sizes once
-    let mut lm_dist = vec![0.0f64; k * k];
-    let mut lm_sister_size = vec![1usize; k];
-    for p1 in 0..k {
-        let l1 = landmarks.indices[p1];
-        let mut sz = 1usize;
-        for &j in &peer_sample {
-            if j != l1 && crate::landmarks::compute_pairwise_distance(aln, l1, j) < d_sister {
-                sz += 1;
-            }
-        }
-        lm_sister_size[p1] = sz;
-        for p2 in (p1 + 1)..k {
-            let l2 = landmarks.indices[p2];
-            let d12 = crate::landmarks::compute_pairwise_distance(aln, l1, l2);
-            lm_dist[p1 * k + p2] = d12;
-            lm_dist[p2 * k + p1] = d12;
-        }
-    }
-
-    let mut is_landmark = vec![false; n];
-    for &l_idx in &landmarks.indices {
-        if l_idx < n {
-            is_landmark[l_idx] = true;
-        }
-    }
-    let mut hap_cache: std::collections::HashMap<&[u8], usize> = if n >= 500 {
-        std::collections::HashMap::with_capacity(n.min(4096))
-    } else {
-        std::collections::HashMap::new()
-    };
-
     for i in 0..n {
-        if n >= 500 && !is_landmark[i] {
-            let row_slice = aln.row(i);
-            if let Some(&rep) = hap_cache.get(row_slice) {
-                for p in 0..k {
-                    mask_landmark[i * k + p] = mask_landmark[rep * k + p];
-                    is_non_sister_landmark[i * k + p] = is_non_sister_landmark[rep * k + p];
-                }
-                if (i + 1) % step_report == 0 || i + 1 == n {
-                    on_taxon_progress(i + 1, n);
-                }
-                continue;
-            }
-        }
-
         let mut sister_landmarks = Vec::new();
         let mut ext_landmarks = Vec::new();
         let mut non_sister_clade_landmarks = 0usize;
@@ -116,8 +49,7 @@ pub fn compute_attention_masks_with_progress<F: FnMut(usize, usize)>(
                 mask_landmark[i * k + p] = true;
             } else {
                 let d = crate::landmarks::compute_pairwise_distance(aln, i, l_global);
-                if d < d_sister && crate::landmarks::is_true_sister_pair(aln, i, l_global, d_sister)
-                {
+                if crate::landmarks::is_true_sister_pair(aln, i, l_global, d_sister) {
                     sister_landmarks.push(p);
                 } else {
                     ext_landmarks.push((p, l_global, d));
@@ -130,15 +62,9 @@ pub fn compute_attention_masks_with_progress<F: FnMut(usize, usize)>(
         }
         if !sister_landmarks.is_empty() && !ext_landmarks.is_empty() {
             let mut my_size = 1usize;
-            let mut non_sister_clade_aln_count = 0usize;
-            for &j in &peer_sample {
-                if j != i {
-                    let d = crate::landmarks::compute_pairwise_distance(aln, i, j);
-                    if d < d_sister {
-                        my_size += 1;
-                    } else if d <= d_clade {
-                        non_sister_clade_aln_count += 1;
-                    }
+            for j in 0..n {
+                if j != i && crate::landmarks::compute_pairwise_distance(aln, i, j) < d_sister {
+                    my_size += 1;
                 }
             }
 
@@ -148,15 +74,29 @@ pub fn compute_attention_masks_with_progress<F: FnMut(usize, usize)>(
             // and d(i, p1) + d(i, p2) <= 1.15 * d(p1, p2).
             let mut is_metric_interior = false;
             for a_idx in 0..ext_landmarks.len() {
-                let (p1, _l1, di1) = ext_landmarks[a_idx];
-                let l1_size = lm_sister_size[p1];
+                let (_, l1, di1) = ext_landmarks[a_idx];
+                let mut l1_size = 1usize;
+                for j in 0..n {
+                    if j != l1 && crate::landmarks::compute_pairwise_distance(aln, l1, j) < d_sister
+                    {
+                        l1_size += 1;
+                    }
+                }
                 for b_idx in (a_idx + 1)..ext_landmarks.len() {
-                    let (p2, _l2, di2) = ext_landmarks[b_idx];
-                    let d12 = lm_dist[p1 * k + p2];
+                    let (_, l2, di2) = ext_landmarks[b_idx];
+                    let d12 = crate::landmarks::compute_pairwise_distance(aln, l1, l2);
                     let is_geodesic_interior = (di1 + di2) <= 1.15 * d12 + d_sister
                         || (di1.max(di2) <= 1.35 * di1.min(di2) && (di1 + di2) <= 1.65 * d12);
                     if d12 > di1.max(di2) + 0.5 * d_sister && is_geodesic_interior {
-                        let l2_size = lm_sister_size[p2];
+                        let mut l2_size = 1usize;
+                        for j in 0..n {
+                            if j != l2
+                                && crate::landmarks::compute_pairwise_distance(aln, l2, j)
+                                    < d_sister
+                            {
+                                l2_size += 1;
+                            }
+                        }
                         let is_asymmetric_outgroup_mirror =
                             my_size > l1_size.min(l2_size) && di1.max(di2) > 1.4 * di1.min(di2);
                         if !is_asymmetric_outgroup_mirror {
@@ -171,6 +111,15 @@ pub fn compute_attention_masks_with_progress<F: FnMut(usize, usize)>(
             }
 
             // 2. Minority Intra-Clade Sub-Cluster Fallback:
+            let mut non_sister_clade_aln_count = 0usize;
+            for j in 0..n {
+                if j != i {
+                    let d = crate::landmarks::compute_pairwise_distance(aln, i, j);
+                    if d >= d_sister && d <= d_clade {
+                        non_sister_clade_aln_count += 1;
+                    }
+                }
+            }
             let is_minority_subclade =
                 non_sister_clade_landmarks > 0 && (my_size - 1) <= non_sister_clade_aln_count;
 
@@ -179,9 +128,6 @@ pub fn compute_attention_masks_with_progress<F: FnMut(usize, usize)>(
                     mask_landmark[i * k + p] = true;
                 }
             }
-        }
-        if n >= 500 && !is_landmark[i] {
-            hap_cache.insert(aln.row(i), i);
         }
         if (i + 1) % step_report == 0 || i + 1 == n {
             on_taxon_progress(i + 1, n);
@@ -377,178 +323,35 @@ impl PhyloAttentionEngine {
         let mut cell = [0.0f64; 128];
         let step_report = (n / 20).max(1);
 
-        let mut is_landmark = vec![false; n];
-        for &l_idx in &landmarks.indices {
-            if l_idx < n {
-                is_landmark[l_idx] = true;
-            }
-        }
-        let mut hap_cache: std::collections::HashMap<&[u8], usize> = if n >= 500 {
-            std::collections::HashMap::with_capacity(n.min(4096))
-        } else {
-            std::collections::HashMap::new()
-        };
-
         for i in 0..n {
             let in_offset = i * num_channels;
-            if n >= 500 && !is_landmark[i] {
-                let row_slice = aln.row(i);
-                if let Some(&rep) = hap_cache.get(row_slice) {
-                    let rep_offset = rep * num_channels;
-                    for ch in 0..num_channels {
-                        sum_a[in_offset + ch] = sum_a[rep_offset + ch];
-                        valid_pair_counts[in_offset + ch] = valid_pair_counts[rep_offset + ch];
-                    }
-                    if (i + 1) % step_report == 0 || i + 1 == n {
-                        on_taxon_progress(i + 1, n);
-                    }
+            for u in 0..l {
+                let valid_q = self.softmax_row_at(
+                    aln,
+                    landmarks,
+                    m_matrix,
+                    b_prior,
+                    root_sequence,
+                    masks,
+                    i,
+                    u,
+                    num_channels,
+                    &mut cell[..num_channels],
+                );
+                if !valid_q {
                     continue;
                 }
-            }
 
-            if n >= 500 {
-                // Fast precomputed-exponential path for large cohorts (zero exp() inside u loop)
-                let shift_d = (self.dim as f64) / 2.0;
-                let mut s_nomatch = [f64::NEG_INFINITY; 128];
-                let mut s_match = [f64::NEG_INFINITY; 128];
-                let mut max_s_i = f64::NEG_INFINITY;
+                sum_a[in_offset + 0] += cell[0];
+                valid_pair_counts[in_offset + 0] += 1;
 
                 for p in 0..k {
                     let ch = p + 1;
                     if !masks.mask_landmark[i * k + p] {
-                        let sn = b_prior[in_offset + ch];
-                        let sm = sn + (m_matrix[in_offset + ch] + shift_d) / self.sqrt_d;
-                        s_nomatch[ch] = sn;
-                        s_match[ch] = sm;
-                        if sn > max_s_i {
-                            max_s_i = sn;
-                        }
-                        if sm > max_s_i {
-                            max_s_i = sm;
-                        }
+                        sum_a[in_offset + ch] += cell[ch];
+                        valid_pair_counts[in_offset + ch] += 1;
                     }
                 }
-                let root_aff = m_matrix[in_offset + 0] + shift_d;
-                let sr_nomatch = b_prior[in_offset + 0];
-                let sr_match = sr_nomatch + root_aff / self.sqrt_d;
-                let sr_sink = sr_nomatch + (root_aff * self.root_sink_factor) / self.sqrt_d;
-                for &sr in &[sr_nomatch, sr_match, sr_sink] {
-                    if sr > max_s_i {
-                        max_s_i = sr;
-                    }
-                }
-                if !max_s_i.is_finite() {
-                    max_s_i = 0.0;
-                }
-
-                let mut exp_nomatch = [0.0f64; 128];
-                let mut exp_match = [0.0f64; 128];
-                let mut delta_match = [0.0f64; 128];
-                let mut sum_nomatch = 0.0f64;
-                for p in 0..k {
-                    let ch = p + 1;
-                    if !masks.mask_landmark[i * k + p] {
-                        let en = if s_nomatch[ch].is_finite() {
-                            (s_nomatch[ch] - max_s_i).exp()
-                        } else {
-                            0.0
-                        };
-                        let em = if s_match[ch].is_finite() {
-                            (s_match[ch] - max_s_i).exp()
-                        } else {
-                            0.0
-                        };
-                        exp_nomatch[ch] = en;
-                        exp_match[ch] = em;
-                        delta_match[ch] = em - en;
-                        sum_nomatch += en;
-                    }
-                }
-                let expr_nomatch = (sr_nomatch - max_s_i).exp();
-                let expr_match = (sr_match - max_s_i).exp();
-                let expr_sink = (sr_sink - max_s_i).exp();
-
-                let q_row = aln.row(i);
-                let mut valid_u_count = 0usize;
-                for u in 0..l {
-                    let qi_c = q_row[u];
-                    if qi_c == 0 {
-                        continue;
-                    }
-                    valid_u_count += 1;
-                    let mut sum_exp = sum_nomatch;
-                    let mut any_non_sister_match = false;
-                    let mut logits = exp_nomatch;
-                    for p in 0..k {
-                        if !masks.mask_landmark[i * k + p] {
-                            let l_c = aln.get(landmarks.indices[p], u);
-                            if qi_c == l_c {
-                                let ch = p + 1;
-                                logits[ch] = exp_match[ch];
-                                sum_exp += delta_match[ch];
-                                if masks.is_non_sister_landmark[i * k + p] {
-                                    any_non_sister_match = true;
-                                }
-                            }
-                        }
-                    }
-                    let root_c = root_sequence.get(u).copied().unwrap_or(0);
-                    let r_exp = if root_c > 0 && qi_c == root_c {
-                        expr_match
-                    } else if !any_non_sister_match {
-                        expr_sink
-                    } else {
-                        expr_nomatch
-                    };
-                    logits[0] = r_exp;
-                    sum_exp += r_exp;
-                    let inv_denom = if sum_exp > 0.0 { 1.0 / sum_exp } else { 0.0 };
-                    sum_a[in_offset + 0] += r_exp * inv_denom;
-                    for p in 0..k {
-                        let ch = p + 1;
-                        if !masks.mask_landmark[i * k + p] {
-                            sum_a[in_offset + ch] += logits[ch] * inv_denom;
-                        }
-                    }
-                }
-                valid_pair_counts[in_offset + 0] = valid_u_count;
-                for p in 0..k {
-                    if !masks.mask_landmark[i * k + p] {
-                        valid_pair_counts[in_offset + p + 1] = valid_u_count;
-                    }
-                }
-            } else {
-                for u in 0..l {
-                    let valid_q = self.softmax_row_at(
-                        aln,
-                        landmarks,
-                        m_matrix,
-                        b_prior,
-                        root_sequence,
-                        masks,
-                        i,
-                        u,
-                        num_channels,
-                        &mut cell[..num_channels],
-                    );
-                    if !valid_q {
-                        continue;
-                    }
-
-                    sum_a[in_offset + 0] += cell[0];
-                    valid_pair_counts[in_offset + 0] += 1;
-
-                    for p in 0..k {
-                        let ch = p + 1;
-                        if !masks.mask_landmark[i * k + p] {
-                            sum_a[in_offset + ch] += cell[ch];
-                            valid_pair_counts[in_offset + ch] += 1;
-                        }
-                    }
-                }
-            }
-            if n >= 500 && !is_landmark[i] {
-                hap_cache.insert(aln.row(i), i);
             }
             if (i + 1) % step_report == 0 || i + 1 == n {
                 on_taxon_progress(i + 1, n);
@@ -657,129 +460,6 @@ impl PhyloAttentionEngine {
         // Hoisted above the u loop: zero heap allocation per site.
         let mut running_c = [0.0f64; 128];
         let mut a_cell = [0.0f64; 128];
-
-        if aln.num_taxa >= 500 {
-            let shift_d = (self.dim as f64) / 2.0;
-            let mut s_nomatch = [f64::NEG_INFINITY; 128];
-            let mut s_match = [f64::NEG_INFINITY; 128];
-            let mut max_s_i = f64::NEG_INFINITY;
-
-            for p in 0..k {
-                let ch = p + 1;
-                if !masks.mask_landmark[i * k + p] {
-                    let sn = b_prior[in_offset + ch];
-                    let sm = sn + (m_matrix[in_offset + ch] + shift_d) / self.sqrt_d;
-                    s_nomatch[ch] = sn;
-                    s_match[ch] = sm;
-                    if sn > max_s_i {
-                        max_s_i = sn;
-                    }
-                    if sm > max_s_i {
-                        max_s_i = sm;
-                    }
-                }
-            }
-            let root_aff = m_matrix[in_offset + 0] + shift_d;
-            let sr_nomatch = b_prior[in_offset + 0];
-            let sr_match = sr_nomatch + root_aff / self.sqrt_d;
-            let sr_sink = sr_nomatch + (root_aff * self.root_sink_factor) / self.sqrt_d;
-            for &sr in &[sr_nomatch, sr_match, sr_sink] {
-                if sr > max_s_i {
-                    max_s_i = sr;
-                }
-            }
-            if !max_s_i.is_finite() {
-                max_s_i = 0.0;
-            }
-
-            let mut exp_nomatch = [0.0f64; 128];
-            let mut exp_match = [0.0f64; 128];
-            let mut delta_match = [0.0f64; 128];
-            let mut sum_nomatch = 0.0f64;
-            for p in 0..k {
-                let ch = p + 1;
-                if !masks.mask_landmark[i * k + p] {
-                    let en = if s_nomatch[ch].is_finite() {
-                        (s_nomatch[ch] - max_s_i).exp()
-                    } else {
-                        0.0
-                    };
-                    let em = if s_match[ch].is_finite() {
-                        (s_match[ch] - max_s_i).exp()
-                    } else {
-                        0.0
-                    };
-                    exp_nomatch[ch] = en;
-                    exp_match[ch] = em;
-                    delta_match[ch] = em - en;
-                    sum_nomatch += en;
-                }
-            }
-            let expr_nomatch = (sr_nomatch - max_s_i).exp();
-            let expr_match = (sr_match - max_s_i).exp();
-            let expr_sink = (sr_sink - max_s_i).exp();
-            let q_row = aln.row(i);
-
-            for u in 0..l {
-                let cell_offset = u * num_channels;
-                let qi_c = q_row[u];
-                if qi_c == 0 {
-                    f_row[cell_offset + 0] = 0.0;
-                    c_row[cell_offset + 0] = running_c[0];
-                    for p in 0..k {
-                        let ch = p + 1;
-                        f_row[cell_offset + ch] = 0.0;
-                        c_row[cell_offset + ch] = running_c[ch];
-                    }
-                    continue;
-                }
-                let mut sum_exp = sum_nomatch;
-                let mut any_non_sister_match = false;
-                let mut logits = exp_nomatch;
-                for p in 0..k {
-                    if !masks.mask_landmark[i * k + p] {
-                        let l_c = aln.get(landmarks.indices[p], u);
-                        if qi_c == l_c {
-                            let ch = p + 1;
-                            logits[ch] = exp_match[ch];
-                            sum_exp += delta_match[ch];
-                            if masks.is_non_sister_landmark[i * k + p] {
-                                any_non_sister_match = true;
-                            }
-                        }
-                    }
-                }
-                let root_c = root_sequence.get(u).copied().unwrap_or(0);
-                let r_exp = if root_c > 0 && qi_c == root_c {
-                    expr_match
-                } else if !any_non_sister_match {
-                    expr_sink
-                } else {
-                    expr_nomatch
-                };
-                logits[0] = r_exp;
-                sum_exp += r_exp;
-                let inv_denom = if sum_exp > 0.0 { 1.0 / sum_exp } else { 0.0 };
-
-                let f_root = r_exp * inv_denom - mean_a[in_offset + 0];
-                f_row[cell_offset + 0] = f_root;
-                running_c[0] += f_root;
-                c_row[cell_offset + 0] = running_c[0];
-
-                for p in 0..k {
-                    let ch = p + 1;
-                    let f_val = if !masks.mask_landmark[i * k + p] {
-                        logits[ch] * inv_denom - mean_a[in_offset + ch]
-                    } else {
-                        0.0
-                    };
-                    f_row[cell_offset + ch] = f_val;
-                    running_c[ch] += f_val;
-                    c_row[cell_offset + ch] = running_c[ch];
-                }
-            }
-            return;
-        }
 
         for u in 0..l {
             let cell_offset = u * num_channels;

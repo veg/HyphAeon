@@ -1922,9 +1922,9 @@ __RHIZAEON_DATA_JSON__
         sel.appendChild(opt);
       }
 
-      // Populate Dropdowns (capped at 400 priority taxa so 100K alignments never stall DOM option creation)
+      // Populate Dropdowns (capped at 5000 priority taxa so 100K alignments never stall DOM option creation, while keeping all 2000 sequences selectable)
       function initDropdowns() {
-        const maxDropdownTaxa = 400;
+        const maxDropdownTaxa = 5000;
         const dropdownTaxa = (DATA.taxa.length <= maxDropdownTaxa)
           ? DATA.taxa
           : DATA.taxa.slice(0, maxDropdownTaxa);

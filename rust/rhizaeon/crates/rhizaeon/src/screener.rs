@@ -230,38 +230,7 @@ impl LocalFluxScreener {
         let step_report = (n / 20).max(1);
 
         // 1. Compute variances and peak-to-trough pulses in a single cache-friendly pass per taxon
-        let mut hap_cache: std::collections::HashMap<&[u8], usize> =
-            if n >= 500 {
-                std::collections::HashMap::with_capacity(n.min(4096))
-            } else {
-                std::collections::HashMap::new()
-            };
-        let mut is_landmark = vec![false; n];
-        for &l_idx in &landmarks.indices {
-            if l_idx < n {
-                is_landmark[l_idx] = true;
-            }
-        }
-
         for i in 0..n {
-            if n >= 500 && !is_landmark[i] {
-                let row_slice = aln.row(i);
-                if let Some(&rep) = hap_cache.get(row_slice) {
-                    v_root[i] = v_root[rep];
-                    root_pulse[i] = root_pulse[rep];
-                    root_pulse_stat[i] = root_pulse_stat[rep];
-                    v_cont[i] = v_cont[rep];
-                    cont_pulse[i] = cont_pulse[rep];
-                    r_root[i] = r_root[rep];
-                    r_dim[i] = r_dim[rep];
-                    gamma_root[i] = gamma_root[rep];
-                    if (i + 1) % step_report == 0 || i + 1 == n {
-                        on_taxon_progress(i + 1, n);
-                    }
-                    continue;
-                }
-            }
-
             attention.compute_force_and_momentum_row(
                 aln,
                 landmarks,
@@ -334,9 +303,6 @@ impl LocalFluxScreener {
 
             // Spatial coherence
             gamma_root[i] = self.compute_spatial_coherence(&f_row, l, num_channels);
-            if n >= 500 && !is_landmark[i] {
-                hap_cache.insert(aln.row(i), i);
-            }
             if (i + 1) % step_report == 0 || i + 1 == n {
                 on_taxon_progress(i + 1, n);
             }
@@ -350,24 +316,9 @@ impl LocalFluxScreener {
             logit_r.push((clamped / (1.0 - clamped)).ln());
         }
 
-        let stat_rep_indices: Vec<usize> = if n >= 500 && !hap_cache.is_empty() {
-            let mut reps: Vec<usize> = hap_cache.values().copied().collect();
-            for &l_idx in &landmarks.indices {
-                if l_idx < n {
-                    reps.push(l_idx);
-                }
-            }
-            reps.sort_unstable();
-            reps.dedup();
-            reps
-        } else {
-            (0..n).collect()
-        };
-
-        let rep_logits: Vec<f64> = stat_rep_indices.iter().map(|&i| logit_r[i]).collect();
-        let med_logit = median(&rep_logits);
+        let med_logit = median(&logit_r);
         let mad_logit = median(
-            &rep_logits
+            &logit_r
                 .iter()
                 .map(|&x| (x - med_logit).abs())
                 .collect::<Vec<_>>(),
@@ -383,75 +334,40 @@ impl LocalFluxScreener {
 
         let (d_sister, d_clade) =
             crate::landmarks::compute_scale_invariant_distance_thresholds(aln);
-        let n_eff_screen = stat_rep_indices.len().min(256).max(1) as f64;
-        let k_crit_root = (-0.5f64 * (self.alpha / (2.0f64 * n_eff_screen)).ln())
+        let k_crit_root = (-0.5f64 * (self.alpha / (2.0f64 * (n as f64).max(1.0f64))).ln())
             .sqrt()
             .max(1.645f64);
 
-        // Sister adjacency: full upper-triangular pass for small/medium cohorts (n <= 256),
-        // and lazy on-demand sister check for outlier taxa when n > 256 so O(N^2 * L) is avoided.
+        // Sister adjacency in a single upper-triangular pass: each pair distance
+        // is evaluated at most once, and pairs where both leaves already have a
+        // sister are skipped entirely.
         let mut has_sister = vec![false; n];
-        if n <= 256 {
-            for i in 0..n {
-                for j in (i + 1)..n {
-                    if has_sister[i] && has_sister[j] {
-                        continue;
-                    }
-                    if crate::landmarks::compute_pairwise_distance(aln, i, j) < d_sister {
-                        has_sister[i] = true;
-                        has_sister[j] = true;
-                    }
+        for i in 0..n {
+            for j in (i + 1)..n {
+                if has_sister[i] && has_sister[j] {
+                    continue;
+                }
+                if crate::landmarks::compute_pairwise_distance(aln, i, j) < d_sister {
+                    has_sister[i] = true;
+                    has_sister[j] = true;
                 }
             }
         }
 
-        let rep_v_root: Vec<f64> = stat_rep_indices.iter().map(|&i| v_root[i]).collect();
-        let med_v_root = median(&rep_v_root);
+        let med_v_root = median(&v_root);
         let mad_v_root = median(
-            &rep_v_root
+            &v_root
                 .iter()
                 .map(|&x| (x - med_v_root).abs())
                 .collect::<Vec<_>>(),
         );
         let scale_v_root = (1.4826 * mad_v_root).max(0.05);
 
-        let check_has_sister_lazy = |i: usize, known: &[bool]| -> bool {
-            if n <= 256 {
-                return known[i];
-            }
-            for &l_idx in &landmarks.indices {
-                if l_idx != i && crate::landmarks::compute_pairwise_distance(aln, i, l_idx) < d_sister {
-                    return true;
-                }
-            }
-            let near_start = i.saturating_sub(8);
-            let near_end = (i + 9).min(n);
-            for j in near_start..near_end {
-                if j != i && crate::landmarks::compute_pairwise_distance(aln, i, j) < d_sister {
-                    return true;
-                }
-            }
-            let j_stride = (n / 256).max(1);
-            let mut j = 0;
-            while j < n {
-                if j != i && crate::landmarks::compute_pairwise_distance(aln, i, j) < d_sister {
-                    return true;
-                }
-                j += j_stride;
-            }
-            false
-        };
-
         for i in 0..n {
             let z_r = (logit_r[i] - med_logit) / scale_logit;
             let z_v_root = (v_root[i] - med_v_root) / scale_v_root;
 
-            let needs_sister = z_r > z_alpha_r || r_dim[i] > self.root_ratio_threshold || z_v_root > 2.0;
-            let is_isolated_leaf = if needs_sister {
-                !check_has_sister_lazy(i, &has_sister)
-            } else {
-                !has_sister[i]
-            };
+            let is_isolated_leaf = !has_sister[i];
             if z_r > z_alpha_r
                 && r_root[i] >= self.root_ratio_threshold
                 && gamma_root[i] <= self.spatial_coherence_threshold
@@ -474,22 +390,8 @@ impl LocalFluxScreener {
             pool_indices = (0..n).collect();
         }
 
-        let stat_pool_indices: Vec<usize> = if n >= 500 && !hap_cache.is_empty() {
-            let mut reps: Vec<usize> = stat_rep_indices
-                .iter()
-                .copied()
-                .filter(|&i| !is_rate_burst[i])
-                .collect();
-            if reps.is_empty() {
-                reps = stat_rep_indices.clone();
-            }
-            reps
-        } else {
-            pool_indices.clone()
-        };
-
-        let pool_v: Vec<f64> = stat_pool_indices.iter().map(|&i| v_cont[i]).collect();
-        let pool_pulse: Vec<f64> = stat_pool_indices.iter().map(|&i| cont_pulse[i]).collect();
+        let pool_v: Vec<f64> = pool_indices.iter().map(|&i| v_cont[i]).collect();
+        let pool_pulse: Vec<f64> = pool_indices.iter().map(|&i| cont_pulse[i]).collect();
 
         let med_v = median(&pool_v);
         let med_pulse = median(&pool_pulse);
