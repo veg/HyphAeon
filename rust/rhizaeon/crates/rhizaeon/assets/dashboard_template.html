@@ -1852,12 +1852,18 @@ __RHIZAEON_DATA_JSON__
           }
         }
 
+        function vecNorm(arr) {
+          let s = 0;
+          for (let i = 0; i < arr.length; i++) s += arr[i] * arr[i];
+          return Math.sqrt(s);
+        }
+
         function powerIter(mat, deflateVec = null, deflateVal = 0, seedOffset = 0) {
           let v = new Float64Array(N);
           for (let i = 0; i < N; i++) {
             v[i] = (((i + seedOffset + 1) * 2654435761) % 1000) / 1000.0 - 0.5;
           }
-          let norm = Math.hypot(...v);
+          let norm = vecNorm(v);
           for (let i = 0; i < N; i++) v[i] /= (norm || 1);
 
           for (let iter = 0; iter < 35; iter++) {
@@ -1873,7 +1879,7 @@ __RHIZAEON_DATA_JSON__
               }
               nextV[i] = sum;
             }
-            norm = Math.hypot(...nextV);
+            norm = vecNorm(nextV);
             if (norm < 1e-9) break;
             for (let i = 0; i < N; i++) v[i] = nextV[i] / norm;
           }
@@ -1905,18 +1911,38 @@ __RHIZAEON_DATA_JSON__
         return { coords, distMatrix: D, taxa };
       }
 
-      // Populate Dropdowns
+      function ensureSelectOption(sel, taxon) {
+        if (!sel || !taxon) return;
+        for (let i = 0; i < sel.options.length; i++) {
+          if (sel.options[i].value === taxon) return;
+        }
+        const opt = document.createElement('option');
+        opt.value = taxon;
+        opt.textContent = taxon;
+        sel.appendChild(opt);
+      }
+
+      // Populate Dropdowns (capped at 400 priority taxa so 100K alignments never stall DOM option creation)
       function initDropdowns() {
+        const maxDropdownTaxa = 400;
+        const dropdownTaxa = (DATA.taxa.length <= maxDropdownTaxa)
+          ? DATA.taxa
+          : DATA.taxa.slice(0, maxDropdownTaxa);
         [selectFocal, selectP1, selectP2].forEach(sel => {
           sel.innerHTML = '';
-          DATA.taxa.forEach(t => {
+          const frag = document.createDocumentFragment();
+          dropdownTaxa.forEach(t => {
             const opt = document.createElement('option');
             opt.value = t;
             opt.textContent = t;
-            sel.appendChild(opt);
+            frag.appendChild(opt);
           });
+          sel.appendChild(frag);
         });
 
+        ensureSelectOption(selectFocal, state.focalTaxon);
+        ensureSelectOption(selectP1, state.p1Taxon);
+        ensureSelectOption(selectP2, state.p2Taxon);
         selectFocal.value = state.focalTaxon;
         selectP1.value = state.p1Taxon;
         selectP2.value = state.p2Taxon;
@@ -1966,9 +1992,18 @@ __RHIZAEON_DATA_JSON__
       }
 
       function updateDropdowns() {
-        if (selectFocal) selectFocal.value = state.focalTaxon;
-        if (selectP1) selectP1.value = state.p1Taxon;
-        if (selectP2) selectP2.value = state.p2Taxon;
+        if (selectFocal) {
+          ensureSelectOption(selectFocal, state.focalTaxon);
+          selectFocal.value = state.focalTaxon;
+        }
+        if (selectP1) {
+          ensureSelectOption(selectP1, state.p1Taxon);
+          selectP1.value = state.p1Taxon;
+        }
+        if (selectP2) {
+          ensureSelectOption(selectP2, state.p2Taxon);
+          selectP2.value = state.p2Taxon;
+        }
         initMdsDropdown();
       }
 
@@ -2157,6 +2192,9 @@ __RHIZAEON_DATA_JSON__
         if (state.matrixOrder !== 'input') {
           return baseTaxa;
         }
+        if (Array.isArray(DATA.input_taxa) && DATA.input_taxa.length > 0) {
+          return DATA.input_taxa.slice();
+        }
         const hasMetaOrder = baseTaxa.some((t, idx) => {
           const m = DATA.taxa_meta && DATA.taxa_meta[t];
           return m && typeof m.input_order === 'number' && m.input_order !== 0 && idx > 0;
@@ -2222,93 +2260,181 @@ __RHIZAEON_DATA_JSON__
         centerMatrixOnSelectedEvent();
       };
 
-      // Render Level 2: Meso Matrix
-      function renderMatrix() {
-        matrixContainer.innerHTML = '';
-        const orderedTaxa = getOrderedTaxaForMatrix();
-        const taxaList = orderedTaxa.filter(t => t.toLowerCase().includes(state.filterText.toLowerCase()));
-        
-        taxaList.forEach(t => {
-          const meta = DATA.taxa_meta[t] || { label: t, color: '#64748b' };
-          const row = document.createElement('div');
-          const isFocal = (t === state.focalTaxon);
-          row.className = 'seq-row' + (isFocal ? ' active' : '');
-          
-          row.onclick = () => {
-            setFocalTaxon(t);
-            const myBps = DATA.breakpoints.filter(b => b.recombinant === t || (b.isolates && b.isolates.includes(t)));
-            if (myBps.length > 0) {
-              const topBp = [...myBps].sort((a, b) => b.log_likelihood_gain - a.log_likelihood_gain)[0];
-              state.activeEventId = topBp.event_id;
-              state.activeBpId = topBp.breakpoint_id;
-              notifyParentEvent(topBp.event_id, topBp.breakpoint_id, t);
-              highlightInventoryRow();
-            } else {
-              notifyParentEvent(null, null, t);
-            }
-          };
+      function createMatrixRowElement(t) {
+        const meta = (DATA.taxa_meta && DATA.taxa_meta[t]) || { label: `${t} [Reference]`, color: '#64748b' };
+        const row = document.createElement('div');
+        const isFocal = (t === state.focalTaxon);
+        row.className = 'seq-row' + (isFocal ? ' active' : '');
 
-          const label = document.createElement('div');
-          label.className = 'seq-name';
-          const dotColor = isFocal ? '#a855f7' : (t === state.p1Taxon ? '#d55e00' : (t === state.p2Taxon ? '#0072b2' : meta.color));
-          label.innerHTML = `<span style="display:inline-block; width:9px; height:9px; border-radius:50%; background:${dotColor}; flex-shrink:0;"></span> <span>${meta.label}</span>`;
-          
-          const bar = document.createElement('div');
-          bar.className = 'seq-track-bar';
-          
-          const segments = DATA.mosaic_taxa[t] || [{ start: 1, end: L_TOTAL, color: '#64748b', lineage: 'Homologous' }];
-          segments.forEach(seg => {
-            const leftPct = ((seg.start - 1) / L_TOTAL) * 100;
-            const widthPct = ((seg.end - seg.start + 1) / L_TOTAL) * 100;
-            const segDiv = document.createElement('div');
-            segDiv.style.position = 'absolute';
-            segDiv.style.left = `${leftPct}%`;
-            segDiv.style.width = `${widthPct}%`;
-            segDiv.style.height = '100%';
-            segDiv.style.background = seg.color;
-            if (seg.is_plateau) {
-              segDiv.style.border = '1px dashed #fbbf24';
-              segDiv.style.boxShadow = '0 0 6px rgba(245,158,11,0.5)';
-            }
-            if (seg.breakpoint_id || seg.event_id) {
-              segDiv.style.cursor = 'pointer';
-              segDiv.onclick = (e) => {
-                e.stopPropagation();
-                const bp = DATA.breakpoints.find(b => (seg.breakpoint_id && b.breakpoint_id === seg.breakpoint_id) || (seg.event_id && b.event_id === seg.event_id));
-                const targetRec = (bp && bp.isolates && bp.isolates.includes(t)) ? t : (bp ? bp.recombinant : t);
-                if (bp) {
-                  inspectEvent(bp.breakpoint_id, targetRec, bp.parent_1, bp.parent_2, bp.ci_left, bp.ci_right, bp.event_id || seg.event_id);
-                } else if (seg.event_id) {
-                  window.inspectEventById(seg.event_id);
-                }
-              };
-            }
-            segDiv.title = `${t}: ${seg.lineage} [nt ${seg.start} – ${seg.end}]`;
-            bar.appendChild(segDiv);
-          });
-
-          // Draw a single contiguous red border around the ENTIRE recombined tract of the selected event
-          const tractBounds = getEventTractBounds(state.activeEventId, state.activeBpId, t);
-          if (tractBounds) {
-            row.classList.add('selected-event-seq-row');
-            const [tStart, tEnd] = tractBounds;
-            const tractLeftPct = ((tStart - 1) / L_TOTAL) * 100;
-            const tractWidthPct = ((tEnd - tStart + 1) / L_TOTAL) * 100;
-            const selOverlay = document.createElement('div');
-            selOverlay.className = 'selected-mosaic-tract';
-            selOverlay.style.position = 'absolute';
-            selOverlay.style.left = `${tractLeftPct}%`;
-            selOverlay.style.width = `${tractWidthPct}%`;
-            selOverlay.style.top = '0';
-            selOverlay.style.height = '100%';
-            selOverlay.style.pointerEvents = 'none';
-            bar.appendChild(selOverlay);
+        row.onclick = () => {
+          setFocalTaxon(t);
+          const myBps = DATA.breakpoints.filter(b => b.recombinant === t || (b.isolates && b.isolates.includes(t)));
+          if (myBps.length > 0) {
+            const topBp = [...myBps].sort((a, b) => b.log_likelihood_gain - a.log_likelihood_gain)[0];
+            state.activeEventId = topBp.event_id;
+            state.activeBpId = topBp.breakpoint_id;
+            notifyParentEvent(topBp.event_id, topBp.breakpoint_id, t);
+            highlightInventoryRow();
+          } else {
+            notifyParentEvent(null, null, t);
           }
+        };
 
-          row.appendChild(label);
-          row.appendChild(bar);
-          matrixContainer.appendChild(row);
+        const label = document.createElement('div');
+        label.className = 'seq-name';
+        const dotColor = isFocal ? '#a855f7' : (t === state.p1Taxon ? '#d55e00' : (t === state.p2Taxon ? '#0072b2' : meta.color));
+        label.innerHTML = `<span style="display:inline-block; width:9px; height:9px; border-radius:50%; background:${dotColor}; flex-shrink:0;"></span> <span>${meta.label}</span>`;
+
+        const bar = document.createElement('div');
+        bar.className = 'seq-track-bar';
+
+        const segments = (DATA.mosaic_taxa && DATA.mosaic_taxa[t]) || [{ start: 1, end: L_TOTAL, color: meta.color || '#64748b', lineage: 'Homologous' }];
+        segments.forEach(seg => {
+          const leftPct = ((seg.start - 1) / L_TOTAL) * 100;
+          const widthPct = ((seg.end - seg.start + 1) / L_TOTAL) * 100;
+          const segDiv = document.createElement('div');
+          segDiv.style.position = 'absolute';
+          segDiv.style.left = `${leftPct}%`;
+          segDiv.style.width = `${widthPct}%`;
+          segDiv.style.height = '100%';
+          segDiv.style.background = seg.color;
+          if (seg.is_plateau) {
+            segDiv.style.border = '1px dashed #fbbf24';
+            segDiv.style.boxShadow = '0 0 6px rgba(245,158,11,0.5)';
+          }
+          if (seg.breakpoint_id || seg.event_id) {
+            segDiv.style.cursor = 'pointer';
+            segDiv.onclick = (e) => {
+              e.stopPropagation();
+              const bp = DATA.breakpoints.find(b => (seg.breakpoint_id && b.breakpoint_id === seg.breakpoint_id) || (seg.event_id && b.event_id === seg.event_id));
+              const targetRec = (bp && bp.isolates && bp.isolates.includes(t)) ? t : (bp ? bp.recombinant : t);
+              if (bp) {
+                inspectEvent(bp.breakpoint_id, targetRec, bp.parent_1, bp.parent_2, bp.ci_left, bp.ci_right, bp.event_id || seg.event_id);
+              } else if (seg.event_id) {
+                window.inspectEventById(seg.event_id);
+              }
+            };
+          }
+          segDiv.title = `${t}: ${seg.lineage} [nt ${seg.start} – ${seg.end}]`;
+          bar.appendChild(segDiv);
         });
+
+        // Draw a single contiguous red border around the ENTIRE recombined tract of the selected event
+        const tractBounds = getEventTractBounds(state.activeEventId, state.activeBpId, t);
+        if (tractBounds) {
+          row.classList.add('selected-event-seq-row');
+          const [tStart, tEnd] = tractBounds;
+          const tractLeftPct = ((tStart - 1) / L_TOTAL) * 100;
+          const tractWidthPct = ((tEnd - tStart + 1) / L_TOTAL) * 100;
+          const selOverlay = document.createElement('div');
+          selOverlay.className = 'selected-mosaic-tract';
+          selOverlay.style.position = 'absolute';
+          selOverlay.style.left = `${tractLeftPct}%`;
+          selOverlay.style.width = `${tractWidthPct}%`;
+          selOverlay.style.top = '0';
+          selOverlay.style.height = '100%';
+          selOverlay.style.pointerEvents = 'none';
+          bar.appendChild(selOverlay);
+        }
+
+        row.appendChild(label);
+        row.appendChild(bar);
+        return row;
+      }
+
+      // Render Level 2: Meso Matrix (with virtual scrolling for N > 200 up to 100,000+ sequences)
+      function renderMatrix() {
+        const orderedTaxa = getOrderedTaxaForMatrix();
+        const filterQ = state.filterText ? state.filterText.toLowerCase() : '';
+        const taxaList = filterQ
+          ? orderedTaxa.filter(t => t.toLowerCase().includes(filterQ))
+          : orderedTaxa;
+
+        matrixContainer._virtualTaxaList = taxaList;
+
+        if (taxaList.length <= 200) {
+          matrixContainer._renderVirtualSlice = null;
+          matrixContainer.onscroll = null;
+          matrixContainer.innerHTML = '';
+          const frag = document.createDocumentFragment();
+          taxaList.forEach(t => {
+            frag.appendChild(createMatrixRowElement(t));
+          });
+          matrixContainer.appendChild(frag);
+          if (state.shouldCenterMatrixOnEvent) {
+            centerMatrixOnSelectedEvent();
+          }
+          return;
+        }
+
+        const ROW_PITCH = 24;
+        const MAX_SCROLL_PX = 6000000;
+        const totalVirtualHeight = Math.min(MAX_SCROLL_PX, taxaList.length * ROW_PITCH);
+        matrixContainer._rowPitch = ROW_PITCH;
+        matrixContainer._totalVirtualHeight = totalVirtualHeight;
+
+        let spacer = matrixContainer._virtualSpacer;
+        let viewport = matrixContainer._virtualViewport;
+        if (!spacer || !viewport || spacer.parentNode !== matrixContainer) {
+          matrixContainer.innerHTML = '';
+          spacer = document.createElement('div');
+          spacer.style.position = 'relative';
+          spacer.style.width = '100%';
+          viewport = document.createElement('div');
+          viewport.style.position = 'absolute';
+          viewport.style.left = '0';
+          viewport.style.right = '0';
+          spacer.appendChild(viewport);
+          matrixContainer.appendChild(spacer);
+          matrixContainer._virtualSpacer = spacer;
+          matrixContainer._virtualViewport = viewport;
+        }
+        spacer.style.height = `${totalVirtualHeight}px`;
+
+        const renderVirtualSlice = () => {
+          const list = matrixContainer._virtualTaxaList || [];
+          const count = list.length;
+          if (count === 0) {
+            viewport.innerHTML = '';
+            return;
+          }
+          const visibleH = matrixContainer.clientHeight || 280;
+          const maxScrollTop = Math.max(1, totalVirtualHeight - visibleH);
+          const scrollTop = Math.max(0, Math.min(maxScrollTop, matrixContainer.scrollTop || 0));
+          const visibleRows = Math.ceil(visibleH / ROW_PITCH) + 16;
+          let startIdx;
+          if (totalVirtualHeight < count * ROW_PITCH) {
+            const frac = scrollTop / maxScrollTop;
+            startIdx = Math.floor(frac * Math.max(0, count - visibleRows));
+          } else {
+            startIdx = Math.floor(scrollTop / ROW_PITCH) - 6;
+          }
+          startIdx = Math.max(0, Math.min(Math.max(0, count - 1), startIdx));
+          const endIdx = Math.min(count, startIdx + visibleRows);
+
+          let topPx;
+          if (totalVirtualHeight < count * ROW_PITCH) {
+            topPx = Math.max(0, Math.min(totalVirtualHeight - (endIdx - startIdx) * ROW_PITCH, scrollTop - 4 * ROW_PITCH));
+          } else {
+            topPx = startIdx * ROW_PITCH;
+          }
+          viewport.style.top = `${Math.round(topPx)}px`;
+          viewport.innerHTML = '';
+          const frag = document.createDocumentFragment();
+          for (let i = startIdx; i < endIdx; i++) {
+            frag.appendChild(createMatrixRowElement(list[i]));
+          }
+          viewport.appendChild(frag);
+        };
+
+        matrixContainer._renderVirtualSlice = renderVirtualSlice;
+        matrixContainer.onscroll = () => {
+          if (matrixContainer._renderVirtualSlice) {
+            matrixContainer._renderVirtualSlice();
+          }
+        };
+
+        renderVirtualSlice();
 
         if (state.shouldCenterMatrixOnEvent) {
           centerMatrixOnSelectedEvent();
@@ -2317,6 +2443,40 @@ __RHIZAEON_DATA_JSON__
 
       function centerMatrixOnSelectedEvent() {
         if (!matrixContainer) return;
+        const vList = matrixContainer._virtualTaxaList;
+        if (Array.isArray(vList) && vList.length > 200 && typeof matrixContainer._renderVirtualSlice === 'function') {
+          const eventRecs = new Set(getActiveEventRecombinants());
+          const matchIndices = [];
+          for (let i = 0; i < vList.length; i++) {
+            const t = vList[i];
+            if (eventRecs.has(t) || getEventTractBounds(state.activeEventId, state.activeBpId, t)) {
+              matchIndices.push(i);
+            }
+          }
+          if (matchIndices.length === 0 && state.focalTaxon) {
+            const fIdx = vList.indexOf(state.focalTaxon);
+            if (fIdx >= 0) matchIndices.push(fIdx);
+          }
+          if (matchIndices.length > 0) {
+            const meanIdx = matchIndices.reduce((a, b) => a + b, 0) / matchIndices.length;
+            const ROW_PITCH = matrixContainer._rowPitch || 24;
+            const totalVirtualHeight = matrixContainer._totalVirtualHeight || (vList.length * ROW_PITCH);
+            const visibleH = matrixContainer.clientHeight || 260;
+            const maxScrollTop = Math.max(0, totalVirtualHeight - visibleH);
+            let targetScrollTop;
+            if (totalVirtualHeight < vList.length * ROW_PITCH) {
+              const frac = meanIdx / Math.max(1, vList.length - 1);
+              targetScrollTop = Math.round(frac * maxScrollTop);
+            } else {
+              targetScrollTop = Math.round(meanIdx * ROW_PITCH - visibleH / 2);
+            }
+            targetScrollTop = Math.max(0, Math.min(maxScrollTop, targetScrollTop));
+            matrixContainer.scrollTop = targetScrollTop;
+            matrixContainer._renderVirtualSlice();
+          }
+          return;
+        }
+
         const selectedRows = Array.from(matrixContainer.querySelectorAll('.selected-event-seq-row'));
         const targetRows = selectedRows.length > 0
           ? selectedRows
@@ -2529,8 +2689,12 @@ __RHIZAEON_DATA_JSON__
         if (sig.walk_x.length > 0) {
           t3.ctx.beginPath();
           let walkStarted = false;
-          const minW = Math.min(-10, ...sig.walk_s);
-          const maxW = Math.max(10, ...sig.walk_s);
+          let minW = -10;
+          let maxW = 10;
+          for (let i = 0; i < sig.walk_s.length; i++) {
+            if (sig.walk_s[i] < minW) minW = sig.walk_s[i];
+            if (sig.walk_s[i] > maxW) maxW = sig.walk_s[i];
+          }
           for (let i = 0; i < sig.walk_x.length; i++) {
             const nt = sig.walk_x[i];
             const prevNt = (i > 0) ? sig.walk_x[i - 1] : nt;
@@ -2810,10 +2974,15 @@ __RHIZAEON_DATA_JSON__
         const vals = Object.values(coords);
         if (vals.length === 0) return;
 
-        let minX = Math.min(...vals.map(v => v[0]));
-        let maxX = Math.max(...vals.map(v => v[0]));
-        let minY = Math.min(...vals.map(v => v[1]));
-        let maxY = Math.max(...vals.map(v => v[1]));
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        for (let i = 0; i < vals.length; i++) {
+          const vx = vals[i][0];
+          const vy = vals[i][1];
+          if (vx < minX) minX = vx;
+          if (vx > maxX) maxX = vx;
+          if (vy < minY) minY = vy;
+          if (vy > maxY) maxY = vy;
+        }
 
         const rangeX = Math.max(0.001, maxX - minX);
         const rangeY = Math.max(0.001, maxY - minY);
@@ -3477,8 +3646,8 @@ __RHIZAEON_DATA_JSON__
             // Find all partner breakpoints for the same event
             const partnerBps = myBps.filter(b => activeBp.event_id && b.event_id === activeBp.event_id);
             if (partnerBps.length >= 2) {
-                u1 = Math.min(...partnerBps.map(b => b.breakpoint_nt));
-                u2 = Math.max(...partnerBps.map(b => b.breakpoint_nt));
+                u1 = partnerBps.reduce((m, b) => Math.min(m, b.breakpoint_nt), Infinity);
+                u2 = partnerBps.reduce((m, b) => Math.max(m, b.breakpoint_nt), -Infinity);
             } else if (activeBp.breakpoint_id.includes("5'")) {
                 const partnerId = activeBp.breakpoint_id.replace("5'", "3'");
                 const partner = myBps.find(b => b.breakpoint_id === partnerId);
@@ -3587,7 +3756,10 @@ __RHIZAEON_DATA_JSON__
         ctx.fillRect(zL, 0, Math.max(2, zR - zL), height);
 
         // 4. Draw Hotspot Threshold Line
-        const maxPhi = Math.max(1.0, ...phi, (land.hotspot_threshold || 0) * 1.15);
+        let maxPhi = Math.max(1.0, (land.hotspot_threshold || 0) * 1.15);
+        for (let i = 0; i < phi.length; i++) {
+          if (phi[i] > maxPhi) maxPhi = phi[i];
+        }
         if (land.hotspot_threshold > 0 && hotspots.length > 0) {
           const yThresh = padTop + plotH - (land.hotspot_threshold / maxPhi) * plotH;
           ctx.strokeStyle = 'rgba(220, 38, 38, 0.5)';
@@ -3627,7 +3799,10 @@ __RHIZAEON_DATA_JSON__
         }
 
         // 6. Draw Cumulative Recombination Strain rho(u)
-        const maxRho = Math.max(1e-6, ...(rho.length ? rho : [1.0]));
+        let maxRho = 1e-6;
+        for (let i = 0; i < rho.length; i++) {
+          if (rho[i] > maxRho) maxRho = rho[i];
+        }
         if (gx.length > 1 && rho.length === gx.length && hotspots.length > 0) {
           ctx.beginPath();
           for (let i = 0; i < gx.length; i++) {

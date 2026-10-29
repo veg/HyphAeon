@@ -199,10 +199,33 @@ impl SequenceDueDiligence {
             _ => crate::landmarks::compute_scale_invariant_distance_thresholds(aln),
         };
 
-        // Precompute lineage peers at `d <= d_clade` once per tract
+        // Precompute representative peer sample and lineage peers at `d <= d_clade` once per tract
+        let peer_sample: Vec<usize> = if aln.num_taxa <= 256 {
+            (0..aln.num_taxa).collect()
+        } else {
+            let peer_stride = (aln.num_taxa / 256).max(1);
+            let mut s = Vec::with_capacity(320);
+            for idx in 0..aln.num_taxa.min(32) {
+                s.push(idx);
+            }
+            for &l_idx in &_landmarks.indices {
+                if l_idx < aln.num_taxa {
+                    s.push(l_idx);
+                }
+            }
+            for idx in cand_idx.saturating_sub(8)..(cand_idx + 9).min(aln.num_taxa) {
+                s.push(idx);
+            }
+            for idx in (0..aln.num_taxa).step_by(peer_stride) {
+                s.push(idx);
+            }
+            s.sort_unstable();
+            s.dedup();
+            s
+        };
         let mut lineage_peers = Vec::new();
         if aln.num_taxa >= 6 {
-            for t_idx in 0..aln.num_taxa {
+            for &t_idx in &peer_sample {
                 if crate::landmarks::compute_pairwise_distance(aln, cand_idx, t_idx) <= d_clade {
                     lineage_peers.push(t_idx);
                 }
@@ -219,11 +242,14 @@ impl SequenceDueDiligence {
             }
             if candidate_indices.contains(&home_global) {
                 let mut home_peers = 0usize;
-                for t_idx in 0..aln.num_taxa {
+                for &t_idx in &peer_sample {
                     if crate::landmarks::compute_pairwise_distance(aln, home_global, t_idx)
                         <= d_clade
                     {
                         home_peers += 1;
+                        if home_peers >= 4 {
+                            break;
+                        }
                     }
                 }
                 if home_peers < 4 {
@@ -803,7 +829,7 @@ impl SequenceDueDiligence {
                         let is_inverted_home_mirror = if cand_has_ext_donor_jump {
                             let mut home_jumped_ext = false;
                             let mut home_clade_support = 0usize;
-                            for x_idx in 0..aln.num_taxa {
+                            for &x_idx in &peer_sample {
                                 if x_idx != home_global && x_idx != cand_idx {
                                     let d_glob_hx = crate::landmarks::compute_pairwise_distance(
                                         aln,
@@ -968,7 +994,7 @@ impl SequenceDueDiligence {
                     n_total_mut += 1;
                     let mut is_cand_priv = true;
                     let mut is_home_priv = true;
-                    for t_idx in 0..aln.num_taxa {
+                    for &t_idx in &peer_sample {
                         let rt = aln.row(t_idx)[u];
                         if t_idx != cand_idx && rt == rc {
                             is_cand_priv = false;
@@ -1009,7 +1035,7 @@ impl SequenceDueDiligence {
                         if rd > 0 && rh > 0 && rd != rh {
                             n_total_donor += 1;
                             let mut is_donor_priv = true;
-                            for t_idx in 0..aln.num_taxa {
+                            for &t_idx in &peer_sample {
                                 if t_idx != dg && aln.row(t_idx)[u] == rd {
                                     is_donor_priv = false;
                                     break;
@@ -1045,7 +1071,7 @@ impl SequenceDueDiligence {
                     cand_sisters[p_idx] = true;
                 }
             }
-            for t_idx in 0..aln.num_taxa {
+            for &t_idx in &peer_sample {
                 if t_idx != cand_idx
                     && crate::landmarks::compute_pairwise_distance(aln, cand_idx, t_idx) < d_sister
                 {
@@ -1060,7 +1086,7 @@ impl SequenceDueDiligence {
                 if rh > 0 {
                     valid_home_tract += 1;
                     let mut is_priv = true;
-                    for t_idx in 0..aln.num_taxa {
+                    for &t_idx in &peer_sample {
                         if t_idx != home_global && !cand_sisters[t_idx] && aln.row(t_idx)[u] == rh {
                             is_priv = false;
                             break;
@@ -1080,7 +1106,7 @@ impl SequenceDueDiligence {
                     if rh > 0 {
                         valid_home_flank += 1;
                         let mut is_priv = true;
-                        for t_idx in 0..aln.num_taxa {
+                        for &t_idx in &peer_sample {
                             if t_idx != home_global
                                 && !cand_sisters[t_idx]
                                 && aln.row(t_idx)[u] == rh
@@ -1109,7 +1135,7 @@ impl SequenceDueDiligence {
                         let se_pool = (p_pool * (1.0 - p_pool) * (1.0 / n1 + 1.0 / n2)).sqrt();
                         let z_stat = (p1 - p2) / se_pool.max(1e-9);
                         let z_crit = crate::screener::normal_ppf(
-                            1.0 - self.alpha / (aln.num_taxa as f64).max(1.0),
+                            1.0 - self.alpha / (aln.num_taxa.min(256) as f64).max(1.0),
                         );
                         if z_stat >= z_crit.max(2.326) {
                             return None;
@@ -1128,7 +1154,7 @@ impl SequenceDueDiligence {
                         if rd > 0 {
                             valid_donor_tract += 1;
                             let mut is_priv = true;
-                            for t_idx in 0..aln.num_taxa {
+                            for &t_idx in &peer_sample {
                                 if t_idx != dg && !cand_sisters[t_idx] && aln.row(t_idx)[u] == rd {
                                     is_priv = false;
                                     break;
@@ -1148,7 +1174,7 @@ impl SequenceDueDiligence {
                             if rd > 0 {
                                 valid_donor_flank += 1;
                                 let mut is_priv = true;
-                                for t_idx in 0..aln.num_taxa {
+                                for &t_idx in &peer_sample {
                                     if t_idx != dg
                                         && !cand_sisters[t_idx]
                                         && aln.row(t_idx)[u] == rd
@@ -1178,7 +1204,7 @@ impl SequenceDueDiligence {
                                     (p_pool * (1.0 - p_pool) * (1.0 / n1 + 1.0 / n2)).sqrt();
                                 let z_stat = (p1 - p2) / se_pool.max(1e-9);
                                 let z_crit = crate::screener::normal_ppf(
-                                    1.0 - self.alpha / (aln.num_taxa as f64).max(1.0),
+                                    1.0 - self.alpha / (aln.num_taxa.min(256) as f64).max(1.0),
                                 );
                                 if z_stat >= z_crit.max(2.326) {
                                     return None;
@@ -1212,10 +1238,9 @@ impl SequenceDueDiligence {
 
         let p_fisher = self.fisher_exact_2x2(a, b, c, d);
 
-        // Bonferroni critical threshold over candidate triplets in alignment: alpha / binom(N, 3)
-        let num_triplets =
-            (((aln.num_taxa * aln.num_taxa.saturating_sub(1) * aln.num_taxa.saturating_sub(2)) / 6)
-                .max(1)) as f64;
+        // Bonferroni critical threshold over candidate triplets in alignment: alpha / binom(N_eff, 3)
+        let n_f = (aln.num_taxa.min(256)) as f64;
+        let num_triplets = ((n_f * (n_f - 1.0).max(0.0) * (n_f - 2.0).max(0.0)) / 6.0).max(1.0);
         let base_p_crit = self.alpha / num_triplets;
         let p_crit = if (s3 - 1.0).abs() < 1e-9 {
             base_p_crit
@@ -1287,7 +1312,7 @@ impl SequenceDueDiligence {
 
                 let d_hd =
                     crate::landmarks::compute_pairwise_distance(aln, home_global, donor_global);
-                for o_idx in 0..aln.num_taxa {
+                for &o_idx in &peer_sample {
                     if o_idx != cand_idx
                         && o_idx != home_global
                         && o_idx != donor_global

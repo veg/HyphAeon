@@ -35,6 +35,12 @@ pub fn generate_visualization_dossier(
     let title = title_opt.unwrap_or(&default_title).to_string();
 
     // 1. Identify recombinant, parental, and reference taxa first so we can prioritize them
+    let mut taxon_idx_map: std::collections::HashMap<&str, usize> =
+        std::collections::HashMap::with_capacity(n);
+    for (idx, t_name) in aln.taxa.iter().enumerate() {
+        taxon_idx_map.entry(t_name.as_str()).or_insert(idx);
+    }
+
     let mut rec_indices = Vec::new();
     let mut rec_taxa_set = HashSet::new();
     let mut parent_taxa_set = HashSet::new();
@@ -42,7 +48,7 @@ pub fn generate_visualization_dossier(
     for ev in &scan_res.events {
         for isolate in &ev.isolates {
             if !rec_taxa_set.contains(isolate) {
-                if let Some(idx) = aln.taxa.iter().position(|t| t == isolate) {
+                if let Some(&idx) = taxon_idx_map.get(isolate.as_str()) {
                     rec_indices.push(idx);
                 }
                 rec_taxa_set.insert(isolate.clone());
@@ -132,14 +138,9 @@ pub fn generate_visualization_dossier(
         parent_colors.insert(name.clone(), col);
     }
 
-    let mut input_order_map = BTreeMap::new();
-    for (idx, t_name) in aln.taxa.iter().enumerate() {
-        input_order_map.entry(t_name.clone()).or_insert(idx);
-    }
-
     let mut taxa_meta = BTreeMap::new();
     for t in &sorted_taxa {
-        let input_order = input_order_map.get(t).copied().unwrap_or(0);
+        let input_order = taxon_idx_map.get(t.as_str()).copied().unwrap_or(0);
         if rec_taxa_set.contains(t) {
             let color = parent_colors
                 .get(t)
@@ -168,7 +169,7 @@ pub fn generate_visualization_dossier(
                     input_order,
                 },
             );
-        } else {
+        } else if n <= 500 || input_order < 16 {
             taxa_meta.insert(
                 t.clone(),
                 TaxonMeta {
@@ -188,10 +189,9 @@ pub fn generate_visualization_dossier(
 
     for ev in &scan_res.events {
         let first_isolate = &ev.isolates[0];
-        let cand_idx = aln
-            .taxa
-            .iter()
-            .position(|t| t == first_isolate)
+        let cand_idx = taxon_idx_map
+            .get(first_isolate.as_str())
+            .copied()
             .unwrap_or(0);
         let home_idx = ev.home_idx.unwrap_or(0);
         let donor_idx_opt = ev.donor_idx;
@@ -420,13 +420,20 @@ pub fn generate_visualization_dossier(
     };
 
     // 5. Build Mosaic Tracks for each taxon
+    let mut events_by_taxon: std::collections::HashMap<&str, Vec<&crate::types::RecombinationEvent>> =
+        std::collections::HashMap::new();
+    for ev in &scan_res.events {
+        for iso in &ev.isolates {
+            events_by_taxon.entry(iso.as_str()).or_default().push(ev);
+        }
+    }
+
     let mut mosaic_taxa = BTreeMap::new();
     for t in &sorted_taxa {
-        let mut t_events: Vec<&crate::types::RecombinationEvent> = scan_res
-            .events
-            .iter()
-            .filter(|e| e.isolates.contains(t))
-            .collect();
+        let mut t_events: Vec<&crate::types::RecombinationEvent> = events_by_taxon
+            .get(t.as_str())
+            .cloned()
+            .unwrap_or_default();
         // Paint broadest events first and narrower nested events on top so nested tracts are never skipped
         t_events.sort_by(|a, b| {
             let span_a = a.u2.saturating_sub(a.u1);
@@ -435,11 +442,19 @@ pub fn generate_visualization_dossier(
         });
 
         if t_events.is_empty() {
-            let meta = taxa_meta.get(t).unwrap();
-            let lineage = if meta.taxon_type == "parent" {
-                format!("{} (Parental Reference)", t)
+            let input_order = taxon_idx_map.get(t.as_str()).copied().unwrap_or(n);
+            if n > 500 && !parent_taxa_set.contains(t) && input_order >= 16 {
+                continue;
+            }
+            let (lineage, color) = if let Some(meta) = taxa_meta.get(t) {
+                let lin = if meta.taxon_type == "parent" {
+                    format!("{} (Parental Reference)", t)
+                } else {
+                    "Homologous".to_string()
+                };
+                (lin, meta.color.clone())
             } else {
-                "Homologous".to_string()
+                ("Homologous".to_string(), "#64748b".to_string())
             };
             mosaic_taxa.insert(
                 t.clone(),
@@ -447,7 +462,7 @@ pub fn generate_visualization_dossier(
                     start: 1,
                     end: l,
                     lineage,
-                    color: meta.color.clone(),
+                    color,
                     is_plateau: None,
                     breakpoint_id: None,
                     event_id: None,
@@ -771,9 +786,9 @@ pub fn generate_visualization_dossier(
         focal_donor_name,
     ) = if let Some(ev) = scan_res.events.first() {
         (
-            aln.taxa
-                .iter()
-                .position(|t| t == &ev.isolates[0])
+            taxon_idx_map
+                .get(ev.isolates[0].as_str())
+                .copied()
                 .unwrap_or(0),
             ev.isolates[0].clone(),
             ev.home_idx.unwrap_or(0),
@@ -947,8 +962,41 @@ pub fn generate_visualization_dossier(
     let p1_end = focal_bp_nt.saturating_sub(1).max(1);
     let p2_start = focal_bp_nt.min(l);
 
-    let coords_p1 = compute_mds_2d(aln, 0, p1_end);
-    let coords_p2 = compute_mds_2d(aln, p2_start.saturating_sub(1), l);
+    let mds_indices: Vec<usize> = if n <= 180 {
+        (0..n).collect()
+    } else {
+        let mut chosen = Vec::with_capacity(180);
+        let mut seen = vec![false; n];
+        let add_idx = |idx: usize, chosen: &mut Vec<usize>, seen: &mut [bool]| {
+            if idx < n && !seen[idx] && chosen.len() < 180 {
+                seen[idx] = true;
+                chosen.push(idx);
+            }
+        };
+        add_idx(focal_cand_idx, &mut chosen, &mut seen);
+        add_idx(focal_home_idx, &mut chosen, &mut seen);
+        add_idx(focal_donor_idx, &mut chosen, &mut seen);
+        for &idx in &rec_indices {
+            add_idx(idx, &mut chosen, &mut seen);
+        }
+        for p_name in &parent_taxa_set {
+            if let Some(&idx) = taxon_idx_map.get(p_name.as_str()) {
+                add_idx(idx, &mut chosen, &mut seen);
+            }
+        }
+        let rem = 180usize.saturating_sub(chosen.len()).max(1);
+        let step = (n / rem).max(1);
+        let mut idx = 0usize;
+        while idx < n && chosen.len() < 180 {
+            add_idx(idx, &mut chosen, &mut seen);
+            idx += step;
+        }
+        chosen.sort_unstable();
+        chosen
+    };
+
+    let coords_p1 = compute_mds_2d(aln, 0, p1_end, &mds_indices);
+    let coords_p2 = compute_mds_2d(aln, p2_start.saturating_sub(1), l, &mds_indices);
 
     let subspaces = VisualizationSubspaces {
         partition_1: coords_p1,
@@ -958,8 +1006,13 @@ pub fn generate_visualization_dossier(
     };
 
     // 9. Time-invariant Canonical Metric Manifold & Chord Colinearity
-    let canonical_manifold =
-        compute_canonical_manifold(aln, focal_cand_idx, focal_home_idx, focal_donor_idx);
+    let canonical_manifold = compute_canonical_manifold(
+        aln,
+        focal_cand_idx,
+        focal_home_idx,
+        focal_donor_idx,
+        &mds_indices,
+    );
 
     // 9B. Genome-wide Recombination Hotspot / Coldspot Flux & Cumulative Strain Landscape
     let recombination_landscape =
@@ -999,6 +1052,7 @@ pub fn generate_visualization_dossier(
     VisualizationDossier {
         metadata,
         taxa: sorted_taxa,
+        input_taxa: if n > 500 { aln.taxa.clone() } else { Vec::new() },
         taxa_meta,
         macro_segments,
         breakpoints,
@@ -1299,37 +1353,38 @@ fn compute_recombination_landscape(
     }
 }
 
-/// Computes 2D Classical MDS coordinates for all taxa over a sliced partition [start_site, end_site)
+/// Computes 2D Classical MDS coordinates for representative taxa over a sliced partition [start_site, end_site)
 fn compute_mds_2d(
     aln: &Alignment,
     start_site: usize,
     end_site: usize,
+    mds_indices: &[usize],
 ) -> BTreeMap<String, Vec<f64>> {
-    let n = aln.num_taxa;
+    let m = mds_indices.len();
     let s_end = end_site.min(aln.length);
     let s_len = s_end.saturating_sub(start_site);
 
     let mut res = BTreeMap::new();
-    if n < 2 || s_len == 0 {
-        for t in &aln.taxa {
-            res.insert(t.clone(), vec![0.0, 0.0]);
+    if m < 2 || s_len == 0 {
+        for &idx in mds_indices {
+            res.insert(aln.taxa[idx].clone(), vec![0.0, 0.0]);
         }
         return res;
     }
 
-    // Subsample sites when N^2 * s_len is large to keep visualization distance calculation < 5 ms
-    let site_stride = if n * n * s_len > 8_000_000 {
+    // Subsample sites when M^2 * s_len is large to keep visualization distance calculation < 5 ms
+    let site_stride = if (m as u64) * (m as u64) * (s_len as u64) > 8_000_000 {
         (s_len / 500).max(1)
     } else {
         1
     };
 
-    // Pairwise Hamming distance matrix
-    let mut d_sq = vec![0.0f64; n * n];
-    for i in 0..n {
-        let row_i = aln.row(i);
-        for j in (i + 1)..n {
-            let row_j = aln.row(j);
+    // Pairwise Hamming distance matrix over mds_indices
+    let mut d_sq = vec![0.0f64; m * m];
+    for i in 0..m {
+        let row_i = aln.row(mds_indices[i]);
+        for j in (i + 1)..m {
+            let row_j = aln.row(mds_indices[j]);
             let mut diff = 0usize;
             let mut valid = 0usize;
             let mut u = start_site;
@@ -1350,44 +1405,44 @@ fn compute_mds_2d(
                 0.0
             };
             let d2 = dist * dist;
-            d_sq[i * n + j] = d2;
-            d_sq[j * n + i] = d2;
+            d_sq[i * m + j] = d2;
+            d_sq[j * m + i] = d2;
         }
     }
 
     // Double centering: B = -0.5 * H @ D_sq @ H
-    let mut row_means = vec![0.0f64; n];
+    let mut row_means = vec![0.0f64; m];
     let mut total_mean = 0.0f64;
-    for i in 0..n {
+    for i in 0..m {
         let mut sum = 0.0;
-        for j in 0..n {
-            sum += d_sq[i * n + j];
+        for j in 0..m {
+            sum += d_sq[i * m + j];
         }
-        row_means[i] = sum / (n as f64);
+        row_means[i] = sum / (m as f64);
         total_mean += sum;
     }
-    total_mean /= (n * n) as f64;
+    total_mean /= (m * m) as f64;
 
-    let mut b = vec![0.0f64; n * n];
-    for i in 0..n {
-        for j in 0..n {
-            b[i * n + j] = -0.5 * (d_sq[i * n + j] - row_means[i] - row_means[j] + total_mean);
+    let mut b = vec![0.0f64; m * m];
+    for i in 0..m {
+        for j in 0..m {
+            b[i * m + j] = -0.5 * (d_sq[i * m + j] - row_means[i] - row_means[j] + total_mean);
         }
     }
 
-    let (evals, v0, v1) = top_two_eigenpairs(&b, n);
+    let (evals, v0, v1) = top_two_eigenpairs(&b, m);
     let lam0 = evals[0].max(0.0).sqrt();
-    let lam1 = if n > 1 {
+    let lam1 = if m > 1 {
         evals[1].max(0.0).sqrt()
     } else {
         0.0
     };
 
-    for i in 0..n {
+    for i in 0..m {
         let x = v0[i] * lam0;
-        let y = if n > 1 { v1[i] * lam1 } else { 0.0 };
+        let y = if m > 1 { v1[i] * lam1 } else { 0.0 };
         res.insert(
-            aln.taxa[i].clone(),
+            aln.taxa[mds_indices[i]].clone(),
             vec![
                 (x * 10000.0).round() / 10000.0,
                 (y * 10000.0).round() / 10000.0,
@@ -1450,22 +1505,23 @@ fn compute_canonical_manifold(
     cand_idx: usize,
     home_idx: usize,
     donor_idx: usize,
+    mds_indices: &[usize],
 ) -> CanonicalManifold {
-    let n = aln.num_taxa;
+    let m = mds_indices.len();
     let l = aln.length;
 
-    let site_stride = if n * n * l > 8_000_000 {
+    let site_stride = if (m as u64) * (m as u64) * (l as u64) > 8_000_000 {
         (l / 500).max(1)
     } else {
         1
     };
 
-    // 1. Whole-alignment pairwise distance matrix D_glob
-    let mut d_glob_sq = vec![0.0f64; n * n];
-    for i in 0..n {
-        let row_i = aln.row(i);
-        for j in (i + 1)..n {
-            let row_j = aln.row(j);
+    // 1. Whole-alignment pairwise distance matrix D_glob over mds_indices
+    let mut d_glob_sq = vec![0.0f64; m * m];
+    for i in 0..m {
+        let row_i = aln.row(mds_indices[i]);
+        for j in (i + 1)..m {
+            let row_j = aln.row(mds_indices[j]);
             let mut diff = 0usize;
             let mut valid = 0usize;
             let mut u = 0usize;
@@ -1486,33 +1542,33 @@ fn compute_canonical_manifold(
                 0.0
             };
             let d2 = dist * dist;
-            d_glob_sq[i * n + j] = d2;
-            d_glob_sq[j * n + i] = d2;
+            d_glob_sq[i * m + j] = d2;
+            d_glob_sq[j * m + i] = d2;
         }
     }
 
     // Double centering: B = -0.5 * H @ D_glob_sq @ H
-    let mut row_means = vec![0.0f64; n];
+    let mut row_means = vec![0.0f64; m];
     let mut total_mean = 0.0f64;
-    for i in 0..n {
+    for i in 0..m {
         let mut sum = 0.0;
-        for j in 0..n {
-            sum += d_glob_sq[i * n + j];
+        for j in 0..m {
+            sum += d_glob_sq[i * m + j];
         }
-        row_means[i] = sum / (n as f64);
+        row_means[i] = sum / (m as f64);
         total_mean += sum;
     }
-    total_mean /= (n * n) as f64;
+    total_mean /= (m * m).max(1) as f64;
 
-    let mut b = vec![0.0f64; n * n];
-    for i in 0..n {
-        for j in 0..n {
-            b[i * n + j] = -0.5 * (d_glob_sq[i * n + j] - row_means[i] - row_means[j] + total_mean);
+    let mut b = vec![0.0f64; m * m];
+    for i in 0..m {
+        for j in 0..m {
+            b[i * m + j] = -0.5 * (d_glob_sq[i * m + j] - row_means[i] - row_means[j] + total_mean);
         }
     }
 
-    let (evals, v0, v1) = top_two_eigenpairs(&b, n);
-    let k_eff = n.min(2);
+    let (evals, v0, v1) = top_two_eigenpairs(&b, m);
+    let k_eff = m.min(2);
     let lam0 = evals[0].max(1e-9);
     let lam1 = if k_eff > 1 {
         evals[1].max(1e-9)
@@ -1524,7 +1580,7 @@ fn compute_canonical_manifold(
     let sqrt_lam1 = lam1.sqrt();
 
     let mut ref_coords = BTreeMap::new();
-    for i in 0..n {
+    for i in 0..m {
         let x = v0[i] * sqrt_lam0;
         let y = if k_eff > 1 {
             v1[i] * sqrt_lam1
@@ -1532,7 +1588,7 @@ fn compute_canonical_manifold(
             0.0
         };
         ref_coords.insert(
-            aln.taxa[i].clone(),
+            aln.taxa[mds_indices[i]].clone(),
             vec![
                 (x * 10000.0).round() / 10000.0,
                 (y * 10000.0).round() / 10000.0,
@@ -1567,10 +1623,10 @@ fn compute_canonical_manifold(
     while p + win <= l {
         let u_mid = p + win / 2;
 
-        // Compute local distance vector d_loc^2 from cand_idx to all taxa
-        let mut d_loc_sq = vec![0.0f64; n];
-        for j in 0..n {
-            let row_j = aln.row(j);
+        // Compute local distance vector d_loc^2 from cand_idx to representative taxa
+        let mut d_loc_sq = vec![0.0f64; m];
+        for j in 0..m {
+            let row_j = aln.row(mds_indices[j]);
             let mut diff = 0usize;
             let mut valid = 0usize;
             for u in p..(p + win) {
@@ -1594,7 +1650,7 @@ fn compute_canonical_manifold(
         // Exact Gower projection: z = 0.5 * Lambda^{-1/2} * V^T * (row_means - d_loc_sq)
         let mut sum0 = 0.0f64;
         let mut sum1 = 0.0f64;
-        for j in 0..n {
+        for j in 0..m {
             let delta = row_means[j] - d_loc_sq[j];
             sum0 += v0[j] * delta;
             if k_eff > 1 {
@@ -1745,5 +1801,32 @@ TTTTTTTTTTTTTTTT
                 assert_eq!(h_seg.color, l_seg.color);
             }
         }
+    }
+
+    #[test]
+    fn test_large_cohort_dossier_scaling() {
+        let mut fasta = String::new();
+        let p1 = "A".repeat(200);
+        let p2 = "C".repeat(200);
+        let rec = format!("{}{}", "A".repeat(100), "C".repeat(100));
+        let out = "T".repeat(200);
+        fasta.push_str(&format!(">Parent_A\n{}\n>Parent_B\n{}\n>Outgroup\n{}\n>Rec_1\n{}\n", p1, p2, out, rec));
+        for i in 4..2000 {
+            let seq = if i % 3 == 0 { &p1 } else if i % 3 == 1 { &p2 } else { &out };
+            fasta.push_str(&format!(">Seq_{}\n{}\n", i, seq));
+        }
+        let aln = parse_fasta(&fasta).unwrap();
+        let engine = RhizAeonEngine::new();
+        let scan_res = engine.scan(&aln);
+        let dossier = generate_visualization_dossier(&aln, &scan_res, Some("Test 2000 Taxa"));
+
+        assert_eq!(dossier.metadata.taxa_count, 2000);
+        assert_eq!(dossier.taxa.len(), 2000);
+        assert_eq!(dossier.input_taxa.len(), 2000);
+        assert!(dossier.taxa_meta.len() < 100);
+        assert!(dossier.sequences.len() <= 360);
+
+        let html = generate_standalone_html(&dossier).unwrap();
+        assert!(html.len() < 1_500_000);
     }
 }

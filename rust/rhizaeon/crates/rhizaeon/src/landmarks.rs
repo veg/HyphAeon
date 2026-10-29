@@ -11,7 +11,14 @@ pub fn compute_pairwise_distance(aln: &Alignment, i: usize, j: usize) -> f64 {
     let mut valid_count = 0usize;
     let mut diff_count = 0usize;
 
-    for u in 0..aln.length {
+    let site_stride = if aln.num_taxa > 500 && aln.length > 512 {
+        (aln.length / 256).max(1)
+    } else {
+        1
+    };
+
+    let mut u = 0usize;
+    while u < aln.length {
         let ci = row_i[u];
         let cj = row_j[u];
         if ci > 0 && cj > 0 {
@@ -20,6 +27,7 @@ pub fn compute_pairwise_distance(aln: &Alignment, i: usize, j: usize) -> f64 {
                 diff_count += 1;
             }
         }
+        u += site_stride;
     }
 
     if valid_count == 0 {
@@ -91,17 +99,58 @@ pub fn compute_scale_invariant_distance_thresholds(aln: &Alignment) -> (f64, f64
         return (sister_floor, clade_floor);
     }
 
-    let total_pairs = (n * (n - 1)) / 2;
-    let max_samples = 2048;
-    let stride = (total_pairs / max_samples).max(1);
-
-    let mut dists = Vec::with_capacity(total_pairs.min(max_samples) + 16);
-    let mut count = 0usize;
+    let max_samples = 2048usize;
+    let mut dists = Vec::with_capacity(max_samples + 16);
     let mut min_pair = (0usize, 0usize, f64::INFINITY);
-    for i in 0..n {
-        for j in (i + 1)..n {
-            count += 1;
-            if count % stride == 0 {
+
+    if n <= 128 {
+        let total_pairs = (n * (n - 1)) / 2;
+        let stride = (total_pairs / max_samples).max(1);
+        let mut count = 0usize;
+        for i in 0..n {
+            for j in (i + 1)..n {
+                count += 1;
+                if count % stride == 0 {
+                    let d = compute_pairwise_distance(aln, i, j);
+                    if d > 0.0 {
+                        dists.push(d);
+                        if d < min_pair.2 {
+                            min_pair = (i, j, d);
+                        }
+                    }
+                }
+            }
+        }
+    } else {
+        let mut sample_indices = Vec::with_capacity(96);
+        let mut seen_haps: std::collections::HashSet<&[u8]> = std::collections::HashSet::with_capacity(96);
+        for i in 0..n.min(24) {
+            if seen_haps.insert(aln.row(i)) {
+                sample_indices.push(i);
+            }
+        }
+        let step = (n / 96).max(1);
+        let mut idx = 0usize;
+        while idx < n && sample_indices.len() < 96 {
+            if seen_haps.insert(aln.row(idx)) {
+                sample_indices.push(idx);
+            }
+            idx += step;
+        }
+        if sample_indices.len() < 48 {
+            for i in 0..n {
+                if sample_indices.len() >= 96 {
+                    break;
+                }
+                if seen_haps.insert(aln.row(i)) {
+                    sample_indices.push(i);
+                }
+            }
+        }
+        for a in 0..sample_indices.len() {
+            let i = sample_indices[a];
+            for b in (a + 1)..sample_indices.len() {
+                let j = sample_indices[b];
                 let d = compute_pairwise_distance(aln, i, j);
                 if d > 0.0 {
                     dists.push(d);
@@ -133,7 +182,9 @@ pub fn compute_scale_invariant_distance_thresholds(aln: &Alignment) -> (f64, f64
     let is_true_sister_min_pair = if idx_01 == 0 && d_p01 <= 0.45 * d_p75 && n >= 4 {
         let (mi, mj, md) = min_pair;
         let mut max_prof_diff = 0.0f64;
-        for k in 0..n {
+        let k_step = (n / 64).max(1);
+        let mut k = 0usize;
+        while k < n {
             if k != mi && k != mj {
                 let dik = compute_pairwise_distance(aln, mi, k);
                 let djk = compute_pairwise_distance(aln, mj, k);
@@ -142,6 +193,7 @@ pub fn compute_scale_invariant_distance_thresholds(aln: &Alignment) -> (f64, f64
                     max_prof_diff = diff;
                 }
             }
+            k += k_step;
         }
         max_prof_diff <= 0.35 * md
     } else {
@@ -330,9 +382,52 @@ pub fn select_landmarks_from_pool(
         return build_full_cohort_landmarks(alignment);
     }
 
-    let pool: Vec<usize> = match pool_opt {
+    let raw_pool: Vec<usize> = match pool_opt {
         Some(p) if !p.is_empty() => p.to_vec(),
         _ => (0..n).collect(),
+    };
+
+    let pool: Vec<usize> = if raw_pool.len() > 256 {
+        let mut sub = Vec::with_capacity(256);
+        let mut seen_haps: std::collections::HashSet<&[u8]> = std::collections::HashSet::with_capacity(256);
+        for &idx in raw_pool.iter().take(32) {
+            if seen_haps.insert(alignment.row(idx)) {
+                sub.push(idx);
+            }
+        }
+        let step = (raw_pool.len() / 256).max(1);
+        for &idx in raw_pool.iter().step_by(step) {
+            if sub.len() >= 256 {
+                break;
+            }
+            if seen_haps.insert(alignment.row(idx)) {
+                sub.push(idx);
+            }
+        }
+        if sub.len() < 128 {
+            for &idx in &raw_pool {
+                if sub.len() >= 256 {
+                    break;
+                }
+                if seen_haps.insert(alignment.row(idx)) {
+                    sub.push(idx);
+                }
+            }
+        }
+        if sub.len() < 16 {
+            for &idx in raw_pool.iter().step_by(step) {
+                if sub.len() >= 256 {
+                    break;
+                }
+                if !sub.contains(&idx) {
+                    sub.push(idx);
+                }
+            }
+        }
+        sub.sort_unstable();
+        sub
+    } else {
+        raw_pool
     };
 
     let pool_len = pool.len();
@@ -342,7 +437,34 @@ pub fn select_landmarks_from_pool(
     // 1. Seed with the clonal medoid of each lineage cluster present in the pool
     // Pure non-recombinant strains minimize mean intra-cluster distance, ensuring
     // every population has a clean clonal representative before farthest-point sampling.
-    let clusters = partition_lineage_clusters(alignment, d_clade);
+    let clusters = if n <= 256 {
+        partition_lineage_clusters(alignment, d_clade)
+    } else {
+        let mut visited = vec![false; pool.len()];
+        let mut sub_clusters = Vec::new();
+        for i_pos in 0..pool.len() {
+            if !visited[i_pos] {
+                let mut comp = Vec::new();
+                let mut queue = vec![i_pos];
+                visited[i_pos] = true;
+                while let Some(curr_pos) = queue.pop() {
+                    let curr = pool[curr_pos];
+                    comp.push(curr);
+                    for j_pos in 0..pool.len() {
+                        if !visited[j_pos]
+                            && compute_pairwise_distance(alignment, curr, pool[j_pos]) <= d_clade
+                        {
+                            visited[j_pos] = true;
+                            queue.push(j_pos);
+                        }
+                    }
+                }
+                comp.sort_unstable();
+                sub_clusters.push(comp);
+            }
+        }
+        sub_clusters
+    };
     let mut selected_indices = Vec::with_capacity(max_k);
 
     for comp in &clusters {

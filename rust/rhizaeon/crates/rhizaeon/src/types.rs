@@ -286,6 +286,8 @@ pub struct RecombinationLandscape {
 pub struct VisualizationDossier {
     pub metadata: VisualizationMetadata,
     pub taxa: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub input_taxa: Vec<String>,
     pub taxa_meta: BTreeMap<String, TaxonMeta>,
     pub macro_segments: Vec<MacroSegment>,
     pub breakpoints: Vec<VisualizationBreakpoint>,

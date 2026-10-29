@@ -172,8 +172,9 @@ impl CumulativeTrajectoryPolisher {
 
             // Spatial extreme-value family-wise correction: L/tau independent spatial blocks
             let n_blocks = ((l as f64) / (tau as f64)).max(1.0);
+            let n_eff = num_taxa.min(256) as f64;
             let eff_alpha_tau =
-                (self.alpha / (2.0 * (num_taxa as f64) * (m_scales as f64) * n_blocks)).max(1e-15);
+                (self.alpha / (2.0 * n_eff * (m_scales as f64) * n_blocks)).max(1e-15);
             let z_crit_tau = normal_ppf(1.0 - eff_alpha_tau) * s2;
 
             let se_tau = sigma_x * (tau as f64).sqrt();
@@ -299,11 +300,12 @@ impl CumulativeTrajectoryPolisher {
         }
 
         let delta_c_max = (max_b - min_b).max(0.0);
-        let eff_alpha = (self.alpha / (2.0 * (n as f64))).max(1e-15);
+        let n_eff = n.min(256);
+        let eff_alpha = (self.alpha / (2.0 * (n_eff as f64))).max(1e-15);
         let z_crit = (-0.5 * (eff_alpha / 2.0).max(1e-15).ln()).sqrt() * s2;
 
         let floor_adaptive = eff_poisson_floor.max(z_crit * sigma_x * (eff_min_len as f64).sqrt());
-        let dyadic_hits = self.dyadic_matched_filter(&x, &cum_x, l, n, sigma_x);
+        let dyadic_hits = self.dyadic_matched_filter(&x, &cum_x, l, n_eff, sigma_x);
 
         if delta_c_max < floor_adaptive && dyadic_hits.is_empty() {
             return Vec::new();
@@ -463,7 +465,7 @@ impl CumulativeTrajectoryPolisher {
 
                 let m_scales = self.dyadic_scales.len().max(1);
                 let eff_alpha_dyadic =
-                    (self.alpha / (2.0 * (n as f64) * (m_scales as f64))).max(1e-15);
+                    (self.alpha / (2.0 * (n_eff as f64) * (m_scales as f64))).max(1e-15);
                 let z_cr = normal_ppf(1.0 - eff_alpha_dyadic) * s2;
                 (z, z_cr, eff_poisson_floor)
             };

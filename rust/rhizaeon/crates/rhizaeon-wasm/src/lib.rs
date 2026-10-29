@@ -25,7 +25,7 @@ pub fn engine_version() -> String {
 #[wasm_bindgen]
 pub fn engine_build_timestamp() -> String {
     option_env!("RHIZAEON_BUILD_DATE")
-        .unwrap_or("2026-10-28")
+        .unwrap_or("2026-10-29")
         .to_string()
 }
 
@@ -224,6 +224,15 @@ pub fn scan_fasta_bundle(
     let html = rhizaeon::generate_standalone_html(&dossier).map_err(|e| JsValue::from_str(&e))?;
     let landscape = dossier.recombination_landscape.clone();
 
+    if res.num_taxa > 500 {
+        res.screening.v_cont.clear();
+        res.screening.v_root.clear();
+        res.screening.r_root.clear();
+        res.screening.gamma_root.clear();
+        res.screening.clonal_backbone_indices.clear();
+        res.screening.candidate_recombinant_indices.clear();
+    }
+
     let bundle = WasmScanBundle {
         result: res,
         html,
@@ -276,6 +285,15 @@ pub fn scan_fasta_bundle_with_progress(
     let html = rhizaeon::generate_standalone_html(&dossier).map_err(|e| JsValue::from_str(&e))?;
     let landscape = dossier.recombination_landscape.clone();
     report_progress(1.0, "Complete");
+
+    if res.num_taxa > 500 {
+        res.screening.v_cont.clear();
+        res.screening.v_root.clear();
+        res.screening.r_root.clear();
+        res.screening.gamma_root.clear();
+        res.screening.clonal_backbone_indices.clear();
+        res.screening.candidate_recombinant_indices.clear();
+    }
 
     let bundle = WasmScanBundle {
         result: res,

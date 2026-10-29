@@ -151,7 +151,9 @@ impl RhizAeonEngine {
             (aln_trimmed.length > 30_000 && n > 12)
                 || (aln_trimmed.length > 50_000)
                 || (aln_trimmed.length > 10_000 && n >= 48)
-                || (aln_trimmed.length >= 10_000 && n * aln_trimmed.length > 2_000_000)
+                || (n >= 500 && aln_trimmed.length > 256)
+                || (aln_trimmed.length >= 10_000
+                    && (n as u64) * (aln_trimmed.length as u64) > 2_000_000)
         });
 
         let (aln, snp_map_opt) = if should_compress && m_inf >= m_min {
@@ -165,7 +167,11 @@ impl RhizAeonEngine {
         // 1. Landmark Selection on Delta^K with adaptive scaling for large cohorts
         report_progress(0.05, "Projecting 4D Buneman manifold & selecting landmarks...");
         let effective_k = if self.target_landmarks == 16 {
-            self.target_landmarks.max(n / 2).min(32).min(n)
+            if n >= 500 {
+                16.min(n)
+            } else {
+                self.target_landmarks.max(n / 2).min(32).min(n)
+            }
         } else {
             self.target_landmarks.max(2).min(n).min(127)
         };
@@ -272,11 +278,21 @@ impl RhizAeonEngine {
                     .partial_cmp(&screening.v_cont[a])
                     .unwrap_or(std::cmp::Ordering::Equal)
             });
+            if n >= 500 {
+                let mut seen_cand_haps: std::collections::HashSet<&[u8]> =
+                    std::collections::HashSet::with_capacity(96);
+                sorted_cands.retain(|&idx| seen_cand_haps.insert(aln.row(idx)));
+                if sorted_cands.len() > 96 {
+                    sorted_cands.truncate(96);
+                }
+            }
             for &c_idx in &sorted_cands {
                 let mut placed = false;
                 for comp in &mut sister_clusters {
                     let rep = comp[0];
-                    if crate::landmarks::is_true_sister_pair(&aln, c_idx, rep, sister_thresh) {
+                    if crate::landmarks::compute_pairwise_distance(&aln, c_idx, rep) < sister_thresh
+                        && crate::landmarks::is_true_sister_pair(&aln, c_idx, rep, sister_thresh)
+                    {
                         comp.push(c_idx);
                         placed = true;
                         break;
@@ -288,8 +304,11 @@ impl RhizAeonEngine {
             }
             let mut filtered_cands = Vec::new();
             for mut comp in sister_clusters {
-                comp.truncate(2);
+                comp.truncate(if n >= 500 { 1 } else { 2 });
                 filtered_cands.extend(comp);
+            }
+            if n >= 500 && filtered_cands.len() > 48 {
+                filtered_cands.truncate(48);
             }
             filtered_cands.sort_unstable();
             if !filtered_cands.is_empty() {
@@ -447,7 +466,7 @@ impl RhizAeonEngine {
         // Replace detected recombinant tracts with gap character `0` in `aln_scrubbed` and rescan
         // so secondary crossovers (e.g. triple crossovers) and split outer Russian-doll cassettes
         // can be resolved cleanly without interference from the primary tract.
-        if !verified_events.is_empty() && l >= 300 {
+        if !verified_events.is_empty() && l >= 300 && n <= 500 {
             report_progress(0.69, "Pass 2B: Forward peeling & secondary mosaic deconvolution...");
             let mut aln_scrubbed = aln.clone();
             let mut any_scrubbed = false;
@@ -638,7 +657,7 @@ impl RhizAeonEngine {
                     frac,
                     &format!("Pass 3: Leave-One-In verification ({}/{} events)...", m_idx + 1, total_loi),
                 );
-                let mut aln_loi = aln.clone();
+                let mut aln_loi_opt: Option<Alignment> = None;
                 let mut modified_loi = false;
 
                 for (k_idx, ev_k) in snapshot_events.iter().enumerate() {
@@ -733,19 +752,45 @@ impl RhizAeonEngine {
                                 None
                             };
 
-                            for t_idx in 0..n {
-                                if t_idx == ev_k.candidate_idx
-                                    || Some(t_idx) == cited_home_carries_k
-                                    || crate::landmarks::compute_pairwise_distance(
-                                        &aln,
-                                        ev_k.candidate_idx,
-                                        t_idx,
-                                    ) < d_sister
-                                {
-                                    for u in s_u..e_u {
-                                        aln_loi.matrix[t_idx * l + u] = 0;
+                            let aln_loi = aln_loi_opt.get_or_insert_with(|| aln.clone());
+                            if n <= 500 {
+                                for t_idx in 0..n {
+                                    if t_idx == ev_k.candidate_idx
+                                        || Some(t_idx) == cited_home_carries_k
+                                        || crate::landmarks::compute_pairwise_distance(
+                                            &aln,
+                                            ev_k.candidate_idx,
+                                            t_idx,
+                                        ) < d_sister
+                                    {
+                                        for u in s_u..e_u {
+                                            aln_loi.matrix[t_idx * l + u] = 0;
+                                        }
+                                        modified_loi = true;
                                     }
-                                    modified_loi = true;
+                                }
+                            } else {
+                                for &t_idx in &[
+                                    Some(ev_k.candidate_idx),
+                                    cited_home_carries_k,
+                                    ev_m.home_idx,
+                                    ev_m.donor_idx,
+                                ] {
+                                    if let Some(ti) = t_idx {
+                                        if ti == ev_k.candidate_idx
+                                            || Some(ti) == cited_home_carries_k
+                                            || crate::landmarks::compute_pairwise_distance(
+                                                &aln,
+                                                ev_k.candidate_idx,
+                                                ti,
+                                            ) < d_sister
+                                        {
+                                            for u in s_u..e_u {
+                                                aln_loi.matrix[ti * l + u] = 0;
+                                            }
+                                            modified_loi = true;
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -754,7 +799,7 @@ impl RhizAeonEngine {
 
                 if !modified_loi {
                     loi_kept.push(ev_m.clone());
-                } else {
+                } else if let Some(ref aln_loi) = aln_loi_opt {
                     let probe_tract = crate::types::PhysicalTract {
                         candidate_idx: ev_m.candidate_idx,
                         home_channel: 0,
@@ -1821,17 +1866,37 @@ fn snap_to_nearest_cohort_parents(
         return;
     }
     let (d_sister, _d_clade) = crate::landmarks::compute_scale_invariant_distance_thresholds(aln);
+    let mut taxon_idx_map: std::collections::HashMap<&str, usize> =
+        std::collections::HashMap::with_capacity(aln.num_taxa);
+    for (idx, name) in aln.taxa.iter().enumerate() {
+        taxon_idx_map.insert(name.as_str(), idx);
+    }
     let mut is_recombinant = vec![false; aln.num_taxa];
     for ev in events.iter() {
         if ev.candidate_idx < aln.num_taxa {
             is_recombinant[ev.candidate_idx] = true;
         }
         for iso in &ev.isolates {
-            if let Some(idx) = aln.taxa.iter().position(|t| t == iso) {
+            if let Some(&idx) = taxon_idx_map.get(iso.as_str()) {
                 is_recombinant[idx] = true;
             }
         }
     }
+    let cohort_sample: Vec<usize> = if aln.num_taxa <= 512 {
+        (0..aln.num_taxa).collect()
+    } else {
+        let t_stride = (aln.num_taxa / 256).max(1);
+        let mut s = Vec::with_capacity(300);
+        for idx in 0..aln.num_taxa.min(32) {
+            s.push(idx);
+        }
+        for idx in (0..aln.num_taxa).step_by(t_stride) {
+            s.push(idx);
+        }
+        s.sort_unstable();
+        s.dedup();
+        s
+    };
 
     for ev in events.iter_mut() {
         let c_idx = ev.candidate_idx;
@@ -1873,7 +1938,7 @@ fn snap_to_nearest_cohort_parents(
                         let mut best_diffs = if dg_is_rec { usize::MAX } else { cur_diffs };
                         let mut best_metrics: Option<(usize, f64, f64, f64, f64)> = None;
 
-                        for t in 0..aln.num_taxa {
+                        for &t in &cohort_sample {
                             if t == c_idx
                                 || t == hg
                                 || t == dg
@@ -1991,7 +2056,7 @@ fn snap_to_nearest_cohort_parents(
                     let mut best_diffs = if hg_is_rec { usize::MAX } else { cur_diffs };
                     let mut best_metrics: Option<(usize, f64, f64, f64, f64)> = None;
 
-                    for t in 0..aln.num_taxa {
+                    for &t in &cohort_sample {
                         if t == c_idx
                             || t == hg
                             || Some(t) == ev.donor_idx
@@ -2106,17 +2171,37 @@ fn prune_unresolved_recombinant_parent_mirrors(
                 })
         });
 
+        let mut taxon_idx_map: std::collections::HashMap<&str, usize> =
+            std::collections::HashMap::with_capacity(aln.num_taxa);
+        for (idx, name) in aln.taxa.iter().enumerate() {
+            taxon_idx_map.insert(name.as_str(), idx);
+        }
         let mut is_recombinant = vec![false; aln.num_taxa];
         for ev in events.iter() {
             if ev.candidate_idx < aln.num_taxa {
                 is_recombinant[ev.candidate_idx] = true;
             }
             for iso in &ev.isolates {
-                if let Some(idx) = aln.taxa.iter().position(|t| t == iso) {
+                if let Some(&idx) = taxon_idx_map.get(iso.as_str()) {
                     is_recombinant[idx] = true;
                 }
             }
         }
+        let cohort_sample: Vec<usize> = if aln.num_taxa <= 512 {
+            (0..aln.num_taxa).collect()
+        } else {
+            let t_stride = (aln.num_taxa / 256).max(1);
+            let mut s = Vec::with_capacity(300);
+            for idx in 0..aln.num_taxa.min(32) {
+                s.push(idx);
+            }
+            for idx in (0..aln.num_taxa).step_by(t_stride) {
+                s.push(idx);
+            }
+            s.sort_unstable();
+            s.dedup();
+            s
+        };
 
         let mut drop_flags = vec![false; events.len()];
         for i in 0..events.len() {
@@ -2155,7 +2240,7 @@ fn prune_unresolved_recombinant_parent_mirrors(
                             let d_dist_in = (d_diffs_in as f64) / (d_val_in as f64);
                             let h_dist_out = (h_diffs_out as f64) / (h_val_out as f64);
                             let mut dominated_by_single_pure = false;
-                            for t in 0..aln.num_taxa {
+                            for &t in &cohort_sample {
                                 if t == c_idx || t == hg || t == dg || is_recombinant[t] {
                                     continue;
                                 }
@@ -2380,7 +2465,12 @@ fn group_ancestral_events(
     let mut active_isolate_events: Vec<(Option<usize>, Option<usize>, usize, usize, Vec<String>)> =
         grouped
             .iter()
-            .map(|ev| (ev.home_idx, ev.donor_idx, ev.u1, ev.u2, ev.isolates.clone()))
+            .map(|ev| {
+                let mut isos = ev.isolates.clone();
+                isos.sort();
+                isos.dedup();
+                (ev.home_idx, ev.donor_idx, ev.u1, ev.u2, isos)
+            })
             .collect();
 
     // Cohort Roster Recruitment (DIR-RHIZ-PAFF-013.9)
@@ -2400,6 +2490,9 @@ fn group_ancestral_events(
             if e_idx <= s_idx {
                 continue;
             }
+            g.isolates.sort();
+            g.isolates.dedup();
+            let initial_isos = g.isolates.clone();
             let home_row = aln.row(hg);
             let donor_row_opt = g.donor_idx.map(|dg| aln.row(dg));
             let w_loc = (e_idx - s_idx).clamp(300, 1000);
@@ -2408,7 +2501,7 @@ fn group_ancestral_events(
 
             for t_idx in 0..aln.num_taxa {
                 let t_name = &aln.taxa[t_idx];
-                if g.isolates.contains(t_name)
+                if initial_isos.binary_search(t_name).is_ok()
                     || *t_name == g.home_name
                     || *t_name == g.donor_name
                     || Some(t_idx) == g.home_idx
@@ -2424,7 +2517,7 @@ fn group_ancestral_events(
                         active_isolate_events
                             .iter()
                             .any(|(oh_opt, od_opt, ou1, ou2, isos)| {
-                                if !isos.contains(t_name) {
+                                if isos.binary_search(t_name).is_err() {
                                     return false;
                                 }
                                 match (oh_opt, od_opt) {
@@ -2476,7 +2569,7 @@ fn group_ancestral_events(
                 let disjoint_tracts: Vec<(usize, usize)> = active_isolate_events
                     .iter()
                     .filter_map(|(_oh, _od, ou1, ou2, isos)| {
-                        if isos.contains(t_name) && (*ou2 < g.u1 || *ou1 > g.u2) {
+                        if isos.binary_search(t_name).is_ok() && (*ou2 < g.u1 || *ou1 > g.u2) {
                             Some((ou1.saturating_sub(1), (*ou2).min(aln.length)))
                         } else {
                             None
@@ -2684,8 +2777,6 @@ fn group_ancestral_events(
                     } else {
                         1.0
                     };
-                    let (_d_sister, d_clade) =
-                        crate::landmarks::compute_scale_invariant_distance_thresholds(aln);
                     if dist_tr_c < dist_tr_h
                         && dist_tr_h > dist_fl_h
                         && dist_tr_h > dist_loc_fl_h
@@ -2716,6 +2807,8 @@ fn group_ancestral_events(
         if g.isolates.is_empty() {
             g.isolates.push(g.candidate_name.clone());
         }
+        g.isolates.sort();
+        g.isolates.dedup();
     }
 
     // Sort grouped events by statistical significance (lowest p-value first, highest z-phys tiebreaker)
@@ -2740,7 +2833,7 @@ fn group_ancestral_events(
             let shared_isolates = ev
                 .isolates
                 .iter()
-                .filter(|iso| existing.isolates.contains(iso))
+                .filter(|iso| existing.isolates.binary_search(iso).is_ok())
                 .count();
             let min_iso = ev.isolates.len().min(existing.isolates.len()).max(1);
             let union_iso = (ev.isolates.len() + existing.isolates.len() - shared_isolates).max(1);

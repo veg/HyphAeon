@@ -50,22 +50,23 @@ pub fn count_parsimony_informative_sites(aln: &Alignment) -> usize {
         return 0;
     }
 
+    let mut char_counts = vec![[0u32; 5]; aln.length];
+    for i in 0..aln.num_taxa {
+        let row = aln.row(i);
+        for u in 0..aln.length {
+            let c = (row[u] as usize).min(4);
+            char_counts[u][c] += 1;
+        }
+    }
+
     let mut count = 0;
     for u in 0..aln.length {
-        let mut char_counts = [0usize; 5];
-        for i in 0..aln.num_taxa {
-            let c = aln.get(i, u) as usize;
-            char_counts[c] += 1;
-        }
-
-        // Check valid characters 1..4
         let mut states_with_ge_2 = 0;
         for c in 1..=4 {
-            if char_counts[c] >= 2 {
+            if char_counts[u][c] >= 2 {
                 states_with_ge_2 += 1;
             }
         }
-
         if states_with_ge_2 >= 2 {
             count += 1;
         }
@@ -92,13 +93,32 @@ pub fn trim_coverage_envelope(aln: &Alignment) -> (Alignment, usize) {
         for i in 0..aln.num_taxa {
             if aln.get(i, u) > 0 {
                 valid_taxa += 1;
+                if valid_taxa >= k_min {
+                    break;
+                }
             }
         }
         if valid_taxa >= k_min {
-            if first_col.is_none() {
-                first_col = Some(u);
+            first_col = Some(u);
+            break;
+        }
+    }
+
+    if let Some(first) = first_col {
+        for u in (first..aln.length).rev() {
+            let mut valid_taxa = 0;
+            for i in 0..aln.num_taxa {
+                if aln.get(i, u) > 0 {
+                    valid_taxa += 1;
+                    if valid_taxa >= k_min {
+                        break;
+                    }
+                }
             }
-            last_col = Some(u);
+            if valid_taxa >= k_min {
+                last_col = Some(u);
+                break;
+            }
         }
     }
 
@@ -120,19 +140,21 @@ pub fn trim_coverage_envelope(aln: &Alignment) -> (Alignment, usize) {
 /// and a vector mapping each compressed column index (0-based) to its original 0-based coordinate.
 /// A site is parsimony-informative if at least two distinct valid nucleotide states (1..4) each appear in >= 2 taxa.
 pub fn extract_informative_snp_alignment(aln: &Alignment) -> (Alignment, Vec<usize>) {
-    let mut snp_map = Vec::new();
-
-    for u in 0..aln.length {
-        let mut char_counts = [0usize; 5];
-        for i in 0..aln.num_taxa {
-            let c = aln.get(i, u) as usize;
-            char_counts[c] += 1;
+    let mut char_counts = vec![[0u32; 5]; aln.length];
+    for i in 0..aln.num_taxa {
+        let row = aln.row(i);
+        for u in 0..aln.length {
+            let c = (row[u] as usize).min(4);
+            char_counts[u][c] += 1;
         }
+    }
 
+    let mut snp_map = Vec::new();
+    for u in 0..aln.length {
         let retain_site = if aln.num_taxa <= 32 {
             let mut distinct_states = 0;
             for c in 1..=4 {
-                if char_counts[c] >= 1 {
+                if char_counts[u][c] >= 1 {
                     distinct_states += 1;
                 }
             }
@@ -140,7 +162,7 @@ pub fn extract_informative_snp_alignment(aln: &Alignment) -> (Alignment, Vec<usi
         } else {
             let mut states_with_ge_2 = 0;
             for c in 1..=4 {
-                if char_counts[c] >= 2 {
+                if char_counts[u][c] >= 2 {
                     states_with_ge_2 += 1;
                 }
             }
@@ -152,13 +174,47 @@ pub fn extract_informative_snp_alignment(aln: &Alignment) -> (Alignment, Vec<usi
         }
     }
 
+    if aln.num_taxa >= 500 && snp_map.len() > 256 {
+        let second_max_count = |u: usize| -> u32 {
+            let mut c = [
+                char_counts[u][1],
+                char_counts[u][2],
+                char_counts[u][3],
+                char_counts[u][4],
+            ];
+            c.sort_unstable();
+            c[2]
+        };
+        let n_bins = 64usize;
+        let per_bin = 4usize;
+        let total_snps = snp_map.len();
+        let mut subsampled = Vec::with_capacity(256);
+        for b in 0..n_bins {
+            let start = (b * total_snps) / n_bins;
+            let end = (((b + 1) * total_snps) / n_bins).max(start + 1).min(total_snps);
+            let mut bin_sites: Vec<usize> = snp_map[start..end].to_vec();
+            bin_sites.sort_by(|&ua, &ub| {
+                second_max_count(ub)
+                    .cmp(&second_max_count(ua))
+                    .then_with(|| ua.cmp(&ub))
+            });
+            bin_sites.truncate(per_bin);
+            bin_sites.sort_unstable();
+            subsampled.extend(bin_sites);
+        }
+        subsampled.sort_unstable();
+        subsampled.dedup();
+        snp_map = subsampled;
+    }
+
     let m = snp_map.len();
     let num_taxa = aln.num_taxa;
     let mut new_matrix = Vec::with_capacity(num_taxa * m);
 
     for i in 0..num_taxa {
+        let row = aln.row(i);
         for &u in &snp_map {
-            new_matrix.push(aln.get(i, u));
+            new_matrix.push(row[u]);
         }
     }
 
